@@ -17,7 +17,7 @@ import kotlinx.serialization.json.JsonObject
 
 const val DEFAULT_BASE_URL = "http://192.168.0.34:8000"
 
-enum class Screen { Enroll, Home, Host, Join, Run, Result }
+enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result }
 
 data class Enrollment(val deviceId: String, val serverUrl: String, val displayName: String, val attested: Boolean, val securityLevel: String)
 
@@ -34,13 +34,18 @@ data class UiState(
     val info: String? = null,
     /** null = not checked yet; true = /v1/config matches PopConstants (§1). */
     val configOk: Boolean? = null,
+    /** Guest: invite decoded from NFC / QR (§3.2). */
+    val joinInvite: Invite? = null,
+    val role: String? = null,
+    val confirmSent: Boolean = false,
 )
 
 /**
  * App shell state. Enrollment is keyed on the device key only; a server that does not
  * know the device rejects signed calls (unknown_device) and the user re-enrolls.
  * Host/Join need a matching /v1/config (§1), checked at startup and on ping.
- * Pairing / run / result are placeholders here; the session flow (§9.2) plugs in later.
+ * Pairing (§3): Host -> Inviting (QR + HCE), Join -> Scanning (NFC reader + camera),
+ * both -> Confirm. Run / result plug in after Confirm (Screen.Run).
  */
 class PopController(
     private val keystore: DeviceKeystore,
@@ -81,6 +86,7 @@ class PopController(
 
     fun go(s: Screen) {
         if (s != Screen.Host) job?.cancel()
+        if (s != Screen.Host) InviteBeacon.publish(null)
         _state.update { it.copy(screen = s, error = null, status = "") }
     }
 
@@ -192,31 +198,138 @@ class PopController(
         }
     }
 
-    /** Host: POST /v1/session, then long-poll the view until the screen is left. */
+    /**
+     * Host: POST /v1/session, publish the invite (QR + HCE), long-poll until a guest joins.
+     * Token lives 120 s; an expired, unjoined session is replaced by a fresh one.
+     */
     fun host() {
         go(Screen.Host)
-        _state.update { it.copy(invite = null, session = null) }
+        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false) }
         run("creating session") { api ->
             requireConfig(api)
-            val inv = api.createSession()
-            _state.update { it.copy(invite = inv, status = "waiting for guest") }
-            var seq: Long? = null
-            var misses = 0
-            while (true) {
-                val v = try {
-                    api.session(inv.session_id, after = seq, timeoutS = 25)
-                } catch (e: HttpRequestTimeoutException) {
-                    if (++misses > 3) throw e
-                    delay(500); continue
-                } catch (e: SocketTimeoutException) {
-                    if (++misses > 3) throw e
-                    delay(500); continue
+            val me = keystore.load() ?: error("not enrolled")
+            try {
+                while (true) {
+                    val inv = api.createSession()
+                    val bytes = inviteBytes(inv, me.pubkey)
+                    InviteBeacon.publish(bytes)
+                    _state.update { it.copy(invite = inv.copy(invite_b64url = bytes.toB64Url()), session = null, status = "waiting for guest") }
+                    val v = pollUntil(api, inv.session_id, deadlineMs = inv.expires_at_ms) { it.partner != null || it.state == "aborted" }
+                    if (v?.partner != null) {
+                        InviteBeacon.publish(null)
+                        _state.update { it.copy(session = v, screen = Screen.Confirm, status = "guest joined") }
+                        return@run
+                    }
+                    _state.update { it.copy(status = "invite expired, new session") }
                 }
-                misses = 0
-                seq = v.seq
-                _state.update { it.copy(session = v, status = "state ${v.state}") }
-                if (v.state == "aborted" || v.state == "done") break
+            } finally {
+                InviteBeacon.publish(null)
             }
+        }
+    }
+
+    /** Server bytes when present (§9 invite_b64url), else built locally from the create response. */
+    private fun inviteBytes(inv: CreateSessionResp, hostPub: ByteArray): ByteArray {
+        val local = Invite(inv.session_id, inv.join_token, inv.expires_at_ms / 1000, Invite.keyHint(hostPub))
+        val srv = inv.invite_b64url?.let { runCatching { Invite.decode(it.fromB64Url()) }.getOrNull() } ?: return local.encode()
+        check(srv.sessionId == inv.session_id && srv.joinToken == inv.join_token) { "server invite does not match session" }
+        check(srv.hostHint.contentEquals(local.hostHint)) { "server invite key hint is not ours" }
+        return srv.encode()
+    }
+
+    /** Long-poll the view until [done] or [deadlineMs] (unix ms). null = deadline hit first. */
+    private suspend fun pollUntil(api: PopApi, id: String, deadlineMs: Long = Long.MAX_VALUE, done: (SessionView) -> Boolean): SessionView? {
+        var seq: Long? = null
+        var misses = 0
+        while (true) {
+            val left = deadlineMs - unixMs()
+            if (left <= 0) return null
+            val v = try {
+                api.session(id, after = seq, timeoutS = (left / 1000).coerceIn(1, 25).toInt())
+            } catch (e: HttpRequestTimeoutException) {
+                if (++misses > 3) throw e
+                delay(500); continue
+            } catch (e: SocketTimeoutException) {
+                if (++misses > 3) throw e
+                delay(500); continue
+            }
+            misses = 0
+            seq = v.seq
+            _state.update { it.copy(session = v, status = "state ${v.state}") }
+            if (done(v)) return v
+            if (v.state == "aborted" || v.state == "done") return v
+        }
+    }
+
+    // ---- guest (§3.3) ----
+
+    /** QR text from the scanner. Non-pop codes are ignored silently. */
+    fun onQrText(text: String) {
+        if (!text.trim().startsWith(Invite.QR_PREFIX, ignoreCase = true)) return
+        acceptInvite { Invite.parseValid(text, unixMs()) }
+    }
+
+    /** 49 bytes from the NFC SELECT response. */
+    fun onNfcInvite(bytes: ByteArray) = acceptInvite { Invite.decodeValid(bytes, unixMs()) }
+
+    fun onNfcError(code: String) {
+        if (state.value.screen == Screen.Join && !state.value.busy) _state.update { it.copy(status = "nfc: $code") }
+    }
+
+    private fun acceptInvite(parse: () -> Invite) {
+        val s = state.value
+        if (s.screen != Screen.Join || s.busy) return
+        val inv = try {
+            parse()
+        } catch (e: InviteException) {
+            _state.update { it.copy(error = e.code, status = e.message ?: "") }
+            return
+        }
+        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null) }
+        run("joining ${inv.sessionId.take(8)}") { api ->
+            var v = api.join(inv.sessionId, inv.joinToken)
+            _state.update { it.copy(session = v) }
+            if (v.partner?.pubkey == null) {
+                v = pollUntil(api, inv.sessionId, deadlineMs = unixMs() + 10_000) { it.partner?.pubkey != null }
+                    ?: error("host not visible after join")
+            }
+            val pk = v.partner?.pubkey ?: error("no partner pubkey")
+            if (!inv.matchesHost(pk)) {
+                runCatching { api.abort(inv.sessionId) }
+                _state.update { it.copy(error = "partner_mismatch", status = "Invite does not match this partner.") }
+                return@run
+            }
+            _state.update { it.copy(session = v, screen = Screen.Confirm, status = "joined") }
+        }
+    }
+
+    // ---- confirm (§3.3 step 3) ----
+
+    /** POST confirm, then wait for both -> state confirmed, nonce known. Then Run. */
+    fun confirmPartner() {
+        val id = state.value.session?.session_id ?: return
+        run("confirming") { api ->
+            val v0 = api.confirm(id)
+            _state.update { it.copy(session = v0, confirmSent = true, status = "waiting for partner to confirm") }
+            val v = if (v0.state == "confirmed" || v0.nonce != null) v0
+            else pollUntil(api, id) { it.state == "confirmed" || it.nonce != null } ?: error("confirm timed out")
+            if (v.state == "aborted") {
+                _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
+                return@run
+            }
+            _state.update { it.copy(session = v, screen = Screen.Run, status = "confirmed") }
+        }
+    }
+
+    /** Leave pairing: best-effort abort of the server session. */
+    fun abortPairing() {
+        val id = state.value.session?.session_id ?: state.value.invite?.session_id
+        go(Screen.Home)
+        _state.update { it.copy(joinInvite = null, invite = null, session = null, confirmSent = false) }
+        if (id == null) return
+        val api = api()
+        scope.launch {
+            try { api.abort(id) } catch (e: CancellationException) { throw e } catch (_: Throwable) {} finally { api.close() }
         }
     }
 }

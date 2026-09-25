@@ -2,7 +2,7 @@
 
 Proof-of-presence phone app. Contract: `../docs/pop-contract.md`.
 
-Now: enroll (Keystore P-256, StrongBox if present, attestation chain), signed Ktor client for the whole contract API, Home with Host / Join. Host creates a session and long-polls it. Join, Run, Result are placeholders.
+Now: enroll (Keystore P-256, StrongBox if present, attestation chain), signed Ktor client for the whole contract API, Home with Host / Join. Pairing (§3): Host shows the invite as QR and serves it over NFC HCE; Join reads it by NFC reader mode or camera QR; both see a Confirm screen. Run, Result are placeholders.
 
 Layout (`composeApp/src/`):
 - `commonMain/.../pop/` — `App.kt` (Compose), `PopController.kt` (screens, enroll), `PopApi.kt` (wire types + client, §2.3 signing), `Signing.kt` (`DeviceKey`/`DeviceKeystore`, request message, DER -> r||s), `Bytes.kt` (hex, base64, SHA-256), `Platform.kt` (expect decls).
@@ -15,6 +15,16 @@ Enrollment is per server URL. Changing the URL or tapping Re-enroll makes a new 
 If attested keygen fails (some emulators), the app makes a plain key and sends `chain: null`. The server then needs `POP_ALLOW_UNATTESTED=1`.
 
 `security_level`: from `KeyInfo.securityLevel` on API 31+. Below 31: `software` if not in secure hardware, `strongbox` if StrongBox keygen worked, else `tee`.
+
+## Pairing
+
+- `Invite.kt` (commonMain): 49-byte codec, `pop1:` QR form, expiry, host key hint, APDU framing (`PopApdu`). Tests: `InviteCodecTest` (vector from `server/pop/invite.py`).
+- `Pairing.android.kt`: `PopHceService` (AID `F0454E434F504F50`, `res/xml/apduservice.xml`, category other) answers SELECT with `InviteBeacon.current() ‖ 9000`, else `6A82`. The beacon is set only while the host is on the invite screen. Host screen also sets the service as preferred (`CardEmulation.setPreferredService`).
+- Guest: `enableReaderMode(NFC_A | SKIP_NDEF_CHECK | NO_PLATFORM_SOUNDS)` while on Join, `IsoDep.transceive(SELECT)`. QR: CameraX preview + ML Kit barcode (bundled model). QR render: ZXing core.
+- NFC off: "Turn on NFC" button, QR still works. No NFC: QR only. State rechecked on resume.
+- Host invite bytes: server `invite_b64url` when present (checked against session id, token, own key hint), else built locally. Expired unjoined invite -> new session automatically.
+- Guest checks `sha256(partner pubkey)[:8]` == invite hint after join; mismatch -> abort, `partner_mismatch`.
+- Cancel on Host/Join/Confirm aborts the server session (best effort).
 
 ## Build
 

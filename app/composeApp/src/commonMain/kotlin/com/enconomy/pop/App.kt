@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -49,7 +50,8 @@ fun App(c: PopController) {
                     Screen.Enroll -> Enroll(s, c)
                     Screen.Home -> Home(s, c)
                     Screen.Host -> Host(s, c)
-                    Screen.Join -> Placeholder("Join", "Tap the host phone (NFC) or scan its QR. Not wired yet.", c)
+                    Screen.Join -> Join(s, c)
+                    Screen.Confirm -> Confirm(s, c)
                     Screen.Run -> Placeholder("Run", "Arm, play, record, measure. Not wired yet.", c)
                     Screen.Result -> Placeholder("Result", "NEAR / NOT_NEAR + flight_cm. Not wired yet.", c)
                 }
@@ -102,18 +104,78 @@ private fun Home(s: UiState, c: PopController) {
 @Composable
 private fun Host(s: UiState, c: PopController) {
     Text("Host", fontWeight = FontWeight.Medium)
+    val nfc = rememberNfcState()
     val inv = s.invite
     if (inv == null) Text("creating session…") else {
-        Label("session", inv.session_id)
-        inv.invite_b64url?.let { Label("invite (QR payload)", "pop1:$it") }
+        val qr = inv.invite_b64url?.let { "pop1:$it" }
+        if (qr != null) {
+            HceForeground()
+            Text(
+                when (nfc) {
+                    NfcState.On -> "Hold the other phone to the back of this one, or let it scan the QR."
+                    NfcState.Off -> "NFC is off. Let the other phone scan the QR."
+                    NfcState.Unsupported -> "No NFC here. Let the other phone scan the QR."
+                },
+                fontSize = 13.sp,
+            )
+            if (nfc == NfcState.Off) OutlinedButton(onClick = ::openNfcSettings) { Text("Turn on NFC") }
+            QrCode(qr, Modifier.fillMaxWidth(0.8f).aspectRatio(1f))
+            Label("session", inv.session_id)
+            Label("invite", qr)
+        }
     }
-    s.session?.let { v ->
-        Label("state", "${v.state} (seq ${v.seq}, attempt ${v.attempt})")
-        v.partner?.let { p -> Label("partner", "${p.display_name} · ${p.model} · ${if (p.attested) "attested" else "unattested"}") }
+    s.session?.let { v -> Label("state", "${v.state} (seq ${v.seq}, attempt ${v.attempt})") }
+    OutlinedButton(onClick = c::abortPairing) { Text("Cancel") }
+}
+
+@Composable
+private fun Join(s: UiState, c: PopController) {
+    Text("Join", fontWeight = FontWeight.Medium)
+    val nfc = rememberNfcState()
+    if (!s.busy) {
+        if (nfc == NfcState.On) NfcInviteReader(onInvite = c::onNfcInvite, onError = c::onNfcError)
+        Text(
+            when (nfc) {
+                NfcState.On -> "Tap the host phone back to back, or scan its QR."
+                NfcState.Off -> "NFC is off. Scan the host's QR."
+                NfcState.Unsupported -> "No NFC here. Scan the host's QR."
+            },
+            fontSize = 13.sp,
+        )
+        if (nfc == NfcState.Off) OutlinedButton(onClick = ::openNfcSettings) { Text("Turn on NFC") }
+        QrScanner(onText = c::onQrText, modifier = Modifier.fillMaxWidth().aspectRatio(1f))
+    } else {
+        s.joinInvite?.let { Label("invite", "session ${it.sessionId}") }
+    }
+    OutlinedButton(onClick = c::abortPairing) { Text("Cancel") }
+}
+
+@Composable
+private fun Confirm(s: UiState, c: PopController) {
+    val v = s.session
+    val p = v?.partner
+    Text("Confirm partner", fontWeight = FontWeight.Medium)
+    if (v == null || p == null) {
+        Text("no partner")
+    } else {
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(p.display_name ?: "(no name)", style = MaterialTheme.typography.titleLarge)
+                Label("model", p.model ?: "?")
+                Label("key", if (p.attested) "attested" else "unattested")
+                Label("device", p.device_id)
+            }
+        }
+        Text("Is this the phone next to you? You are ${if (s.role == "A") "host (A)" else "guest (B)"}.", fontSize = 13.sp)
+        val mine = v.role ?: s.role
+        val other = if (mine == "A") "B" else "A"
+        if (v.confirmed[other] == true) Text("Partner confirmed.", fontSize = 13.sp)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = { c.go(Screen.Home) }) { Text("Back") }
-        if (s.session?.partner != null) Button(onClick = { c.go(Screen.Run) }) { Text("Continue") }
+        OutlinedButton(onClick = c::abortPairing) { Text("Cancel") }
+        Button(onClick = c::confirmPartner, enabled = !s.busy && !s.confirmSent && p != null) {
+            Text(if (s.confirmSent) "Waiting…" else "Confirm")
+        }
     }
 }
 
