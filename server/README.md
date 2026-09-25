@@ -17,7 +17,7 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_DB` | `data/pop.sqlite` | SQLite file. `data/` is gitignored. |
 | `POP_DATA_DIR` | `data/` | `sessions/<id>/result.json` and uploaded `recording_<role>_<attempt>.wav`. |
 | `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` (Android) or `app_attest: null` (iOS) at enroll and stores the device as `attested: false`. Use it for emulators, the iOS simulator, a free Apple personal team and fake phones. |
-| `POP_IOS_APP_ID` | unset | App Attest appId, `TEAMID.com.enconomy.pop`. Unset = every iOS attestation is refused. |
+| `POP_IOS_APP_ID` | unset | App Attest appId, `TEAMID.<BUNDLE_ID>` (e.g. `ABCDE12345.com.enconomy.pop`; must match the iOS build's `TEAM_ID` and `BUNDLE_ID`). Unset = every iOS attestation is refused. |
 | `POP_IOS_ROOT_PEM` | Apple root | Path to a PEM that replaces the embedded Apple App Attestation Root CA (tests pass their own root through `Settings`). |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |

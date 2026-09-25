@@ -95,6 +95,9 @@ actual fun nfcCanHost(): Boolean = false
 
 actual fun openNfcSettings() = openAppSettings()
 
+/** No NSLog varargs: a Kotlin String through C varargs crashes. */
+private fun log(msg: String) = NSLog("pop ${msg.replace("%", "%%")}")
+
 private fun openAppSettings() {
     NSURL.URLWithString(UIApplicationOpenSettingsURLString)?.let {
         UIApplication.sharedApplication.openURL(it, emptyMap<Any?, Any>(), null)
@@ -158,7 +161,7 @@ private class NfcReader(
             NFCReaderSessionInvalidationErrorUserCanceled, NFCReaderSessionInvalidationErrorFirstNDEFTagRead -> {}
             NFCReaderSessionInvalidationErrorSessionTimeout -> onError("nfc_timeout")
             else -> {
-                NSLog("pop nfc invalidated: %@", didInvalidateWithError.localizedDescription)
+                log("nfc invalidated: ${didInvalidateWithError.localizedDescription}")
                 onError("nfc_session_${didInvalidateWithError.code}")
             }
         }
@@ -192,7 +195,7 @@ private class NfcReader(
 
     private fun onResponse(session: NFCTagReaderSession, data: NSData?, sw1: UByte, sw2: UByte, aerr: NSError?) {
         if (aerr != null) {
-            NSLog("pop nfc apdu: %@", aerr.localizedDescription)
+            log("nfc apdu: ${aerr.localizedDescription}")
             fail(session, "nfc_read_failed", "Read failed. Try again.")
             return
         }
@@ -357,7 +360,7 @@ private fun CameraQr(onText: (String) -> Unit, modifier: Modifier) {
             val dev = AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)
             val input = dev?.let { AVCaptureDeviceInput.deviceInputWithDevice(it, null) }
             if (input == null) {
-                NSLog("pop qr: no camera input")
+                log("qr: no camera input")
                 return@dispatch_async
             }
             session.beginConfiguration()

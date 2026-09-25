@@ -8,7 +8,7 @@ Layout (`composeApp/src/`):
 - `commonMain/.../pop/` — `App.kt` (Compose), `PopController.kt` (screens, enroll, pairing), `RunFlow.kt` (`PopRun`: arm .. result, §4-§8), `Transcript.kt` (269-byte transcript, 71-byte commit, §7), `AudioRun.kt` / `ClockSync.kt` (timing), `PopApi.kt` (wire types + client, §2.3 signing), `Signing.kt` (`DeviceKey`/`DeviceKeystore`, request message, DER -> r||s), `Bytes.kt` (hex, base64, SHA-256), `Platform.kt` (expect decls).
 - `commonMain/.../pop/dsp/` — DSP lane only (§6).
 - `androidMain/.../pop/` — `AndroidDeviceKeystore.kt`, `MainActivity.kt`, `Platform.android.kt`, manifest, cleartext config.
-- `iosMain/.../pop/` — `MainViewController.kt` (Compose host), `Platform.ios.kt`, `AudioEngine.ios.kt`, `DeviceKeystore.ios.kt`, `Pairing.ios.kt`. `iosTest/` — `readTestResource` actual.
+- `iosMain/.../pop/` — `MainViewController.kt` (Compose host), `Platform.ios.kt`, `AudioEngine.ios.kt`, `DeviceKeystore.ios.kt`, `Pairing.ios.kt`. `iosTest/` — `readTestResource` actual, audio engine and QR/pairing tests (`AudioEngineIosTest.kt`, `PairingIosTest.kt`).
 - `commonTest/` — `kotlin("test")`, coroutines-test, ktor mock. `commonTest/resources/` is on the unit-test classpath; read with `readTestResource("dsp/x.json")`.
 
 Enrollment is per server URL. Changing the URL or tapping Re-enroll makes a new key, so a new `device_id`. The attestation challenge is baked into the key, so a key cannot be re-enrolled with a fresh nonce.
@@ -100,7 +100,9 @@ It checks NEAR at 30 cm, `too_far` at 150 cm with no retry, and a 20 ms dropped 
 
 `iosApp/iosApp.xcodeproj` (hand-written, no xcodegen) hosts `MainViewController()` from the static `ComposeApp` framework. The **Compile Kotlin Framework** build phase runs `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode` (JDK 21 via `java_home`).
 
-Status: platform basics are real (prefs, device model, clocks, screen-on, mic permission). Audio engine, Secure Enclave key, NFC reader, QR draw/scan are stubs (`AudioEngine.ios.kt`, `DeviceKeystore.ios.kt`, `Pairing.ios.kt`).
+Status: all implemented: platform basics (prefs, device model, clocks, screen-on, mic permission), audio engine (`AudioEngine.ios.kt`), Secure Enclave key + App Attest (`DeviceKeystore.ios.kt`), Core NFC reader and QR draw/scan (`Pairing.ios.kt`). NFC and App Attest need a paid team (`POP_PAID = 1`).
+
+App Attest: the server's `POP_IOS_APP_ID` must be `TEAMID.<BUNDLE_ID>` (your `TEAM_ID` and `BUNDLE_ID` from `Local.xcconfig`, e.g. `ABCDE12345.com.enconomy.pop`).
 
 Tests: `./gradlew :composeApp:iosSimulatorArm64Test` runs all of `commonTest`, DSP parity included. The simulator reads the fixtures straight from `src/commonTest/resources` (absolute path baked in by `genTestResourceDir`).
 

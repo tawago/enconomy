@@ -70,7 +70,7 @@ fun App(c: PopController) {
 @Composable
 private fun Enroll(s: UiState, c: PopController) {
     Text("Enroll this phone", fontWeight = FontWeight.Medium)
-    Text("Creates a hardware P-256 key (StrongBox if present) and registers it with the server.", fontSize = 13.sp)
+    Text("Creates a hardware P-256 key (StrongBox / Secure Enclave) and registers it with the server.", fontSize = 13.sp)
     OutlinedTextField(
         value = s.displayName,
         onValueChange = c::setDisplayName,
