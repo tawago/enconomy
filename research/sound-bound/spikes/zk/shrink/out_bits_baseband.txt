@@ -1,0 +1,28 @@
+
+N1s, 18 sessions, baseline arrivals re-scored per variant
+
+| variant | n | miss | score vs base dB (med) | margin dB min / med | abs dt ms p95 / max | flight err cm med / max | decision flips |
+|---|---|---|---|---|---|---|---|
+| V0 full 1s float (baseline repro) | 144 | 0 | -0.0 | 8.6 / 20.2 | 0.00 / 0.00 | 0.0 / 0.0 | 0 (rounds lost 0) |
+| 1-bit diff(RAW x), 1-bit template | 144 | 0 | -1.9 | 7.6 / 20.5 | 0.12 / 0.40 | 0.4 / 6.8 | 0 (rounds lost 0) |
+| baseband 2-18 kHz /3 float | 144 | 0 | -0.3 | 8.8 / 20.1 | 0.02 / 0.12 | 0.3 / 2.0 | 0 (rounds lost 0) |
+| baseband 2-18 kHz /3 1-bit | 144 | 0 | -4.0 | 4.1 / 16.1 | 0.02 / 0.11 | 0.2 / 2.0 | 0 (rounds lost 0) |
+| baseband /3 2-bit x, 1-bit template | 144 | 0 | -2.9 | 5.9 / 17.3 | 0.02 / 0.11 | 0.2 / 2.0 | 0 (rounds lost 0) |
+| baseband /3 3-bit x, 1-bit template | 144 | 0 | -2.4 | 6.6 / 17.8 | 0.02 / 0.11 | 0.2 / 2.0 | 0 (rounds lost 0) |
+| baseband /3 1-bit x + dither -6 dB, 1-bit template | 144 | 0 | -4.8 | 3.6 / 15.5 | 0.02 / 0.12 | 0.2 / 2.1 | 0 (rounds lost 0) |
+| baseband /3 1-bit x + dither 0 dB, 1-bit template | 144 | 0 | -6.5 | 1.8 / 14.0 | 0.02 / 0.12 | 0.2 / 2.1 | 0 (rounds lost 0) |
+
+V0 Rayleigh-T / Gumbel-T (result.json): median 0.929 range 0.837..1.025
+
+self arrival, relaxed first-peak (check only D lags before the claimed lag): late-claim gain ms
+  D =  0.25 ms: median   0.00  p90  13.73  max   34.69  (= 595 cm one arrival)  zero-gain 67%
+  D =   0.5 ms: median   0.00  p90  13.73  max   34.69  (= 595 cm one arrival)  zero-gain 78%
+  D =     1 ms: median   0.00  p90   0.00  max   34.69  (= 595 cm one arrival)  zero-gain 90%
+  D =     2 ms: median   0.00  p90   0.00  max   34.69  (= 595 cm one arrival)  zero-gain 93%
+  D =     5 ms: median   0.00  p90   0.00  max   34.69  (= 595 cm one arrival)  zero-gain 93%
+  D =    10 ms: median   0.00  p90   0.00  max   34.69  (= 595 cm one arrival)  zero-gain 97%
+  D =    20 ms: median   0.00  p90   0.00  max    0.00  (= 0 cm one arrival)  zero-gain 100%
+
+cross arrival, earliest score >= T before the chosen lag: median 0.167 ms, max 0.771 ms
+
+[exited with code 0]

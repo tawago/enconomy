@@ -1,0 +1,277 @@
+{
+  "status": "exploratory_only_all_three_live_reports_remain_invalid",
+  "estimator": "Median of all within-emitter pairwise tB/tA slopes, then median of all eight four-arrival differences using published selected peaks, including candidates withheld by the extra-event audit. No labels, manual peak substitutions, emission exclusions, or distance targets enter this calculation.",
+  "limitations": [
+    "This offline estimator was chosen after seeing the failures and is not validated.",
+    "The robust median does not repair a discontinuity or establish direct arrivals.",
+    "Each returned value is an uncorrected timing equivalent, not body gap.",
+    "The return run has a gross first-pair outlier and competing selected-peak families.",
+    "Room and placement differ from the previous successful batch; only these three trials form this comparison."
+  ],
+  "rows": [
+    {
+      "trial_id": "effee55b8cc34113a00babb14bcff234",
+      "created_at": "2026-09-22T13:11:51.276608+00:00",
+      "experiment": {
+        "session_label": "exp-5-sep-22",
+        "room": "small room",
+        "pose": "90 degree",
+        "device_a_label": null,
+        "device_b_label": null,
+        "notes": null,
+        "measured_body_gap_cm": 5.0,
+        "self_speaker_mic_a_cm": null,
+        "self_speaker_mic_b_cm": null
+      },
+      "live_status": "invalid",
+      "live_usable_arrivals": 29,
+      "live_usable_exchanges": 0,
+      "live_max_clock_residual_ms": 0.15160850769628878,
+      "live_reasons": [
+        "A:e05:attribution_multiple_chirp_events_in_slot",
+        "A:e07:attribution_multiple_chirp_events_in_slot",
+        "A:e09:attribution_multiple_chirp_events_in_slot",
+        "clock_fit_residual_too_large",
+        "schedule_attribution_not_established",
+        "insufficient_usable_exchanges",
+        "self_path_correction_not_provided",
+        "source_detector_bias_calibration_missing",
+        "physical_error_calibration_missing",
+        "device_body_gap_mapping_missing"
+      ],
+      "exploratory_relative_rate_ppm": 17.36141252450807,
+      "exploratory_median_timing_ms": 1.0806532118061707,
+      "exploratory_median_equivalent_cm": 18.533202582475827,
+      "all_eight_exploratory_pairs": [
+        {
+          "pair_index": 0,
+          "timing_difference_ms": 0.8514919704858404,
+          "uncorrected_equivalent_cm": 14.603087293832163
+        },
+        {
+          "pair_index": 1,
+          "timing_difference_ms": 1.0806542968750943,
+          "uncorrected_equivalent_cm": 18.53322119140787
+        },
+        {
+          "pair_index": 2,
+          "timing_difference_ms": 1.08065357349596,
+          "uncorrected_equivalent_cm": 18.533208785455713
+        },
+        {
+          "pair_index": 3,
+          "timing_difference_ms": 1.0806528501163815,
+          "uncorrected_equivalent_cm": 18.53319637949594
+        },
+        {
+          "pair_index": 4,
+          "timing_difference_ms": 1.1014854600699397,
+          "uncorrected_equivalent_cm": 18.890475640199465
+        },
+        {
+          "pair_index": 5,
+          "timing_difference_ms": 1.0806517650461256,
+          "uncorrected_equivalent_cm": 18.533177770541055
+        },
+        {
+          "pair_index": 6,
+          "timing_difference_ms": 1.0806510416681014,
+          "uncorrected_equivalent_cm": 18.53316536460794
+        },
+        {
+          "pair_index": 7,
+          "timing_difference_ms": 1.1014836516207716,
+          "uncorrected_equivalent_cm": 18.890444625296233
+        }
+      ]
+    },
+    {
+      "trial_id": "37fa17dbb5f74ea3811b76601582603d",
+      "created_at": "2026-09-22T13:12:37.821253+00:00",
+      "experiment": {
+        "session_label": "exp-5-sep-22",
+        "room": "small room",
+        "pose": "90 degree",
+        "device_a_label": null,
+        "device_b_label": null,
+        "notes": null,
+        "measured_body_gap_cm": 25.0,
+        "self_speaker_mic_a_cm": null,
+        "self_speaker_mic_b_cm": null
+      },
+      "live_status": "invalid",
+      "live_usable_arrivals": 31,
+      "live_usable_exchanges": 0,
+      "live_max_clock_residual_ms": 0.0394007089185508,
+      "live_reasons": [
+        "A:e13:attribution_multiple_chirp_events_in_slot",
+        "schedule_attribution_not_established",
+        "insufficient_usable_exchanges",
+        "self_path_correction_not_provided",
+        "source_detector_bias_calibration_missing",
+        "physical_error_calibration_missing",
+        "device_body_gap_mapping_missing"
+      ],
+      "exploratory_relative_rate_ppm": 17.361111111169336,
+      "exploratory_median_timing_ms": 1.7469548054722672,
+      "exploratory_median_equivalent_cm": 29.960274913849382,
+      "all_eight_exploratory_pairs": [
+        {
+          "pair_index": 0,
+          "timing_difference_ms": 1.7261230997147603,
+          "uncorrected_equivalent_cm": 29.60301116010814
+        },
+        {
+          "pair_index": 1,
+          "timing_difference_ms": 1.7261227380320765,
+          "uncorrected_equivalent_cm": 29.60300495725011
+        },
+        {
+          "pair_index": 2,
+          "timing_difference_ms": 1.746955347997181,
+          "uncorrected_equivalent_cm": 29.960284218151656
+        },
+        {
+          "pair_index": 3,
+          "timing_difference_ms": 1.7677879579649503,
+          "uncorrected_equivalent_cm": 30.317563479098897
+        },
+        {
+          "pair_index": 4,
+          "timing_difference_ms": 1.7469542629473533,
+          "uncorrected_equivalent_cm": 29.96026560954711
+        },
+        {
+          "pair_index": 5,
+          "timing_difference_ms": 1.7469535395804314,
+          "uncorrected_equivalent_cm": 29.9602532038044
+        },
+        {
+          "pair_index": 6,
+          "timing_difference_ms": 1.788619482879561,
+          "uncorrected_equivalent_cm": 30.67482413138447
+        },
+        {
+          "pair_index": 7,
+          "timing_difference_ms": 1.8302850644953406,
+          "uncorrected_equivalent_cm": 31.389388856095092
+        }
+      ]
+    },
+    {
+      "trial_id": "8335587ecb2643b0a58d52f5894e8f93",
+      "created_at": "2026-09-22T13:13:04.310712+00:00",
+      "experiment": {
+        "session_label": "exp-5-sep-22",
+        "room": "small room",
+        "pose": "90 degree",
+        "device_a_label": null,
+        "device_b_label": null,
+        "notes": null,
+        "measured_body_gap_cm": 5.0,
+        "self_speaker_mic_a_cm": null,
+        "self_speaker_mic_b_cm": null
+      },
+      "live_status": "invalid",
+      "live_usable_arrivals": 32,
+      "live_usable_exchanges": 0,
+      "live_max_clock_residual_ms": 14.621071886372322,
+      "live_reasons": [
+        "clock_fit_residual_too_large",
+        "insufficient_usable_exchanges",
+        "self_path_correction_not_provided",
+        "source_detector_bias_calibration_missing",
+        "physical_error_calibration_missing",
+        "device_body_gap_mapping_missing"
+      ],
+      "exploratory_relative_rate_ppm": 18.229166666827723,
+      "exploratory_median_timing_ms": 1.0392083781461947,
+      "exploratory_median_equivalent_cm": 17.82242368520724,
+      "all_eight_exploratory_pairs": [
+        {
+          "pair_index": 0,
+          "timing_difference_ms": -18.689592572530998,
+          "uncorrected_equivalent_cm": -320.5265126189067
+        },
+        {
+          "pair_index": 1,
+          "timing_difference_ms": 1.0392087579136344,
+          "uncorrected_equivalent_cm": 17.822430198218832
+        },
+        {
+          "pair_index": 2,
+          "timing_difference_ms": 1.039207998378755,
+          "uncorrected_equivalent_cm": 17.82241717219565
+        },
+        {
+          "pair_index": 3,
+          "timing_difference_ms": 1.0183742852765132,
+          "uncorrected_equivalent_cm": 17.4651189924922
+        },
+        {
+          "pair_index": 4,
+          "timing_difference_ms": 1.3100401924082128,
+          "uncorrected_equivalent_cm": 22.46718929980085
+        },
+        {
+          "pair_index": 5,
+          "timing_difference_ms": 1.0392060995401131,
+          "uncorrected_equivalent_cm": 17.82238460711294
+        },
+        {
+          "pair_index": 6,
+          "timing_difference_ms": 1.310038673338898,
+          "uncorrected_equivalent_cm": 22.4671632477621
+        },
+        {
+          "pair_index": 7,
+          "timing_difference_ms": 1.3100382935731236,
+          "uncorrected_equivalent_cm": 22.46715673477907
+        }
+      ]
+    }
+  ],
+  "input_sha256": {
+    "data/ranging/effee55b8cc34113a00babb14bcff234/upload_A.json": "9c353ac41605f7abe402ac333a9d0f0f2a8a4a5e93fa8f69a4a1c5f31941274f",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/report.json": "bbb4496233ad8bd6d3e918520ce54d5d8c33b281e343fe6d00abef6ed830c7ad",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/provenance.json": "9b2b797654c5613effb1818cc583e83a48fc7e64ecc56e7990dc5f62f37650be",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/ready_B.json": "66d96fc3760de66a89ee0831bb09edbe5e1a5e0abd7c845d763cc637005512ef",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/processing.json": "e5cbd129ff1683b6fc9573b2dfc71c1e634e1f1a8b1ccd94dd5a89108b802ad5",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/start.json": "854f939f209645491856ad35e52e15e02a5035a98260e12ebc58cb62817de669",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/protocol.json": "f37b8fcc37b08accd3d1e0de4ab255cdbf86d958b5e4fe3c0bb4f21631711905",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/ready_A.json": "66d96fc3760de66a89ee0831bb09edbe5e1a5e0abd7c845d763cc637005512ef",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/recording_B.wav": "373bc16e0215cf24cbf1a8adc1ffaf42f064bc1093767a86b87029146965f5fc",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/trial.json": "2bdca8de15c1370f55e33dff4e7c81bb2806237ebdb39234ada875d8776cf5c6",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/recording_A.wav": "4a1efe2bb8e4a75cd61dfc562e86bf01776f8c0db27170d5485be17586590e5b",
+    "data/ranging/effee55b8cc34113a00babb14bcff234/upload_B.json": "57b190b739ef2950cb06b7340543aab02e7bc925bf27f96ec1ac80260d0d5181",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/upload_A.json": "608d570f8d4a3e435eef04ebecce452043fde3a9b2bfed8d8d2763eaf6899498",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/report.json": "e2c2aee556a7bfd2b59d9d3f7638be0a98d5ca6027cfc5a912792ebdbd70b50a",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/provenance.json": "00bc070bd15678023e1f104263d326cc8e97319c41a5fde9a9edd9cef734d1cc",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/ready_B.json": "1de028c45070537eccb2547284bf910e18030bf0fa127454f2a1401af5a41842",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/processing.json": "45028910fecc3534ae5a81049da6b8503127d569e704dfd877f78cd25ff9bc8b",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/start.json": "0f179f4ca1248f9fe6b6b2719d727c80732e5d57eff6788af5428ef90d5aca6a",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/protocol.json": "08a8a942f7e46d5d9723b170b9be04034c3287bc1a74e73f785ca6df4b99ad43",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/ready_A.json": "1de028c45070537eccb2547284bf910e18030bf0fa127454f2a1401af5a41842",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/recording_B.wav": "b5d66290a53a21b350524652a4a20e73bb9d6fa58f817b96dc82cc888acfba31",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/trial.json": "0b101a87322a03b21041e6bcdc163f16318c7274e4928a96512e6d15c8e751c2",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/recording_A.wav": "a2ea77a230b558f7fb7089c5f81e31e954dca8d71be6a4c584e9e5d2972aed7c",
+    "data/ranging/37fa17dbb5f74ea3811b76601582603d/upload_B.json": "dad55c7274b6a4775d5dc10fa8b81876a2300f80d4ca1295455e89d90e2bd2d4",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/upload_A.json": "8f4d2a6675e035d725ede2196221e56337b3d3a070b0eaf86df2af8da5fd7ad1",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/report.json": "69fed66e51558627fc73b710598d721ee329d0a47b78e575b011c3335d7ca2e9",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/provenance.json": "0cfce8261600a632115d36dc5c896be55cf8d6fc949a7557e0eb74feb4bcc755",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/ready_B.json": "b22ef151eed1e82c51f47a09a15da683e579d209a5c59e98b7d2502108c9bbce",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/processing.json": "483b4d2f24cd26572990bf71f100ce21771a60714e507ab4e32848b6ec8c8926",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/start.json": "a32a39dffeb46000e37c7314bbd1b0361576cfcae071b2c4eb44d152490511c6",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/protocol.json": "48daa7720fb28c096bda81c24e2a842b07a6615ae47579c748ad82e39fe10a28",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/ready_A.json": "b22ef151eed1e82c51f47a09a15da683e579d209a5c59e98b7d2502108c9bbce",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/recording_B.wav": "ba7be0be34b79bdd02a13a1c1a9e51155ffa026163610959d6d7fd6c2eddfbae",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/trial.json": "5eeadc27503aa9e5dfb171aaa2329d407b08ebe492daaade265a1f81f7c7ca63",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/recording_A.wav": "d1267c726ab0b76f6e92de78b40510ee6c3f429012716217606c02dc49613cd6",
+    "data/ranging/8335587ecb2643b0a58d52f5894e8f93/upload_B.json": "3c59f230f3b30c63f58fdf5d06d0acfd10d5af4157608bc7dbea2ea95805842b"
+  },
+  "comparison": {
+    "outward_change_in_timing_equivalent_cm": 11.427072331373555,
+    "return_minus_initial_in_timing_equivalent_cm": -0.710778897268586,
+    "physical_distance_validated": false
+  }
+}

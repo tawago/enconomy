@@ -1,0 +1,32 @@
+| session | label cm | baseline | V0 full 1s float, ppm0 k=1.0 | V0 full 1s float, ppm0 k=1.5 | 1-bit diff(RAW x), 1-b k=1.0 | 1-bit diff(RAW x), 1-b k=1.5 | baseband 2-18 kHz /3 1 k=1.0 | baseband 2-18 kHz /3 1 k=1.5 | 1s noncoherent 4 slice k=1.0 | 1s noncoherent 4 slice k=1.5 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 25a7cfcd | 0.0 | NEAR 5 | NEAR 6 | NEAR 5 | NEAR 5 | NEAR 5 | NEAR 5 | NEAR 4 | NEAR 6 | NEAR 5 |
+| 4896592d | 0.0 | NEAR 4 | NEAR 4 | NEAR 3 | NEAR 3 | NEAR 3 | NEAR 4 | NEAR 4 | NEAR 4 | NEAR 3 |
+| 74c2c169 | 0.0 | NEAR 11 | NEAR 4 | NEAR 6 | NEAR 6 | NEAR 6 | NEAR 6 | NEAR 7 | NEAR 6 | NEAR 6 |
+| 7ec2894a | 0.0 | NEAR 11 | NEAR 4 | NEAR 6 | NEAR 6 | NEAR 7 | NEAR 7 | NEAR 6 | NEAR 5 | NEAR 9 |
+| 5682b126 | 30.0 | NEAR 31 | NEAR 30 | NEAR 30 | NEAR 30 | NEAR 30 | NEAR 29 | NEAR 29 | NEAR 30 | NEAR 29 |
+| 835bcc6e | 30.0 | NEAR 33 | NEAR 32 | NEAR 32 | NEAR 32 | NEAR 32 | NEAR 33 | NEAR 30 | NEAR 32 | NEAR 32 |
+| c72ce4b6 | 30.0 | NEAR 30 | NEAR 31 | NEAR 31 | NEAR 31 | NEAR 31 | NEAR 31 | NEAR 29 | NEAR 31 | NEAR 31 |
+| d83ce75d | 30.0 | NEAR 31 | NEAR 32 | NEAR 32 | NEAR 33 | NEAR 32 | NEAR 32 | NEAR 30 | NEAR 32 | NEAR 33 |
+| dbfa04eb | 30.0 | NEAR 23 | NEAR 24 | NEAR 24 | NEAR 24 | NEAR 24 | NEAR 25 | NEAR 24 | NEAR 23 | NEAR 24 |
+| f6672136 | 30.0 | NEAR 34 | NEAR 36 | NEAR 35 | NEAR 35 | NEAR 34 | NEAR 36 | NEAR 35 | NEAR 34 | NEAR 35 |
+| 245b212b | 60.0 | UNDECIDED 70 | UND 71 | UND 71 | UND 71 | UND 70 | UND 70 | UND 69 | UND 71 | UND 70 |
+| 5a951d06 | 60.0 | UNDECIDED 67 | UND 67 | UND 67 | UND 67 | UND 67 | UND 67 | UND 66 | UND 68 | UND 67 |
+| 64d28e3d | 60.0 | UNDECIDED 69 | UND 72 | UND 72 | UND 71 | UND 71 | UND 71 | UND 69 | UND 71 | UND 71 |
+| cfb70afd | 100.0 | FAR 108 | FAR 109 | FAR 109 | FAR 109 | FAR 109 | FAR 110 | FAR 110 | FAR 108 | FAR 109 |
+| d5924d85 | 100.0 | FAR 115 | FAR 118 | FAR 118 | FAR 118 | FAR 117 | FAR 116 | FAR 116 | FAR 118 | FAR 118 |
+| e8a91638 | 100.0 | FAR 103 | FAR 105 | FAR 105 | FAR 105 | FAR 105 | FAR 105 | FAR 103 | FAR 105 | FAR 105 |
+| 04172e6e | 200.0 | FAR 145 | FAR 137 | FAR 137 | FAR 137 | FAR 137 | FAR 137 | FAR 138 | FAR 137 | FAR 137 |
+| 4c0ab84d | 200.0 | FAR 190 | FAR 193 | FAR 192 | FAR 192 | FAR 192 | FAR 192 | FAR 190 | FAR 192 | FAR 192 |
+
+shift of first-crossing vs baseline arrival, ms (negative = earlier)
+  V0 full 1s float, ppm0 (no bank)   k=1.0: self med -0.177 min -0.396 | cross med -0.167 min -0.771
+  V0 full 1s float, ppm0 (no bank)   k=1.5: self med -0.146 min -0.396 | cross med -0.146 min -0.750
+  1-bit diff(RAW x), 1-bit template  k=1.0: self med -0.167 min -0.396 | cross med -0.167 min -0.750
+  1-bit diff(RAW x), 1-bit template  k=1.5: self med -0.146 min -0.375 | cross med -0.146 min -0.729
+  baseband 2-18 kHz /3 1-bit         k=1.0: self med -0.146 min -0.354 | cross med -0.125 min -0.750
+  baseband 2-18 kHz /3 1-bit         k=1.5: self med -0.104 min -0.292 | cross med -0.104 min -0.688
+  1s noncoherent 4 slices            k=1.0: self med -0.167 min -0.396 | cross med -0.167 min -0.771
+  1s noncoherent 4 slices            k=1.5: self med -0.146 min -0.375 | cross med -0.146 min -0.729
+
+[exited with code 0]

@@ -1,0 +1,14 @@
+{
+  "attestationHash": "0",
+  "nullifier": "0",
+  "timestamp": "1714200000",
+  "nonceA": "12345678901234567890",
+  "nonceB": "98765432109876543210",
+  "audioKeyHash": "11111111111111111111",
+  "pubKeyA": ["0", "0"],
+  "sigRA": ["0", "0"],
+  "sigSA": "0",
+  "pubKeyB": ["0", "0"],
+  "sigRB": ["0", "0"],
+  "sigSB": "0"
+}

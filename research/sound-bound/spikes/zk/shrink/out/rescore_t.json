@@ -1,0 +1,340 @@
+[
+ {
+  "variant": "lean_b",
+  "probe": "JB",
+  "agree": 1,
+  "n": 3,
+  "correct": 0,
+  "wrong": 0,
+  "undecided_on_labeled": 2,
+  "err_med": null,
+  "err_max": null,
+  "n_err_rounds": 0,
+  "lost": 17,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -17.640407719797622,
+  "dmargin_p10": -18.3811785910996,
+  "L": 4800,
+  "K": 192,
+  "core": 7657629.455555555,
+  "full": 7657629.455555555,
+  "core_const_tmpl": 284829.4555555555,
+  "taps_core": 7372800,
+  "cfg": {
+   "rq": [
+    1,
+    "pre"
+   ],
+   "tq1": true,
+   "tlen": 0.1,
+   "win_ms": 2.0,
+   "win_center": "oracle",
+   "fixT": true,
+   "ppm0": true,
+   "realonly": false,
+   "norm": "committed"
+  },
+  "Tfix": [
+   0.08885112871776292,
+   0.09071094494272157,
+   0.09230148274173006
+  ],
+  "labels": {
+   "04172e6e": "UNDECIDED",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "UNDECIDED"
+  },
+  "flights": {
+   "04172e6e": [
+    null,
+    null
+   ],
+   "245b212b": [
+    null,
+    null
+   ],
+   "25a7cfcd": [
+    null,
+    null
+   ]
+  }
+ },
+ {
+  "variant": "lean_b",
+  "probe": "N1s",
+  "agree": 3,
+  "n": 3,
+  "correct": 2,
+  "wrong": 0,
+  "undecided_on_labeled": 0,
+  "err_med": 5.734531250000181,
+  "err_max": 14.991958333337323,
+  "n_err_rounds": 6,
+  "lost": 0,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -13.922253951988072,
+  "dmargin_p10": -17.078956386127288,
+  "L": 4800,
+  "K": 192,
+  "core": 7657629.455555555,
+  "full": 7657629.455555555,
+  "core_const_tmpl": 284829.4555555555,
+  "taps_core": 7372800,
+  "cfg": {
+   "rq": [
+    1,
+    "pre"
+   ],
+   "tq1": true,
+   "tlen": 0.1,
+   "win_ms": 2.0,
+   "win_center": "oracle",
+   "fixT": true,
+   "ppm0": true,
+   "realonly": false,
+   "norm": "committed"
+  },
+  "Tfix": [
+   0.11922620202426079,
+   0.12044617695125776,
+   0.12216169128060897
+  ],
+  "labels": {
+   "04172e6e": "FAR",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "NEAR"
+  },
+  "flights": {
+   "04172e6e": [
+    153.63541666667925,
+    160.78125000000608
+   ],
+   "245b212b": [
+    72.53020833333439,
+    79.67604166666122
+   ],
+   "25a7cfcd": [
+    3.9302083333267124,
+    3.9302083333419446
+   ]
+  }
+ },
+ {
+  "variant": "win2",
+  "probe": "JB",
+  "agree": 3,
+  "n": 3,
+  "correct": 2,
+  "wrong": 0,
+  "undecided_on_labeled": 0,
+  "err_med": 0.0,
+  "err_max": 0.0,
+  "n_err_rounds": 6,
+  "lost": 0,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -0.09435737755967999,
+  "dmargin_p10": -0.5765062535443662,
+  "L": 48000,
+  "K": 192,
+  "core": 84929235.28888889,
+  "full": 21041811325.95556,
+  "core_const_tmpl": 11201235.28888889,
+  "taps_core": 73728000,
+  "cfg": {
+   "rq": null,
+   "tq1": false,
+   "tlen": null,
+   "win_ms": 2.0,
+   "win_center": "oracle",
+   "fixT": false,
+   "ppm0": false,
+   "realonly": false,
+   "norm": "masked"
+  },
+  "Tfix": null,
+  "labels": {
+   "04172e6e": "FAR",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "NEAR"
+  },
+  "flights": {
+   "04172e6e": [
+    145.07470833331172,
+    144.7102708333422
+   ],
+   "245b212b": [
+    67.87112499999245,
+    68.22841666667097
+   ],
+   "25a7cfcd": [
+    4.659083333341945,
+    4.659083333341945
+   ]
+  }
+ },
+ {
+  "variant": "win2",
+  "probe": "N1s",
+  "agree": 3,
+  "n": 3,
+  "correct": 2,
+  "wrong": 0,
+  "undecided_on_labeled": 0,
+  "err_med": 0.0,
+  "err_max": 0.0,
+  "n_err_rounds": 6,
+  "lost": 0,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -0.16420870829458867,
+  "dmargin_p10": -0.7993377061515584,
+  "L": 48000,
+  "K": 192,
+  "core": 84929235.28888889,
+  "full": 21041811325.95556,
+  "core_const_tmpl": 11201235.28888889,
+  "taps_core": 73728000,
+  "cfg": {
+   "rq": null,
+   "tq1": false,
+   "tlen": null,
+   "win_ms": 2.0,
+   "win_center": "oracle",
+   "fixT": false,
+   "ppm0": false,
+   "realonly": false,
+   "norm": "masked"
+  },
+  "Tfix": null,
+  "labels": {
+   "04172e6e": "FAR",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "NEAR"
+  },
+  "flights": {
+   "04172e6e": [
+    145.0675625000055,
+    145.78929166666876
+   ],
+   "245b212b": [
+    68.93585416666086,
+    71.80133333333438
+   ],
+   "25a7cfcd": [
+    4.659083333326713,
+    4.659083333341945
+   ]
+  }
+ },
+ {
+  "variant": "tq1",
+  "probe": "JB",
+  "agree": 3,
+  "n": 3,
+  "correct": 2,
+  "wrong": 0,
+  "undecided_on_labeled": 0,
+  "err_med": 0.0035729166759703723,
+  "err_max": 0.35729166667854884,
+  "n_err_rounds": 6,
+  "lost": 0,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -1.3490767500559109,
+  "dmargin_p10": -1.7810806474211518,
+  "L": 48000,
+  "K": 19200,
+  "core": 7400204934.488889,
+  "full": 1917111495601.1558,
+  "core_const_tmpl": 27404934.48888889,
+  "taps_core": 7372800000,
+  "cfg": {
+   "rq": null,
+   "tq1": true,
+   "tlen": null,
+   "win_ms": null,
+   "win_center": "oracle",
+   "fixT": false,
+   "ppm0": false,
+   "realonly": false,
+   "norm": "masked"
+  },
+  "Tfix": null,
+  "labels": {
+   "04172e6e": "FAR",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "NEAR"
+  },
+  "flights": {
+   "04172e6e": [
+    145.0747083333422,
+    144.35297916666366
+   ],
+   "245b212b": [
+    68.22841666667097,
+    68.22841666667097
+   ],
+   "25a7cfcd": [
+    4.651937500020472,
+    4.659083333341945
+   ]
+  }
+ },
+ {
+  "variant": "tq1",
+  "probe": "N1s",
+  "agree": 3,
+  "n": 3,
+  "correct": 2,
+  "wrong": 0,
+  "undecided_on_labeled": 0,
+  "err_med": 0.0,
+  "err_max": 0.0,
+  "n_err_rounds": 6,
+  "lost": 0,
+  "gained": 0,
+  "nbase": 24,
+  "dmargin_med": -1.453476037476209,
+  "dmargin_p10": -1.8977082080072158,
+  "L": 48000,
+  "K": 19200,
+  "core": 7400204934.488889,
+  "full": 1917111495601.1558,
+  "core_const_tmpl": 27404934.48888889,
+  "taps_core": 7372800000,
+  "cfg": {
+   "rq": null,
+   "tq1": true,
+   "tlen": null,
+   "win_ms": null,
+   "win_center": "oracle",
+   "fixT": false,
+   "ppm0": false,
+   "realonly": false,
+   "norm": "masked"
+  },
+  "Tfix": null,
+  "labels": {
+   "04172e6e": "FAR",
+   "245b212b": "UNDECIDED",
+   "25a7cfcd": "NEAR"
+  },
+  "flights": {
+   "04172e6e": [
+    145.0675625000055,
+    145.78929166666876
+   ],
+   "245b212b": [
+    68.93585416666086,
+    71.80133333333438
+   ],
+   "25a7cfcd": [
+    4.659083333326713,
+    4.659083333341945
+   ]
+  }
+ }
+]

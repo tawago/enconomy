@@ -1,0 +1,7 @@
+flask
+flask-socketio
+numpy
+scipy
+soundfile
+pyroomacoustics  # simulation/: image-source room acoustics for the virtual 3D harness
+matplotlib       # simulation/viewer.py: interactive 3D scene + live scoring

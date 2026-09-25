@@ -1,0 +1,8 @@
+flask
+flask-socketio
+librosa
+soundfile
+numpy
+scipy
+bchlib
+eventlet

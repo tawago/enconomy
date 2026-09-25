@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>fieldtest</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 16px 48px;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: #0f1115; color: #e8e8ea;
+    max-width: 600px; margin-inline: auto;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: #9aa0ab; font-size: 13px; margin: 0 0 16px; }
+  .card { background: #171a21; border: 1px solid #262b35; border-radius: 12px; padding: 14px; margin-bottom: 14px; }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: #8b93a1; margin: 0 0 10px; }
+  label { display: block; font-size: 13px; color: #9aa0ab; margin: 10px 0 4px; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 12px; font-size: 16px; border-radius: 8px;
+    border: 1px solid #333a47; background: #0e1116; color: #e8e8ea;
+  }
+  .row3 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .dist { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .dist button { margin: 0; padding: 16px 0; font-size: 18px; background: #262b35; color: #cdd3dc; }
+  .dist button.on { background: #2d6cdf; color: #fff; }
+  button {
+    width: 100%; padding: 18px; font-size: 18px; font-weight: 600;
+    border: 0; border-radius: 12px; background: #2d6cdf; color: #fff; margin-top: 12px;
+  }
+  button.ghost { background: #262b35; color: #cdd3dc; font-size: 15px; padding: 12px; }
+  button[disabled] { opacity: .4; }
+  .listen { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .listen button { margin: 0; padding: 12px 0; font-size: 15px; }
+  .role { font-size: 40px; font-weight: 700; line-height: 1; margin-bottom: 6px; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #1f242d; }
+  .kv span:last-child { font-family: ui-monospace, monospace; color: #cdd3dc; text-align: right; }
+  .big { font-size: 34px; font-weight: 700; text-align: center; padding: 6px 0; }
+  .steps { display: flex; gap: 6px; margin: 8px 0; }
+  .steps div { flex: 1; text-align: center; padding: 8px 0; border-radius: 8px; background: #1f242d; color: #7f8794; font-weight: 600; }
+  .steps div.live { background: #2d6cdf; color: #fff; }
+  .steps div.done { background: #1e3b2c; color: #7ee2a8; }
+  .bar { height: 6px; background: #1f242d; border-radius: 3px; overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: #2d6cdf; }
+  .restab { font-size: 13px; }
+  .restab td { padding: 8px 3px; }
+  .restab td:last-child { text-align: right; font-family: ui-monospace, monospace; }
+  .restab small { color: #8b93a1; font-size: 10px; }
+  .probe { cursor: pointer; }
+  .probe.sel td { background: #1a2233; }
+  .probe .name { color: #cdd3dc; font-weight: 700; text-align: left; font-family: inherit; }
+  .probe .dec { font-weight: 700; text-align: left; font-family: inherit; }
+  .NEAR { color: #7ee2a8; } .FAR { color: #7ab7ff; } .UNDECIDED { color: #ffcf6b; } .FAILED { color: #ff7b72; }
+  table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 8px; }
+  th, td { padding: 4px 3px; border-bottom: 1px solid #242932; text-align: right; font-family: ui-monospace, monospace; vertical-align: top; }
+  th { color: #8b93a1; font-weight: 500; }
+  td:last-child, th:last-child { text-align: left; font-family: inherit; }
+  .warn { color: #ffcf6b; font-size: 13px; }
+  .bad { color: #ff7b72; }
+  .ok { color: #7ee2a8; }
+  .hint { color: #8b93a1; font-size: 12px; margin-top: 8px; }
+  #log { font-family: ui-monospace, monospace; font-size: 11px; color: #7f8794; white-space: pre-wrap; max-height: 180px; overflow: auto; }
+  a { color: #7ab7ff; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <h1>fieldtest &middot; N250 N500 N1s JBL JBL250</h1>
+  <p class="sub">Two phones, five probes, one run (~33 s). Verdicts are <strong>PROVISIONAL</strong>. &nbsp;<a href="/sessions">past sessions</a></p>
+
+  <div class="card" id="card-join">
+    <h2>1 &middot; label this run</h2>
+    <label>Distance between phones (cm)</label>
+    <div class="dist" id="dist">
+      <button type="button" data-cm="0">touch</button>
+      <button type="button" data-cm="30">30</button>
+      <button type="button" data-cm="60">60</button>
+      <button type="button" data-cm="100">100</button>
+      <button type="button" data-cm="200">200</button>
+      <button type="button" data-cm="other">other</button>
+    </div>
+    <input type="number" id="label-other" class="hidden" inputmode="decimal" placeholder="cm" style="margin-top:8px">
+    <div class="row3">
+      <div><label for="room">room</label>
+        <select id="room"><option>small</option><option>big</option><option>other</option></select></div>
+      <div><label for="pose">pose</label>
+        <select id="pose"><option>table</option><option>hand</option></select></div>
+      <div><label for="noise">noise</label>
+        <select id="noise"><option>quiet</option><option>music</option><option>talk</option></select></div>
+      <div><label for="prefer">role</label>
+        <select id="prefer"><option value="any">any</option><option>A</option><option>B</option></select></div>
+    </div>
+    <label for="note">note (optional)</label>
+    <input type="text" id="note" placeholder="">
+    <button id="btn-join">Join</button>
+    <p class="hint">First phone's labels are what gets recorded. Both phones must join before arming.</p>
+  </div>
+
+  <div class="card hidden" id="card-status">
+    <h2>2 &middot; session</h2>
+    <div class="role" id="role">&mdash;</div>
+    <div class="kv"><span>session</span><span id="sid">&mdash;</span></div>
+    <div class="kv"><span>partner</span><span id="partner">waiting</span></div>
+    <div class="kv"><span>recorded labels</span><span id="labels">&mdash;</span></div>
+    <div class="kv"><span>clock offset / min RTT</span><span id="clock">&mdash;</span></div>
+    <div id="probe-loads"></div>
+    <button class="ghost" id="btn-abort">Abort / reset pair</button>
+  </div>
+
+  <div class="card hidden" id="card-arm">
+    <h2>3 &middot; arm</h2>
+    <button id="btn-arm" disabled>Arm (waiting for partner)</button>
+    <p class="hint">Media volume up. Phones flat on the table, mics free. Stay quiet until done.</p>
+    <div id="track-settings"></div>
+  </div>
+
+  <div class="card hidden" id="card-run">
+    <h2>4 &middot; running</h2>
+    <div class="big" id="countdown">&mdash;</div>
+    <div class="steps" id="steps"></div>
+    <div class="bar"><div id="progress"></div></div>
+    <div class="kv"><span>blocks / discontinuities</span><span id="blocks">0 / 0</span></div>
+    <button class="hidden" id="btn-retry">Retry upload</button>
+    <button class="ghost hidden" id="btn-next-run">Next run (keep labels)</button>
+  </div>
+
+  <div class="card hidden" id="card-result">
+    <h2>5 &middot; result</h2>
+    <div id="res-status" class="hint"></div>
+    <div class="probes" id="probes"></div>
+    <div id="detail"></div>
+    <div id="quality"></div>
+    <button class="ghost" id="btn-again">Next run (keep labels)</button>
+  </div>
+
+  <div class="card">
+    <h2>listen</h2>
+    <div class="listen">
+      <button type="button" class="ghost" data-preview="N250">N250</button>
+      <button type="button" class="ghost" data-preview="N500">N500</button>
+      <button type="button" class="ghost" data-preview="N1s">N1s</button>
+      <button type="button" class="ghost" data-preview="JBL">JBL</button>
+      <button type="button" class="ghost" data-preview="JBL250">JBL250</button>
+    </div>
+    <p class="hint">Disabled while a run is recording. Role A preview, fixed public seed. B: <a href="/preview/N250.wav?role=B">N250</a> &middot; <a href="/preview/N500.wav?role=B">N500</a> &middot; <a href="/preview/N1s.wav?role=B">N1s</a> &middot; <a href="/preview/JBL.wav?role=B">JBL</a> &middot; <a href="/preview/JBL250.wav?role=B">JBL250</a> &middot; old: <a href="/preview/N30.wav">N30</a> <a href="/preview/JB.wav">JB</a> <a href="/preview/JBQ.wav">JBQ</a></p>
+  </div>
+
+  <div class="card">
+    <h2>log</h2>
+    <div id="log"></div>
+  </div>
+
+  <script src="/static/socket.io.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

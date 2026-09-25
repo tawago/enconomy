@@ -1,0 +1,48 @@
+
+N1s, 18 sessions, baseline arrivals re-scored per variant
+
+| variant | n | miss | score vs base dB (med) | margin dB min / med | abs dt ms p95 / max | flight err cm med / max | decision flips |
+|---|---|---|---|---|---|---|---|
+| V0 full 1s float (baseline repro) | 144 | 0 | -0.0 | 8.6 / 20.1 | 0.00 / 0.00 | 0.0 / 0.0 | 0 (rounds lost 0) |
+| short 250 ms slice, float | 144 | 0 | +0.0 | 2.8 / 14.4 | 0.02 / 0.23 | 0.0 / 3.9 | 0 (rounds lost 0) |
+| short 100 ms slice, float | 144 | 0 | +0.1 | 0.7 / 10.9 | 0.02 / 0.23 | 0.4 / 3.9 | 0 (rounds lost 0) |
+| short 50 ms slice, float | 144 | 0 | +0.1 | 0.1 / 8.2 | 0.04 / 0.23 | 0.4 / 3.9 | 0 (rounds lost 0) |
+| short 25 ms slice, float | 144 | 0 | +0.2 | 0.1 / 5.4 | 0.10 / 0.94 | 0.7 / 16.1 | 0 (rounds lost 0) |
+| 1s noncoherent 4 slices | 144 | 0 | +0.0 | 9.3 / 18.7 | 0.00 / 0.02 | 0.0 / 0.4 | 0 (rounds lost 0) |
+| 1s noncoherent 10 slices | 144 | 0 | +0.0 | 7.9 / 17.3 | 0.00 / 0.02 | 0.0 / 0.4 | 0 (rounds lost 0) |
+| 1-bit template only (x float) | 144 | 0 | -2.0 | 7.0 / 18.9 | 0.02 / 0.02 | 0.0 / 0.7 | 0 (rounds lost 0) |
+| 1-bit masked x, 1-bit template | 144 | 0 | -3.8 | 1.9 / 17.3 | 0.02 / 0.12 | 0.0 / 1.8 | 0 (rounds lost 0) |
+| 1-bit RAW x (no band mask), 1-bit template | 144 | 0 | -4.5 | 2.6 / 16.8 | 0.02 / 0.12 | 0.0 / 1.8 | 0 (rounds lost 0) |
+| 1-bit diff(RAW x), 1-bit template | 144 | 0 | -1.9 | 7.6 / 20.5 | 0.12 / 0.40 | 0.4 / 6.8 | 0 (rounds lost 0) |
+| 3-bit masked x, 3-bit template | 144 | 0 | -0.4 | 8.3 / 19.9 | 0.00 / 0.10 | 0.0 / 1.8 | 0 (rounds lost 0) |
+| baseband 2-18 kHz /3 float | 144 | 0 | -0.3 | 8.8 / 20.0 | 0.02 / 0.12 | 0.3 / 2.0 | 0 (rounds lost 0) |
+| baseband 2-18 kHz /3 1-bit | 144 | 0 | -4.0 | 4.0 / 16.1 | 0.02 / 0.11 | 0.2 / 2.0 | 0 (rounds lost 0) |
+| baseband 4-12 kHz /6 float | 144 | 0 | +3.1 | 5.6 / 21.3 | 0.24 / 0.50 | 2.0 / 8.8 | 0 (rounds lost 0) |
+| baseband 4-12 kHz /6 1-bit | 144 | 0 | -0.5 | 1.8 / 17.7 | 0.23 / 0.50 | 2.1 / 8.8 | 0 (rounds lost 0) |
+| baseband 6-10 kHz /12 float | 144 | 0 | +4.9 | 7.8 / 20.3 | 0.23 / 0.48 | 2.1 / 10.5 | 0 (rounds lost 0) |
+| baseband 6-10 kHz /12 1-bit | 144 | 0 | +1.8 | 4.7 / 17.0 | 0.28 / 0.51 | 2.1 / 17.9 | 0 (rounds lost 0) |
+| V0 full 1s float, ppm0 (no bank) | 144 | 0 | -0.0 | 8.6 / 20.1 | 0.02 / 0.15 | 0.4 / 2.1 | 0 (rounds lost 0) |
+| short 250 ms slice, float, ppm0 | 144 | 0 | -0.0 | 2.7 / 14.4 | 0.02 / 0.23 | 0.0 / 3.9 | 0 (rounds lost 0) |
+| short 100 ms slice, float, ppm0 | 144 | 0 | +0.1 | 0.6 / 10.9 | 0.02 / 0.23 | 0.4 / 3.9 | 0 (rounds lost 0) |
+| STACK baseband 2-18 /3 1-bit 250 ms, ppm0 | 144 | 0 | -4.0 | 0.3 / 10.4 | 0.09 / 0.48 | 0.4 / 8.2 | 0 (rounds lost 0) |
+| STACK baseband 4-12 /6 1-bit 250 ms, ppm0 | 144 | 0 | -0.5 | 0.7 / 11.3 | 0.23 / 0.54 | 2.4 / 8.9 | 0 (rounds lost 0) |
+| STACK baseband 2-18 /3 1-bit 100 ms, ppm0 | 144 | 2 | -4.0 | 2.2 / 6.4 | 0.06 / 0.31 | 0.6 / 5.6 | 1 (rounds lost 2) |
+
+V0 Rayleigh-T / Gumbel-T (result.json): median 0.926 range 0.835..1.020
+
+self arrival, relaxed first-peak (check only D lags before the claimed lag): late-claim gain ms
+  D =  0.25 ms: median   0.00  p90  13.73  max   31.83  (= 546 cm one arrival)  zero-gain 69%
+  D =   0.5 ms: median   0.00  p90  13.73  max   31.83  (= 546 cm one arrival)  zero-gain 81%
+  D =     1 ms: median   0.00  p90   0.00  max   31.83  (= 546 cm one arrival)  zero-gain 92%
+  D =     2 ms: median   0.00  p90   0.00  max   31.83  (= 546 cm one arrival)  zero-gain 94%
+  D =     5 ms: median   0.00  p90   0.00  max   31.83  (= 546 cm one arrival)  zero-gain 94%
+  D =    10 ms: median   0.00  p90   0.00  max   31.83  (= 546 cm one arrival)  zero-gain 99%
+  D =    20 ms: median   0.00  p90   0.00  max    0.00  (= 0 cm one arrival)  zero-gain 100%
+
+cross arrival, earliest score >= T before the chosen lag: median 0.167 ms, max 0.771 ms
+
+real	13m39.203s
+user	6m32.089s
+sys	0m56.324s
+
+[exited with code 0]

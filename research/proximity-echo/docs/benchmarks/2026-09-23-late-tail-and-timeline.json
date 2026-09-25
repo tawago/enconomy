@@ -1,0 +1,2426 @@
+{
+ "document": "docs/2026-09-23-late-tail-and-timeline.md",
+ "date": "2026-09-23",
+ "status": "Two opt-in, default-off analyzer policies benchmarked offline on 23 saved captures. Live reports unchanged; the live server never passes either policy. No calibrated distance and no NEAR/FAR verdict is established.",
+ "default_config_reproduction": {
+  "reproduces_stored_report": 18,
+  "differs": [
+   "28487e02f60944aaa2b2556d53e31e22",
+   "550fb0db67734444a47630c18e57fd26",
+   "5b79b0d2afda4e03ab21afae93842e8f",
+   "efb2b564cf1c4f54b7260e4e45431e2e",
+   "f60fa320428c40a99845607c588db174"
+  ],
+  "note": "The four differing ranging-v1 trials are stored at analysis_version four-arrival-diagnostic-v1 (current: four-arrival-diagnostic-v2); f60fa320 is a failed stub with no protocol_version. These differences pre-date this work."
+ },
+ "policies": {
+  "late_tail_policy": {
+   "values": [
+    "withhold",
+    "separate"
+   ],
+   "default": "withhold",
+   "constants": {
+    "LATE_TAIL_MAX_AMPLITUDE_RATIO": 0.05,
+    "COMPETING_MIN_AMPLITUDE_RATIO": 0.2,
+    "LATE_TAIL_RECURRENCE_TOLERANCE_S": 0.01,
+    "LATE_TAIL_RECURRENCE_DIAGNOSTIC_TOLERANCE_S": 0.002,
+    "LATE_TAIL_RECURRENCE_RATIO_FACTOR": 3.0,
+    "LATE_TAIL_MIN_RECURRENCE_FRACTION": 0.5,
+    "EVENT_NOISE_SD_peer_floor": 8.0
+   }
+  },
+  "timeline_policy": {
+   "values": [
+    "global",
+    "segmented"
+   ],
+   "default": "global",
+   "constants": {
+    "TIMELINE_GAP_MIN_MS": 8.0,
+    "TIMELINE_NEAR_SILENT_FRACTION": 0.05,
+    "TIMELINE_STEP_BOUNDARY_TOLERANCE_S": 1.0,
+    "TIMELINE_STEP_MAGNITUDE_TOLERANCE": 0.25,
+    "TIMELINE_STEP_MAGNITUDE_FLOOR_MS": 1.0
+   }
+  }
+ },
+ "configs": {
+  "default": {},
+  "late_separate": {
+   "late_tail_policy": "separate"
+  },
+  "timeline_segmented": {
+   "timeline_policy": "segmented"
+  },
+  "both": {
+   "late_tail_policy": "separate",
+   "timeline_policy": "segmented"
+  }
+ },
+ "headline_changes": [
+  {
+   "trial": "37fa17db",
+   "config": "late_separate",
+   "from": "invalid",
+   "to": "diagnostic",
+   "usable_exchanges": 8,
+   "median_timing_difference_ms": 1.746256124343204,
+   "uncorrected_equivalent_cm": 29.948292532485947,
+   "max_abs_residual_ms": 0.03689149375535328,
+   "caveat": "Its single tail has peer delay jitter 6.396 ms and 3/7 recurrence at the tighter 2 ms window; the classification rests on the 10 ms window. The centimeter figure is uncorrected and is not a device-body distance."
+  }
+ ],
+ "source_sha256": {
+  "beepbeep_analysis.py": "75c46dc25cdae416df2a2627ff35ae24d8f9862b5bf424c0c959814be8f1e92b",
+  "ranging_analysis.py": "433b76c2e8f5c13394a3981ab1f22a1cef16291dd6549deffcaaf79695a4d14d",
+  "ranging_timeline.py": "1a566d8c1a1b0174cc8d63aa208cdeea8d24b4685b92348e42f97f6edb18d8b0",
+  "analysis/reanalyze_ranging.py": "1e0bec5d21e80c1802895ea612246c8a5abe1ac081c2f2d0fd3ced27bba940da"
+ },
+ "synthetic_checks": {
+  "note": "In-memory only, injected into a copy of 20e97c08; nothing saved. Synthetic checks do not validate physical accuracy.",
+  "source": "scratchpad/ws1/synthetic.json (recorded under the pre-rename class name late_tail_source_locked)",
+  "cases": {
+   "tail_1pct": "recurrent; separate restores 32 arrivals / 8 exchanges",
+   "tail_3pct": "recurrent; separate restores 32 arrivals / 8 exchanges",
+   "tail_10pct": "unclassified_secondary (0.05-0.20 band); fatal under both policies",
+   "competing_+120ms_0.3": "competing_emission_candidate; fatal",
+   "competing_+120ms_1.0": "competing_emission_candidate; fatal",
+   "competing_-80ms_0.3": "competing_emission_candidate; fatal",
+   "nonrecurrent_tail_1pct": "competing_emission_candidate; fatal",
+   "tail_0.3pct": "never clears the event threshold; no event produced"
+  }
+ },
+ "limitations": [
+  "True sample deletion (frames removed rather than zeroed) leaves no silent span and produces no PCM timeline candidate; only the existing clock-step check and worklet counters can notice it, and neither localizes it in the PCM.",
+  "Exact silence, a muted source and digital padding produce identical samples; a candidate is an observation with declared thresholds, not an identified cause.",
+  "The 10 ms recurrence window is about a chirp-envelope width and does not resolve a fixed delay; on 37fa17db the matched peer offsets span 6.396 ms.",
+  "Chirps carry no source authentication: a recurrent weak tail is equally consistent with room/device response and with a schedule-locked co-located replay.",
+  "Corroboration by the clock-step check structurally cannot apply where a break follows the first emission (8335587e); absence of corroboration is not evidence against a candidate.",
+  "Peak-family selection is unchanged and remains open; on 8335587e the BA path alternates selected-minus-strongest lag between 0 and -13 samples (~0.271 ms) and holds the segment above the 0.15 ms residual gate.",
+  "No policy changes a selected arrival, repairs a recording, or produces a NEAR/FAR verdict. No calibrated distance follows.",
+  "Segmentation currently recovers exchanges on two trials and validates none."
+ ],
+ "trials": [
+  {
+   "trial": "0617ca3b",
+   "trial_id": "0617ca3bdaef434ab2361584f65f0e07",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.010911927976475777,
+    "late_separate": 0.010911927976475777,
+    "timeline_segmented": 0.010911927976475777,
+    "both": 0.010911927976475777
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 8,
+     "max_res_ms": 0.010911927976475777,
+     "valid": true,
+     "median_dt_ms": 0.2887467927801257
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:reported_capture_clipping",
+    "recording_quality_or_continuity_failed"
+   ],
+   "stored_report_sha256": "8b18babdc8fee25756040ae9a46858cd6187f8d4e8eb7759850deaf1e7dfc593"
+  },
+  {
+   "trial": "20e97c08",
+   "trial_id": "20e97c0891f941de8f97a3168c518d7c",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "diagnostic",
+   "status": {
+    "default": "diagnostic",
+    "late_separate": "diagnostic",
+    "timeline_segmented": "diagnostic",
+    "both": "diagnostic"
+   },
+   "usable_exchanges": {
+    "default": 8,
+    "late_separate": 8,
+    "timeline_segmented": 8,
+    "both": 8
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": 1.0806153250528805,
+    "late_separate": 1.0806153250528805,
+    "timeline_segmented": 1.0806153250528805,
+    "both": 1.0806153250528805
+   },
+   "max_abs_residual_ms": {
+    "default": 0.012462860591588854,
+    "late_separate": 0.012462860591588854,
+    "timeline_segmented": 0.012462860591588854,
+    "both": 0.012462860591588854
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 8,
+     "max_res_ms": 0.012462860591588854,
+     "valid": true,
+     "median_dt_ms": 1.0806153250528805
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [],
+   "stored_report_sha256": "ec78098ac86b773cc84a208c219307cf4a6ac8763f2721b217b573e632846587"
+  },
+  {
+   "trial": "2544d907",
+   "trial_id": "2544d907909040c494841bccaf017b28",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 15,
+    "late_separate": 15,
+    "timeline_segmented": 15,
+    "both": 15
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "A:e09:missing",
+    "B:e00:ambiguous",
+    "B:e01:ambiguous",
+    "B:e02:ambiguous"
+   ],
+   "stored_report_sha256": "10498dedf0b4e9b020e0f93e881b2595d4866317f2d1468ea310ead0c10f3d8f"
+  },
+  {
+   "trial": "2793667c",
+   "trial_id": "2793667c360a4f69b6983f987acc41ab",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.15972281888104733,
+    "late_separate": 0.15972281888104733,
+    "timeline_segmented": 0.15972281888104733,
+    "both": 0.15972281888104733
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 0,
+     "max_res_ms": 0.15972281888104733,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "clock_fit_residual_too_large"
+   ],
+   "stored_report_sha256": "3ef213eee0051bd72ed8d3e117821d71a36ac6a3c6e67efe6711a5eea7d5077b"
+  },
+  {
+   "trial": "28487e02",
+   "trial_id": "28487e02f60944aaa2b2556d53e31e22",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 8,
+    "late_separate": 8,
+    "timeline_segmented": 8,
+    "both": 8
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "A:e00:ambiguous",
+    "A:e02:ambiguous",
+    "A:e03:ambiguous",
+    "A:e04:ambiguous"
+   ],
+   "stored_report_sha256": "35a624065f790a46c7037f86dbc5141c08d212ae43b2b3065154769e54420af5"
+  },
+  {
+   "trial": "32533e19",
+   "trial_id": "32533e19051b4dfeb7b286bebb0679f5",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 11,
+    "late_separate": 11,
+    "timeline_segmented": 11,
+    "both": 11
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "A:e03:ambiguous",
+    "A:e07:ambiguous",
+    "A:e11:ambiguous",
+    "A:e13:ambiguous"
+   ],
+   "stored_report_sha256": "ed0e4b746740d7d8873e4c7c3fb6215008fb353c0b08d4a51baa46d0f4b322f7"
+  },
+  {
+   "trial": "37fa17db",
+   "trial_id": "37fa17dbb5f74ea3811b76601582603d",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": "25 cm",
+   "experiment": {
+    "room": "small room",
+    "pose": "90 degree"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "diagnostic",
+    "timeline_segmented": "invalid",
+    "both": "diagnostic"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 8,
+    "timeline_segmented": 0,
+    "both": 8
+   },
+   "usable_arrivals": {
+    "default": 31,
+    "late_separate": 32,
+    "timeline_segmented": 31,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": 1.746256124343204,
+    "timeline_segmented": null,
+    "both": 1.746256124343204
+   },
+   "max_abs_residual_ms": {
+    "default": 0.0394007089185508,
+    "late_separate": 0.03689149375535328,
+    "timeline_segmented": 0.0394007089185508,
+    "both": 0.03689149375535328
+   },
+   "late_tail_slots": 1,
+   "competing_events": 0,
+   "secondary_events": [
+    {
+     "receiver": "A",
+     "emission_id": "e13",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.01897936991330446,
+     "delay_after_primary_ms": 163.0,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 3,
+     "recurrence_fraction_at_2ms": 0.42857142857142855,
+     "peer_delay_jitter_ms": 6.395833333333333,
+     "peer_delay_median_offset_ms": -2.6041666666666665,
+     "peer_delay_offsets_ms": [
+      0.8333333333333334,
+      -2.6041666666666665,
+      -6.375,
+      -6.395833333333333,
+      -6.395833333333333,
+      0.020833333333333332,
+      -0.020833333333333332
+     ]
+    }
+   ],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 8,
+     "max_res_ms": 0.03689149375535328,
+     "valid": true,
+     "median_dt_ms": 1.746256124343204
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 2,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     -16,
+     -16,
+     -16,
+     -16,
+     -16,
+     -16,
+     -17,
+     -16
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [],
+   "stored_report_sha256": "e2c2aee556a7bfd2b59d9d3f7638be0a98d5ca6027cfc5a912792ebdbd70b50a"
+  },
+  {
+   "trial": "428ab971",
+   "trial_id": "428ab971ce3d49948158fc7351a397f0",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 11,
+    "late_separate": 11,
+    "timeline_segmented": 11,
+    "both": 11
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 3,
+     "exchanges": 0,
+     "max_res_ms": null,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "A:e01:ambiguous",
+    "A:e03:ambiguous",
+    "A:e04:ambiguous",
+    "A:e05:ambiguous",
+    "A:e06:ambiguous"
+   ],
+   "stored_report_sha256": "3ee74d4ed13ba4f093a4f4d453e4bfc34839c125cae61d18073aa44879eca786"
+  },
+  {
+   "trial": "45e6b9f1",
+   "trial_id": "45e6b9f1f6f04f3b821e83a8b5201a35",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 29,
+    "late_separate": 32,
+    "timeline_segmented": 29,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.2541683693070944,
+    "late_separate": 0.25607784204978445,
+    "timeline_segmented": 0.2541683693070944,
+    "both": 0.25607784204978445
+   },
+   "late_tail_slots": 3,
+   "competing_events": 0,
+   "secondary_events": [
+    {
+     "receiver": "A",
+     "emission_id": "e11",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.012991636228738074,
+     "delay_after_primary_ms": 114.25,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      -0.020833333333333332,
+      -0.020833333333333332,
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.020833333333333332
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e13",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.013046548078541437,
+     "delay_after_primary_ms": 114.25,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      -0.020833333333333332,
+      -0.020833333333333332,
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.020833333333333332
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e15",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.014018684502783514,
+     "delay_after_primary_ms": 114.27083333333333,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.041666666666666664,
+     "peer_delay_median_offset_ms": -0.020833333333333332,
+     "peer_delay_offsets_ms": [
+      -0.020833333333333332,
+      -0.041666666666666664,
+      -0.041666666666666664,
+      -0.020833333333333332,
+      -0.041666666666666664,
+      -0.020833333333333332,
+      -0.020833333333333332
+     ]
+    }
+   ],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 0,
+     "max_res_ms": 0.25607784204978445,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 1,
+    "BA": 1,
+    "BB": 5
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     -16,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     -14,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     -15,
+     -16,
+     -15,
+     -15,
+     -15,
+     0,
+     -14,
+     -15
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "clock_fit_residual_too_large"
+   ],
+   "stored_report_sha256": "6018b2638d63251382c794ed1c622350a972adc45d33744347fde55fb3c0553a"
+  },
+  {
+   "trial": "550fb0db",
+   "trial_id": "550fb0db67734444a47630c18e57fd26",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "diagnostic",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 16,
+    "late_separate": 16,
+    "timeline_segmented": 16,
+    "both": 16
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 8,
+     "exchanges": 0,
+     "max_res_ms": null,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "A:e01:ambiguous",
+    "A:e03:ambiguous",
+    "A:e05:ambiguous",
+    "A:e07:ambiguous",
+    "A:e09:ambiguous"
+   ],
+   "stored_report_sha256": "ad84dffcec15e15bdfb8199ce9121e8f769d707bdd09ee588a3111a7315c300b"
+  },
+  {
+   "trial": "5b79b0d2",
+   "trial_id": "5b79b0d2afda4e03ab21afae93842e8f",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "diagnostic",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 14,
+    "late_separate": 14,
+    "timeline_segmented": 14,
+    "both": 14
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 6,
+     "exchanges": 0,
+     "max_res_ms": null,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "A:e01:ambiguous",
+    "A:e02:ambiguous",
+    "A:e03:ambiguous",
+    "A:e05:ambiguous",
+    "A:e07:ambiguous"
+   ],
+   "stored_report_sha256": "9946768ff746744e20a3f8bb8517e98d07dfd8d49fdcf4fbc96be5e45a111fd8"
+  },
+  {
+   "trial": "6b9e788b",
+   "trial_id": "6b9e788b407041caabc335c736d23ab0",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 3,
+    "both": 3
+   },
+   "usable_arrivals": {
+    "default": 26,
+    "late_separate": 26,
+    "timeline_segmented": 26,
+    "both": 26
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 27.78781261616764,
+    "late_separate": 27.78781261616764,
+    "timeline_segmented": 0.001688643585094629,
+    "both": 0.001688643585094629
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@4.753s/60.0ms/exact_zero"
+   ],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 8,
+     "exchanges": 3,
+     "max_res_ms": 0.001688643585094629,
+     "valid": true,
+     "median_dt_ms": -0.5802792739345586
+    },
+    {
+     "i": 1,
+     "emissions": 2,
+     "exchanges": 0,
+     "max_res_ms": null,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "timeline_discontinuity_detected:B:4.753333s:60.000ms:exact_zero",
+    "A:e12:ambiguous",
+    "B:e05:ambiguous",
+    "B:e09:rejected",
+    "B:e11:ambiguous",
+    "B:e14:ambiguous"
+   ],
+   "stored_report_sha256": "890bd49bb94e0859f38871733a8d1e94e40bd0a73a9ad9b34f3ba651f7020e57"
+  },
+  {
+   "trial": "6ba25fd9",
+   "trial_id": "6ba25fd9b43946a0b327e0a63ad5ef0d",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 8,
+    "late_separate": 8,
+    "timeline_segmented": 8,
+    "both": 8
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "A:e00:ambiguous",
+    "A:e01:ambiguous",
+    "A:e02:ambiguous",
+    "A:e03:ambiguous"
+   ],
+   "stored_report_sha256": "3d2eb21dbaf8b96e83d697f104cd3990d405361ec86ca5808f43f2813db10387"
+  },
+  {
+   "trial": "6c526b85",
+   "trial_id": "6c526b853cf848bfa5fd2e13112cf5b6",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 29,
+    "late_separate": 32,
+    "timeline_segmented": 29,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.3538946342002483,
+    "late_separate": 0.3702250342588198,
+    "timeline_segmented": 0.3538946342002483,
+    "both": 0.3702250342588198
+   },
+   "late_tail_slots": 3,
+   "competing_events": 0,
+   "secondary_events": [
+    {
+     "receiver": "A",
+     "emission_id": "e11",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.0005855185237578759,
+     "delay_after_primary_ms": 90.10416666666667,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e14",
+     "emitter": "A",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.004660354767744674,
+     "delay_after_primary_ms": 186.75,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.0,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e15",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.0005585307823621728,
+     "delay_after_primary_ms": 90.10416666666667,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+     ]
+    }
+   ],
+   "timeline_candidates": [
+    "B@0.713s/20.0ms/exact_zero"
+   ],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 0,
+     "max_res_ms": 0.3702250342588198,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 1,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     -14,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:reported_capture_clipping",
+    "clock_fit_residual_too_large",
+    "timeline_discontinuity_detected:B:0.713333s:20.000ms:exact_zero",
+    "recording_quality_or_continuity_failed"
+   ],
+   "stored_report_sha256": "054542b6560c7aae152ae8716de0dcf5cef420827f1ec3b54c7e89c17ad78927"
+  },
+  {
+   "trial": "71f0a6a1",
+   "trial_id": "71f0a6a15650426c81dfe66fb4114d6a",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.3064985049702207,
+    "late_separate": 0.3064985049702207,
+    "timeline_segmented": 0.3064985049702207,
+    "both": 0.3064985049702207
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@0.800s/20.0ms/exact_zero"
+   ],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 0,
+     "max_res_ms": 0.3064985049702207,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 3,
+    "BA": 2,
+    "BB": 4
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     -10,
+     0,
+     0,
+     0,
+     0,
+     0,
+     -9,
+     -10
+    ],
+    "BA": [
+     -14,
+     0,
+     -13,
+     -13,
+     -13,
+     -13,
+     -13,
+     -13
+    ],
+    "BB": [
+     -20,
+     0,
+     0,
+     -20,
+     -19,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "clock_fit_residual_too_large",
+    "timeline_discontinuity_detected:B:0.800000s:20.000ms:exact_zero"
+   ],
+   "stored_report_sha256": "10555b9f42afab54818e5e4a3956170bf23fac4413bd784208728e9a493c222f"
+  },
+  {
+   "trial": "830242a7",
+   "trial_id": "830242a7a6b148678cc3bc07b21eadbc",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 6,
+    "late_separate": 6,
+    "timeline_segmented": 6,
+    "both": 6
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "A:reported_capture_clipping",
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "recording_quality_or_continuity_failed",
+    "A:e00:ambiguous",
+    "A:e01:ambiguous"
+   ],
+   "stored_report_sha256": "c6d36d2c043286ac311d4a5226863791563c1c8fecde52e63a5915a24c5da68b"
+  },
+  {
+   "trial": "8335587e",
+   "trial_id": "8335587ecb2643b0a58d52f5894e8f93",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": "5 cm",
+   "experiment": {
+    "room": "small room",
+    "pose": "90 degree"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 14.621071886372322,
+    "late_separate": 14.621071886372322,
+    "timeline_segmented": 0.1833395037746932,
+    "both": 0.1833395037746932
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@1.217s/20.0ms/exact_zero"
+   ],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 1,
+     "exchanges": 0,
+     "max_res_ms": null,
+     "valid": false,
+     "median_dt_ms": null
+    },
+    {
+     "i": 1,
+     "emissions": 15,
+     "exchanges": 0,
+     "max_res_ms": 0.1833395037746932,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 4,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     -13,
+     -13,
+     -13,
+     0,
+     -13,
+     0,
+     0
+    ],
+    "BB": [
+     -12,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "clock_fit_residual_too_large",
+    "timeline_discontinuity_detected:B:1.217333s:20.000ms:exact_zero"
+   ],
+   "stored_report_sha256": "69fed66e51558627fc73b710598d721ee329d0a47b78e575b011c3335d7ca2e9"
+  },
+  {
+   "trial": "954275df",
+   "trial_id": "954275dfec30447994b1573548513189",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 9.339301389582916,
+    "late_separate": 9.339301389582916,
+    "timeline_segmented": 0.00833333333374181,
+    "both": 0.00833333333374181
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@10.076s/20.0ms/exact_zero"
+   ],
+   "corroborated": true,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 9,
+     "exchanges": 4,
+     "max_res_ms": 0.00833333333374181,
+     "valid": true,
+     "median_dt_ms": 0.24669702493307355
+    },
+    {
+     "i": 1,
+     "emissions": 7,
+     "exchanges": 3,
+     "max_res_ms": 0.00892842527067117,
+     "valid": true,
+     "median_dt_ms": 0.2479464009972343
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:reported_capture_clipping",
+    "timeline_discontinuity_detected:B:10.076000s:20.000ms:exact_zero",
+    "recording_quality_or_continuity_failed"
+   ],
+   "stored_report_sha256": "ae0385b543044c07614cc15bf72fa3a95a154565635cba9f6d4f8d2248cc83d5"
+  },
+  {
+   "trial": "9830dc42",
+   "trial_id": "9830dc421f384b31af9ec003beff59f1",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.009547586519220719,
+    "late_separate": 0.009547586519220719,
+    "timeline_segmented": 0.009547586519220719,
+    "both": 0.009547586519220719
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 8,
+     "max_res_ms": 0.009547586519220719,
+     "valid": true,
+     "median_dt_ms": 0.24809790415425415
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 0
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:reported_capture_clipping",
+    "recording_quality_or_continuity_failed"
+   ],
+   "stored_report_sha256": "97ad00bb935f84d066dbde3f6d83bde39fcb1bc4b7393026aa1a5fe6aeda52bf"
+  },
+  {
+   "trial": "efb2b564",
+   "trial_id": "efb2b564cf1c4f54b7260e4e45431e2e",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 8,
+    "late_separate": 8,
+    "timeline_segmented": 8,
+    "both": 8
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@4.008s/20.0ms/exact_zero"
+   ],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "timeline_discontinuity_detected:B:4.008000s:20.000ms:exact_zero",
+    "A:e00:ambiguous",
+    "A:e02:ambiguous",
+    "A:e04:ambiguous"
+   ],
+   "stored_report_sha256": "eda6c3ce3ac4c44cb7ce402eedb91b8f10527d2c85666796f56b5dec37b76e45"
+  },
+  {
+   "trial": "effee55b",
+   "trial_id": "effee55b8cc34113a00babb14bcff234",
+   "protocol_version": "beepbeep-v1",
+   "reference_gap": "5 cm",
+   "experiment": {
+    "room": "small room",
+    "pose": "90 degree"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 29,
+    "late_separate": 32,
+    "timeline_segmented": 29,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 0.15160850769628878,
+    "late_separate": 0.17578083307545622,
+    "timeline_segmented": 0.15160850769628878,
+    "both": 0.17578083307545622
+   },
+   "late_tail_slots": 3,
+   "competing_events": 0,
+   "secondary_events": [
+    {
+     "receiver": "A",
+     "emission_id": "e05",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.0034280277940666208,
+     "delay_after_primary_ms": 202.04166666666669,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      0.0,
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.0,
+      -0.020833333333333332
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e07",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.0035396051641952263,
+     "delay_after_primary_ms": 202.04166666666669,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.0,
+     "peer_delay_offsets_ms": [
+      0.0,
+      0.0,
+      0.0,
+      -0.020833333333333332,
+      0.0,
+      0.0,
+      -0.020833333333333332
+     ]
+    },
+    {
+     "receiver": "A",
+     "emission_id": "e09",
+     "emitter": "B",
+     "classification": "late_tail_recurrent",
+     "amplitude_ratio": 0.0033891598991000163,
+     "delay_after_primary_ms": 202.02083333333334,
+     "same_emitter_slots_considered": 7,
+     "slots_with_matching_peak_at_10ms": 7,
+     "recurrence_fraction_at_10ms": 1.0,
+     "slots_with_matching_peak_at_2ms": 7,
+     "recurrence_fraction_at_2ms": 1.0,
+     "peer_delay_jitter_ms": 0.020833333333333332,
+     "peer_delay_median_offset_ms": 0.020833333333333332,
+     "peer_delay_offsets_ms": [
+      0.020833333333333332,
+      0.020833333333333332,
+      0.020833333333333332,
+      0.020833333333333332,
+      0.020833333333333332,
+      0.020833333333333332,
+      0.0
+     ]
+    }
+   ],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 16,
+     "exchanges": 0,
+     "max_res_ms": 0.17578083307545622,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 0,
+    "BA": 0,
+    "BB": 1
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     -13,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12,
+     -12
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "clock_fit_residual_too_large"
+   ],
+   "stored_report_sha256": "bbb4496233ad8bd6d3e918520ce54d5d8c33b281e343fe6d00abef6ed830c7ad"
+  },
+  {
+   "trial": "f60fa320",
+   "trial_id": "f60fa320428c40a99845607c588db174",
+   "protocol_version": null,
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "failed",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 32,
+    "late_separate": 32,
+    "timeline_segmented": 32,
+    "both": 32
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": 10.489596627988956,
+    "late_separate": 10.489596627988956,
+    "timeline_segmented": 2.429155134444326,
+    "both": 2.429155134444326
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [
+    "B@10.215s/20.0ms/exact_zero"
+   ],
+   "corroborated": true,
+   "segments": [
+    {
+     "i": 0,
+     "emissions": 10,
+     "exchanges": 0,
+     "max_res_ms": 2.429155134444326,
+     "valid": false,
+     "median_dt_ms": null
+    },
+    {
+     "i": 1,
+     "emissions": 6,
+     "exchanges": 0,
+     "max_res_ms": 0.22221987122309633,
+     "valid": false,
+     "median_dt_ms": null
+    }
+   ],
+   "peak_switches": {
+    "AA": 0,
+    "AB": 4,
+    "BA": 0,
+    "BB": 1
+   },
+   "peak_lags": {
+    "AA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "AB": [
+     0,
+     0,
+     -217,
+     -243,
+     -242,
+     -242,
+     -217,
+     -217
+    ],
+    "BA": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "BB": [
+     0,
+     -27,
+     -27,
+     -27,
+     -27,
+     -27,
+     -27,
+     -27
+    ]
+   },
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:recording_incomplete",
+    "A:audio_context_frame_discontinuity",
+    "A:reported_capture_discontinuity",
+    "A:reported_missing_frames",
+    "A:reported_capture_clipping"
+   ],
+   "stored_report_sha256": "ec5c6f1528d4676c616e09a1fff1a71ebc3f69bb94e3352853ea74b139ee716d"
+  },
+  {
+   "trial": "f6d98ecb",
+   "trial_id": "f6d98ecbb8794b3cb1845b0acd65d40b",
+   "protocol_version": "ranging-v1",
+   "reference_gap": null,
+   "experiment": {
+    "room": "big high celling room",
+    "pose": "face to face"
+   },
+   "live_status": "invalid",
+   "status": {
+    "default": "invalid",
+    "late_separate": "invalid",
+    "timeline_segmented": "invalid",
+    "both": "invalid"
+   },
+   "usable_exchanges": {
+    "default": 0,
+    "late_separate": 0,
+    "timeline_segmented": 0,
+    "both": 0
+   },
+   "usable_arrivals": {
+    "default": 8,
+    "late_separate": 8,
+    "timeline_segmented": 8,
+    "both": 8
+   },
+   "total_arrivals": 32,
+   "total_exchanges": 8,
+   "timing_difference_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "max_abs_residual_ms": {
+    "default": null,
+    "late_separate": null,
+    "timeline_segmented": null,
+    "both": null
+   },
+   "late_tail_slots": 0,
+   "competing_events": 0,
+   "secondary_events": [],
+   "timeline_candidates": [],
+   "corroborated": false,
+   "segments": [],
+   "peak_switches": {},
+   "peak_lags": {},
+   "nonboilerplate_reasons": [
+    "A:recording_clipped",
+    "A:reported_capture_clipping",
+    "insufficient_independent_emissions_for_clock_fit",
+    "no_stable_timing_interval_available",
+    "recording_quality_or_continuity_failed",
+    "A:e00:ambiguous"
+   ],
+   "stored_report_sha256": "3fab456d9faebcb26a4a0fb552479dffb9a1e38804ed1e88f30fbc90347a2488"
+  }
+ ]
+}

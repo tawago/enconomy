@@ -1,0 +1,51 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+*.ap_
+*.dex
+*.log
+/androidApp/build
+/shared/build
+/iosApp/build
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.xcuserstate
+
+/docs
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+*.p12
+.claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Audio recordings and raw captures
+*.wav
+*.webm
+*.m4a
+*.mp3
+*.ogg
+*.flac
+*.pcm
+*.pkl
+*.npy
+*.npz
+
+# Node
+node_modules/
