@@ -26,12 +26,14 @@ CREATE TABLE IF NOT EXISTS enroll_nonces (nonce TEXT PRIMARY KEY, expires_ms INT
 CREATE TABLE IF NOT EXISTS devices (
   device_id TEXT PRIMARY KEY, pubkey TEXT NOT NULL, display_name TEXT NOT NULL, model TEXT NOT NULL,
   security_level TEXT NOT NULL, security_level_reported TEXT NOT NULL, attested INTEGER NOT NULL,
-  chain_pem TEXT, root_sha256 TEXT, enrolled_at TEXT NOT NULL);
+  chain_pem TEXT, root_sha256 TEXT, enrolled_at TEXT NOT NULL,
+  platform TEXT NOT NULL DEFAULT 'android', key_kind TEXT, attest_key_id TEXT);
 CREATE TABLE IF NOT EXISTS sessions (session_id TEXT PRIMARY KEY, doc TEXT NOT NULL);
 """
 
 _DEV_COLS = ["device_id", "pubkey", "display_name", "model", "security_level", "security_level_reported",
-             "attested", "chain_pem", "root_sha256", "enrolled_at"]
+             "attested", "chain_pem", "root_sha256", "enrolled_at", "platform", "key_kind", "attest_key_id"]
+_ADDED = {"platform": "TEXT NOT NULL DEFAULT 'android'", "key_kind": "TEXT", "attest_key_id": "TEXT"}
 
 
 class SqliteStore:
@@ -42,6 +44,10 @@ class SqliteStore:
         self._db.row_factory = sqlite3.Row
         self._lock = threading.Lock()
         self._db.executescript(_SCHEMA)
+        have = {r["name"] for r in self._db.execute("PRAGMA table_info(devices)")}
+        for col, decl in _ADDED.items():  # older data/pop.sqlite
+            if col not in have:
+                self._db.execute(f"ALTER TABLE devices ADD COLUMN {col} {decl}")
 
     def add_nonce(self, nonce_hex, expires_ms):
         with self._lock:

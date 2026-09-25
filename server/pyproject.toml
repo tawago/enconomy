@@ -8,6 +8,7 @@ dependencies = [
     "cryptography>=43",
     "numpy>=1.26",
     "python-multipart>=0.0.9",
+    "cbor2>=5.6",
 ]
 
 [dependency-groups]

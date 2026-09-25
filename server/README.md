@@ -16,7 +16,9 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 |---|---|---|
 | `POP_DB` | `data/pop.sqlite` | SQLite file. `data/` is gitignored. |
 | `POP_DATA_DIR` | `data/` | `sessions/<id>/result.json` and uploaded `recording_<role>_<attempt>.wav`. |
-| `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` at enroll and stores the device as `attested: false`. Use it for emulators and fake phones. |
+| `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` (Android) or `app_attest: null` (iOS) at enroll and stores the device as `attested: false`. Use it for emulators, the iOS simulator, a free Apple personal team and fake phones. |
+| `POP_IOS_APP_ID` | unset | App Attest appId, `TEAMID.com.enconomy.pop`. Unset = every iOS attestation is refused. |
+| `POP_IOS_ROOT_PEM` | Apple root | Path to a PEM that replaces the embedded Apple App Attestation Root CA (tests pass their own root through `Settings`). |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |
 | `POP_HOST`, `POP_PORT` | `0.0.0.0`, `8000` | Only used by `python -m pop`. |
@@ -40,6 +42,7 @@ uv run pytest -q
 |---|---|
 | `test_public.py` | `/health`, `/v1/time`, `/v1/config`, error shape |
 | `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
+| `test_enroll_ios.py` | embedded Apple root self-verifies; App Attest with a self-made root/intermediate (real Apple vectors need a paid team): good (dev and prod aaguid), wrong nonce, other pubkey, tampered credCert nonce, wrong appId, bad aaguid, counter != 0, fmt, credentialId, keyId, foreign intermediate, missing extension, garbage, fake chain vs the real Apple root, no `POP_IOS_APP_ID`; unattested SE key only with the flag; `platform` default and unknown; old sqlite migrates |
 | `test_auth.py` | good, missing headers, unknown device, stale (±61 s), replay, wrong key, tampered body, query covered by the signature |
 | `test_invite.py` | 49-byte layout, QR form, rejects |
 | `test_jbl250.py` | vendored generator vs goldens (`tests/golden/*.f32`) and vs `fieldprobes` itself (read-only import, skipped without `research/`); sample rates 36k..96k; peak limit; bed key per (session, role, attempt) |
@@ -69,6 +72,10 @@ Verified at `POST /v1/enroll`:
 `security_level` is taken from `attestationSecurityLevel`. The level the app reports is stored separately, and a mismatch is only logged.
 
 NOT verified: the root pinned to Google's roots (its sha256 is stored as `root_sha256` for later), revocation / RKP, `attestationApplicationId` (package + signing digest), verified-boot state, a minimum security level, and cert validity dates. So a self-made chain passes today. It proves only possession of the key and freshness of the nonce.
+
+### iOS (contract §2.2.1)
+
+`platform: "ios"` takes `app_attest: {key_id, attestation}` instead of `chain`. The App Attest key is not the Secure Enclave signing key; the signing key is bound by `clientDataHash = sha256(nonce || sha256(pubkey65))`, which the app passes to `attestKey`. Verified: `fmt`, x5c chain to the pinned Apple App Attestation Root CA, the credCert nonce extension (`1.2.840.113635.100.8.2`) == `sha256(authData || clientDataHash)`, `sha256(credCert key) == keyId == credentialId`, `rpIdHash == sha256(POP_IOS_APP_ID)`, `signCount == 0`, aaguid `appattestdevelop` / `appattest`. NOT verified: cert validity dates, the receipt, revocation. `key_kind` (`secure_enclave` / `software`) is only reported and becomes `security_level`. Without App Attest (free team, simulator) the app sends `app_attest: null`, which needs `POP_ALLOW_UNATTESTED=1`.
 
 ## Notes and choices the contract leaves open
 

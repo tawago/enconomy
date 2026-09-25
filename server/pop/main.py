@@ -4,7 +4,8 @@ Run: uv run python -m pop            (0.0.0.0:8000)
  or: uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
-sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1).
+sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1),
+POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root).
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from pop import constants as K
+from pop.appattest import APPLE_ROOT_PEM, verify_app_attest
 from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
@@ -36,6 +38,7 @@ from pop.store import SqliteStore, Store
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
 SECURITY_LEVELS = {"strongbox", "tee", "software", "unknown"}
+IOS_KEY_KINDS = {"secure_enclave", "software"}
 HEX = re.compile(r"^[0-9a-f]*$")
 
 log = logging.getLogger("pop")
@@ -62,7 +65,13 @@ class Settings:
     gain_db: float = field(default_factory=lambda: float(os.environ.get("POP_GAIN_DB", "0")))
     upload_recordings: bool = field(default_factory=lambda: _env_bool("POP_UPLOAD_RECORDINGS", True))
     data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
+    ios_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_IOS_APP_ID") or None)
+    ios_root_pem: bytes = field(default_factory=lambda: _read_root(os.environ.get("POP_IOS_ROOT_PEM")))
     now_ms: Callable[[], int] = wall_ms
+
+
+def _read_root(path: str | None) -> bytes:
+    return Path(path).read_bytes() if path else APPLE_ROOT_PEM
 
 
 def _hex(s: str, nbytes: int) -> bytes | None:
@@ -76,6 +85,11 @@ def _iso(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat(timespec="milliseconds")
 
 
+class AppAttestIn(BaseModel):
+    key_id: str
+    attestation: str
+
+
 class EnrollIn(BaseModel):
     nonce: str
     device_id: str
@@ -84,6 +98,9 @@ class EnrollIn(BaseModel):
     model: str = ""
     security_level: str = "unknown"
     chain: list[str] | None = None
+    platform: str = "android"
+    key_kind: str | None = None
+    app_attest: AppAttestIn | None = None
 
 
 class JoinIn(BaseModel):
@@ -190,28 +207,54 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         name = req.display_name.strip()
         if not 1 <= len(name) <= 32:
             raise PopError(400, "bad_request", "display_name must be 1..32 chars")
-        reported = req.security_level if req.security_level in SECURITY_LEVELS else "unknown"
-        if req.chain is None:
-            if not cfg.allow_unattested:
-                raise PopError(400, "enroll_bad_chain", "chain required (POP_ALLOW_UNATTESTED is off)")
-            att = {"security_level": reported, "chain_pem": None, "root_sha256": None}
-            attested = False
+        if req.platform == "ios":
+            att, attested, key_kind = _enroll_ios(req, pub, nonce)
+            reported = att["security_level"]
+        elif req.platform != "android":
+            raise PopError(400, "bad_request", "platform must be android or ios")
         else:
-            try:
-                att = verify_chain(req.chain, pub, nonce)
-            except AttestationError as e:
-                raise PopError(400, e.code, e.detail) from None
-            attested = True
-            if att["security_level"] != reported:
-                log.warning("enroll %s: reported security_level=%s, attestation says %s", dev_id, reported, att["security_level"])
+            key_kind = "android_keystore"
+            reported = req.security_level if req.security_level in SECURITY_LEVELS else "unknown"
+            if req.chain is None:
+                if not cfg.allow_unattested:
+                    raise PopError(400, "enroll_bad_chain", "chain required (POP_ALLOW_UNATTESTED is off)")
+                att = {"security_level": reported, "chain_pem": None, "root_sha256": None}
+                attested = False
+            else:
+                try:
+                    att = verify_chain(req.chain, pub, nonce)
+                except AttestationError as e:
+                    raise PopError(400, e.code, e.detail) from None
+                attested = True
+                if att["security_level"] != reported:
+                    log.warning("enroll %s: reported security_level=%s, attestation says %s", dev_id, reported,
+                                att["security_level"])
         now = cfg.now_ms()
         db.put_device({"device_id": dev_id, "pubkey": pub.hex(), "display_name": name, "model": req.model[:64],
                        "security_level": att["security_level"], "security_level_reported": reported,
                        "attested": attested, "chain_pem": att["chain_pem"], "root_sha256": att["root_sha256"],
-                       "enrolled_at": _iso(now)})
-        log.info("enrolled %s %r model=%r attested=%s level=%s", dev_id, name, req.model, attested, att["security_level"])
+                       "enrolled_at": _iso(now), "platform": req.platform, "key_kind": key_kind,
+                       "attest_key_id": att.get("key_id")})
+        log.info("enrolled %s %r %s model=%r attested=%s level=%s", dev_id, name, req.platform, req.model, attested,
+                 att["security_level"])
         return {"device_id": dev_id, "attested": attested, "security_level": att["security_level"],
-                "enrolled_at": _iso(now)}
+                "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now)}
+
+    def _enroll_ios(req: EnrollIn, pub: bytes, nonce: bytes) -> tuple[dict, bool, str]:
+        """App Attest binds the signing key via clientDataHash; the key kind itself is only reported."""
+        kind = next((k for k in (req.key_kind, req.security_level) if k in IOS_KEY_KINDS), "unknown")
+        if req.chain is not None:
+            raise PopError(400, "bad_request", "ios sends app_attest, not chain")
+        if req.app_attest is None:
+            if not cfg.allow_unattested:
+                raise PopError(400, "enroll_bad_attestation", "app_attest required (POP_ALLOW_UNATTESTED is off)")
+            return {"security_level": kind, "chain_pem": None, "root_sha256": None}, False, kind
+        try:
+            att = verify_app_attest(req.app_attest.attestation, req.app_attest.key_id, pub, nonce, cfg.ios_app_id,
+                                    cfg.ios_root_pem)
+        except AttestationError as e:
+            raise PopError(400, e.code, e.detail) from None
+        return {**att, "security_level": kind}, True, kind
 
     # -- pairing (§3)
     @app.post("/v1/session")
