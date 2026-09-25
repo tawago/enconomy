@@ -94,6 +94,8 @@ actual fun rememberNfcState(): NfcState {
     return st
 }
 
+actual fun nfcCanHost(): Boolean = true
+
 actual fun openNfcSettings() {
     val ctx = PopApplication.instance
     val i = Intent(Settings.ACTION_NFC_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

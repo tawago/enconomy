@@ -108,7 +108,7 @@ private fun Home(s: UiState, c: PopController) {
 @Composable
 private fun Host(s: UiState, c: PopController) {
     Text("Host", fontWeight = FontWeight.Medium)
-    val nfc = rememberNfcState()
+    val nfc = if (nfcCanHost()) rememberNfcState() else NfcState.Unsupported
     val inv = s.invite
     if (inv == null) Text("creating session…") else {
         val qr = inv.invite_b64url?.let { "pop1:$it" }

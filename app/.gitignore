@@ -6,3 +6,8 @@ local.properties
 .kotlin/
 captures/
 *.apk
+iosApp/Configuration/Local.xcconfig
+iosApp/build/
+xcuserdata/
+*.xcuserstate
+DerivedData/

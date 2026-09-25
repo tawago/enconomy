@@ -1,4 +1,4 @@
-# pop app (KMP, Android)
+# pop app (KMP, Android + iOS)
 
 Proof-of-presence phone app. Contract: `../docs/pop-contract.md`.
 
@@ -8,6 +8,7 @@ Layout (`composeApp/src/`):
 - `commonMain/.../pop/` — `App.kt` (Compose), `PopController.kt` (screens, enroll, pairing), `RunFlow.kt` (`PopRun`: arm .. result, §4-§8), `Transcript.kt` (269-byte transcript, 71-byte commit, §7), `AudioRun.kt` / `ClockSync.kt` (timing), `PopApi.kt` (wire types + client, §2.3 signing), `Signing.kt` (`DeviceKey`/`DeviceKeystore`, request message, DER -> r||s), `Bytes.kt` (hex, base64, SHA-256), `Platform.kt` (expect decls).
 - `commonMain/.../pop/dsp/` — DSP lane only (§6).
 - `androidMain/.../pop/` — `AndroidDeviceKeystore.kt`, `MainActivity.kt`, `Platform.android.kt`, manifest, cleartext config.
+- `iosMain/.../pop/` — `MainViewController.kt` (Compose host), `Platform.ios.kt`, `AudioEngine.ios.kt`, `DeviceKeystore.ios.kt`, `Pairing.ios.kt`. `iosTest/` — `readTestResource` actual.
 - `commonTest/` — `kotlin("test")`, coroutines-test, ktor mock. `commonTest/resources/` is on the unit-test classpath; read with `readTestResource("dsp/x.json")`.
 
 Enrollment is per server URL. Changing the URL or tapping Re-enroll makes a new key, so a new `device_id`. The attestation challenge is baked into the key, so a key cannot be re-enrolled with a fresh nonce.
@@ -94,3 +95,44 @@ It checks NEAR at 30 cm, `too_far` at 150 cm with no retry, and a 20 ms dropped 
 6. Both: check the partner name, tap **Confirm** (allow the microphone the first time).
 7. Keep the phones side by side on the table, speakers free, room quiet. Each plays one short sound; the result shows on both in a few seconds.
 8. **Again** goes back to Home. Recordings and `result.json` land in `server/data/sessions/<id>/`.
+
+## iOS
+
+`iosApp/iosApp.xcodeproj` (hand-written, no xcodegen) hosts `MainViewController()` from the static `ComposeApp` framework. The **Compile Kotlin Framework** build phase runs `./gradlew :composeApp:embedAndSignAppleFrameworkForXcode` (JDK 21 via `java_home`).
+
+Status: platform basics are real (prefs, device model, clocks, screen-on, mic permission). Audio engine, Secure Enclave key, NFC reader, QR draw/scan are stubs (`AudioEngine.ios.kt`, `DeviceKeystore.ios.kt`, `Pairing.ios.kt`).
+
+Tests: `./gradlew :composeApp:iosSimulatorArm64Test` runs all of `commonTest`, DSP parity included. The simulator reads the fixtures straight from `src/commonTest/resources` (absolute path baked in by `genTestResourceDir`).
+
+Pairing on iOS: no HCE, so an iPhone host shows QR only. An iPhone guest reads an Android host's card with Core NFC (paid build only), else scans QR.
+
+### Run on your iPhone (free Apple ID)
+
+1. Xcode > Settings > Accounts: add your Apple ID (makes a "Personal Team").
+2. Create `iosApp/Configuration/Local.xcconfig` (gitignored):
+   ```
+   TEAM_ID = ABCDE12345
+   POP_SERVER_URL = http:/$()/192.168.0.34:8000
+   ```
+   Team ID: Xcode > target iosApp > Signing & Capabilities > Team shows it; picking the team there works too, but edits the project file. The `$()` keeps `//` from being read as a comment.
+3. If the free team says the bundle id is taken, add `BUNDLE_ID = com.<you>.pop` to `Local.xcconfig`.
+4. iPhone: Settings > Privacy & Security > Developer Mode on (reboots). Plug in, trust the Mac.
+5. Open `iosApp/iosApp.xcodeproj`, pick the phone, Run. First launch: Settings > General > VPN & Device Management > trust your developer profile.
+6. Free-team apps expire after 7 days; Run again to reinstall.
+
+Server URL: baked in like Android (`PopBuildConfig.SERVER_URL`), from `POP_SERVER_URL` in the xcconfig (passed to Gradle as an env var). Simulator: `http://localhost:8000` (the default). Real iPhone: the Mac LAN IP (`ipconfig getifaddr en0`) or a `cloudflared` https URL. ATS allows plain HTTP to local hosts and IPs only (`NSAllowsLocalNetworking`). The in-app field still overrides it.
+
+The free build has no entitlements (`iosApp.entitlements` is empty): QR pairing only, and the key enrolls unattested (`chain: null`, server needs `POP_ALLOW_UNATTESTED=1`).
+
+### Paid build
+
+`POP_PAID = 1` in `Local.xcconfig` switches to `iosApp-paid.entitlements`: NFC tag reading (`TAG`, SELECT AID `F0454E434F504F50` listed in Info.plist) and App Attest (`POP_APPATTEST_ENV`, default `development`). It also sets Info.plist `PopNfcReader = YES`, which turns the NFC reader on in the app. Needs a paid team with those capabilities on the App ID.
+
+### Command line (no signing)
+
+```
+cd app/iosApp
+../../research/sound-bound/spikes/zk/tools/heavy.sh ios xcodebuild -project iosApp.xcodeproj -scheme iosApp \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build
+# device: -destination 'generic/platform=iOS'
+```

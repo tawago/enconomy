@@ -17,6 +17,9 @@ expect object InviteBeacon {
 @Composable
 expect fun rememberNfcState(): NfcState
 
+/** Host can answer an NFC tap (HCE). false on iOS: host shows QR only. */
+expect fun nfcCanHost(): Boolean
+
 /** Opens the system NFC settings. */
 expect fun openNfcSettings()
 
