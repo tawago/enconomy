@@ -1,4 +1,4 @@
-"""pop-v1 server: enrollment, signed-request auth, pairing (contract §2, §3, §9).
+"""pop-v1 server: enrollment, signed-request auth, pairing, arm/start, commit (contract §2-§5, §9).
 
 Run: uv run python -m pop            (0.0.0.0:8000)
  or: uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -87,11 +87,22 @@ class JoinIn(BaseModel):
     join_token: str
 
 
+class ArmIn(BaseModel):
+    attempt: Any = None
+    sample_rate: Any = None
+    rtt_min_ms: Any = None
+
+
+class CommitIn(BaseModel):
+    commit_b64: str
+    sig_b64: str
+
+
 def create_app(settings: Settings | None = None, store: Store | None = None) -> FastAPI:
     cfg = settings or Settings()
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
-    sessions = Sessions(db, cfg.now_ms)
+    sessions = Sessions(db, cfg.now_ms, cfg.gain_db)
 
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions = cfg, db, sessions
@@ -213,6 +224,19 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         s = sessions.load(sid)
         role = sessions.member(s, dev)
         return sessions.view(sessions.confirm(s, role), role)
+
+    # -- setup + commit-then-reveal (§4.3, §4.4, §5.2)
+    @app.post("/v1/session/{sid}/arm")
+    async def arm(sid: str, req: ArmIn, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return sessions.arm(s, role, req.attempt, req.sample_rate, req.rtt_min_ms)
+
+    @app.post("/v1/session/{sid}/commit")
+    async def commit(sid: str, req: CommitIn, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return sessions.commit(s, role, dev, req.commit_b64, req.sig_b64)
 
     @app.post("/v1/session/{sid}/abort")
     async def abort(sid: str, dev: dict = Depends(device)):

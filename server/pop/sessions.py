@@ -1,24 +1,39 @@
 """Session documents and pairing (contract §3, §9.1).
 
 created -join-> joined -confirm x2-> confirmed -arm x2-> started -> done ; any -> aborted.
-This module covers create / join / confirm / abort / view. Arm, commit, transcript, fail and
-result extend the same document (fields reserved below).
+This module covers create / join / confirm / abort / view, arm (§4.3, §4.4), commit (§5.2, §7.2)
+and next_attempt (§8.2 retry). Transcript, fail and result extend the same document.
 
-seed_hex never leaves the server. nonce_hex is shown only from `confirmed` on.
+seed_hex never leaves the server; bed keys are derived per (role, attempt) from it (jbl250.bed_key).
+nonce_hex is shown only from `confirmed` on. A phone gets its own play PCM + own bed at arm and the
+partner's bed only after its own commit; the partner's play PCM is never sent.
+
+Choices the contract leaves open:
+  - arm is idempotent for the same (attempt, sample_rate); another sample_rate after arming = 409.
+  - arm with rtt_min_ms > 300 is refused (400 bad_request); the phone should refuse first.
+  - commit is accepted only from t0 + B_PLAY_S + CODE_S (all sounds over by schedule), else 409 too_early.
+  - a repeated identical commit returns the partner bed again; a different one is 409 already_committed.
+  - a bad commit (signature / fields) is rejected with 400 and does not change the session;
+    turning it into a final NOT_NEAR is the result step's job.
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import secrets
 from typing import Callable
 
 from pop import constants as K
-from pop import invite
-from pop.crypto import key_hint
+from pop import invite, jbl250
+from pop.codec import b64d, decode_commit, pcm
+from pop.crypto import key_hint, verify_raw
 from pop.errors import PopError
 from pop.store import Store
 
 ROLES = ("A", "B")
+OTHER = {"A": "B", "B": "A"}
+MAX_RTT_MS = 300
+T0_DELAY_MS = 3000
 LIVE = ("created", "joined", "confirmed", "started")
 
 
@@ -27,8 +42,8 @@ def _flags() -> dict:
 
 
 class Sessions:
-    def __init__(self, store: Store, now_ms: Callable[[], int]):
-        self.store, self.now_ms = store, now_ms
+    def __init__(self, store: Store, now_ms: Callable[[], int], gain_db: float = 0.0):
+        self.store, self.now_ms, self.gain_db = store, now_ms, gain_db
 
     # -- persistence
     def _save(self, s: dict) -> dict:
@@ -121,6 +136,83 @@ class Sessions:
         s["state"], s["error"] = "aborted", "aborted"
         s["attempts"].append({"attempt": s["attempt"], "outcome": "aborted", "reason": "aborted", "by": role})
         s["finished_ms"] = self.now_ms()
+        return self._save(s)
+
+    # -- arm / start (§4.3, §4.4)
+    def _key(self, s: dict, role: str) -> bytes:
+        return jbl250.bed_key(s["seed_hex"], role, s["attempt"])
+
+    def _arm_material(self, s: dict, role: str) -> dict:
+        sr = s["per_role"][role]["sample_rate"]
+        key = self._key(s, role)
+        play, _ = jbl250.render(key, role, sr, self.gain_db)
+        return {"attempt": s["attempt"], "sample_rate": sr, "play": pcm(play),
+                "own_bed": pcm(jbl250.template(key, role, sr))}
+
+    def arm(self, s: dict, role: str, attempt, sample_rate, rtt_min_ms) -> dict:
+        if s["state"] not in ("confirmed", "started"):
+            raise PopError(409, "bad_state", s["state"])
+        if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt != s["attempt"]:
+            raise PopError(400, "bad_attempt", f"current attempt is {s['attempt']}")
+        if not isinstance(sample_rate, int) or isinstance(sample_rate, bool) or not K.SR_MIN <= sample_rate <= K.SR_MAX:
+            raise PopError(400, "bad_sample_rate", f"{K.SR_MIN}..{K.SR_MAX}")
+        if not isinstance(rtt_min_ms, (int, float)) or isinstance(rtt_min_ms, bool) or not 0 <= rtt_min_ms <= MAX_RTT_MS:
+            raise PopError(400, "bad_request", f"rtt_min_ms must be 0..{MAX_RTT_MS}")
+        if s["armed"][role]:
+            if s["per_role"][role]["sample_rate"] != sample_rate:
+                raise PopError(409, "bad_state", "already armed at another sample_rate")
+            return self._arm_material(s, role)
+        if s["state"] != "confirmed":
+            raise PopError(409, "bad_state", s["state"])
+        s["per_role"][role] = {"sample_rate": sample_rate, "rtt_min_ms": float(rtt_min_ms), "armed_ms": self.now_ms()}
+        s["armed"][role] = True
+        if all(s["armed"].values()):
+            s["state"], s["t0_ms"] = "started", self.now_ms() + T0_DELAY_MS
+        self._save(s)
+        return self._arm_material(s, role)
+
+    # -- commit, then reveal the partner bed (§5.2, §7.2)
+    def _partner_bed(self, s: dict, role: str) -> dict:
+        other = OTHER[role]
+        sr = s["per_role"][role]["sample_rate"]
+        return {"partner_bed": pcm(jbl250.template(self._key(s, other), other, sr))}
+
+    def commit(self, s: dict, role: str, dev: dict, commit_b64, sig_b64) -> dict:
+        if s["state"] != "started":
+            raise PopError(409, "bad_state", s["state"])
+        try:
+            raw, sig = b64d(commit_b64), b64d(sig_b64)
+            c = decode_commit(raw)
+        except ValueError as e:
+            raise PopError(400, "transcript_mismatch", str(e)) from None
+        if not verify_raw(bytes.fromhex(dev["pubkey"]), raw, sig):
+            raise PopError(400, "signature_invalid", "commit")
+        if c["role"] != role or c["attempt"] != s["attempt"] or c["nonce"] != bytes.fromhex(s["nonce_hex"]):
+            raise PopError(400, "transcript_mismatch", "role/attempt/nonce")
+        mine = s["per_role"][role]
+        if s["committed"][role]:
+            if mine["commit_b64"] != commit_b64:
+                raise PopError(409, "already_committed", "")
+            return self._partner_bed(s, role)
+        if self.now_ms() < s["t0_ms"] + int((K.B_PLAY_S + K.CODE_S) * 1000):
+            raise PopError(409, "too_early", "commit before the schedule ends")
+        mine.update({"commit_b64": commit_b64, "commit_sig_b64": sig_b64,
+                     "commit_sha256": hashlib.sha256(raw).hexdigest(), "rec_sha256": c["rec_sha256"].hex(),
+                     "committed_ms": self.now_ms()})
+        s["committed"][role] = True
+        self._save(s)
+        return self._partner_bed(s, role)
+
+    # -- retry (§8.2): attempt k failed, k + 1 < MAX_ATTEMPTS
+    def next_attempt(self, s: dict, reason: str, by: str | None) -> dict:
+        if s["attempt"] + 1 >= K.MAX_ATTEMPTS:
+            raise PopError(409, "bad_state", "no attempts left")
+        s["attempts"].append({"attempt": s["attempt"], "outcome": "failed", "reason": reason, "by": by,
+                              "per_role": s["per_role"], "t0_ms": s["t0_ms"]})
+        s["attempt"] += 1
+        s["state"], s["t0_ms"] = "confirmed", None
+        s["armed"], s["committed"], s["submitted"] = _flags(), _flags(), _flags()
+        s["per_role"] = {"A": {}, "B": {}}
         return self._save(s)
 
     # -- view (§9)
