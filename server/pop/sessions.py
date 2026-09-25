@@ -1,8 +1,8 @@
 """Session documents and pairing (contract §3, §9.1).
 
 created -join-> joined -confirm x2-> confirmed -arm x2-> started -> done ; any -> aborted.
-This module covers create / join / confirm / abort / view, arm (§4.3, §4.4), commit (§5.2, §7.2)
-and next_attempt (§8.2 retry). Transcript, fail and result extend the same document.
+This module covers create / join / confirm / abort / view, arm (§4.3, §4.4), commit (§5.2, §7.2),
+transcript / fail / timeout / retry / result (§7.1, §8) and the optional recording upload (§9).
 
 seed_hex never leaves the server; bed keys are derived per (role, attempt) from it (jbl250.bed_key).
 nonce_hex is shown only from `confirmed` on. A phone gets its own play PCM + own bed at arm and the
@@ -13,19 +13,36 @@ Choices the contract leaves open:
   - arm with rtt_min_ms > 300 is refused (400 bad_request); the phone should refuse first.
   - commit is accepted only from t0 + B_PLAY_S + CODE_S (all sounds over by schedule), else 409 too_early.
   - a repeated identical commit returns the partner bed again; a different one is 409 already_committed.
-  - a bad commit (signature / fields) is rejected with 400 and does not change the session;
-    turning it into a final NOT_NEAR is the result step's job.
+  - a bad commit (signature / fields) is rejected with 400 and does not change the session
+    (a phone may resend). A bad transcript from a member is final: 400 + done NOT_NEAR (§8.2).
+  - transcript / fail need the sender's own commit first (409 bad_state); fail may also come
+    before commit (capture_failed, self_not_heard, ...), from `confirmed` or `started`.
+  - a signed transcript or fail for an older attempt is 409 stale_attempt and changes nothing
+    (the retry already happened); a resend of the same transcript is idempotent, another one
+    is 409 already_submitted.
+  - self_os_delta is checked when both halves are in (combine), not at submit.
+  - timeout = started and not both transcripts by t0 + TRANSCRIPT_DEADLINE_S, checked lazily
+    on every load; `by` = the silent role (null if both).
+  - the view carries `last_failure` {attempt, reason, by, text} so a phone can show why it
+    re-arms; `error` is the final reason once done (null for NEAR), as for aborted.
+  - the result record also carries `commits` {role: {commit_b64, sig_b64}} and `user_text`
+    so verify_record() can re-check everything offline.
 """
 from __future__ import annotations
 
 import hashlib
 import hmac
+import io
+import json
 import secrets
+import wave
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Callable
 
 from pop import constants as K
-from pop import invite, jbl250
-from pop.codec import b64d, decode_commit, pcm
+from pop import invite, jbl250, verdict as V
+from pop.codec import b64d, decode_commit, decode_transcript, pcm
 from pop.crypto import key_hint, verify_raw
 from pop.errors import PopError
 from pop.store import Store
@@ -41,9 +58,19 @@ def _flags() -> dict:
     return {"A": False, "B": False}
 
 
+def _iso(ms: int | None) -> str | None:
+    return None if ms is None else datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat(timespec="milliseconds")
+
+
+def _int(x) -> bool:
+    return isinstance(x, int) and not isinstance(x, bool)
+
+
 class Sessions:
-    def __init__(self, store: Store, now_ms: Callable[[], int], gain_db: float = 0.0):
+    def __init__(self, store: Store, now_ms: Callable[[], int], gain_db: float = 0.0,
+                 data_dir: str | Path | None = None):
         self.store, self.now_ms, self.gain_db = store, now_ms, gain_db
+        self.data_dir = None if data_dir is None else Path(data_dir)
 
     # -- persistence
     def _save(self, s: dict) -> dict:
@@ -60,6 +87,9 @@ class Sessions:
         if s["state"] in LIVE and now - s["created_ms"] > K.SESSION_MAX_AGE_S * 1000:
             s["state"], s["error"] = "aborted", "timeout"
             return self._save(s)
+        if s["state"] == "started" and now > s["t0_ms"] + K.TRANSCRIPT_DEADLINE_S * 1000:
+            silent = [r for r in ROLES if not s["submitted"][r]]
+            return self._failed(s, "timeout", silent[0] if len(silent) == 1 else None)
         return s
 
     def load(self, session_id: str) -> dict:
@@ -96,7 +126,7 @@ class Sessions:
             "host_device_id": host["device_id"], "guest_device_id": None,
             "confirmed": _flags(), "armed": _flags(), "committed": _flags(), "submitted": _flags(),
             "t0_ms": None, "result": None, "error": None,
-            "attempts": [],
+            "attempts": [], "last_failure": None,
             "per_role": {"A": {}, "B": {}},  # arm/commit/transcript data, keyed by role
         }
         self._save(s)
@@ -209,11 +239,171 @@ class Sessions:
             raise PopError(409, "bad_state", "no attempts left")
         s["attempts"].append({"attempt": s["attempt"], "outcome": "failed", "reason": reason, "by": by,
                               "per_role": s["per_role"], "t0_ms": s["t0_ms"]})
+        s["last_failure"] = {"attempt": s["attempt"], "reason": reason, "by": by, "text": V.USER_TEXT.get(reason)}
         s["attempt"] += 1
         s["state"], s["t0_ms"] = "confirmed", None
         s["armed"], s["committed"], s["submitted"] = _flags(), _flags(), _flags()
         s["per_role"] = {"A": {}, "B": {}}
         return self._save(s)
+
+    # -- transcript, fail, verdict (§7.1, §8)
+    def _pk(self, s: dict, role: str) -> bytes:
+        dev_id = s["host_device_id"] if role == "A" else s["guest_device_id"]
+        return bytes.fromhex(self.store.get_device(dev_id)["pubkey"])
+
+    def _failed(self, s: dict, reason: str, by: str | None) -> dict:
+        """Measurement failure at the current attempt: retry if one is left, else final NOT_NEAR."""
+        if reason in V.RETRY_REASONS and s["attempt"] + 1 < K.MAX_ATTEMPTS:
+            return self.next_attempt(s, reason, by)
+        return self._finalize(s, "NOT_NEAR", reason, None, "failed", by)
+
+    def _finalize(self, s: dict, verdict: str, reason: str | None, flight: float | None, outcome: str,
+                  by: str | None) -> dict:
+        s["attempts"].append({"attempt": s["attempt"], "outcome": outcome, "reason": reason, "by": by,
+                              "verdict": verdict, "flight_cm": flight, "per_role": s["per_role"], "t0_ms": s["t0_ms"]})
+        s["state"], s["error"] = "done", reason
+        s["finished_ms"] = self.now_ms()
+        s["result"] = self._record(s, verdict, reason, flight)
+        self._save(s)
+        self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
+        return s
+
+    def _record(self, s: dict, verdict: str, reason: str | None, flight: float | None) -> dict:
+        """§8.4 (+ commits, user_text). Built from the final attempt's per-role data."""
+        devices, transcripts, commits = {}, {}, {}
+        for r in ROLES:
+            dev_id = s["host_device_id"] if r == "A" else s["guest_device_id"]
+            d = self.store.get_device(dev_id) if dev_id else None
+            pr = s["per_role"][r]
+            if d is not None:
+                devices[r] = {"device_id": d["device_id"], "pubkey": d["pubkey"], "display_name": d["display_name"],
+                              "model": d["model"], "attested": d["attested"], "security_level": d["security_level"],
+                              "sample_rate": pr.get("sample_rate"), "half": pr.get("half")}
+            if "transcript_b64" in pr:
+                transcripts[r] = {"transcript_b64": pr["transcript_b64"], "sig_b64": pr["sig_b64"],
+                                  "sha256": pr["transcript_sha256"]}
+            if "commit_b64" in pr:
+                commits[r] = {"commit_b64": pr["commit_b64"], "sig_b64": pr["commit_sig_b64"]}
+        return {
+            "proto": K.PROTO, "session_id": s["session_id"], "session_nonce": s["nonce_hex"],
+            "attempt": s["attempt"], "verdict": verdict, "reason": reason,
+            "user_text": V.USER_TEXT.get(reason) if reason else None,
+            "flight_cm": flight, "t0_ms": s["t0_ms"],
+            "created_at": _iso(s["created_ms"]), "finished_at": _iso(s["finished_ms"]),
+            "devices": devices, "transcripts": transcripts, "commits": commits,
+            "attempts": [{k: a.get(k) for k in ("attempt", "outcome", "reason", "by")}
+                         | ({"verdict": a["verdict"], "flight_cm": a["flight_cm"]} if a.get("outcome") == "verdict" else {})
+                         for a in s["attempts"]],
+        }
+
+    def _write(self, sid: str, name: str, data: bytes) -> Path | None:
+        if self.data_dir is None:
+            return None
+        d = self.data_dir / "sessions" / sid
+        d.mkdir(parents=True, exist_ok=True)
+        (d / name).write_bytes(data)
+        return d / name
+
+    def _stale(self, s: dict, attempt) -> None:
+        if s["state"] in ("confirmed", "started") and _int(attempt) and attempt < s["attempt"]:
+            raise PopError(409, "stale_attempt", f"attempt {attempt} already over; current is {s['attempt']}")
+
+    def transcript(self, s: dict, role: str, dev: dict, transcript_b64, sig_b64, meta) -> dict:
+        try:
+            raw, sig = b64d(transcript_b64), b64d(sig_b64)
+        except ValueError:
+            raw = sig = None
+        if raw is not None:
+            try:
+                t = decode_transcript(raw)
+            except ValueError:
+                t = None
+            if t is not None and t["attempt"] < s["attempt"] and verify_raw(self._pk(s, role), raw, sig):
+                self._stale(s, t["attempt"])
+        if s["state"] != "started":
+            raise PopError(409, "bad_state", s["state"])
+        mine = s["per_role"][role]
+        if s["submitted"][role]:
+            if mine["transcript_b64"] == transcript_b64 and mine["sig_b64"] == sig_b64:
+                return {"accepted": True, "state": s["state"], "attempt": s["attempt"]}
+            raise PopError(409, "already_submitted", "")
+        if not s["committed"][role]:
+            raise PopError(409, "bad_state", "commit first")
+        try:
+            if raw is None:
+                raise V.Reject("transcript_mismatch", "bad base64")
+            t = V.check_transcript(raw, sig, role=role, pk_self=bytes.fromhex(dev["pubkey"]),
+                                   pk_partner=self._pk(s, OTHER[role]), nonce=bytes.fromhex(s["nonce_hex"]),
+                                   attempt=s["attempt"], commit_sha256=bytes.fromhex(mine["commit_sha256"]),
+                                   rec_sha256=bytes.fromhex(mine["rec_sha256"]), sample_rate=mine["sample_rate"])
+        except V.Reject as e:
+            self._finalize(s, "NOT_NEAR", e.reason, None, "rejected", role)
+            raise PopError(400, e.reason, e.detail) from None
+        meta = meta if isinstance(meta, dict) else {}
+        if len(json.dumps(meta)) > 65536:
+            meta = {"_dropped": "meta over 64 KiB"}
+        mine.update({"transcript_b64": transcript_b64, "sig_b64": sig_b64, "meta": meta,
+                     "transcript_sha256": hashlib.sha256(raw).hexdigest(), "half": t["half"],
+                     "self_os_delta": t["self_os_delta"], "submitted_ms": self.now_ms()})
+        s["submitted"][role] = True
+        if not all(s["submitted"].values()):
+            self._save(s)
+        else:
+            ts = {r: decode_transcript(b64d(s["per_role"][r]["transcript_b64"])) for r in ROLES}
+            try:
+                out = V.combine(ts["A"], ts["B"])
+            except V.Reject as e:   # unreachable after check_transcript on both sides; kept as a guard
+                self._finalize(s, "NOT_NEAR", e.reason, None, "rejected", None)
+                raise PopError(400, e.reason, e.detail) from None
+            s["last_flight_cm"] = out["flight_cm"]
+            if out["verdict"] is None:
+                self._failed(s, out["reason"], out["by"])
+            else:
+                self._finalize(s, out["verdict"], out["reason"], out["flight_cm"], "verdict", None)
+        return {"accepted": True, "state": s["state"], "attempt": s["attempt"]}
+
+    def fail(self, s: dict, role: str, attempt, reason) -> dict:
+        if reason not in V.PHONE_REASONS:
+            raise PopError(400, "bad_reason", f"one of {sorted(V.PHONE_REASONS)}")
+        if not _int(attempt):
+            raise PopError(400, "bad_attempt", "")
+        self._stale(s, attempt)
+        if s["state"] not in ("confirmed", "started"):
+            raise PopError(409, "bad_state", s["state"])
+        if attempt != s["attempt"]:
+            raise PopError(400, "bad_attempt", f"current attempt is {s['attempt']}")
+        if s["submitted"][role]:
+            raise PopError(409, "already_submitted", "")
+        s["per_role"][role]["fail"] = {"reason": reason, "ms": self.now_ms()}
+        return self._failed(s, reason, role)
+
+    def result(self, s: dict) -> dict:
+        if s["result"] is None:
+            raise PopError(404, "no_result", s["state"])
+        return s["result"]
+
+    # -- optional recording upload (§9): int16 mono WAV whose frames hash to the committed rec_sha256
+    def recording(self, s: dict, role: str, attempt, wav_bytes: bytes, meta) -> dict:
+        if not _int(attempt):
+            raise PopError(400, "bad_attempt", "")
+        pr = s["per_role"][role] if attempt == s["attempt"] else next(
+            (a["per_role"][role] for a in s["attempts"] if a["attempt"] == attempt and "per_role" in a), {})
+        want = pr.get("rec_sha256")
+        if want is None:
+            raise PopError(409, "bad_state", "no commit for that attempt")
+        try:
+            with wave.open(io.BytesIO(wav_bytes)) as w:
+                if w.getsampwidth() != 2 or w.getnchannels() != 1:
+                    raise PopError(400, "bad_request", "need int16 mono WAV")
+                frames = w.readframes(w.getnframes())
+        except (wave.Error, EOFError) as e:
+            raise PopError(400, "bad_request", f"wav: {e}") from None
+        if hashlib.sha256(frames).hexdigest() != want:
+            raise PopError(400, "transcript_mismatch", "recording sha256 != committed rec_sha256")
+        path = self._write(s["session_id"], f"recording_{role}_{attempt}.wav", wav_bytes)
+        if path is not None and meta is not None:
+            self._write(s["session_id"], f"recording_{role}_{attempt}.json", json.dumps(meta, indent=1).encode())
+        return {"ok": True, "stored": path is not None}
 
     # -- view (§9)
     def view(self, s: dict, role: str) -> dict:
@@ -236,4 +426,5 @@ class Sessions:
             "constants": {"a_play_s": K.A_PLAY_S, "b_play_s": K.B_PLAY_S, "lead_s": K.LEAD_S, "capture_s": K.CAPTURE_S},
             "result": s["result"],
             "error": s["error"],
+            "last_failure": s.get("last_failure"),
         }

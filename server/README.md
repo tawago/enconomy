@@ -1,6 +1,6 @@
 # pop server
 
-FastAPI server for proof of presence, pop-v1. The spec is `../docs/pop-contract.md`. This part covers health/time/config, device enrollment, signed-request auth, pairing (create, invite, join, confirm, abort), arm/start (T0) and commit-then-reveal. Transcript, fail and result reuse the same session document; see `pop/sessions.py`.
+FastAPI server for proof of presence, pop-v1. The spec is `../docs/pop-contract.md`. It covers health/time/config, device enrollment, signed-request auth, pairing (create, invite, join, confirm, abort), arm/start (T0), commit-then-reveal, signed transcripts, the verdict, retry, the result record and the optional recording upload. See `pop/sessions.py` (state), `pop/verdict.py` (checks and flight) and `pop/dsp_ref.py` (Python reference of the phone DSP).
 
 ## Run
 
@@ -15,6 +15,7 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | Env | Default | What |
 |---|---|---|
 | `POP_DB` | `data/pop.sqlite` | SQLite file. `data/` is gitignored. |
+| `POP_DATA_DIR` | `data/` | `sessions/<id>/result.json` and uploaded `recording_<role>_<attempt>.wav`. |
 | `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` at enroll and stores the device as `attested: false`. Use it for emulators and fake phones. |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |
@@ -43,6 +44,9 @@ uv run pytest -q
 | `test_invite.py` | 49-byte layout, QR form, rejects |
 | `test_jbl250.py` | vendored generator vs goldens (`tests/golden/*.f32`) and vs `fieldprobes` itself (read-only import, skipped without `research/`); sample rates 36k..96k; peak limit; bed key per (session, role, attempt) |
 | `test_arm_commit.py` | `/v1/time` ping; arm material (own play + own bed only) and `t0 = now + 3 s` once both armed; bad sample rate / attempt / rtt; unauthenticated and non-member refused; partner bed absent before commit, released after (at the committer's rate); `too_early`; commit signature / role / attempt / nonce checks; attempt 1 gets new codes |
+| `test_transcript_codec.py` | 269-byte transcript / 71-byte commit layout, offsets, pinned sha256 of a known vector (same literal goes in the Kotlin test) |
+| `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
+| `test_flow_fake_phones.py` | two fake phones (`tests/sim.py`, software keys, `dsp_ref` as DSP) over HTTP: NEAR at 0/30 cm, NOT_NEAR `too_far` at 100/200 cm with no retry, glitch (20 ms zero block) -> retry -> NEAR, two failures -> final, timeout -> retry, stale transcript/fail after a retry, swapped role (sign flip), relayed partner transcript, tampered bytes, every field check, replay from another session, transcript before commit, impossible flight and self-timestamp retries, `/fail` checks, result access, offline `verify_record` on swapped records, recording upload hash check, and a real field recording as room background (skipped without the wavs) |
 | `test_pairing.py` | create + invite decode + host key hint; join; 404 / self_join / bad_token / token_expired / already_joined / not_member; confirm (nonce appears only after both confirm); long-poll wake-up and timeout; abort; 10-min expiry; seed never in a response |
 
 Tests use a fake clock and `SqliteStore(":memory:")`. The fake phones in `tests/phones.py` hold software P-256 keys and sign exactly like the app will.
@@ -75,3 +79,25 @@ NOT verified: the root pinned to Google's roots (its sha256 is stored as `root_s
 - `confirm` is idempotent, and `abort` on a finished session returns the view unchanged.
 - The replay cache is in memory, so a restart forgets it. The 60 s ts window still applies.
 - Long-poll re-reads the store every 100 ms.
+
+## Transcript, verdict, retry (§7, §8)
+
+`POST /transcript` checks, in order: layout, signature by the sender's enrolled key, `pk_self` = that key, role = the sender's session role, nonce, attempt, `pk_partner` = the partner's enrolled key, `sample_rate` = the armed rate, `commit_hash` = sha256 of the stored commit, `rec_sha256` = the committed one. Any failure is 400 and a final NOT_NEAR (`signature_invalid` / `transcript_mismatch`), never retried. When both are in, `combine()` re-checks the pair (one A one B, same nonce and attempt, crossed keys), then `self_os_delta`, then `flight = c/2 (half_A/sr_A - half_B/sr_B)`.
+
+| Outcome | Next |
+|---|---|
+| -20 < flight < 60 | done, NEAR |
+| flight >= 60 | done, NOT_NEAR `too_far`, no retry |
+| flight <= -20, self_os_delta off, a phone `/fail`, no transcript by t0 + 20 s | attempt 0: back to `confirmed`, attempt 1, fresh beds; attempt 1: done, NOT_NEAR with that reason |
+
+`GET /result` returns the §8.4 record (also written to `data/sessions/<id>/result.json`). It adds `commits` and `user_text`; `pop.verdict.verify_record(record)` re-runs every check offline from the record alone.
+
+Choices the contract leaves open (see also the `pop/sessions.py` docstring):
+- exactly -20 cm is `impossible_flight` (the check says >= -20 passes, the verdict needs > -20).
+- self_os_delta is checked when both transcripts are in, not at submit.
+- a signed transcript or fail for an older attempt is 409 `stale_attempt` and changes nothing. A resend of the same transcript is idempotent; a different one is 409 `already_submitted`.
+- `/fail` accepts `capture_failed, glitch, self_not_heard, self_timestamp_mismatch, partner_not_heard` (retry) and `partner_mismatch` (final). It works from `confirmed` too (audio failed while arming).
+- the session view adds `last_failure {attempt, reason, by, text}`; `error` holds the final reason once done (null for NEAR).
+- `/recording` (multipart `wav` + `meta` JSON with `attempt`) needs the WAV's int16 frames to hash to that attempt's committed `rec_sha256`, else 400 `transcript_mismatch`.
+
+`dsp_ref.py` uses Python `round` (half to even) for every rate-derived count; the Kotlin port must use `kotlin.math.round`. Flat runs are the maximal runs of t with x[t+1] == x[t], returned as [first t, last t + 1).

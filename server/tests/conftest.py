@@ -12,9 +12,9 @@ def clock():
 
 
 @pytest.fixture
-def make_client(clock):
+def make_client(clock, tmp_path):
     def make(allow_unattested: bool = False):
-        cfg = Settings(db=":memory:", allow_unattested=allow_unattested, now_ms=clock)
+        cfg = Settings(db=":memory:", allow_unattested=allow_unattested, now_ms=clock, data_dir=str(tmp_path))
         return TestClient(create_app(cfg, SqliteStore(":memory:")))
     return make
 

@@ -7,6 +7,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "cryptography>=43",
     "numpy>=1.26",
+    "python-multipart>=0.0.9",
 ]
 
 [dependency-groups]

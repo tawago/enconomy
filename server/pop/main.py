@@ -1,13 +1,15 @@
-"""pop-v1 server: enrollment, signed-request auth, pairing, arm/start, commit (contract §2-§5, §9).
+"""pop-v1 server: enrollment, signed-request auth, pairing, arm/start, commit, transcript, verdict (contract §2-§9).
 
 Run: uv run python -m pop            (0.0.0.0:8000)
  or: uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 
-Env: POP_DB (default data/pop.sqlite), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1).
+Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
+sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1).
 """
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import re
@@ -59,6 +61,7 @@ class Settings:
     allow_unattested: bool = field(default_factory=lambda: _env_bool("POP_ALLOW_UNATTESTED", False))
     gain_db: float = field(default_factory=lambda: float(os.environ.get("POP_GAIN_DB", "0")))
     upload_recordings: bool = field(default_factory=lambda: _env_bool("POP_UPLOAD_RECORDINGS", True))
+    data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
     now_ms: Callable[[], int] = wall_ms
 
 
@@ -98,11 +101,22 @@ class CommitIn(BaseModel):
     sig_b64: str
 
 
+class TranscriptIn(BaseModel):
+    transcript_b64: str
+    sig_b64: str
+    meta: dict[str, Any] | None = None
+
+
+class FailIn(BaseModel):
+    attempt: Any = None
+    reason: Any = None
+
+
 def create_app(settings: Settings | None = None, store: Store | None = None) -> FastAPI:
     cfg = settings or Settings()
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
-    sessions = Sessions(db, cfg.now_ms, cfg.gain_db)
+    sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir)
 
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions = cfg, db, sessions
@@ -237,6 +251,40 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         s = sessions.load(sid)
         role = sessions.member(s, dev)
         return sessions.commit(s, role, dev, req.commit_b64, req.sig_b64)
+
+    # -- transcript, fail, result (§7, §8)
+    @app.post("/v1/session/{sid}/transcript")
+    async def transcript(sid: str, req: TranscriptIn, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return sessions.transcript(s, role, dev, req.transcript_b64, req.sig_b64, req.meta)
+
+    @app.post("/v1/session/{sid}/fail")
+    async def fail(sid: str, req: FailIn, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return sessions.view(sessions.fail(s, role, req.attempt, req.reason), role)
+
+    @app.get("/v1/session/{sid}/result")
+    async def result(sid: str, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        sessions.member(s, dev)
+        return sessions.result(s)
+
+    @app.post("/v1/session/{sid}/recording")
+    async def recording(sid: str, request: Request, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        form = await request.form()
+        wav, meta_raw = form.get("wav"), form.get("meta")
+        if wav is None or isinstance(wav, str):
+            raise PopError(400, "bad_request", "multipart field 'wav' (file) required")
+        try:
+            meta = json.loads(meta_raw) if isinstance(meta_raw, str) else None
+        except ValueError:
+            raise PopError(400, "bad_request", "meta must be JSON") from None
+        attempt = meta.get("attempt", s["attempt"]) if isinstance(meta, dict) else s["attempt"]
+        return sessions.recording(s, role, attempt, await wav.read(), meta)
 
     @app.post("/v1/session/{sid}/abort")
     async def abort(sid: str, dev: dict = Depends(device)):
