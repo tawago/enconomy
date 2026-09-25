@@ -36,6 +36,15 @@ export JAVA_HOME=$(/usr/libexec/java_home -v 21)  # JDK 26 is too new for Gradle
 # APK: composeApp/build/outputs/apk/debug/composeApp-debug.apk
 ```
 
+Server URL is baked in at build time (`PopBuildConfig.SERVER_URL`, generated into `composeApp/build/generated/popBuildConfig/` by `genPopBuildConfig`):
+
+```
+./gradlew :composeApp:assembleDebug -Ppop.serverUrl=https://xyz.trycloudflare.com
+POP_SERVER_URL=http://192.168.0.34:8000 ./gradlew :composeApp:assembleDebug
+```
+
+Order: `-Ppop.serverUrl`, then `POP_SERVER_URL`, then `http://10.0.2.2:8000` (the host Mac from the emulator).
+
 ## Install
 
 ```
@@ -44,16 +53,19 @@ adb shell am start -n com.enconomy.pop/.MainActivity
 adb logcat -s PopKeystore
 ```
 
-Server URL defaults to `http://192.168.0.34:8000`. It is editable and remembered. Same Wi-Fi as the Mac, or `adb reverse tcp:8000 tcp:8000` and `http://127.0.0.1:8000`.
+Server URL defaults to the build value (above). It is editable and remembered; a saved URL wins over the build value, and **Reset to ...** under the field drops it. Same Wi-Fi as the Mac, or `adb reverse tcp:8000 tcp:8000` and `http://127.0.0.1:8000`.
+
+Signed requests (§2.3): `X-Pop-Ts` = wall clock + server offset. The offset comes from one `GET /v1/time` before the first signed call (midpoint of the rtt) and again on `auth_stale`, then the call is re-sent once. Still `auth_stale` = "Phone clock is off; set automatic time."
 
 Tap **Ping server** (`/v1/time` + `/v1/config`), then **Enroll**.
 
 ## Run (§4-§8)
 
-`PopRun` (commonMain) per attempt: pre-flight (volume ≥ 60 %, no BT/wired out, mic permission) -> 10 × `/v1/time` (refuse above 300 ms rtt) -> `arm` (own play PCM + own bed) -> open mic + track, build the 128 null codes while waiting -> long-poll `t0_ms` -> record t0 − 1 s .. t0 + 2 s, play at A 0 s / B 0.95 s -> `PopRound.selfCheck` (flat blocks, own arrival, own arrival vs OS timestamp) -> sign + POST the 71-byte commit -> partner bed -> partner window (flat blocks again, partner arrival) -> half -> sign + POST the 269-byte transcript (+ meta) -> upload the capture WAV if `/v1/config` says so -> poll.
+`PopRun` (commonMain) per attempt: pre-flight (volume ≥ 60 %, no BT/wired out, mic permission) -> 10 × `/v1/time` (refuse above 300 ms rtt) -> `arm` (own play PCM + own bed) -> open mic + track -> long-poll `t0_ms` -> record t0 − 1 s .. t0 + 2 s, play at A 0 s / B 0.95 s -> build own 128 null codes (only after capture; no DSP while the mic is open) -> `PopRound.selfCheck` (flat blocks, own arrival, own arrival vs OS timestamp) -> sign + POST the 71-byte commit -> partner bed (partner null codes build meanwhile) -> partner window (flat blocks again, partner arrival) -> half -> sign + POST the 269-byte transcript (+ meta) -> upload the capture WAV if `/v1/config` says so -> poll.
 
 - A failed step posts `/fail {attempt, reason}`. Retry is decided by the server: the view goes back to `confirmed` with attempt 1 and the phone re-arms, showing why. `too_far`, signature and mismatch reasons are final.
 - A 409 on commit / transcript / fail = the partner already moved the session on; the phone follows the view.
+- `400 bad_attempt` on arm (or `transcript_mismatch` on commit) with the view already at a later attempt = the partner's `/fail` won the race; the phone re-reads the view and re-arms at the current attempt.
 - Pre-flight or clock problems stop before arm (nothing sent); fix and tap **Start**.
 - Any other error aborts the session and shows `aborted` with the detail.
 - Result screen: NEAR / NOT NEAR, `flight_cm`, the §8.3 text, attempts.

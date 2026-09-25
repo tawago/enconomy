@@ -14,6 +14,8 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.Url
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -102,21 +104,29 @@ data class ResultRecord(
 @Serializable data class FailReq(val attempt: Int, val reason: String)
 @Serializable class Empty
 
-/** Non-2xx. [code] = `error` field of the body when present. */
-class PopHttpException(val status: Int, val code: String?, val body: String) :
-    Exception("HTTP $status ${code ?: ""}: ${body.take(300)}")
+/** Non-2xx. [code] = `error` field of the body when present; [hint] = user-facing text, when there is one. */
+class PopHttpException(val status: Int, val code: String?, val body: String, val hint: String? = null) :
+    Exception(hint ?: "HTTP $status ${code ?: ""}: ${body.take(300)}")
+
+const val CLOCK_OFF_TEXT = "Phone clock is off; set automatic time."
 
 val popJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = true }
 
 /**
  * Contract API client. [key] signs every call after enroll (§2.3).
  * Signed path = URL encoded path + query as sent (includes any prefix in [baseUrl]).
+ *
+ * X-Pop-Ts = [nowMs] + server offset. The offset comes from one GET /v1/time before the first
+ * signed call (midpoint of the request rtt) and again on auth_stale, then the call is re-sent once.
+ * Still stale after that = the phone clock is off by more than the server allows: [CLOCK_OFF_TEXT].
+ * [clockSync] = false signs with the raw wall clock (no /v1/time).
  */
 class PopApi(
     baseUrl: String,
     private val key: () -> DeviceKey? = { null },
     private val nowMs: () -> Long = ::unixMs,
     engine: HttpClientEngine? = null,
+    private val clockSync: Boolean = true,
 ) {
     val base = baseUrl.trim().trimEnd('/')
 
@@ -129,6 +139,25 @@ class PopApi(
         expectSuccess = false
     }
     private val client = if (engine != null) HttpClient(engine, cfg) else HttpClient(cfg)
+
+    /** server_ms − local wall ms; null = not synced yet. */
+    var clockOffsetMs: Long? = null
+        private set
+    private val clockLock = Mutex()
+
+    /** GET /v1/time; offset = server_ms − midpoint(send, receive). */
+    suspend fun syncClock(): Long {
+        val t0 = nowMs()
+        val s = time().server_ms
+        val t1 = nowMs()
+        return (s - (t0 + (t1 - t0) / 2)).also { clockOffsetMs = it }
+    }
+
+    private suspend fun offset(): Long {
+        if (!clockSync) return 0
+        clockOffsetMs?.let { return it }
+        return clockLock.withLock { clockOffsetMs ?: syncClock() }
+    }
 
     // ---- unsigned ----
     suspend fun time(): TimeResp = call(HttpMethod.Get, "/v1/time", null, TimeResp.serializer(), signed = false)
@@ -179,12 +208,26 @@ class PopApi(
     }
 
     private suspend fun send(method: HttpMethod, path: String, body: ByteArray, ct: ContentType?, signed: Boolean): HttpResponse {
-        val url = base + path
-        val auth = if (signed) {
+        if (!signed) return request(method, base + path, body, ct, null)
+        val first = request(method, base + path, body, ct, offset())
+        if (!clockSync || first.status.value != 401 || errorCode(first.bodyAsText()) != "auth_stale") return first
+        clockLock.withLock { syncClock() }
+        val again = request(method, base + path, body, ct, offset())
+        if (again.status.value == 401) {
+            val text = again.bodyAsText()
+            val code = errorCode(text)
+            if (code == "auth_stale") throw PopHttpException(401, code, text, CLOCK_OFF_TEXT)
+        }
+        return again
+    }
+
+    /** [offsetMs] null = unsigned. */
+    private suspend fun request(method: HttpMethod, url: String, body: ByteArray, ct: ContentType?, offsetMs: Long?): HttpResponse {
+        val auth = if (offsetMs != null) {
             val k = key() ?: error("not enrolled")
             val u = Url(url)
             val pq = u.encodedPath + (if (u.encodedQuery.isNotEmpty()) "?" + u.encodedQuery else "")
-            signRequest(k, method.value, pq, body, nowMs())
+            signRequest(k, method.value, pq, body, nowMs() + offsetMs)
         } else null
         return client.request(url) {
             this.method = method
@@ -197,10 +240,13 @@ class PopApi(
         }
     }
 
+    private fun errorCode(text: String): String? =
+        runCatching { popJson.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+
     private suspend fun HttpResponse.textOrThrow(): String {
         val text = bodyAsText()
         if (!status.isSuccess()) {
-            val code = runCatching { popJson.parseToJsonElement(text).jsonObject["error"]?.jsonPrimitive?.content }.getOrNull()
+            val code = errorCode(text)
             throw PopHttpException(status.value, code, text)
         }
         return text

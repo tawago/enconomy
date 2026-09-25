@@ -18,6 +18,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,6 +47,9 @@ fun App(c: PopController) {
                     enabled = !s.busy,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                if (s.baseUrl != DEFAULT_BASE_URL) {
+                    TextButton(onClick = c::resetBaseUrl, enabled = !s.busy) { Text("Reset to $DEFAULT_BASE_URL", fontSize = 13.sp) }
+                }
                 when (s.screen) {
                     Screen.Enroll -> Enroll(s, c)
                     Screen.Home -> Home(s, c)

@@ -42,7 +42,7 @@ class RunArmRaceTest {
                 else -> respond("""{"error":"unexpected"}""", HttpStatusCode.NotFound, jsonHdr)
             }
         }
-        val api = PopApi("http://h", key = { FakeKey() }, engine = engine)
+        val api = PopApi("http://h", key = { FakeKey() }, engine = engine, clockSync = false)
         return PopRun(api, NoAudio(), FakeKey(), "s", 'A', clock = { ClockOffset(0, 5.0, 10) })
     }
 

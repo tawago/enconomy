@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 
-const val DEFAULT_BASE_URL = "http://192.168.0.34:8000"
+/** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
+val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 
 enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result }
 
@@ -92,6 +93,12 @@ class PopController(
         _state.update { it.copy(baseUrl = url, configOk = null) }
     }
 
+    /** Forget the saved URL, back to the build default. */
+    fun resetBaseUrl() {
+        Prefs.set("baseUrl", null)
+        _state.update { it.copy(baseUrl = DEFAULT_BASE_URL, configOk = null) }
+    }
+
     fun setDisplayName(n: String) {
         val v = n.take(32)
         Prefs.set("displayName", v)
@@ -117,7 +124,7 @@ class PopController(
                 _state.update { it.copy(status = "cancelled") }
                 throw e
             } catch (e: PopHttpException) {
-                _state.update { it.copy(error = e.code ?: "http_${e.status}", status = e.message ?: "") }
+                _state.update { it.copy(error = e.hint ?: e.code ?: "http_${e.status}", status = e.message ?: "") }
                 // this server never saw our key: offer enroll, keep the key until the user re-enrolls
                 if (e.code == "auth_unknown_device") _state.update { it.copy(screen = Screen.Enroll) }
             } catch (e: Throwable) {
@@ -376,7 +383,7 @@ class PopController(
         } catch (e: Throwable) {
             runCatching { engine.release() }
             runCatching { api.abort(v.session_id) }
-            val detail = (e as? PopHttpException)?.let { it.code ?: "http_${it.status}" } ?: "${e::class.simpleName}: ${e.message}"
+            val detail = (e as? PopHttpException)?.let { it.hint ?: it.code ?: "http_${it.status}" } ?: "${e::class.simpleName}: ${e.message}"
             _state.update {
                 it.copy(result = ResultRecord(session_id = v.session_id, verdict = "NOT_NEAR", reason = "aborted"),
                     resultDetail = detail, screen = Screen.Result, runPhase = null)
