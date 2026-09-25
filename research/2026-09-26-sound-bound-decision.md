@@ -1,22 +1,23 @@
 # sound-bound decision: one short low jingle per phone, 2026-09-26
 
-We build the proximity check around **JBL250**: each phone plays a 250 ms soft two-note sound. Distance comes from four arrival times. The verdict is NEAR (under 45 cm), FAR (over 80 cm) or UNDECIDED.
+We build the proximity check around **JBL250**: each phone plays a 250 ms soft two-note sound. Distance comes from four arrival times. The verdict is a yes/no: NEAR if the distance is under 60 cm, otherwise not near.
 
-This note records what we will implement, why the logic looks the way it does, what it means for the ZK circuit, and how two phones find each other and run a session. It builds on `2026-09-25-cheating-participant-and-trust.md` (who can cheat, where the defense lives) and `2026-09-26-zk-gap-research.md` (proof systems). Evidence comes from `sound-bound/spikes/melody/fieldtest/` and its recorded sessions. The note was checked by two adversarial reviews (data claims; protocol and ZK), and their corrections are folded in.
+This note records what we will implement, why the logic looks the way it does, what each phone must sign, and how two phones find each other and run a session. The ZK proof design is out of scope here and handled separately. It builds on `2026-09-25-cheating-participant-and-trust.md` (who can cheat, where the defense lives). Evidence comes from `sound-bound/spikes/melody/fieldtest/` and its recorded sessions. The note was checked by two adversarial reviews (data claims; protocol), and their corrections are folded in.
 
-Two choices are still open (section 6): **one play or two per phone**, and **option C or option A for the proof**. The second one decides whether JBL250 can be the sound at all.
+Decided: **one play per phone**. Section 6 lists what that gives up and how we cover it.
 
 ## 1. What we implement
 
 | Part | Decision |
 | --- | --- |
 | Sound | JBL250: a public two-note "ding-dong" (A rises, B falls), every tone below 1.6 kHz, plus a secret noise layer 2–18 kHz at −6 dB. 250 ms. |
-| Plays | A plays, then B 0.95 s later. One or two rounds: open, see section 6. |
+| Plays | One per phone: A plays, then B 0.95 s later. See section 6. |
 | Receiver | Correlate with the secret noise layer only (2–18 kHz). The tune is ignored. |
 | Bar | Live random-code bar: the same recording scored against 64 made-up codes; the bar is the level they exceed with probability 1e-4/3 per window. A fixed public floor sits under it. |
 | Arrival rule | "First": the earliest local peak above the bar that is at least half as tall as the biggest peak in the next 5 ms. No walk-back. |
 | Checks | Drop a round if a 20 ms silent block (Android recording glitch) lies anywhere between its first and last search window, or if the distance is below −20 cm. Both checks run on the phone before it signs anything. |
-| Retry | UNDECIDED means "play again" with fresh codes, automatically, once. Never after FAR. |
+| Verdict | NEAR if flight < 60 cm, otherwise not near. No gray zone. |
+| Failed measurement | Glitch in the used windows, partner's sound not found, or flight below −20 cm: retry once automatically with fresh codes. A second failure counts as not near. Never retry after a valid "not near". |
 
 ## 2. How the processing works, and why
 
@@ -55,7 +56,7 @@ Same 12-session walk (big room, handheld, quiet, Mac + Android):
 | --- | --- | --- |
 | 30 ms noise | 0–4 dB | too thin |
 | 250 ms noise | 7.0 dB | |
-| JBL250 | 6.6 dB | 24 of 24 rounds usable, each on the right side of the 45/80 cm lines |
+| JBL250 | 6.6 dB | 24 of 24 rounds usable, each on the right side of a 60 cm line |
 | 1 s noise | 14.3 dB | across all sessions, including the small room: 7.3 dB |
 
 JBL250 readings (label → reading): touch → 8, 30 → 26–35, 60 → 60–76, 100 → 95–110, 200 → 211–225. Two rounds in the same run agree within 3.2 cm.
@@ -72,43 +73,13 @@ Measured: 13 blocks in 816 s of Android recording, none on the Mac. 8 of 13 fell
 
 What this means: a one-sound run falls exactly into the risky early part. The cause is unknown. Candidates are the first playback starting while recording, or the page doing work at run start. Two things to try: play a short silent or inaudible buffer before the real sound to start the output path early, and measure the glitch rate in a native AAudio recorder. We may also cut the 20 ms block out and keep the round, since the shift after it is exact. Not tested.
 
-## 3. What this means for the ZK circuit
+## 3. What each phone signs
 
-The trust note settles the main point: the prover supplies the recording, so no circuit can tell a real recording from an edited one. The defense against a cheating phone is the attested app with a hardware key. The proof's job is binding and privacy.
+The trust note settles the main point: a phone supplies its own recording, so nothing downstream can tell a real recording from an edited one. The defense against a cheating phone is the attested app with a hardware key. Each app computes its own half from its own file (A: t_BA − t_AA; B: t_BB − t_AB) and its hardware key signs the result.
 
-### Option C, analysis outside (recommended)
+**Signed, all of it:** session nonce, attempt number, its role (A or B), its own session key and the partner's, sample rate, its half (in samples), recording hash, and the OS output timestamps of its playback.
 
-Each attested app computes its own half from its own file (A: t_BA − t_AA; B: t_BB − t_AB).
-
-**What each phone signs, all of it:** session nonce, attempt number, its role (A or B), its own session key and the partner's, sample rate, its half (in samples), recording hash, and the OS output timestamps of its playback.
-
-Without role and both keys in the signature, anyone combining the halves can swap them. Swapping flips the sign: 100 cm becomes −100 cm, which passes "flight < 45 cm".
-
-**The circuit checks:**
-- both signatures over the same nonce and the same pair of keys
-- one role A and one role B
-- −20 cm < flight < 45 cm
-- the nullifier
-
-**Which key signs.** The enclave key is P-256. The current `circuits/copresence.circom` verifies EdDSA on BabyJubjub over BN254, and checking P-256 there costs about 2M constraints. Two ways out, per the zk-gap note:
-- prove P-256 directly with OpenAC or longfellow-zk (about 0.1–0.9 s on a phone), or
-- have the enclave certify a software key at enrollment and sign with that.
-
-The old "20–30k constraints" figure only holds for the software-key path, and SHA-256 over the transcript adds about 30k per block on top.
-
-**Nullifier.** H(holder software secret, nonce) using SHA-256 or α=7 Poseidon, with the nonce kept private. Not Poseidon(hash, pkA, pkB) as today: that lets the issuer link people (zk-gap note, section 3).
-
-Nothing chosen in section 1 changes the circuit size under option C.
-
-### Option A, analysis inside
-
-It is only worth it if the analysis runner can't be trusted. **It likely rules out JBL250.** The zk-gap note found 250 ms codes left 0.0–0.4 dB of margin under its circuit-friendly receiver (1-bit samples, fixed bar, narrow windows). JBL250's secret layer is the same 250 ms at −6 dB, so expect the same or worse. With option A, the sound becomes the 1 s chip code from that note.
-
-If option A is chosen anyway:
-- **Hint, then verify.** The phone passes the arrival positions it found; the circuit checks "above the bar here, below it in the stretch before" without searching.
-- **Fixed bar, no floor-only rule.** A prover-chosen bar must be bounded from above too: a high bar hides the true self peak and lets a later echo pass as the first sound, which makes the pair look closer. Use a fixed public bar, or both a floor and a ceiling. Recomputing the live bar in-circuit (65× the cost) is out.
-- **Windows.** Self arrival: ±2 ms around the signed OS output timestamp. Cross arrival: ±10 ms, checked densely.
-- The run's lead-in adds nothing. The circuit only sees the stretch around each arrival.
+Without role and both keys in the signature, anyone combining the halves can swap them. Swapping flips the sign: 100 cm becomes −100 cm, which passes "flight < 60 cm". Whoever combines the halves must check: both signatures cover the same nonce and the same pair of keys, one role A and one role B, and −20 cm < flight < 60 cm.
 
 ## 4. How two phones run a session
 
@@ -127,7 +98,7 @@ QR code is the required fallback when Bluetooth is off or denied. NFC tap stays 
 - **Codes, commit then reveal.** Each phone first gets only its own secret code. It needs the partner's code to find the partner's arrival in its own recording. The server releases the partner's code to a phone only after that phone has sent its enclave-signed recording hash, the same hash that later goes into the signed transcript. So no one can pre-play the partner's sound or edit a recording after seeing it.
 - Codes derived from (session, role, attempt). A retry gets new codes.
 - The prototype falls short here in two ways: the rendered code of either role can be fetched from `/api/probe/<session>/<role>` without authentication, and the code derivation (`fieldprobes._sub`) has no round or attempt index.
-- **Start time.** T0 is set a few seconds ahead, from a clock sync of 10 pings to the server. The budget: the partner's sound must land inside the −150/+250 ms search window. That window has to absorb the sync error between the two phones (half the round-trip asymmetry, tens of ms on cellular), the emitter's output latency (20–200 ms) and the listener's input latency. On the Android browser the observed arrivals already sat 74–138 ms late. Tighten the windows once native OS timestamps are available. Any miss shows up as UNDECIDED and triggers a retry.
+- **Start time.** T0 is set a few seconds ahead, from a clock sync of 10 pings to the server. The budget: the partner's sound must land inside the −150/+250 ms search window. That window has to absorb the sync error between the two phones (half the round-trip asymmetry, tens of ms on cellular), the emitter's output latency (20–200 ms) and the listener's input latency. On the Android browser the observed arrivals already sat 74–138 ms late. Tighten the windows once native OS timestamps are available. Any miss is a failed measurement and triggers the retry.
 
 ### The run
 
@@ -149,12 +120,12 @@ Platform details:
 
 1. Each phone checks its own recording: no 20 ms silent block in the used windows, and its self-arrival agrees with the OS output timestamp. Target tolerance about 1 ms (trust note).
 2. Each phone computes its half and signs the full transcript (section 3).
-3. Halves meet, at the server or directly over Bluetooth. flight → NEAR / FAR / UNDECIDED.
-4. UNDECIDED: one automatic retry with fresh codes. The retry counts against the same false-accept budget.
+3. Halves meet, at the server or directly over Bluetooth. flight < 60 cm → NEAR, otherwise not near.
+4. Failed measurement: one automatic retry with fresh codes, then not near. The retry counts against the same false-accept budget.
 5. Failure messages name the cause: "partner not heard, check volume", "recording glitch, trying again", "too far". Not a generic "try again, closer".
-6. NEAR: build and submit the proof.
+6. NEAR: hand the signed halves to the proof step (separate design).
 
-**Privacy.** The server sees the pair before any proof exists: ephemeral-ID lookup, IP addresses, timing, the halves and the verdict. ZK hides the meeting only from third parties. Having the halves meet over Bluetooth instead of at the server reduces that. The proof has to be built on a phone, because the holder secret can't be on the server.
+**Privacy.** The server sees the pair: ephemeral-ID lookup, IP addresses, timing, the halves and the verdict. Having the halves meet over Bluetooth instead of at the server reduces that.
 
 ## 5. What is not proven yet
 
@@ -164,24 +135,33 @@ Platform details:
 - Clipping: the Mac clipped about 16k samples in the touch run and still read 8 cm. There's no clipping tolerance on record yet.
 - A noisy venue: the bar adapts, but there's no noisy walk with JBL250.
 - Each recording shows a few worklet discontinuities with zero missing frames. Probably a counting artifact; not explained yet.
-- A handheld 60 cm run read 80–90 cm on the noise sounds and 75–78 on the low jingles. Hands move; the UI should say "phones side by side".
+- The 60 cm line: 30 cm read at most 35 and 100 cm at least 95, so both sit about 25 cm from the line. Handheld 60 cm runs read 60–90, so phones actually near 60 cm will flip between answers run to run. The UI should ask for "phones side by side", well inside the line.
 
-## 6. Open decisions
+## 6. One play per phone: what it gives up
 
-**One play or two per phone.**
-- One play is shorter, and each round was individually correct on the walk.
-- It drops the only cross-check between rounds (at least 2 usable rounds, spread under 40 cm). A single early false match in a cross window then decides directly, and the retry gives a second draw.
-- Two plays cost about 1.9 s more.
-- If we go with one play, require a NEAR margin above a set level on all four arrivals, and count the retry against the same false-accept budget.
+On the walk every single JBL250 round was right on its own (24 of 24), so one play works when nothing goes wrong. What we lose is a second opinion: with two rounds, the rule required both to be usable and to agree within 40 cm. That was the only check that catches a bad round the other checks miss. With one play, one bad arrival decides the verdict.
 
-**Option C or option A.**
-- Option C keeps JBL250 and adds nothing to the circuit's audio side, but needs the P-256 key path.
-- Option A needs the 1 s chip code, not JBL250. It adds no security against a cheating participant.
+What can make one arrival bad, and which way it pushes:
+
+| Failure | Direction | Covered by |
+| --- | --- | --- |
+| Early false match on a phone's own sound | depends on the phone | the low tune (none seen on the walk); self-arrival vs OS output timestamp (native app) |
+| Early false match on the partner's sound | toward NEAR | the bar (random chance about 1 in 30,000 per window); none seen, but only 48 cross arrivals measured |
+| Android 20 ms glitch between the two sounds in B's file | toward NEAR (3.4 m) | flat-block check on the phone before signing (caught every one so far); OS timestamp check |
+| Partner's sound late or missing | no measurement | retry once, then not near |
+| Retry | a second draw at every failure above | count both attempts against one false-accept budget |
+
+Cover for the lost second opinion:
+
+1. **OS timestamp check** on a phone's own sound, once the native app exists (trust note, about 1 ms tolerance).
+2. **Retry only after a failed measurement**, never after a valid "not near", and at most once.
+3. **Watch the data.** The next walks should count early false matches on the partner's sound specifically; that is the failure that can fake NEAR and we have seen none so far in 48.
+
+Tested and dropped: a **split check** (score each half of the 250 ms secret separately, require both halves to agree). On the 96 JBL250 arrivals it raised 4 false alarms (about 4%), and it missed the one real failure we have seen, the bell jingle's early false matches, because both halves skipped them together. Scripts: session scratchpad `splitcheck/`.
 
 ## 7. Next steps
 
-1. Test app in the production shape: JBL250, per-attempt codes, commit-then-reveal code release, role-bound signed transcript, optional silent output primer.
+1. Test app in the production shape: JBL250 once per phone, per-attempt codes, commit-then-reveal code release, role-bound signed transcript, optional silent output primer.
 2. Walk: small room and big room, 0 / 30 / 100 / 200 cm, 5 runs each. Plus one noisy walk.
 3. iPhone + Android walk.
 4. Native Android recorder with AAudio timestamps: glitch rate, glitch cause, timestamp accuracy.
-5. Pick the key path for option C (OpenAC or longfellow vs an enclave-certified software key) and prototype the transcript circuit.
