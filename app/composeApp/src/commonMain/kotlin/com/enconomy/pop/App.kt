@@ -52,8 +52,8 @@ fun App(c: PopController) {
                     Screen.Host -> Host(s, c)
                     Screen.Join -> Join(s, c)
                     Screen.Confirm -> Confirm(s, c)
-                    Screen.Run -> Placeholder("Run", "Arm, play, record, measure. Not wired yet.", c)
-                    Screen.Result -> Placeholder("Result", "NEAR / NOT_NEAR + flight_cm. Not wired yet.", c)
+                    Screen.Run -> Run(s, c)
+                    Screen.Result -> Result(s, c)
                 }
                 if (s.status.isNotEmpty()) Text("Status: ${s.status}", fontSize = 13.sp, color = Color.Gray)
                 s.error?.let { Text(it, color = Color(0xFFC62828), fontWeight = FontWeight.Medium) }
@@ -173,17 +173,73 @@ private fun Confirm(s: UiState, c: PopController) {
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = c::abortPairing) { Text("Cancel") }
-        Button(onClick = c::confirmPartner, enabled = !s.busy && !s.confirmSent && p != null) {
+        val askMic = rememberMicPermissionRequest { c.confirmPartner() }
+        Button(onClick = askMic, enabled = !s.busy && !s.confirmSent && p != null) {
             Text(if (s.confirmSent) "Waiting…" else "Confirm")
         }
     }
 }
 
+private val phaseText = mapOf(
+    RunPhase.Arming to "Getting ready…",
+    RunPhase.Running to "Listening. Keep the phones side by side.",
+    RunPhase.SelfCheck to "Checking own sound…",
+    RunPhase.Committing to "Locking in the recording…",
+    RunPhase.Measuring to "Measuring distance…",
+    RunPhase.Submitting to "Signing and sending…",
+    RunPhase.Failing to "Measurement failed.",
+    RunPhase.WaitingResult to "Waiting for partner…",
+)
+
 @Composable
-private fun Placeholder(title: String, text: String, c: PopController) {
-    Text(title, fontWeight = FontWeight.Medium)
-    Text(text, fontSize = 13.sp)
-    OutlinedButton(onClick = { c.go(Screen.Home) }) { Text("Back") }
+private fun Run(s: UiState, c: PopController) {
+    KeepScreenOn(true)
+    Text("Presence check", fontWeight = FontWeight.Medium)
+    Text("Keep both phones side by side, speakers free, and stay quiet for a few seconds.", fontSize = 13.sp)
+    val ph = s.runPhase
+    if (ph != null) {
+        Text(phaseText[ph] ?: ph.name, style = MaterialTheme.typography.titleLarge)
+        if (s.runAttempt > 0) Text("Second try (attempt ${s.runAttempt}).", fontSize = 13.sp)
+    }
+    s.runNote?.let { Text(it, color = Color(0xFFEF6C00)) }
+    s.runBlocked?.let { msg ->
+        Text(msg, color = Color(0xFFC62828), fontWeight = FontWeight.Medium)
+        val pre = s.preflight
+        val askMic = rememberMicPermissionRequest { c.refreshPreflight() }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (pre != null && !pre.micPermission) OutlinedButton(onClick = askMic) { Text("Allow mic") }
+            if (pre != null && pre.volumeFrac < 0.6) OutlinedButton(onClick = c::raiseVolume) { Text("Raise volume") }
+            Button(onClick = c::startRun, enabled = !s.busy) { Text("Start") }
+        }
+    }
+    s.preflight?.warnings?.forEach { Text(it, fontSize = 12.sp, color = Color.Gray) }
+    OutlinedButton(onClick = c::abortRun) { Text("Cancel") }
+}
+
+@Composable
+private fun Result(s: UiState, c: PopController) {
+    val r = s.result
+    KeepScreenOn(false)
+    if (r == null) {
+        Text("no result")
+    } else {
+        val near = r.verdict == "NEAR"
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(if (near) "NEAR" else "NOT NEAR", fontSize = 40.sp, fontWeight = FontWeight.Bold,
+                    color = if (near) Color(0xFF2E7D32) else Color(0xFFC62828))
+                r.flight_cm?.let { Text("flight ${kotlin.math.round(it * 10) / 10} cm", style = MaterialTheme.typography.titleMedium) }
+                (r.user_text ?: Reasons.of(r.reason))?.let { Text(it) }
+            }
+        }
+        r.reason?.let { Label("reason", it) }
+        s.resultDetail?.let { Label("detail", it) }
+        if (r.attempts.isNotEmpty()) Label("attempts", r.attempts.joinToString("\n") { a ->
+            listOf("attempt", "outcome", "reason", "by").mapNotNull { k -> a[k]?.toString()?.trim('"')?.takeIf { it != "null" } }.joinToString(" ")
+        })
+        r.session_id?.let { Label("session", it) }
+    }
+    Button(onClick = c::again) { Text("Again") }
 }
 
 @Composable

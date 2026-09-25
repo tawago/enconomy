@@ -38,6 +38,18 @@ data class UiState(
     val joinInvite: Invite? = null,
     val role: String? = null,
     val confirmSent: Boolean = false,
+    // ---- run (§9.2 Arming..Done) ----
+    val runPhase: RunPhase? = null,
+    val runAttempt: Int = 0,
+    /** Retry reason text or what we wait on. */
+    val runNote: String? = null,
+    /** Pre-flight / clock problem; user fixes it and taps Start. */
+    val runBlocked: String? = null,
+    val preflight: AudioPreflight? = null,
+    val result: ResultRecord? = null,
+    /** Unexpected error detail shown with an aborted result. */
+    val resultDetail: String? = null,
+    val uploadRecordings: Boolean = true,
 )
 
 /**
@@ -45,12 +57,14 @@ data class UiState(
  * know the device rejects signed calls (unknown_device) and the user re-enrolls.
  * Host/Join need a matching /v1/config (§1), checked at startup and on ping.
  * Pairing (§3): Host -> Inviting (QR + HCE), Join -> Scanning (NFC reader + camera),
- * both -> Confirm. Run / result plug in after Confirm (Screen.Run).
+ * both -> Confirm -> Run (PopRun: arm .. result, one server-driven retry) -> Result.
  */
 class PopController(
     private val keystore: DeviceKeystore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    engineFactory: () -> AudioEngine = ::createAudioEngine,
 ) {
+    private val engine: AudioEngine by lazy(engineFactory)
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
@@ -179,8 +193,9 @@ class PopController(
 
     private fun applyConfig(cfg: JsonObject): Boolean {
         val bad = PopConstants.mismatches(cfg)
+        val up = (cfg["upload_recordings"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "false"
         _state.update {
-            it.copy(configOk = bad.isEmpty(), error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
+            it.copy(uploadRecordings = up, configOk = bad.isEmpty(), error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
         }
         return bad.isEmpty()
     }
@@ -317,8 +332,68 @@ class PopController(
                 _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
                 return@run
             }
-            _state.update { it.copy(session = v, screen = Screen.Run, status = "confirmed") }
+            _state.update { it.copy(session = v, screen = Screen.Run, status = "confirmed", result = null, runBlocked = null) }
+            runSession(api, v)
         }
+    }
+
+    // ---- run (§4-§8) ----
+
+    fun refreshPreflight() {
+        _state.update { it.copy(preflight = runCatching { engine.preflight() }.getOrNull()) }
+    }
+
+    fun raiseVolume() {
+        runCatching { engine.setMediaVolume(0.8) }
+        refreshPreflight()
+    }
+
+    /** Start (again) after a blocked pre-flight. */
+    fun startRun() {
+        val v = state.value.session ?: return
+        run("run") { api -> runSession(api, v) }
+    }
+
+    private suspend fun runSession(api: PopApi, v: SessionView) {
+        val role = (v.role ?: state.value.role)?.singleOrNull() ?: error("no role")
+        val key = keystore.load() ?: error("not enrolled")
+        refreshPreflight()
+        _state.update { it.copy(runBlocked = null, runPhase = RunPhase.Arming, runNote = null) }
+        val r = PopRun(
+            api, engine, key, v.session_id, role,
+            uploadRecordings = state.value.uploadRecordings,
+            onStatus = { p, k, note -> _state.update { it.copy(runPhase = p, runAttempt = k, runNote = note ?: if (p == RunPhase.Arming || p == RunPhase.WaitingResult) it.runNote else null, status = "${p.name.lowercase()} (attempt $k)") } },
+            model = deviceModel(),
+        )
+        try {
+            val res = r.run()
+            _state.update { it.copy(result = res, resultDetail = null, screen = Screen.Result, runPhase = null) }
+        } catch (e: RunBlocked) {
+            refreshPreflight()
+            _state.update { it.copy(runBlocked = e.message, runPhase = null) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            runCatching { engine.release() }
+            runCatching { api.abort(v.session_id) }
+            val detail = (e as? PopHttpException)?.let { it.code ?: "http_${it.status}" } ?: "${e::class.simpleName}: ${e.message}"
+            _state.update {
+                it.copy(result = ResultRecord(session_id = v.session_id, verdict = "NOT_NEAR", reason = "aborted"),
+                    resultDetail = detail, screen = Screen.Result, runPhase = null)
+            }
+        }
+    }
+
+    /** Cancel on the Run screen: stop, release audio, abort the session. */
+    fun abortRun() {
+        job?.cancel()
+        runCatching { engine.release() }
+        abortPairing()
+    }
+
+    fun again() {
+        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false) }
+        go(Screen.Home)
     }
 
     /** Leave pairing: best-effort abort of the server session. */

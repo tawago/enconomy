@@ -8,11 +8,12 @@ import kotlin.math.sin
  * Complex FFT, split re/im DoubleArrays, numpy sign convention:
  * forward X_k = sum x_t e^{-2 pi i k t / n}; inverse is unnormalized (caller divides by n).
  * Radix-2 for powers of two, Bluestein (chirp-z over a radix-2 core) otherwise.
- * Tables are cached per size; not thread safe (the phone runs DSP on one worker).
+ * Tables are cached per size (copy-on-write, safe across threads).
  */
 internal object Fft {
-    private val radix = HashMap<Int, Radix2>()
-    private val blue = HashMap<Int, Bluestein>()
+    // copy-on-write caches; tables are immutable once built, so concurrent callers only waste a build
+    private var radix: Map<Int, Radix2> = emptyMap()
+    private var blue: Map<Int, Bluestein> = emptyMap()
 
     fun isPow2(n: Int) = n > 0 && (n and (n - 1)) == 0
 
@@ -30,8 +31,9 @@ internal object Fft {
         if (isPow2(n)) radix2(n).run(re, im, inverse) else bluestein(n).run(re, im, inverse)
     }
 
-    private fun radix2(n: Int) = radix.getOrPut(n) { Radix2(n) }
-    private fun bluestein(n: Int) = blue.getOrPut(n) { Bluestein(n, radix2(nextPow2(2 * n - 1))) }
+    private fun radix2(n: Int): Radix2 = radix[n] ?: Radix2(n).also { radix = radix + (n to it) }
+    private fun bluestein(n: Int): Bluestein =
+        blue[n] ?: Bluestein(n, radix2(nextPow2(2 * n - 1))).also { blue = blue + (n to it) }
 
     /**
      * rfft of two real signals at once (zero padded / cut to nfft): packs a + i b, one complex FFT,

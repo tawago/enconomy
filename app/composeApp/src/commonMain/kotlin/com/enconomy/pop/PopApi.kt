@@ -73,6 +73,23 @@ data class SessionView(
     val constants: JsonObject? = null,
     val result: JsonObject? = null,
     val error: String? = null,
+    /** Server extra: why the previous attempt failed (shown while re-arming). */
+    val last_failure: Failure? = null,
+)
+
+@Serializable data class Failure(val attempt: Int = 0, val reason: String? = null, val by: String? = null, val text: String? = null)
+
+/** §8.4, the fields the phone shows. */
+@Serializable
+data class ResultRecord(
+    val session_id: String? = null,
+    val attempt: Int = 0,
+    val verdict: String,
+    val reason: String? = null,
+    val user_text: String? = null,
+    val flight_cm: Double? = null,
+    val t0_ms: Long? = null,
+    val attempts: List<JsonObject> = emptyList(),
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -143,7 +160,7 @@ class PopApi(
     suspend fun fail(id: String, attempt: Int, reason: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/fail", enc(FailReq.serializer(), FailReq(attempt, reason)), SessionView.serializer())
     suspend fun abort(id: String): SessionView = call(HttpMethod.Post, "/v1/session/$id/abort", "{}", SessionView.serializer())
-    suspend fun result(id: String): JsonObject = call(HttpMethod.Get, "/v1/session/$id/result", null, JsonObject.serializer())
+    suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 
     /** Raw signed request (e.g. multipart recording upload). Returns body text. */
     suspend fun signedRaw(method: HttpMethod, path: String, body: ByteArray, contentType: ContentType): String =

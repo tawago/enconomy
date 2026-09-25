@@ -21,7 +21,8 @@ object PopDsp {
     const val WHY_BELOW_BAR = "below_bar"
     const val WHY_NO_PEAK = "no_peak"
 
-    private val nullCache = LinkedHashMap<String, List<DoubleArray>>()
+    // copy-on-write: prep (Default dispatcher) and DSP may touch it from different threads
+    private var nullCache: Map<String, List<DoubleArray>> = emptyMap()
 
     fun codeFrames(sr: Int): Int = pyRound(PopConstants.CODE_S * sr)
 
@@ -33,8 +34,10 @@ object PopDsp {
         val key = "$sessionIdHex|$emitter|$attempt|$sr"
         nullCache[key]?.let { return it }
         val v = List(PopConstants.N_NULL) { nullTemplate(sessionIdHex, emitter, attempt, it, sr) }
-        if (nullCache.size >= 4) nullCache.remove(nullCache.keys.first())
-        nullCache[key] = v
+        val m = LinkedHashMap(nullCache)
+        while (m.size >= 4) m.remove(m.keys.first())
+        m[key] = v
+        nullCache = m
         return v
     }
 
