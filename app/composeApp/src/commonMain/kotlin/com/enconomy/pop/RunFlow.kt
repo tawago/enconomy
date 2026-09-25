@@ -59,7 +59,10 @@ object Reasons {
  *    (its fail, a retry, done); the phone stops that attempt and follows the view.
  *  - 409 too_early on commit (clock skew) is retried every 250 ms for up to 3 s.
  *  - waiting for the partner to arm: 120 s, then abort.
- *  - null templates for self and partner are built while waiting for t0.
+ *  - null templates are built only after the capture (no DSP load while recording or waiting for
+ *    t0): own nulls right after engine.run returns, partner nulls once the self check passes.
+ *  - 400 bad_attempt on arm (or transcript_mismatch on commit) with the view already at a later
+ *    attempt = the partner's /fail moved the session on; re-read the view and follow it.
  */
 class PopRun(
     private val api: PopApi,
@@ -112,7 +115,12 @@ class PopRun(
         if (!clk.ok) throw RunBlocked("Network too slow (rtt ${clk.rttMinMs.toInt()} ms). Move closer to Wi-Fi and try again.")
         val sr = pre.sampleRate
 
-        val arm = api.arm(sessionId, ArmReq(k, sr, clk.rttMinMs))
+        val arm = try {
+            api.arm(sessionId, ArmReq(k, sr, clk.rttMinMs))
+        } catch (e: PopHttpException) {
+            if (e.code != "bad_attempt") throw e
+            return movedOn(k) ?: throw e
+        }
         check(arm.attempt == k && arm.sample_rate == sr) { "arm echo ${arm.attempt}/${arm.sample_rate} != $k/$sr" }
         val cap: Capture
         val plan: RunPlan
@@ -120,15 +128,8 @@ class PopRun(
             val play = arm.play.decodeF32(sr)
             val ownBed = arm.own_bed.decodeF64(sr)
             engine.prepare(sr, play)
-            val started = coroutineScope {
-                val nulls = async(Dispatchers.Default) {
-                    PopDsp.nullTemplates(sessionId, role, k, sr); PopDsp.nullTemplates(sessionId, partnerRole, k, sr)
-                }
-                status(RunPhase.Arming, k, retryNote ?: "waiting for partner")
-                val s = poll(v0.seq, nowNs() + 120_000_000_000L) { it.attempt != k || it.t0_ms != null || it.state !in LIVE }
-                nulls.await()
-                s
-            }
+            status(RunPhase.Arming, k, retryNote ?: "waiting for partner")
+            val started = poll(v0.seq, nowNs() + 120_000_000_000L) { it.attempt != k || it.t0_ms != null || it.state !in LIVE }
             if (started == null) {
                 runCatching { api.abort(sessionId) }
                 return api.session(sessionId)
@@ -147,18 +148,26 @@ class PopRun(
         }
     }
 
+    /** The view when the server is already past attempt [k] (or the session ended); null if it is still at [k]. */
+    private suspend fun movedOn(k: Int): SessionView? =
+        api.session(sessionId).takeIf { it.attempt != k || it.state !in LIVE }
+
     private suspend fun afterCapture(k: Int, nonce: ByteArray, pkPartner: ByteArray, plan: RunPlan, cap: Capture,
-                                     ownBed: DoubleArray): SessionView {
+                                     ownBed: DoubleArray): SessionView = coroutineScope {
         engine.release() // mic + speaker off once Running is over (§9.2)
         val sr = plan.sr
+        // Nulls only now: nothing CPU-heavy runs while the mic is open.
+        val selfNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, role, k, sr) }
         status(RunPhase.SelfCheck, k)
         val r = PopRound(cap.pcm, sr, role, sessionId, k)
         val expSelf = cap.expectedSelf()
-        val self = withContext(Dispatchers.Default) { r.selfCheck(ownBed, expSelf) }
+        val self = selfNulls.await().let { n -> withContext(Dispatchers.Default) { r.selfCheck(ownBed, expSelf, n) } }
         if (self !is PopRound.Step.SelfOk) {
             val f = self as PopRound.Step.Failed
-            return fail(k, f.reason, meta(cap, r, expSelf, null, null))
+            return@coroutineScope fail(k, f.reason, meta(cap, r, expSelf, null, null))
         }
+        // Partner nulls overlap commit + partner bed fetch.
+        val partnerNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, partnerRole, k, sr) }
 
         status(RunPhase.Committing, k)
         val commit = TranscriptCodec.commit(role, k, nonce, r.recSha256)
@@ -166,16 +175,18 @@ class PopRun(
         val bed = try {
             commitWithRetry(CommitReq(commit.toB64(), commitSig.toB64()))
         } catch (e: PopHttpException) {
-            if (e.status == 409) return waitNext(null, k)
+            if (e.status == 409) return@coroutineScope waitNext(null, k)
+            // attempt moved on between our capture and commit (partner's /fail): commit no longer matches
+            if (e.code == "transcript_mismatch") movedOn(k)?.let { return@coroutineScope it }
             throw e
         }
 
         status(RunPhase.Measuring, k)
         val partnerBed = bed.partner_bed.decodeF64(sr)
         val expPartner = cap.expectedPartner(plan)
-        val p = withContext(Dispatchers.Default) { r.measurePartner(partnerBed, expPartner) }
+        val p = partnerNulls.await().let { n -> withContext(Dispatchers.Default) { r.measurePartner(partnerBed, expPartner, n) } }
         if (p !is PopRound.Step.PartnerOk) {
-            return fail(k, (p as PopRound.Step.Failed).reason, meta(cap, r, expSelf, expPartner, null))
+            return@coroutineScope fail(k, (p as PopRound.Step.Failed).reason, meta(cap, r, expSelf, expPartner, null))
         }
 
         status(RunPhase.Submitting, k)
@@ -195,7 +206,7 @@ class PopRun(
             if (e.status != 409 && e.status != 400) throw e
         }
         if (uploadRecordings) upload(k, cap)
-        return waitNext(null, k)
+        waitNext(null, k)
     }
 
     private suspend fun sign(msg: ByteArray): ByteArray = withContext(Dispatchers.Default) { key.sign(msg) }

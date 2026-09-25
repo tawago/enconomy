@@ -49,15 +49,16 @@ class PopRound(
         private set
     private var selfWin: IntRange? = null
 
-    /** Steps 1-4. */
-    fun selfCheck(ownBed: DoubleArray, expectedSelf: Double): Step {
+    /** Steps 1-4. [nulls] = PopDsp.nullTemplates(sessionIdHex, role, attempt, sr), built here when not given. */
+    fun selfCheck(ownBed: DoubleArray, expectedSelf: Double, nulls: List<DoubleArray>? = null): Step {
         if (!captureOk || sr !in PopConstants.SR_MIN..PopConstants.SR_MAX) return Step.Failed(DspReason.CAPTURE_FAILED)
         val L = PopDsp.codeFrames(sr)
         val w = PopDsp.window(expectedSelf, sr, capture.size)
         if (w.last + 1 - w.first < 3) return Step.Failed(DspReason.CAPTURE_FAILED)
         selfWin = w
         if (PopDsp.runsHit(flatRuns, w.first, w.last + 1 + L)) return Step.Failed(DspReason.GLITCH)
-        val a = PopDsp.measureArrival(capture, sr, ownBed, PopDsp.nullTemplates(sessionIdHex, role, attempt, sr), expectedSelf)
+        val a = PopDsp.measureArrival(capture, sr, ownBed,
+            nulls ?: PopDsp.nullTemplates(sessionIdHex, role, attempt, sr), expectedSelf)
         self = a
         if (!a.found) return Step.Failed(DspReason.SELF_NOT_HEARD, a)
         val delta = pyRound(a.frame - expectedSelf)
@@ -65,8 +66,8 @@ class PopRound(
         return Step.SelfOk(a, delta)
     }
 
-    /** Steps 6-8, after commit. Requires a passing [selfCheck]. */
-    fun measurePartner(partnerBed: DoubleArray, expectedPartner: Double): Step {
+    /** Steps 6-8, after commit. Requires a passing [selfCheck]. [nulls] as in [selfCheck], for the partner role. */
+    fun measurePartner(partnerBed: DoubleArray, expectedPartner: Double, nulls: List<DoubleArray>? = null): Step {
         val s = checkNotNull(self?.takeIf { it.found }) { "selfCheck first" }
         val sw = selfWin!!
         val L = PopDsp.codeFrames(sr)
@@ -76,7 +77,7 @@ class PopRound(
         val hi = max(sw.last + 1, w.last + 1) + L
         if (PopDsp.runsHit(flatRuns, lo, hi)) return Step.Failed(DspReason.GLITCH)
         val a = PopDsp.measureArrival(capture, sr, partnerBed,
-            PopDsp.nullTemplates(sessionIdHex, partnerRole, attempt, sr), expectedPartner)
+            nulls ?: PopDsp.nullTemplates(sessionIdHex, partnerRole, attempt, sr), expectedPartner)
         partner = a
         if (!a.found) return Step.Failed(DspReason.PARTNER_NOT_HEARD, a)
         return Step.PartnerOk(a, PopDsp.half(s.frame, a.frame, role))
