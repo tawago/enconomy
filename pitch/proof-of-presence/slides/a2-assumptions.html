@@ -1,0 +1,15 @@
+<section id="a2-assumptions" data-transition="fade" style="background:#FEFEFC; color:#1E1A17; font-family:'DM Sans', Arial, sans-serif; padding:128px 128px 160px; display:flex; flex-direction:column; gap:32px">
+<p style="font-size:28px; font-weight:600; letter-spacing:4px; text-transform:uppercase; color:#8A8079">Appendix A2</p>
+<h2 style="font-size:64px; font-weight:700; line-height:1.1; letter-spacing:-1px; color:#1E1A17">What the proof establishes</h2>
+<table style="font-size:26px; color:#1E1A17">
+<tr><th style="width:20%">Claim or attack</th><th style="width:30%">Mechanism today</th><th style="width:32%">Remaining assumption</th><th style="width:18%">Status</th></tr>
+<tr><td>Same session</td><td>Two signatures over session hash</td><td>Keys belong to the claimed devices</td><td>Implemented</td></tr>
+<tr><td>One-time use</td><td>Nullifier from hash + both keys</td><td>Linkable today; redesign planned</td><td>Implemented</td></tr>
+<tr><td>Nearness</td><td>On-phone ranging, outside circuit</td><td>App is honest; edits undetectable</td><td>Field test, 1 room</td></tr>
+<tr><td>Replay, relay</td><td>Fresh secret sound per session</td><td>Relay timing unmodelled</td><td>Untested</td></tr>
+<tr><td>Credential binding</td><td>Not designed yet</td><td>Distinct participants unchecked</td><td>Planned</td></tr>
+<tr><td>Proxies, collusion</td><td>None</td><td>Attending ≠ acting independently</td><td>Open</td></tr>
+<tr><td>Metadata</td><td>ZK hides private inputs only</td><td>App, chain, network metadata</td><td>Unknown</td></tr>
+</table>
+<aside>Sources: circuits/copresence.circom and the team's research notes (sound-bound decision; cheating participant and trust). "Nullifier linkable": the current Poseidon(hash, pkA, pkB) form lets an issuer link people, per the team's own note. Field test = 12 sessions, one large quiet room, one Mac + Android pair; iPhone untested. Confirm every row before quoting it. A listed mitigation is not a sufficient one.</aside>
+</section>
