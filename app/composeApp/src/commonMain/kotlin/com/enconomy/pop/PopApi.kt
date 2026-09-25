@@ -38,7 +38,14 @@ data class EnrollReq(
     val model: String,
     val security_level: String,
     val chain: List<String>?,
+    /** §2.2.1: "ios" sends key_kind + app_attest, chain = null. */
+    val platform: String = "android",
+    val key_kind: String? = null,
+    val app_attest: AppAttestReq? = null,
 )
+
+/** base64 std both. */
+@Serializable data class AppAttestReq(val key_id: String, val attestation: String)
 
 @Serializable data class EnrollResp(val device_id: String, val attested: Boolean = false, val enrolled_at: JsonElement? = null)
 

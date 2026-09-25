@@ -154,6 +154,9 @@ class PopController(
                 model = deviceModel(),
                 security_level = k.securityLevel,
                 chain = gen.chain?.map { it.toB64() },
+                platform = keystore.platform,
+                key_kind = if (keystore.platform == "ios") k.securityLevel else null,
+                app_attest = gen.appAttest?.let { AppAttestReq(it.keyId, it.attestation.toB64()) },
             ),
         )
         check(resp.device_id == k.deviceId) { "server device_id ${resp.device_id} != ${k.deviceId}" }

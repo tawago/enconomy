@@ -4,7 +4,7 @@ package com.enconomy.pop
 interface DeviceKey {
     /** SEC1 uncompressed, 65 bytes 04||X||Y. */
     val pubkey: ByteArray
-    /** "strongbox" | "tee" | "software" | "unknown" */
+    /** "strongbox" | "tee" | "secure_enclave" (iOS) | "software" | "unknown" */
     val securityLevel: String
     /** SHA256withECDSA over [message]; raw r||s, 64 bytes. Blocking (StrongBox can take ~100 ms). */
     fun sign(message: ByteArray): ByteArray
@@ -12,9 +12,21 @@ interface DeviceKey {
     val deviceId: String get() = deviceIdOf(pubkey)
 }
 
-class GeneratedKey(val key: DeviceKey, /** DER certs leaf..root, null if the platform gave none. */ val chain: List<ByteArray>?)
+class GeneratedKey(
+    val key: DeviceKey,
+    /** DER certs leaf..root, null if the platform gave none. */ val chain: List<ByteArray>?,
+    /** iOS App Attest, null elsewhere or when unavailable. */ val appAttest: AppAttestation? = null,
+)
+
+/**
+ * DCAppAttestService output. The attested key is a separate App Attest key; it binds the device key
+ * through clientDataHash = sha256(nonce32 || sha256(pubkey65)).
+ */
+class AppAttestation(/** base64 std, as returned by generateKey. */ val keyId: String, /** CBOR attestation object. */ val attestation: ByteArray)
 
 interface DeviceKeystore {
+    /** Enroll `platform` (§2.2.1). */
+    val platform: String get() = "android"
     fun load(): DeviceKey?
     /** Replaces any existing key. [challenge] = enroll nonce bytes (attestation challenge). */
     fun generate(challenge: ByteArray): GeneratedKey

@@ -61,6 +61,26 @@ Store: `devices(device_id PK, pubkey, display_name, model, security_level, attes
 
 Re-enroll with the same `device_id` replaces the row only if the pubkey is identical (same key regenerated is impossible; a new key gets a new id).
 
+#### 2.2.1 iOS enroll
+
+Signing key: Secure Enclave P-256 (`kSecAttrTokenIDSecureEnclave`), same wire format as §2.1 (`pubkey` 65 bytes, raw `r||s`). The simulator has no Secure Enclave, so there it is a software key.
+
+App Attest (`DCAppAttestService`) makes its own key; the app cannot attest the signing key directly. The binding is through `clientDataHash`:
+
+```
+clientDataHash = sha256(nonce_bytes || sha256(pubkey65))      // 32 + 32 bytes in, 32 out
+DCAppAttestService.generateKey() -> keyId
+DCAppAttestService.attestKey(keyId, clientDataHash) -> attestation (CBOR)
+```
+
+`POST /v1/enroll` `{nonce, device_id, pubkey, display_name, model, platform: "ios", key_kind: "secure_enclave" | "software", security_level: same as key_kind, chain: null, app_attest: {key_id: base64 std, attestation: base64 std} | null}`. `platform` defaults to `"android"`. `key_id` is the base64 string `generateKey` returns. Response adds `platform`, `key_kind`.
+
+Server checks (`server/pop/appattest.py`): `fmt == "apple-appattest"`; `x5c = [credCert, intermediate]` chains to the Apple App Attestation Root CA (embedded, sha256 `1cb9823b…c932`); credCert extension `1.2.840.113635.100.8.2` nonce == `sha256(authData || clientDataHash)` (else `enroll_bad_challenge`); `sha256(credCert pubkey65) == keyId == credentialId`; `rpIdHash == sha256(appId)` with `appId = TEAMID.com.enconomy.pop` from env `POP_IOS_APP_ID`; `signCount == 0`; aaguid `appattestdevelop` or `appattest\0\0\0\0\0\0\0`. Other failures: `enroll_bad_attestation`. Not checked: validity dates, receipt, revocation.
+
+`app_attest: null` (free personal team: no App Attest entitlement; simulator: App Attest unsupported) is accepted only with `POP_ALLOW_UNATTESTED=1`, stored `attested: false`. `attested: true` on iOS means "a genuine app instance saw this nonce and this pubkey"; that the signing key lives in the Secure Enclave is only reported (`key_kind`), not proven.
+
+Store adds `platform`, `key_kind` (`android_keystore` on Android), `attest_key_id` (hex).
+
 ### 2.3 Request auth (every device request after enroll)
 
 Headers:
