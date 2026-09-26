@@ -56,6 +56,37 @@
       el.onclick = start;
     })();
   </script>
-  <script src="popweb.js"></script>
+  <script>
+    // Kotlin/Wasm needs WasmGC + exception handling: probe a tiny module using a GC struct type first.
+    (function () {
+      let ok = false;
+      try {
+        ok = typeof WebAssembly === 'object' && WebAssembly.validate(new Uint8Array([
+          0, 97, 115, 109, 1, 0, 0, 0,        // magic, version
+          1, 5, 1, 95, 1, 127, 0,              // type section: struct (field i32, immutable)
+        ]));
+      } catch (e) { ok = false; }
+      function tooOld(why) {
+        let el = document.getElementById('pop-start');
+        let err = document.getElementById('pop-start-err');
+        if (!el || !err) { // overlay already gone (tapped): bring back a plain one
+          el = document.createElement('div'); el.id = 'pop-start';
+          err = document.createElement('small'); err.className = 'err'; err.id = 'pop-start-err';
+          el.appendChild(err); document.body.appendChild(el);
+        }
+        err.textContent = 'This browser cannot run the PoP web app (' + why + '). Use a recent Chrome, or iOS 18.2+.';
+        el.onclick = null;
+      }
+      if (!ok) { tooOld('no WebAssembly GC'); return; }
+      const s = document.createElement('script');
+      s.src = 'popweb.js';
+      s.onerror = () => tooOld('popweb.js failed to load');
+      window.addEventListener('unhandledrejection', (ev) => {
+        const m = String(ev.reason && ev.reason.message || ev.reason || '');
+        if (/WebAssembly|wasm/i.test(m)) tooOld(m);
+      });
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

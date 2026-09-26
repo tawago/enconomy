@@ -47,26 +47,53 @@
     try { if (navigator.audioSession) navigator.audioSession.type = 'play-and-record'; } catch (e) { /* optional API */ }
     await ctx.resume();
     if (!stream) {
-      stream = await navigator.mediaDevices.getUserMedia({
+      const st = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: false, noiseSuppression: false, autoGainControl: false,
           channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 },
         },
         video: false,
       });
-      micOk = true;
-      track = stream.getAudioTracks()[0];
+      const tr = st.getAudioTracks()[0];
+      try {
+        await ctx.audioWorklet.addModule(new URL('pop-recorder-worklet.js', location.href).href);
+        try {
+          source = ctx.createMediaStreamSource(st);
+        } catch (e) {
+          // Firefox: mic rate != context rate (48 kHz) -> NotSupportedError
+          const r = tr && tr.getSettings ? tr.getSettings().sampleRate : undefined;
+          throw new Error('mic at ' + (r || '?') + ' Hz cannot join the 48 kHz audio context in this browser (' +
+            (e && e.name || e) + '); use Chrome');
+        }
+        node = new AudioWorkletNode(ctx, 'pop-recorder', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
+        node.port.onmessage = onBlock;
+        sink = ctx.createGain();
+        sink.gain.value = 0; // keeps the worklet pulled; the mic never reaches the speaker
+        source.connect(node).connect(sink).connect(ctx.destination);
+      } catch (e) {
+        st.getTracks().forEach((t) => t.stop());
+        teardown();
+        throw e;
+      }
+      stream = st;
+      track = tr;
       settings = track && track.getSettings ? track.getSettings() : {};
-      track && track.addEventListener('ended', () => { micOk = false; lastError = 'mic track ended'; });
-      await ctx.audioWorklet.addModule(new URL('pop-recorder-worklet.js', location.href).href);
-      source = ctx.createMediaStreamSource(stream);
-      node = new AudioWorkletNode(ctx, 'pop-recorder', { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [1] });
-      node.port.onmessage = onBlock;
-      sink = ctx.createGain();
-      sink.gain.value = 0; // keeps the worklet pulled; the mic never reaches the speaker
-      source.connect(node).connect(sink).connect(ctx.destination);
+      // interruption (call, Siri), revoked permission, device change: next unlock() asks for the mic again
+      track && track.addEventListener('ended', () => { lastError = 'mic track ended'; teardown(); });
+      micOk = true;
     }
     return info();
+  }
+
+  /** Drops the mic graph so the next unlock() runs getUserMedia and rebuilds it (the context stays). */
+  function teardown() {
+    micOk = false;
+    try { if (source) source.disconnect(); } catch (e) { /* already gone */ }
+    try { if (node) { node.port.onmessage = null; node.disconnect(); } } catch (e) { /* already gone */ }
+    try { if (sink) sink.disconnect(); } catch (e) { /* already gone */ }
+    if (stream) stream.getTracks().forEach((t) => { try { t.stop(); } catch (e) { /* ended */ } });
+    stream = null; source = null; node = null; sink = null; track = null;
+    unlocking = null;
   }
 
   function unlock() {

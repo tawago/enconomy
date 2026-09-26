@@ -51,7 +51,10 @@ def refusal(s: dict, kind, cfg, store) -> str | None:
         if not d or not d.get("pubkey"):
             return "unattested_device"
         if not d.get("attested") and d["device_id"] not in allow:
-            return "unattested_device"
+            web_ok = getattr(cfg, "attest_allow_web", False) and \
+                (store.get_device(d["device_id"]) or {}).get("platform") == "web"
+            if not web_ok:
+                return "unattested_device"
     if ctx.get("chain_id") != cfg.chain_id:
         return "bad_chain"
     return None

@@ -15,7 +15,8 @@ POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md i
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
 attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
 Web app (app/composeApp wasmJs): POP_ALLOW_WEB=1 (enroll platform "web", software key, unattested), POP_WEB_DIR
-(serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin).
+(serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin), POP_ATTEST_ALLOW_WEB (demo: web devices
+may get chain attestations).
 """
 from __future__ import annotations
 
@@ -111,6 +112,7 @@ class Settings:
     att_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_ATT_TTL_S", "900")))
     unattested_allow: frozenset = field(default_factory=lambda: frozenset(
         x.strip().lower() for x in os.environ.get("POP_UNATTESTED_ALLOW", "").split(",") if x.strip()))
+    attest_allow_web: bool = field(default_factory=lambda: _env_bool("POP_ATTEST_ALLOW_WEB", False))  # demo: web devices get chain attestations
     attest_allow_sandbox: bool = field(default_factory=lambda: _env_bool("POP_ATTEST_ALLOW_SANDBOX", False))  # demo Safe: sandbox World ID ok
     test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
     worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
@@ -777,10 +779,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     # web app build (app/scripts/build_web.sh), after every API route
     if web_dir is not None:
         mimetypes.add_type("application/wasm", ".wasm")
-        app.mount("/app", StaticFiles(directory=str(web_dir), html=True), name="webapp")
+        app.mount("/app", _WebStatic(directory=str(web_dir), html=True), name="webapp")
         log.info("web app: %s at /app/", web_dir)
 
     return app
+
+
+class _WebStatic(StaticFiles):
+    """/app/: index.html and the fixed-name .js revalidate on every load, so a redeploy never leaves a stale
+    popweb.js pointing at a deleted content-hashed .wasm. Hashed .wasm files may cache."""
+
+    async def get_response(self, path, scope):
+        resp = await super().get_response(path, scope)
+        if not path.endswith(".wasm"):
+            resp.headers["Cache-Control"] = "no-cache"
+        return resp
 
 
 def _web_dir(raw: str | None) -> Path | None:

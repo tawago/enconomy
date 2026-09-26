@@ -12,6 +12,7 @@ import kotlin.js.Promise
 internal fun jsPerfNow(): Double = js("performance.now()")
 internal fun jsDateNow(): Double = js("Date.now()")
 internal fun jsUserAgent(): String = js("navigator.userAgent || ''")
+internal fun jsOrigin(): String = js("location.origin || ''")
 internal fun jsHostname(): String = js("location.hostname || ''")
 internal fun jsSearch(): String = js("location.search || ''")
 internal fun jsHash(): String = js("location.hash || ''")

@@ -160,8 +160,10 @@ The same `commonMain` app (UI, controller, DSP, transcript, witness input) built
 ```sh
 app/scripts/build_web.sh                                   # -> server/web-app/ (gitignored)
 cd server && POP_ALLOW_WEB=1 POP_WEB_DIR=web-app uv run python -m pop
-# open https://pop.enconomy.dev/app/ (tunnel) or http://<mac>:8000/app/ (localhost only: mic needs a secure context)
+# open https://pop.enconomy.dev/app/ (tunnel) or http://localhost:8000/app/ (plain http works on localhost only: mic needs a secure context)
 ```
+
+This build talks to the origin that served `/app/` (`-Ppop.webSameOrigin=true`), so the tunnel, a quick `trycloudflare` URL and localhost all work without CORS. The Server setting still overrides it.
 
 Build by hand: `./gradlew :composeApp:wasmJsBrowserDistribution -Ppop.serverUrl=https://pop.enconomy.dev`, output in `composeApp/build/dist/wasmJs/productionExecutable/` (~13 MB: app wasm 4.5 MB + Skiko 8 MB).
 
@@ -169,14 +171,14 @@ Dev: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun -Ppop.serverUrl=http://l
 
 Workers alternative (`enconomy.dev/app/`): `app/scripts/build_web.sh --workers` copies into `web/app/` (gitignored); set `appUrl` in `web/config.json` to `/app/` if the landing page should link it; server needs `POP_CORS_ORIGINS=https://enconomy.dev`; deploy is `npx wrangler deploy` (not run by the script).
 
-Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`), `POP_CORS_ORIGINS` (other origins only). See `server/README.md`.
+Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`, index and `.js` sent `no-cache`), `POP_CORS_ORIGINS` (other origins only), `POP_ATTEST_ALLOW_WEB` (demo: web pairs may get chain attestations for the ENS / World ID flows). See `server/README.md`.
 
 What differs from the phones:
 
-- **Demo tier, unattested.** Device key = software P-256 (`@noble/curves`, sync signing) in `localStorage`; enroll `platform: "web"`, `security_level: "software"`, no chain. The holder secret is in `localStorage` too. No chain attestation for web devices unless allowlisted (`POP_UNATTESTED_ALLOW`). Two tabs on one machine defeat the proximity premise; the server does not stop that.
+- **Demo tier, unattested.** Device key = software P-256 (`@noble/curves`, sync signing) in `localStorage`; enroll `platform: "web"`, `security_level: "software"`, no chain. The holder secret is in `localStorage` too. No chain attestation for web devices unless allowlisted (`POP_UNATTESTED_ALLOW`) or the server runs with `POP_ATTEST_ALLOW_WEB=1`; without either, a pair with a browser stops at the verdict and proof. Two tabs on one machine defeat the proximity premise; the server does not stop that.
 - **QR only.** No NFC. Join opens a camera overlay (BarcodeDetector, else jsQR) with a paste field. `https://…/app/#pop1:…` joins directly when the tab is already enrolled.
 - **ZK delegated.** No prover in the browser: after NEAR the app calls `POST /v1/session/{id}/proof/delegate`. In-browser noir_js + bb.js (2^20 gates, ~1.5 GB, pinned noir 1.0.0-beta.22 / bb 5.0.0-nightly.20260522, COOP/COEP) is phase 2.
 - **Audio.** First tap starts one 48 kHz AudioContext and the mic with echo cancellation, noise suppression and AGC off (preflight refuses if the browser keeps them on). The worklet keys every mic block by context frame (gaps = `capture_failed`). Context time maps to `performance.now()` through the median of recent `getOutputTimestamp()` readings; mic frames are shifted back by output + input latency (`settings.latency`, else `baseLatency`). Volume and route can't be read: turn the volume up, use the built-in speaker. Enrollment calibration absorbs the constant rest; whether browser jitter fits the calibration spread (≤ 1 ms) and the v2 2 ms `provable` window is the open question, so a run may end with a verdict and no proof.
 - Keep the tab in front during a run (a background tab suspends audio; the app holds a Wake Lock). The DSP runs on the page thread, so the UI stalls a few seconds after each capture.
 
-Browsers: Android Chrome first, then desktop Chrome. iOS Safari 18.2+ may work (it may ignore EC/AGC off); untested.
+Browsers: Android Chrome first, then desktop Chrome. iOS Safari 18.2+ may work (it may ignore EC/AGC off); untested. Needs WasmGC (Chrome 119+, Safari 18.2+); older browsers get a message on the start screen. Firefox fails when the mic is not 48 kHz; use Chrome.

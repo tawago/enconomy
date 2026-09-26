@@ -74,3 +74,10 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
         }
     }
 }
+
+/** Server mode (build_web.sh without --workers): the API is the origin that served /app/. */
+actual fun platformDefaultBaseUrl(baked: String): String {
+    if (!PopBuildConfig.WEB_SAME_ORIGIN) return baked
+    val o = jsOrigin()
+    return if (o.startsWith("http://") || o.startsWith("https://")) o else baked
+}

@@ -75,3 +75,5 @@ actual fun openExternalUrl(url: String): Boolean {
     UIApplication.sharedApplication.openURL(u, options = emptyMap<Any?, Any>(), completionHandler = null)
     return true
 }
+
+actual fun platformDefaultBaseUrl(baked: String): String = baked

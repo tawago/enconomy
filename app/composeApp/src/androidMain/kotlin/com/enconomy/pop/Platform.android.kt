@@ -29,3 +29,5 @@ actual fun openExternalUrl(url: String): Boolean = try {
 } catch (_: android.content.ActivityNotFoundException) {
     false
 }
+
+actual fun platformDefaultBaseUrl(baked: String): String = baked
