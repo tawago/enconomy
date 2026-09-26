@@ -1,0 +1,13 @@
+{
+  "parent": "enconomy.eth",
+  "registry": "0x3dC7A13410B3C2B3dA8029BCfA60E358E3AA59B1",
+  "meetResolver": "0xfc300a640ccdEFF0e61f7875D55A9Cd22eb51346",
+  "admin": "0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860",
+  "hot": "0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860",
+  "attester": "0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860",
+  "rootRegistry": "0x9703DBD26dAB89504490994138cF2c575251a9cE",
+  "ethRegistry": "0x657eA849311d3D5823348ddEd7C2AaAFb3EDE09E",
+  "universalResolver": "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe",
+  "deployBlock": 11786877,
+  "chainId": 11155111
+}
