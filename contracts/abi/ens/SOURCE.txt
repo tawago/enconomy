@@ -1,0 +1,4 @@
+ensdomains/contracts-v2 commit 71a3b7339dbc55ab47667abdfe8303bac4f4c24e
+(same contracts/src and deployments as tag sepolia-deployment-2026-09-15)
+files: contracts/deployments/sepolia/{ETHRegistrar,ETHRegistry,RootRegistry,VerifiableFactory,UserRegistryImpl,UniversalResolverV2,MockUSDC}.json
+kept fields: address, abi
