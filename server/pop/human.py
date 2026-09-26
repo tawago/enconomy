@@ -16,6 +16,12 @@ One uvicorn worker. Polls of one (sid, role) are serialized by an asyncio.Lock.
 
 Fake mode (POP_WORLDID_FAKE=1, needs POP_TEST_KINDS=1, §6.10): step 8 makes no network call and stores
 environment "fake"; everything else runs unchanged.
+
+Sandbox per role (POP_WORLDID_SANDBOX=1): POST /worldid/start {"env": "sandbox"} builds the request with IDKit
+environment "staging"; the phone opens it in the World ID Simulator (connector_uri is the simulator link). Polling
+runs as in production; on "confirmed" the nullifier is taken from the bridge result (else
+sha256("pop-mock-v1" || device_id || session_id)) with no Portal verify, environment "sandbox". Only in a session
+whose context is absent or kind "test". The nullifier table is keyed by env, so sandbox never meets production.
 """
 from __future__ import annotations
 
@@ -24,6 +30,7 @@ import hashlib
 import logging
 import sqlite3
 import time
+import urllib.parse
 from typing import Any, Callable
 
 import httpx
@@ -40,6 +47,8 @@ PENDING = ("requested", "waiting", "awaiting")
 BRIDGE = {"waiting_for_connection": "waiting", "awaiting_confirmation": "awaiting"}
 PORTAL_BACKOFF = (0.5, 1.0, 2.0)
 FAKE_BANNER = "*** FAKE WORLD ID: TEST IDENTITIES, NO REAL HUMANS ***"
+SANDBOX_ENV = "sandbox"
+SIMULATOR = "https://simulator.worldcoin.org/?connect_url="
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS wid_nullifiers (
@@ -89,8 +98,13 @@ def public_status(h: dict | None) -> dict | None:
     out: dict = {"pair_tag": h.get("pair_tag")}
     for r in ROLES:
         e = h.get(r) or {}
-        out[r] = {"status": e.get("status", "idle")} | ({"error": e["error"]} if e.get("error") else {})
+        out[r] = ({"status": e.get("status", "idle")} | ({"error": e["error"]} if e.get("error") else {})
+                  | ({"env": SANDBOX_ENV} if e.get("sandbox") else {}))
     return out
+
+
+def mock_nullifier(device_id: str, session_id: str) -> str:
+    return "0x" + hashlib.sha256(b"pop-mock-v1" + device_id.encode() + session_id.encode()).hexdigest()
 
 
 def both_verified(h: dict | None) -> bool:
@@ -189,8 +203,14 @@ class WorldID:
         return h.get("status") in PENDING and self.now_s() - (h.get("request_created_s") or 0) > REQUEST_TTL_S
 
     # -- start (§9 row 4)
-    async def start(self, s: dict, role: str) -> dict:
+    async def start(self, s: dict, role: str, env: str | None = None) -> dict:
         self.require_policy(s)
+        sandbox = env == SANDBOX_ENV
+        if env not in (None, "production", SANDBOX_ENV):
+            raise PopError(400, "bad_request", "env must be production|sandbox")
+        if sandbox and (not self.cfg.worldid_sandbox
+                        or (s.get("context") is not None and (s.get("context") or {}).get("kind") != "test")):
+            raise PopError(403, "sandbox_not_allowed", "sandbox World ID needs POP_WORLDID_SANDBOX=1 and a test session")
         if not self.enabled:
             raise PopError(503, "worldid_unavailable", "World ID is not configured on this server")
         sid = s["session_id"]
@@ -204,7 +224,8 @@ class WorldID:
         if h["status"] == "verifying":
             raise PopError(409, "bad_state", "verifying")
         now = self.now_s()
-        if h["status"] in PENDING and now - h.get("request_created_s", 0) < REUSE_S and h.get("connector_uri"):
+        if (h["status"] in PENDING and now - h.get("request_created_s", 0) < REUSE_S and h.get("connector_uri")
+                and bool(h.get("sandbox")) == sandbox):
             self._spawn(sid, role)
             return self._start_out(h)
         action = popctx.action(sid)
@@ -212,7 +233,8 @@ class WorldID:
         rp_context = {"rp_id": self.rp_id, "nonce": rp["nonce"], "created_at": rp["created_at"],
                       "expires_at": rp["expires_at"], "signature": rp["sig"]}
         body = {"app_id": self.app_id, "action": action, "signal": popctx.signal_str(bytes.fromhex(s["nonce_hex"]), role),
-                "rp_context": rp_context, "environment": "production" if self.fake else self.env,
+                "rp_context": rp_context,
+                "environment": "staging" if sandbox else "production" if self.fake else self.env,
                 "return_to": self.cfg.worldid_return_to}
         # the nonce counts as issued before the await: a proof for it must never be refused as unknown
         s = self.sessions.load(sid)
@@ -230,8 +252,9 @@ class WorldID:
         h = s["human"][role]
         if h["status"] in ("verified", "verifying"):
             raise PopError(409, "already_verified" if h["status"] == "verified" else "bad_state", "")
-        h.update({"status": "requested", "request_id": out["request_id"], "connector_uri": out["connector_uri"],
-                  "request_created_s": now, "rp_nonce": rp["nonce"]})
+        uri = SIMULATOR + urllib.parse.quote(out["connector_uri"], safe="") if sandbox else out["connector_uri"]
+        h.update({"status": "requested", "request_id": out["request_id"], "connector_uri": uri,
+                  "request_created_s": now, "rp_nonce": rp["nonce"], "sandbox": sandbox})
         h.pop("error", None)
         self.sessions._save(s)
         self._log(sid, role, "requested", start_s=now)
@@ -320,6 +343,8 @@ class WorldID:
                 self._set(sid, role, status="failed", error=err)
                 self._log(sid, role, "failed:" + err, start_s=h.get("request_created_s"))
                 return "failed"
+            if st == "confirmed" and h.get("sandbox"):
+                return self._accept_sandbox(sid, role, out.get("result"))
             if st == "confirmed":
                 try:
                     await self.verify(sid, role, out.get("result"))
@@ -327,6 +352,32 @@ class WorldID:
                 except HumanError:
                     return "failed"
             return h["status"]
+
+    # -- sandbox (no verification)
+    def _accept_sandbox(self, sid: str, role: str, res: Any) -> str:
+        """Simulator proof: take its nullifier as is (or the mock one), no Portal, no chain. No await inside."""
+        s = self.sessions.load(sid)
+        h = s["human"][role]
+        try:
+            nullifier = canon_field(res["responses"][0]["nullifier"])
+        except (KeyError, IndexError, TypeError, ValueError):
+            dev = s["host_device_id"] if role == "A" else s["guest_device_id"]
+            nullifier = mock_nullifier(dev or "", sid)
+        action = popctx.action(sid)
+        subject = f"{sid}:{role}"
+        holder = self.nullifiers.reserve(self.rp_id, SANDBOX_ENV, action, nullifier, subject, self.now_s())
+        if holder is not None and holder != subject:
+            self._set(sid, role, status="failed", error="same_human")
+            self._log(sid, role, "failed:same_human")
+            return "failed"
+        h.pop("error", None)
+        h.update({"status": "verified", "nullifier": nullifier, "action": action, "environment": SANDBOX_ENV,
+                  "verified_at": self.now_s()})
+        if both_verified(s["human"]):
+            s["human"]["pair_tag"] = pair_tag(s["human"]["A"]["nullifier"], s["human"]["B"]["nullifier"])
+        self.sessions._save(s)
+        log.warning("worldid %s %s verified SANDBOX (simulator, not verified)", sid, role)
+        return "verified"
 
     # -- verify (§6.4)
     async def verify(self, sid: str, role: str, res: Any) -> dict:

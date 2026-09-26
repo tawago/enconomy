@@ -103,6 +103,7 @@ class Settings:
     worldid_return_to: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_RETURN_TO", "enconomy://worldid"))
     worldid_portal: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_PORTAL", "https://developer.world.org"))
     worldid_poll_s: float = field(default_factory=lambda: float(os.environ.get("POP_WORLDID_POLL_S", "1.5")))
+    worldid_sandbox: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_SANDBOX", False))  # simulator per role, test sessions
     worldid_bg_poll: bool = True   # tests turn it off and drive polls through the status long-poll
     now_ms: Callable[[], int] = wall_ms
 
@@ -458,10 +459,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
 
     # -- World ID (worldid 01 §6, §7.2, §9 rows 4/5)
     @app.post("/v1/session/{sid}/worldid/start")
-    async def worldid_start(sid: str, dev: dict = Depends(device)):
+    async def worldid_start(sid: str, request: Request, dev: dict = Depends(device)):
         s = sessions.load(sid)
         role = sessions.member(s, dev)
-        return await wid.start(s, role)
+        body = await request.body()
+        try:
+            b = json.loads(body) if body.strip() else {}
+        except ValueError:
+            raise PopError(400, "bad_request", "body must be JSON") from None
+        env = b.get("env") if isinstance(b, dict) else None
+        return await wid.start(s, role, env)
 
     @app.get("/v1/session/{sid}/worldid")
     async def worldid_status(sid: str, timeout_s: float = 0, dev: dict = Depends(device)):

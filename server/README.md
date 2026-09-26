@@ -38,6 +38,7 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_WORLDID_POLL_S` | `1.5` | Sidecar poll interval. |
 | `POP_WORLDID_ALLOW_LEGACY` | `0` | Accept `identifier:"orb"` v3 proofs. Keep 0. |
 | `POP_WORLDID_FAKE` | `0` | Fake World ID (tests, live app tests). Refused (exit 2) unless `POP_TEST_KINDS=1`. Stores `environment:"fake"`. |
+| `POP_WORLDID_SANDBOX` | `0` | Allow `POST /v1/session/{sid}/worldid/start` with `{"env":"sandbox"}`: IDKit request with environment `staging`, `connector_uri` = World ID Simulator link (`https://simulator.worldcoin.org/?connect_url=…`). Polled like production; on confirm the nullifier comes from the simulator proof (else `sha256("pop-mock-v1"‖device_id‖session_id)`), no Portal verify, `environment:"sandbox"`. Context-less or `test`-kind sessions only, else 403 `sandbox_not_allowed`. The other role stays production; the nullifier table is per env. |
 | `POP_TEST_KINDS` | `0` | Enables `context.kind == "test"`. |
 | `POP_CHAIN_ID` | `4801` | The only accepted `context.chain_id`. |
 
