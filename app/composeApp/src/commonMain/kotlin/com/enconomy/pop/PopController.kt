@@ -1,6 +1,7 @@
 package com.enconomy.pop
 
 import com.enconomy.pop.chain.ContextGate
+import com.enconomy.pop.chain.SafeTx
 import com.enconomy.pop.res.Res
 import com.enconomy.pop.zk.BenchFixture
 import com.enconomy.pop.zk.CredentialException
@@ -55,7 +56,32 @@ const val AUDIO_MODE_PREF = "audio.mode"
 /** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
 const val DEFAULT_AUDIO_MODE = "videoRecording"
 
-enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
+enum class Screen { Enroll, Home, Safe, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
+
+/** Safe spend form (docs/worldid/02 §9): the Safe this phone co-owns, plus one native ETH transfer. Prefs "safe.*". */
+data class SafeForm(
+    val safe: String = "",
+    val to: String = "",
+    val amountEth: String = "",
+    /** Safe nonce, decimal; filled from the chain (eth_call nonce()), editable. */
+    val nonce: String = "",
+    val rpc: String = DEFAULT_SEPOLIA_RPC,
+    val note: String? = null,
+)
+
+const val DEFAULT_SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
+
+/** Safe spend progress on the result screen. */
+data class SafeStatus(
+    val ownerSig: String? = null,
+    /** zk pair proof state from /result (verified / proving / rejected / none). */
+    val zk: String? = null,
+    /** relayer status line (success / reverted / skipped / pending / waiting). */
+    val relay: String? = null,
+    val relayText: String? = null,
+    val txLink: String? = null,
+    val txHash: String? = null,
+)
 
 data class Enrollment(
     val deviceId: String,
@@ -97,6 +123,9 @@ data class UiState(
     val wid: WidUi? = null,
     /** /v1/config "chain".chain_id (debug test context). */
     val serverChainId: Long? = null,
+    val safeForm: SafeForm = SafeForm(),
+    /** Safe spend session: owner sig + zk + relayer state; null = not a safe-tx session. */
+    val safe: SafeStatus? = null,
     /** Attestation state on the result screen (§8.4), null = not asked. */
     val attText: String? = null,
     /** Pre-flight / clock problem; user fixes it and taps Start. */
@@ -447,7 +476,7 @@ class PopController(
     fun host(context: JsonObject? = null) {
         go(Screen.Host)
         hostContext = context
-        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, ctxOk = null, wid = null) }
+        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, ctxOk = null, wid = null, safe = null) }
         run("creating session") { api ->
             requireConfig(api)
             val me = keystore.load() ?: error("not enrolled")
@@ -544,7 +573,7 @@ class PopController(
             _state.update { it.copy(error = e.code, status = e.message ?: "") }
             return
         }
-        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, ctxOk = null, wid = null) }
+        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, ctxOk = null, wid = null, safe = null) }
         run("joining ${inv.sessionId.take(8)}") { api ->
             var v = api.join(inv.sessionId, inv.joinToken)
             _state.update { it.copy(session = v) }
@@ -574,7 +603,112 @@ class PopController(
 
     /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the debug `test` kind passes. */
     private fun gate(sid: String, context: JsonObject?, notBefore: Long?, nonce: String?): ContextGate.Result =
-        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = emptySet(), allowTestKind = isDebugBuild())
+        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = mySafes(), allowTestKind = isDebugBuild(),
+            expectCtxHash = { kind, ctx -> if (kind == SafeTx.KIND) SafeTx.expectCtxHash(ctx) else null })
+
+    // ---- Safe spend (docs/worldid/02 §9) ----
+
+    /** "My Safes" (02 §9.1): the one Safe saved on the Safe spend screen. */
+    private fun mySafes(): Set<String> = setOfNotNull(Prefs.get("safe.address")?.lowercase()?.takeIf { SafeTx.addrOk(it) })
+
+    private fun loadSafeForm() = SafeForm(
+        safe = Prefs.get("safe.address") ?: "", to = Prefs.get("safe.to") ?: "",
+        amountEth = Prefs.get("safe.amount") ?: "0.001", rpc = Prefs.get("safe.rpc") ?: DEFAULT_SEPOLIA_RPC,
+    )
+
+    fun openSafe() {
+        _state.update { it.copy(safeForm = loadSafeForm().copy(nonce = it.safeForm.nonce), screen = Screen.Safe, error = null, status = "") }
+        refreshSafeNonce()
+    }
+
+    fun setSafeForm(f: SafeForm) {
+        val g = f.copy(safe = f.safe.trim().lowercase(), to = f.to.trim().lowercase())
+        Prefs.set("safe.address", g.safe.ifEmpty { null })
+        Prefs.set("safe.to", g.to.ifEmpty { null })
+        Prefs.set("safe.amount", g.amountEth.ifEmpty { null })
+        Prefs.set("safe.rpc", g.rpc.takeIf { it != DEFAULT_SEPOLIA_RPC && it.isNotBlank() })
+        _state.update { it.copy(safeForm = g) }
+    }
+
+    /** eth_call Safe.nonce() (selector 0xaffed0e0) on Sepolia. */
+    fun refreshSafeNonce() {
+        val f = state.value.safeForm
+        if (!SafeTx.addrOk(f.safe)) return
+        val api = api()
+        scope.launch {
+            try {
+                val n = SafeTx.hexToDec(api.ethCall(f.rpc, f.safe, "0xaffed0e0"))
+                _state.update { it.copy(safeForm = it.safeForm.copy(nonce = n, note = "nonce $n from chain")) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _state.update { it.copy(safeForm = it.safeForm.copy(note = "couldn't read nonce: ${e.message?.take(80)}")) }
+            } finally {
+                api.close()
+            }
+        }
+    }
+
+    /** Host a safe-tx session for a native ETH transfer from the saved Safe. */
+    fun hostSafeSpend() {
+        val f = state.value.safeForm
+        val wei = SafeTx.ethToWei(f.amountEth)
+        val bad = when {
+            !SafeTx.addrOk(f.safe) -> "Safe address: 0x + 40 hex"
+            !SafeTx.addrOk(f.to) -> "Recipient: 0x + 40 hex"
+            wei == null || wei == "0" -> "Amount: ETH, e.g. 0.001"
+            !Regex("^(0|[1-9][0-9]*)$").matches(f.nonce) -> "Nonce: read it from the chain first"
+            else -> null
+        }
+        if (bad != null) {
+            _state.update { it.copy(error = bad) }
+            return
+        }
+        val chain = state.value.serverChainId ?: SafeTx.CHAIN_SEPOLIA
+        val tx = SafeTx(to = f.to, value = wei!!, nonce = f.nonce)
+        host(SafeTx.context(chain, f.safe, tx))
+    }
+
+    /** At Confirm (02 §7.3): sign "pop-safe-owner-v1" ‖ safeTxHash with the device key, POST it. */
+    private suspend fun postOwnerSig(api: PopApi, sid: String, ok: ContextGate.Result.Ok) {
+        val key = keystore.load() ?: error("not enrolled")
+        val msg = SafeTx.ownerMessage(ok.ctxHash.removePrefix("0x").hexToBytes())
+        val sig = withContext(Dispatchers.Default) { key.sign(msg) }
+        api.safeOwnerSig(sid, "0x" + sig.toHex())
+        _state.update { it.copy(safe = SafeStatus(ownerSig = "signed")) }
+    }
+
+    private var safeJob: Job? = null
+
+    /** Result screen: zk pair proof (/result zk.pair) + relayer (/relay) until the relayer settles, ~6 min max. */
+    private fun watchSafe(sid: String) {
+        safeJob?.cancel()
+        safeJob = scope.launch {
+            val api = api()
+            try {
+                val end = unixMs() + 360_000
+                while (unixMs() < end) {
+                    val zk = runCatching {
+                        val z = api.resultJson(sid)["zk"] as? JsonObject
+                        ((z?.get("pair") as? JsonObject)?.get("status") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "none"
+                    }.getOrNull()
+                    val r = runCatching { api.relayStatus(sid) }.getOrNull()
+                    fun str(k: String) = (r?.get(k) as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+                    val st = str("status")
+                    _state.update { s ->
+                        val cur = s.safe ?: SafeStatus()
+                        s.copy(safe = cur.copy(zk = zk ?: cur.zk, relay = if (st == null || st == "none") "waiting for relayer" else st,
+                            relayText = str("text") ?: str("error"), txHash = str("tx_hash"),
+                            txLink = str("link") ?: str("tx_hash")?.let { "https://sepolia.etherscan.io/tx/$it" }))
+                    }
+                    if (st in setOf("success", "reverted", "skipped", "error")) return@launch
+                    delay(2000)
+                }
+            } finally {
+                api.close()
+            }
+        }
+    }
 
     private suspend fun refuse(api: PopApi, sid: String, g: ContextGate.Result) {
         val r = g as ContextGate.Result.Refused
@@ -740,6 +874,7 @@ class PopController(
     fun confirmPartner() {
         val id = state.value.session?.session_id ?: return
         run("confirming") { api ->
+            state.value.ctxOk?.takeIf { it.kind == SafeTx.KIND }?.let { postOwnerSig(api, id, it) }
             val v0 = api.confirm(id)
             _state.update { it.copy(session = v0, confirmSent = true, status = "waiting for partner to confirm") }
             // wait for the partner's confirm by state: a World ID session shows the nonce before both confirmed,
@@ -792,6 +927,7 @@ class PopController(
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
             _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null, attText = null) }
             if (state.value.wid != null) fetchAttestation(v.session_id)
+            if (state.value.ctxOk?.kind == SafeTx.KIND && res.verdict == "NEAR") watchSafe(v.session_id)
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
@@ -818,6 +954,8 @@ class PopController(
 
     fun again() {
         proofJob?.cancel()
+        safeJob?.cancel()
+        _state.update { it.copy(safe = null) }
         pendingProof = null
         _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null, wid = null, attText = null) }
         go(Screen.Home)
