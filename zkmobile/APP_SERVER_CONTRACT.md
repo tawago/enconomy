@@ -57,3 +57,41 @@ Server: check the public part against the session exactly as for an upload (`inp
 Reply: either synchronous `200 {"status": "verified", "role", "zk"}` / 4xx like the upload, or `202 {"status": "proving"}`. After 202 the app polls `GET /v1/session/{id}/result` every 2 s (up to 3 min) and reads `zk.<role>.status` (so `/result` must carry the `zk` block, `sessions.zk_public(s)`) (`verified` / `rejected` + `reason`). While proving, `zk.<role>` may be `{"status": "proving", ...}`.
 
 The server sees the audio samples of the two opened windows for this proof; the chain and the public never do.
+
+## Server side, as implemented (server/pop/zk.py, sessions.py, main.py)
+
+What the app must match beyond the sections above:
+
+- **Config.** `GET /v1/config` → `zk: {circuits: {"48000": "oaN_s48"}, vk_sha256: {"oaN_s48": "769ac931…"}, keys: "/v1/zk/keys", verifier: {"oaN_s48": bool}, delegate: {"oaN_s48": bool}, n_public: 12}`. `GET /v1/zk/keys` lists only files whose size + sha256 match the pins above (`{circuit, sample_rate, file, url, size, sha256, vk_sha256}`). `GET /v1/zk/keys/<file>` serves them with `X-Pop-Sha256`, Range supported. Server source dir: `POP_ZK_DIR/<file>` if present, else the default paths above.
+- **Commit (POPC v2).** The commit response now also carries `code_commit` (64 hex, the Poseidon2 value the transcript's `[279:311]` must hold) and `code_attest` (below). The app may use this value or compute its own; they must be equal or the transcript is rejected (`transcript_mismatch`, "code_commit").
+- **Proof upload.** `public_inputs` part is optional. If sent, it is compared with the server's vector first so the error names the field: `public[0|1]` nonce, `[2]` attempt, `[3]` role, `[4]` code_commit, `[5..8]` issuer (`issuer_unknown`), `[9]` sr, `[10]` validAt, `[11]` halfCommit (salt). bb always verifies against the server's own vector. `meta.salt`: decimal or `0x` hex, < 2^248.
+- **Delegate.** Always async: `202 {"status": "proving", "role", "zk"}`. Immediate `400` (nothing proved) when a public input in `inputs` differs from the server's (same `public[i]` names, prefixed `inputs`), `inputs.t` ≠ the stored signed transcript, `inputs.salt` ≠ `salt`, or the map isn't exactly the 27 ABI names. Repeating the call while proving returns 202 again; after `verified` it's `409 already_submitted`. `503 zk_unavailable` = no prover on this server. Value encoding: Field as decimal string (`0x` hex also accepted), integers as non-negative JSON numbers, bools as JSON bools. The server runs `zkprove full` (zkmobile/android/zkprove host build: noir 1.0.0-beta.22 ACVM + bb 5.0.0-nightly.20260522 bbapi, `-t evm` bytes), one job at a time, ~13 s on the M2; the Prover.toml lives in a 0700 temp dir only for the run.
+- **zk block** (`/result` → `zk`, also in `result.json`):
+  ```
+  {"valid_at", "status": "none|partial|proving|verified|rejected", "circuit": "oaN_s48", "vk_sha256",
+   "code_attest": {"A": {...}, "B": {...}} | null,      # from commit time
+   "A"|"B": null | {"attempt", "circuit", "prover": "phone|server", "delegated": bool, "at_ms", "status",
+                    "reason", "detail", "proof_sha256", "proof_bytes", "half_commit", "prove_ms" (server only),
+                    "public_inputs": ["0x<64 hex>" x 12], "files": {"proof", "public_inputs"}, "code_attest"}}
+  ```
+  Reasons on `rejected`: `proof_invalid` (bb said no), `transcript_mismatch`, `issuer_unknown`, `credential_expired`, `circuit_unknown`, `witness_failed` (delegate: the ACVM rejected the input map), `zk_unavailable` (delegate: server-side failure, retry). A rejected entry may be replaced by a new upload / delegate.
+
+## Code attestation (server → verifier)
+
+The templates are private; the proof exposes only `code_commit` (public #5). The issuer key vouches for it:
+```
+msg = "POPCC1" (6 B) || session_nonce (32 B) || attempt (u8) || role ('A'|'B', 1 B) || code_commit (32 B BE)   = 72 B
+sig = ECDSA P-256 over SHA-256(msg), issuer key (= the SBcred3 issuer, public #6..9), raw r||s, low-S
+code_attest = {"code_commit": hex, "msg_hex", "sig_hex", "issuer_pubkey": "04…", "format": "POPCC1"}
+```
+Per verified proof, `zk.<role>.code_attest` signs exactly that proof's public input #5. A verifier checks: sig over msg under the issuer key in public #6..9; msg nonce = public #1 || #2 (16 B each), attempt = #3, role = #4 (0 → 'A', 1 → 'B'), code_commit = #5.
+
+## Onchain bridge (laptop, reads the server's files)
+
+- `result.json` at `$POP_DATA_DIR/sessions/<session_id>/result.json` (default `POP_DATA_DIR` = `server/data`).
+- Per verified role: `zk.<role>.files.proof` and `.public_inputs` are paths **relative to `POP_DATA_DIR`**:
+  `sessions/<sid>/proof_<role>_<attempt>.bin` (raw `bb prove -t evm` proof, 10,304 B) and
+  `sessions/<sid>/public_inputs_<role>_<attempt>.bin` (12 x 32 B big-endian).
+- `zk.<role>.public_inputs` = the same 12 values as `0x` hex strings (`bytes32[]` order for `PhoneVerifier.verify(bytes proof, bytes32[] publicInputs)`).
+- Circuit / vk: `oaN_s48`, vk sha256 `769ac93112de4ec2f970d33233108d19124612b9b2ae54b8b531a23ecaa23f06` (`~/.enconomy/zk/pinned/vk/vk`, matches `~/.enconomy/zk/pinned/PhoneVerifier.sol`). Checked: both stored fixture proofs pass `bb verify -t evm` with that vk.
+- The pair proof (`noir/pair`) is not produced by the server yet.
