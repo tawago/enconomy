@@ -22,8 +22,8 @@ push $VK $D/vk
 push $HOME/.bb-crs/bn254_g1.dat $D/crs/bn254_g1.dat
 adb shell chmod 755 $D/bb $D/ld-linux-aarch64.so.1
 adb shell "cd $D && HOME=$D ./ld-linux-aarch64.so.1 --library-path $D ./bb --version"
-# wall time from date +%s%N; peak memory = max VmHWM polled every 0.3 s from /proc/<bb pid>/status
-adb shell "cd $D && rm -f out/proof out/public_inputs hwm.log; (while true; do for p in \$(pgrep -f 'bb prove'); do grep VmHWM /proc/\$p/status >> hwm.log 2>/dev/null; done; sleep 0.3; done) & M=\$!; s=\$(date +%s%N); HOME=$D ./ld-linux-aarch64.so.1 --library-path $D ./bb prove -b phone.json -w w_$ROLE.gz -k vk -o out -t evm -c $D/crs -v $EXTRA; rc=\$?; e=\$(date +%s%N); kill \$M; echo WALL_MS=\$(( (e-s)/1000000 )) rc=\$rc; echo PEAK_\$(sort -k2 -n hwm.log | tail -1)" 2>&1 | tee $OUT/prove.log
+# wall time from /proc/uptime; peak memory = max VmHWM polled every 0.3 s from /proc/<bb pid>/status
+adb shell "cd $D && rm -f out/proof out/public_inputs hwm.log; (while true; do for p in \$(pgrep -f 'bb prove'); do grep VmHWM /proc/\$p/status >> hwm.log 2>/dev/null; done; sleep 0.3; done) & M=\$!; s=\$(cut -d' ' -f1 /proc/uptime); HOME=$D ./ld-linux-aarch64.so.1 --library-path $D ./bb prove -b phone.json -w w_$ROLE.gz -k vk -o out -t evm -c $D/crs -v $EXTRA; rc=\$?; e=\$(cut -d' ' -f1 /proc/uptime); kill \$M; echo WALL_S=\$(awk \"BEGIN{print \$e-\$s}\") rc=\$rc; echo PEAK_\$(sort -k2 -n hwm.log | tail -1)" 2>&1 | tee $OUT/prove.log
 adb pull $D/out/proof $OUT/proof; adb pull $D/out/public_inputs $OUT/public_inputs
 ls -la $OUT
 $LBB verify -k $VK -p $OUT/proof -i $OUT/public_inputs -t evm && echo "LAPTOP_VERIFY_OK (team vk, bb 5.0.0-nightly.20260522)" | tee -a $OUT/prove.log
