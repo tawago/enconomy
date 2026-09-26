@@ -42,8 +42,9 @@ def refusal(s: dict, kind, cfg, store) -> str | None:
     h = s.get("human")
     if not both_verified(h) or not h.get("pair_tag"):
         return "human_missing"
-    if kind.TAG in PROD_TAGS and any((h[r].get("environment") != "production") for r in ROLES):
-        return "nonprod_humans"       # fake / staging / sandbox humans never reach a real consumer
+    envs = {"production", "sandbox"} if getattr(cfg, "attest_allow_sandbox", False) else {"production"}
+    if kind.TAG in PROD_TAGS and any((h[r].get("environment") not in envs) for r in ROLES):
+        return "nonprod_humans"       # fake / staging humans never reach a real consumer; sandbox only with the demo flag
     allow = cfg.unattested_allow
     for r in ROLES:
         d = (res.get("devices") or {}).get(r)

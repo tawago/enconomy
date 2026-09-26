@@ -1,7 +1,7 @@
 // One-shot SAFE relayer (Ethereum Sepolia). Reads a PoP attestation, assembles execTransaction, sends it.
 //   node relay.mjs <sid> [--wait]        GET $POP_SERVER_URL/v1/session/<sid>/attestation (--wait: poll until done)
 //   node relay.mjs --fixture <file.json> same, body read from a file (tests; sid taken from the body)
-// env: RELAYER_PK (gas key, never in server/), RPC (default publicnode Sepolia), POP_SERVER_URL (http://127.0.0.1:8000),
+// env: RELAYER_PK or RELAYER_KEY_FILE (gas key, default ~/.enconomy/ens-sepolia.key; never in server/), RPC (default publicnode Sepolia), POP_SERVER_URL (http://127.0.0.1:8000),
 //      CHAIN_ID (11155111), OUT_DIR (./out), EXPECT_SAFE (optional: refuse any other Safe), PRINT_SIGS=1 (debug)
 // Idempotent: out/<sid>.json holds the tx hash once sent; a rerun only reads the receipt, never resends.
 // stdout: one JSON line {sid, status: success|reverted|skipped|error, error?, text?, tx_hash?, ...}
@@ -158,8 +158,11 @@ async function main(args) {
   if (process.env.PRINT_SIGS) console.error("signatures", signatures);
 
   // 4. simulate, estimate x1.2, send (pending nonce, one sender), write out/<sid>.json BEFORE waiting
-  if (!process.env.RELAYER_PK) done(2, { sid, status: "error", error: "RELAYER_PK not set" });
-  const account = privateKeyToAccount(process.env.RELAYER_PK);
+  // gas key: RELAYER_PK, else the key file (default: the shared deployer key, ~/.enconomy/ens-sepolia.key)
+  const keyFile = process.env.RELAYER_KEY_FILE || `${process.env.HOME}/.enconomy/ens-sepolia.key`;
+  const relayerPk = process.env.RELAYER_PK || (fs.existsSync(keyFile) ? fs.readFileSync(keyFile, "utf8").trim() : "");
+  if (!relayerPk) done(2, { sid, status: "error", error: "RELAYER_PK / RELAYER_KEY_FILE not set" });
+  const account = privateKeyToAccount(relayerPk);
   const bal = await pub.getBalance({ address: account.address });
   if (bal < 10n ** 15n) console.error(`warn: relayer ${account.address} has ${formatEther(bal)} ETH`);
   const wallet = createWalletClient({ account, chain, transport });

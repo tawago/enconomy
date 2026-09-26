@@ -98,6 +98,7 @@ class Settings:
     att_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_ATT_TTL_S", "900")))
     unattested_allow: frozenset = field(default_factory=lambda: frozenset(
         x.strip().lower() for x in os.environ.get("POP_UNATTESTED_ALLOW", "").split(",") if x.strip()))
+    attest_allow_sandbox: bool = field(default_factory=lambda: _env_bool("POP_ATTEST_ALLOW_SANDBOX", False))  # demo Safe: sandbox World ID ok
     test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
     worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
     worldid_fake: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_FAKE", False))
