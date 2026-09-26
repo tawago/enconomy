@@ -94,6 +94,12 @@ private fun Home(s: UiState, c: PopController) {
             Label("name", e.displayName)
             Label("key", "${e.securityLevel}, ${if (e.attested) "attested" else "unattested"}")
             Label("credential", e.credExpiry?.let { "SBcred3, expires ${formatUnixDay(it)}" } ?: "none")
+            Label("transcript", when {
+                !s.popt2On -> "POPT v1 (v2 off)"
+                s.popt2Available == true -> "POPT v2 (48 / 44.1 kHz), else v1"
+                s.popt2Available == false -> "POPT v1 (server has no v2)"
+                else -> "POPT v2 if the server offers it"
+            })
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -103,6 +109,9 @@ private fun Home(s: UiState, c: PopController) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = c::ping, enabled = !s.busy) { Text("Ping server") }
         OutlinedButton(onClick = c::forgetKey, enabled = !s.busy) { Text("Re-enroll") }
+    }
+    TextButton(onClick = { c.setPopt2(!s.popt2On) }, enabled = !s.busy) {
+        Text(if (s.popt2On) "Use POPT v1" else "Use POPT v2", fontSize = 13.sp)
     }
 }
 

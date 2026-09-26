@@ -132,10 +132,33 @@ data class ResultRecord(
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
-@Serializable data class ArmReq(val attempt: Int, val sample_rate: Int, val rtt_min_ms: Double)
-@Serializable data class ArmResp(val attempt: Int, val sample_rate: Int, val play: Pcm, val own_bed: Pcm)
+/** [popt] 2 = POPT v2 for this role and attempt; null (not sent) = pop-v1. */
+@Serializable
+data class ArmReq(
+    val attempt: Int,
+    val sample_rate: Int,
+    val rtt_min_ms: Double,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val popt: Int? = null,
+)
+
+/** v2 adds popt, own_code (int8 at our sr) and delta. */
+@Serializable
+data class ArmResp(
+    val attempt: Int,
+    val sample_rate: Int,
+    val play: Pcm,
+    val own_bed: Pcm,
+    val popt: Int? = null,
+    val own_code: CodeWire? = null,
+    val delta: Int? = null,
+)
+
+/** int8 cI / cQ, base64 std, n values each (docs/pop-transcript-v2.md §3). */
+@Serializable data class CodeWire(val cI_b64: String, val cQ_b64: String, val n: Int)
+
 @Serializable data class CommitReq(val commit_b64: String, val sig_b64: String)
-@Serializable data class CommitResp(val partner_bed: Pcm)
+/** v2 adds partner_code (released only after the POPC v2 commit). */
+@Serializable data class CommitResp(val partner_bed: Pcm, val partner_code: CodeWire? = null)
 @Serializable data class TranscriptReq(val transcript_b64: String, val sig_b64: String, val meta: JsonObject)
 @Serializable data class TranscriptResp(val accepted: Boolean, val state: String? = null)
 @Serializable data class FailReq(val attempt: Int, val reason: String)

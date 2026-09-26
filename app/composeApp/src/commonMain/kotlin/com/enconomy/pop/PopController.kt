@@ -61,6 +61,10 @@ data class UiState(
     /** Unexpected error detail shown with an aborted result. */
     val resultDetail: String? = null,
     val uploadRecordings: Boolean = true,
+    /** Server offers POPT v2 with the app's constants (null = not checked yet). */
+    val popt2Available: Boolean? = null,
+    /** User switch (Prefs "popt"): v2 when available, else v1. */
+    val popt2On: Boolean = true,
 )
 
 /**
@@ -81,6 +85,7 @@ class PopController(
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
+    private var popt2: Popt2Config? = null
 
     init { checkConfig() }
 
@@ -88,7 +93,8 @@ class PopController(
         val url = Prefs.get("baseUrl") ?: DEFAULT_BASE_URL
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
-        return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll)
+        return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
+            popt2On = Prefs.get("popt") != "1")
     }
 
     private fun storedEnrollment(): Enrollment? {
@@ -112,6 +118,12 @@ class PopController(
     fun resetBaseUrl() {
         Prefs.set("baseUrl", null)
         _state.update { it.copy(baseUrl = DEFAULT_BASE_URL, configOk = null) }
+    }
+
+    /** POPT v2 on/off (v1 when off or when the server has no v2). */
+    fun setPopt2(on: Boolean) {
+        Prefs.set("popt", if (on) "2" else "1")
+        _state.update { it.copy(popt2On = on) }
     }
 
     fun setDisplayName(n: String) {
@@ -241,8 +253,11 @@ class PopController(
     private fun applyConfig(cfg: JsonObject): Boolean {
         val bad = PopConstants.mismatches(cfg)
         val up = (cfg["upload_recordings"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "false"
+        val v2 = Popt2Config.from(cfg)
+        popt2 = v2
         _state.update {
-            it.copy(uploadRecordings = up, configOk = bad.isEmpty(), error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
+            it.copy(uploadRecordings = up, configOk = bad.isEmpty(), popt2Available = v2 != null,
+                error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
         }
         return bad.isEmpty()
     }
@@ -411,6 +426,7 @@ class PopController(
             uploadRecordings = state.value.uploadRecordings,
             onStatus = { p, k, note -> _state.update { it.copy(runPhase = p, runAttempt = k, runNote = note ?: if (p == RunPhase.Arming || p == RunPhase.WaitingResult) it.runNote else null, status = "${p.name.lowercase()} (attempt $k)") } },
             model = deviceModel(),
+            popt2 = popt2.takeIf { state.value.popt2On },
         )
         try {
             val res = r.run()

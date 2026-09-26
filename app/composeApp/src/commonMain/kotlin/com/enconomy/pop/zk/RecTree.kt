@@ -101,7 +101,8 @@ object RecTree {
         return n
     }
 
-    private fun fromLeaves(leaves: List<Fe>): Tree {
+    /** Tree over given leaf hashes (level 0). */
+    internal fun fromLeaves(leaves: List<Fe>): Tree {
         val levels = mutableListOf(leaves)
         val w5 = Poseidon7.Perm(Poseidon7.params(5))
         for (l in 0 until DEPTH) {

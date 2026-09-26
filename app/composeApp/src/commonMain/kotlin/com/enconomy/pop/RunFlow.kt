@@ -3,6 +3,11 @@ package com.enconomy.pop
 import com.enconomy.pop.dsp.Arrival
 import com.enconomy.pop.dsp.PopDsp
 import com.enconomy.pop.dsp.PopRound
+import com.enconomy.pop.dsp.PopRound2
+import com.enconomy.pop.dsp.Popt2Code
+import com.enconomy.pop.dsp.Popt2Rate
+import com.enconomy.pop.zk.CodeCommit
+import com.enconomy.pop.zk.RecTree
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.http.ContentType
@@ -63,6 +68,11 @@ object Reasons {
  *    t0): own nulls right after engine.run returns, partner nulls once the self check passes.
  *  - 400 bad_attempt on arm (or transcript_mismatch on commit) with the view already at a later
  *    attempt = the partner's /fail moved the session on; re-read the view and follow it.
+ *
+ * POPT v2 ([popt2] set and the phone's rate has a circuit): arm with "popt": 2 (own int8 code comes
+ * back), the integer rule of [PopRound2] on the same int16 capture, POPC v2 commits the Poseidon7
+ * rec_root (built on 4 workers while the self check runs), partner_code after the commit, 311-byte
+ * transcript with a_self, p_partner, delta and code_commit. v1 is untouched otherwise.
  */
 class PopRun(
     private val api: PopApi,
@@ -75,6 +85,8 @@ class PopRun(
     private val clock: suspend () -> ClockOffset = { ClockSync.measure(api) },
     private val nowNs: () -> Long = ::monoNanos,
     private val model: String = "",
+    /** null = pop-v1 only. */
+    private val popt2: Popt2Config? = null,
 ) {
     private val partnerRole = if (role == 'A') 'B' else 'A'
 
@@ -115,13 +127,19 @@ class PopRun(
         if (!clk.ok) throw RunBlocked("Network too slow (rtt ${clk.rttMinMs.toInt()} ms). Move closer to Wi-Fi and try again.")
         val sr = pre.sampleRate
 
+        val rate2 = popt2?.rate(sr)
         val arm = try {
-            api.arm(sessionId, ArmReq(k, sr, clk.rttMinMs))
+            api.arm(sessionId, ArmReq(k, sr, clk.rttMinMs, popt = if (rate2 != null) 2 else null))
         } catch (e: PopHttpException) {
             if (e.code != "bad_attempt") throw e
             return movedOn(k) ?: throw e
         }
         check(arm.attempt == k && arm.sample_rate == sr) { "arm echo ${arm.attempt}/${arm.sample_rate} != $k/$sr" }
+        val ownCode = if (rate2 != null) {
+            check(arm.popt == 2 && arm.delta == rate2.delta) { "arm popt ${arm.popt} delta ${arm.delta}" }
+            val c = arm.own_code ?: error("v2 arm without own_code")
+            Popt2Code.fromB64(c.cI_b64, c.cQ_b64, c.n).also { check(it.n == rate2.L) { "own_code n ${it.n}" } }
+        } else null
         val cap: Capture
         val plan: RunPlan
         try {
@@ -139,6 +157,7 @@ class PopRun(
             if (plan.recStartNs <= nowNs()) throw AudioException("capture_failed", "t0 already passed")
             status(RunPhase.Running, k)
             cap = engine.run(plan)
+            if (rate2 != null && ownCode != null) return afterCapture2(k, nonce, pkPartner, plan, cap, rate2, ownCode)
             return afterCapture(k, nonce, pkPartner, plan, cap, ownBed)
         } catch (e: AudioException) {
             engine.release()
@@ -203,6 +222,63 @@ class PopRun(
             api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta(cap, r, expSelf, expPartner, p.half)))
         } catch (e: PopHttpException) {
             // 409: partner moved on; 400: server rejected and finalized. Either way the view says what happened.
+            if (e.status != 409 && e.status != 400) throw e
+        }
+        if (uploadRecordings) upload(k, cap)
+        waitNext(null, k)
+    }
+
+    /** POPT v2 after the capture: same phases and failure handling as [afterCapture]. */
+    private suspend fun afterCapture2(k: Int, nonce: ByteArray, pkPartner: ByteArray, plan: RunPlan, cap: Capture,
+                                      rate: Popt2Rate, own: Popt2Code): SessionView = coroutineScope {
+        engine.release()
+        val sr = plan.sr
+        check(sr == rate.sr) { "rate ${rate.sr} != $sr" }
+        val tree = async(Dispatchers.Default) { RecTree.buildParallel(cap.pcm, 4) }
+        status(RunPhase.SelfCheck, k)
+        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs)
+        val expSelf = cap.expectedSelf()
+        val self = withContext(Dispatchers.Default) { r.selfCheck(own, expSelf) }
+        if (self !is PopRound2.Step.SelfOk) {
+            tree.cancel()
+            return@coroutineScope fail(k, (self as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, null, null, null))
+        }
+
+        status(RunPhase.Committing, k)
+        val recRoot = tree.await().rootBytes()
+        val commit = TranscriptCodec.commit(role, k, nonce, recRoot, version = 2)
+        val commitSig = sign(commit)
+        val resp = try {
+            commitWithRetry(CommitReq(commit.toB64(), commitSig.toB64()))
+        } catch (e: PopHttpException) {
+            if (e.status == 409) return@coroutineScope waitNext(null, k)
+            if (e.code == "transcript_mismatch") movedOn(k)?.let { return@coroutineScope it }
+            throw e
+        }
+        val pc = resp.partner_code ?: error("v2 commit without partner_code")
+        val partnerCode = Popt2Code.fromB64(pc.cI_b64, pc.cQ_b64, pc.n)
+
+        status(RunPhase.Measuring, k)
+        val expPartner = cap.expectedPartner(plan)
+        val p = withContext(Dispatchers.Default) { r.measurePartner(partnerCode, expPartner) }
+        if (p !is PopRound2.Step.PartnerOk) {
+            return@coroutineScope fail(k, (p as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, expPartner, null, recRoot))
+        }
+
+        status(RunPhase.Submitting, k)
+        val t = Transcript2(
+            role = role, attempt = k, sessionNonce = nonce, pkSelf = key.pubkey, pkPartner = pkPartner,
+            sampleRate = sr, half = p.half, recRoot = recRoot,
+            playFramePosition = cap.playFramePosition, playNanoTime = cap.playNanoTime,
+            recFrame0NanoTime = cap.recFrame0NanoTime, selfOsDelta = self.selfOsDelta,
+            commitHash = sha256(commit), aSelf = self.aSelf, pPartner = p.pPartner, delta = rate.delta,
+            codeCommit = CodeCommit.compute(own.cI, own.cQ, partnerCode.cI, partnerCode.cQ),
+        )
+        val tx = t.encode()
+        val sig = sign(tx)
+        try {
+            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta2(cap, r, expSelf, expPartner, p.half, recRoot)))
+        } catch (e: PopHttpException) {
             if (e.status != 409 && e.status != 400) throw e
         }
         if (uploadRecordings) upload(k, cap)
@@ -296,6 +372,26 @@ class PopRun(
         put("security_level", key.securityLevel)
         put("model", model)
     }
+
+    /** v2 meta: the integer rule's arrivals, predictions and scores (diagnostics, unsigned). */
+    private fun meta2(cap: Capture, r: PopRound2, expSelf: Double, expPartner: Double?, half: Int?, recRoot: ByteArray?): JsonObject =
+        buildJsonObject {
+            cap.meta().forEach { (k, v) -> put(k, v) }
+            put("role", role.toString())
+            put("rule", "popt2")
+            put("expected_self", expSelf)
+            expPartner?.let { put("expected_partner", it) }
+            r.pSelf?.let { put("p_self", it) }
+            r.pPartner?.let { put("p_partner", it) }
+            r.self?.let { a -> put("t_self", a.frame); put("score_self", a.score); put("search_self", JsonArray(listOf(JsonPrimitive(a.lo), JsonPrimitive(a.hi)))) }
+            r.partner?.let { a -> put("t_partner", a.frame); put("score_partner", a.score); put("search_partner", JsonArray(listOf(JsonPrimitive(a.lo), JsonPrimitive(a.hi)))) }
+            half?.let { put("half", it) }
+            r.provable?.let { put("zk_provable", it) }
+            recRoot?.let { put("rec_root", it.toHex()) }
+            put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
+            put("security_level", key.securityLevel)
+            put("model", model)
+        }
 
     private fun kotlinx.serialization.json.JsonObjectBuilder.arrival(name: String, a: Arrival?) {
         if (a == null) return
