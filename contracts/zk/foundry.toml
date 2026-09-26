@@ -1,0 +1,10 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = []
+optimizer = true
+optimizer_runs = 1
+via_ir = false
+evm_version = "cancun"
+[lint]
+lint_on_build = false
