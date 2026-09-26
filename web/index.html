@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Met on ENS</title>
+<meta name="description" content="Live ENS text records for people who met in person, measured by acoustic proof of presence. ENSv2 on Sepolia.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='7' cy='16' r='4' fill='%23e8541e'/%3E%3Ccircle cx='25' cy='16' r='4' fill='%23e8541e'/%3E%3Cpath d='M13 10q3 6 0 12M17 7q5 9 0 18' fill='none' stroke='%23e8541e' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="banner" class="banner" hidden></div>
+
+<header class="top">
+  <a class="brand" href="?" data-nav="home" aria-label="Leaderboard">
+    <svg class="brand-mark" viewBox="0 0 48 24" aria-hidden="true">
+      <circle cx="6" cy="12" r="4.5"/>
+      <circle cx="42" cy="12" r="4.5"/>
+      <path d="M15 6q4 6 0 12M21 3q6 9 0 18M27 3q-6 9 0 18M33 6q-4 6 0 12"/>
+    </svg>
+    <span class="brand-text">met<span class="brand-dim">.on</span>.ens</span>
+  </a>
+  <div class="status" id="status">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="blockText">connecting…</span>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle theme">◐</button>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1><span id="parentName" class="mono">enconomy.eth</span></h1>
+    <p class="lede">People who met in person at <span id="eventName">ETHGlobal Tokyo 2026</span>, counted in ENS.
+      Two phones measure each other with sound; when both agree, the meeting goes onchain and each name’s
+      <code>eth.enconomy.met</code> text record goes up.</p>
+    <form class="search" id="searchForm" autocomplete="off">
+      <input id="searchInput" type="text" inputmode="text" spellcheck="false" autocapitalize="none" placeholder="alice or alice.enconomy.eth" aria-label="Look up a name">
+      <button type="submit">Look up</button>
+    </form>
+    <dl class="meta" id="metaList"></dl>
+  </section>
+
+  <section class="just" id="justMet" hidden aria-live="polite">
+    <div class="just-head"><span class="eyebrow">Latest meeting</span><span class="just-when" id="justWhen"></span></div>
+    <div class="just-pair">
+      <a class="chip" id="justA" href="#"></a>
+      <svg class="wave" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true">
+        <path id="wavePath" d="M0 20 Q 12.5 4 25 20 T 50 20 T 75 20 T 100 20 T 125 20 T 150 20 T 175 20 T 200 20"/>
+      </svg>
+      <a class="chip" id="justB" href="#"></a>
+    </div>
+    <div class="just-foot" id="justFoot"></div>
+  </section>
+
+  <div class="errors" id="errors" hidden></div>
+
+  <div class="grid" id="grid">
+    <section class="profile" id="profile" hidden></section>
+
+    <section class="board" id="board">
+      <div class="board-head">
+        <h2>Leaderboard</h2>
+        <span class="board-note" id="boardNote"></span>
+      </div>
+      <div class="cols" aria-hidden="true">
+        <span>#</span><span>name</span><span class="c-met">met</span><span class="c-mt">meetings</span><span class="c-zk">zk</span>
+      </div>
+      <ol class="rows" id="rows"></ol>
+      <p class="empty" id="boardEmpty" hidden></p>
+    </section>
+
+    <section class="feed" id="feedWrap" hidden>
+      <h2>Meetings</h2>
+      <ol class="feed-list" id="feed"></ol>
+    </section>
+  </div>
+
+  <section class="snapshot" id="snapshot" hidden></section>
+</main>
+
+<footer class="foot">
+  <p class="claim-label">What a count means</p>
+  <blockquote class="claim">Our PoP server attests that two app-signed, enrolled app instances, each bound to that ENS name,
+    measured each other acoustically at under about 60&nbsp;cm during hour&nbsp;T, and both owners agreed to publish it.</blockquote>
+  <p class="fine"><strong>met</strong> counts distinct names met; <strong>meetings</strong> counts every recorded meeting;
+    <strong>zk</strong> counts meetings whose proof our server checked offchain. Everything on this page is read straight from
+    Ethereum Sepolia (ENSv2 beta) through the Universal Resolver, with no backend. Published meetings are permanent and public: both names and the hour.
+    ENSv2 Sepolia is a beta that ENS resets from time to time.</p>
+  <p class="fine" id="footLinks"></p>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
