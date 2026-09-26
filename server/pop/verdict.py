@@ -12,7 +12,8 @@ verify_record()     re-run every check offline from a §8.4 result record (what 
 
 POPT v2 (docs/pop-transcript-v2.md): same verdict math. check_transcript also pins the version the phone armed
 with, rec_root against the POPC v2 commit, delta = DELTA_MS*sr//1000 and code_commit against the codes the
-server sent. SELF_OS_TOL_MS applies to both versions.
+server sent. SELF_OS_TOL_MS applies to both versions, around the device's enrollment calibration cal_us
+(pop/calibration.py): |self_os_delta - cal_frames| <= SELF_OS_TOL_MS.
 
 Swapping the two halves flips the sign (100 cm -> -100 cm), so the pair checks pin role, nonce,
 attempt and the key pair on both sides; a swapped pair is transcript_mismatch, not a flight.
@@ -60,9 +61,10 @@ class Reject(Exception):
         self.reason, self.detail = reason, detail
 
 
-def self_os_ok(delta_frames: int, sr: int) -> bool:
-    """|self_os_delta| <= SELF_OS_TOL_MS at sr, exact integers."""
-    return abs(int(delta_frames)) * 1000 <= K.SELF_OS_TOL_MS * int(sr)
+def self_os_ok(delta_frames: int, sr: int, cal_us: int = 0) -> bool:
+    """|self_os_delta - cal_frames| <= SELF_OS_TOL_MS at sr, cal_frames = cal_us * sr / 1e6; exact integers.
+    cal_us = the device's enrollment calibration (0 = none, the old |self_os_delta| rule)."""
+    return abs(int(delta_frames) * 1_000_000 - int(cal_us) * int(sr)) <= K.SELF_OS_TOL_MS * 1000 * int(sr)
 
 
 def flight_exact(half_a: int, sr_a: int, half_b: int, sr_b: int) -> Fraction:
@@ -140,8 +142,10 @@ def check_transcript(raw: bytes, sig: bytes, *, role: str, pk_self: bytes, pk_pa
     return t
 
 
-def combine(ta: dict, tb: dict) -> dict:
+def combine(ta: dict, tb: dict, cal_us: dict | None = None) -> dict:
     """Both decoded, individually checked transcripts of one attempt -> {flight_cm, verdict, reason}.
+
+    cal_us = {role: µs} enrollment calibration per device (missing = 0).
 
     Pair checks repeat what check_transcript pinned per side, so this is safe on its own too.
     """
@@ -152,7 +156,7 @@ def combine(ta: dict, tb: dict) -> dict:
     if ta["pk_partner"] != tb["pk_self"] or tb["pk_partner"] != ta["pk_self"] or ta["pk_self"] == tb["pk_self"]:
         raise Reject("transcript_mismatch", "key pair differs")
     for t in (ta, tb):
-        if not self_os_ok(t["self_os_delta"], t["sample_rate"]):
+        if not self_os_ok(t["self_os_delta"], t["sample_rate"], (cal_us or {}).get(t["role"]) or 0):
             return {"flight_cm": None, "verdict": None, "reason": "self_timestamp_mismatch", "by": t["role"]}
     f = flight_exact(ta["half"], ta["sample_rate"], tb["half"], tb["sample_rate"])
     v, why = decide(f)
@@ -178,4 +182,4 @@ def verify_record(rec: dict) -> dict:
         got[r] = check_transcript(b64d(tr["transcript_b64"]), b64d(tr["sig_b64"]), role=r, pk_self=pk[r],
                                   pk_partner=pk[other], nonce=nonce, attempt=rec["attempt"],
                                   commit_sha256=hashlib.sha256(craw).digest(), rec=c[REC_KEY[ver]], version=ver)
-    return combine(got["A"], got["B"])
+    return combine(got["A"], got["B"], {r: rec["devices"][r].get("cal_us") or 0 for r in ("A", "B")})

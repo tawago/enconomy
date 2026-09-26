@@ -195,6 +195,10 @@ and adds `"credential": {"format": "SBcred3", "cred_b64", "sig_b64", "expiry", "
 
 What it proves: the circuit checks the issuer signature and `validAt <= expiry` (`pop/issuer.py` `check` is the same check in plain Python). The per-phone circuits don't open `holder_commit`; it is signed but only used by the `_nf` variant. A credential means "this key was enrolled here with a passing attestation", not "a distinct person".
 
+## Enrollment calibration (`pop/calibration.py`)
+
+Optional at enroll: `"calibration": {"cal_us", "sample_rate", "route", "backend", "samples_us"?}` plus `cal_sig_b64` = device-key signature (raw r||s) over `"pop-cal-v1\n<nonce hex>\n<cal_us>\n<sample_rate>\n<route>\n<backend>"`. The app measures its audio-check self offset `CAL_N` = 5 times, takes the median in µs, rejects a spread > 1 ms or a median outside −2..50 ms, and clamps −2..0 ms to 0 (`from_samples`; `samples_us`, when sent, must reproduce `cal_us`). `POST /v1/device/calibration {"calibration": {...}}` (signed request) replaces it ("Recalibrate"). Stored on the device row (`cal_us`, `cal_sample_rate`, `cal_route`, `cal_backend`, `cal_at`, `cal_samples`), returned as `calibration` in the enroll response, `self.cal_us` / `self.calibration` / `partner.cal_us` in the session view, and `devices[role].cal_us` in the result record (snapshotted at arm). The plaintext self check is `|self_os_delta − cal_frames| ≤ SELF_OS_TOL_MS` (exact: `|d·1e6 − cal_us·sr| ≤ 50·1000·sr`); no calibration = `cal_us` 0 = the old rule. SBcred3 and every circuit input are unchanged.
+
 ## Option A proofs (after NEAR)
 
 Per role, once the session is `done` with NEAR, for the final attempt, POPT v2 at 48 / 44.1 kHz, from a device that holds an SBcred3:

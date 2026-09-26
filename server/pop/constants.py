@@ -25,6 +25,12 @@ SPEED_OF_SOUND_CM_S = 34300
 # |self_os_delta| bound for the plaintext verdict, v1 and v2; one value for server and app (/v1/config).
 # TODO: set after on-device timestamp measurement (the option A circuit allows DELTA_MS = 2).
 SELF_OS_TOL_MS = 50
+# enrollment calibration (pop/calibration.py): N audio checks, median µs, reject spread / range, clamp small negatives.
+# The self check is |self_os_delta - cal_frames| <= SELF_OS_TOL_MS, cal_us in 0..CAL_MAX_US.
+CAL_N = 5
+CAL_SPREAD_MAX_US = 1000
+CAL_MAX_US = 50000
+CAL_NEG_CLAMP_US = 2000
 TRANSCRIPT_DEADLINE_S = 20
 MAX_ATTEMPTS = 2
 
@@ -54,6 +60,7 @@ def table() -> dict:
              "SEGMENT_MARGIN_S", "N_NULL", "NULL_P", "NULL_P_SAFETY", "FLOOR_SCORE", "HALF_FRAC",
              "HALF_LOOKAHEAD_S", "FLAT_RUN_MIN_S", "IMPOSSIBLE_CM", "NEAR_CM", "SPEED_OF_SOUND_CM_S",
              "SELF_OS_TOL_MS", "TRANSCRIPT_DEADLINE_S", "MAX_ATTEMPTS",
+             "CAL_N", "CAL_SPREAD_MAX_US", "CAL_MAX_US", "CAL_NEG_CLAMP_US",
              "POPT_VERSIONS", "DELTA_MS", "T0_V2", "FIR_TAPS", "TEMPLATE_BITS", "LEAF", "TREE_DEPTH", "ZK_RATES"]
     g = globals()
     return {n.lower(): (list(g[n]) if isinstance(g[n], tuple) else g[n]) for n in names}

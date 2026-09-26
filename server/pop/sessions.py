@@ -20,7 +20,8 @@ Choices the contract leaves open:
   - a signed transcript or fail for an older attempt is 409 stale_attempt and changes nothing
     (the retry already happened); a resend of the same transcript is idempotent, another one
     is 409 already_submitted.
-  - self_os_delta is checked when both halves are in (combine), not at submit.
+  - self_os_delta is checked when both halves are in (combine), not at submit, around the device's
+    enrollment calibration cal_us as snapshotted at arm (per_role cal_us, 0 = none; in the record's devices).
   - timeout = started and not both transcripts by t0 + TRANSCRIPT_DEADLINE_S, checked lazily
     on every load; `by` = the silent role (null if both).
   - the view carries `last_failure` {attempt, reason, by, text} so a phone can show why it
@@ -60,6 +61,7 @@ from typing import Callable
 
 import numpy as np
 
+from pop import calibration as CAL
 from pop import constants as K
 from pop import human as H, invite, jbl250, popctx, popt2, poseidon7, verdict as V, zk
 from pop import issuer as sbcred
@@ -247,7 +249,7 @@ class Sessions:
         if s["state"] != "confirmed":
             raise PopError(409, "bad_state", s["state"])
         s["per_role"][role] = {"sample_rate": sample_rate, "rtt_min_ms": float(rtt_min_ms), "armed_ms": self.now_ms(),
-                               "popt": popt}
+                               "popt": popt, "cal_us": self._cal_us(s, role)}
         s["armed"][role] = True
         if all(s["armed"].values()):
             s["state"], s["t0_ms"] = "started", self.now_ms() + T0_DELAY_MS
@@ -311,6 +313,14 @@ class Sessions:
         return self._save(s)
 
     # -- transcript, fail, verdict (§7.1, §8)
+    def _dev(self, s: dict, role: str) -> dict | None:
+        dev_id = s["host_device_id"] if role == "A" else s["guest_device_id"]
+        return self.store.get_device(dev_id) if dev_id else None
+
+    def _cal_us(self, s: dict, role: str) -> int:
+        """The device's enrollment calibration now (0 = none); arm snapshots it per attempt."""
+        return ((self._dev(s, role) or {}).get("cal_us")) or 0
+
     def _pk(self, s: dict, role: str) -> bytes:
         dev_id = s["host_device_id"] if role == "A" else s["guest_device_id"]
         return bytes.fromhex(self.store.get_device(dev_id)["pubkey"])
@@ -342,7 +352,8 @@ class Sessions:
             if d is not None:
                 devices[r] = {"device_id": d["device_id"], "pubkey": d["pubkey"], "display_name": d["display_name"],
                               "model": d["model"], "attested": d["attested"], "security_level": d["security_level"],
-                              "sample_rate": pr.get("sample_rate"), "half": pr.get("half"), "popt": pr.get("popt", 1)}
+                              "sample_rate": pr.get("sample_rate"), "half": pr.get("half"), "popt": pr.get("popt", 1),
+                              "cal_us": pr.get("cal_us", 0)}
             if "transcript_b64" in pr:
                 transcripts[r] = {"transcript_b64": pr["transcript_b64"], "sig_b64": pr["sig_b64"],
                                   "sha256": pr["transcript_sha256"]}
@@ -430,7 +441,7 @@ class Sessions:
         else:
             ts = {r: decode_transcript(b64d(s["per_role"][r]["transcript_b64"])) for r in ROLES}
             try:
-                out = V.combine(ts["A"], ts["B"])
+                out = V.combine(ts["A"], ts["B"], {r: s["per_role"][r].get("cal_us", 0) for r in ROLES})
             except V.Reject as e:   # unreachable after check_transcript on both sides; kept as a guard
                 self._finalize(s, "NOT_NEAR", e.reason, None, "rejected", None)
                 raise PopError(400, e.reason, e.detail) from None
@@ -566,10 +577,12 @@ class Sessions:
             "nonce": s["nonce_hex"] if shown else None,
             "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
             "human": H.public_status(s.get("human")),
-            "self": {"device_id": me["device_id"], "display_name": me["display_name"], "pubkey": me["pubkey"]},
+            "self": {"device_id": me["device_id"], "display_name": me["display_name"], "pubkey": me["pubkey"],
+                     "cal_us": me.get("cal_us") or 0, "calibration": CAL.public(me)},
             "partner": None if other is None else {
                 "device_id": other["device_id"], "display_name": other["display_name"], "model": other["model"],
-                "attested": other["attested"], "security_level": other["security_level"], "pubkey": other["pubkey"]},
+                "attested": other["attested"], "security_level": other["security_level"], "pubkey": other["pubkey"],
+                "cal_us": other.get("cal_us") or 0},
             "confirmed": dict(s["confirmed"]), "armed": dict(s["armed"]),
             "committed": dict(s["committed"]), "submitted": dict(s["submitted"]),
             "popt": {r: s["per_role"][r].get("popt") for r in ROLES},
