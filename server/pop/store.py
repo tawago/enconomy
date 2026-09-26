@@ -1,6 +1,7 @@
 """Persistence behind a small interface. SqliteStore(":memory:") for tests, a file for the server.
 
-devices: one row per enrolled key (contract §2.2), plus its SBcred3 when holder_commit was sent. sessions: a JSON document per session;
+devices: one row per enrolled key (contract §2.2), plus its SBcred3 when holder_commit was sent and its
+calibration (cal_*, pop/calibration.py) when one was sent. sessions: a JSON document per session;
 the session module owns its shape. Replay cache is in memory (lives 120 s, see auth.py).
 """
 from __future__ import annotations
@@ -28,15 +29,19 @@ CREATE TABLE IF NOT EXISTS devices (
   security_level TEXT NOT NULL, security_level_reported TEXT NOT NULL, attested INTEGER NOT NULL,
   chain_pem TEXT, root_sha256 TEXT, enrolled_at TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT 'android', key_kind TEXT, attest_key_id TEXT,
-  holder_commit TEXT, cred TEXT, cred_sig TEXT, cred_expiry INTEGER);
+  holder_commit TEXT, cred TEXT, cred_sig TEXT, cred_expiry INTEGER,
+  cal_us INTEGER, cal_sample_rate INTEGER, cal_route TEXT, cal_backend TEXT, cal_at TEXT, cal_samples TEXT);
 CREATE TABLE IF NOT EXISTS sessions (session_id TEXT PRIMARY KEY, doc TEXT NOT NULL);
 """
 
 _DEV_COLS = ["device_id", "pubkey", "display_name", "model", "security_level", "security_level_reported",
              "attested", "chain_pem", "root_sha256", "enrolled_at", "platform", "key_kind", "attest_key_id",
-             "holder_commit", "cred", "cred_sig", "cred_expiry"]
+             "holder_commit", "cred", "cred_sig", "cred_expiry",
+             "cal_us", "cal_sample_rate", "cal_route", "cal_backend", "cal_at", "cal_samples"]
 _ADDED = {"platform": "TEXT NOT NULL DEFAULT 'android'", "key_kind": "TEXT", "attest_key_id": "TEXT",
-          "holder_commit": "TEXT", "cred": "TEXT", "cred_sig": "TEXT", "cred_expiry": "INTEGER"}
+          "holder_commit": "TEXT", "cred": "TEXT", "cred_sig": "TEXT", "cred_expiry": "INTEGER",
+          "cal_us": "INTEGER", "cal_sample_rate": "INTEGER", "cal_route": "TEXT", "cal_backend": "TEXT", "cal_at": "TEXT",
+          "cal_samples": "TEXT"}
 
 
 class SqliteStore:

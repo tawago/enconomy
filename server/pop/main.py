@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import binascii
 import hashlib
 import json
 import logging
@@ -33,11 +34,12 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from pop import calibration as CAL
 from pop import constants as K
 from pop.appattest import APPLE_ROOT_PEM, verify_app_attest
 from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
-from pop.crypto import device_id as derive_device_id, load_pub
+from pop.crypto import device_id as derive_device_id, load_pub, verify_raw
 from pop import issuer as sbcred
 from pop import consumers, jbl250, popt2, zk
 from pop.errors import PopError
@@ -190,6 +192,9 @@ class EnrollIn(BaseModel):
     key_kind: str | None = None
     app_attest: AppAttestIn | None = None
     holder_commit: str | None = None
+    # enrollment calibration (pop/calibration.py) + device-key signature over calibration.message(nonce, cal)
+    calibration: dict | None = None
+    cal_sig_b64: str | None = None
 
 
 class JoinIn(BaseModel):
@@ -334,6 +339,18 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 hold = sbcred.parse_holder_commit(req.holder_commit)
             except sbcred.CredError as e:
                 raise PopError(400, e.code, e.detail) from None
+        cal = None
+        if req.calibration is not None:
+            try:
+                cal = CAL.parse(req.calibration)
+            except CAL.CalError as e:
+                raise PopError(400, e.code, e.detail) from None
+            try:
+                csig = base64.b64decode(req.cal_sig_b64 or "", validate=True)
+            except (binascii.Error, ValueError):
+                csig = b""
+            if not verify_raw(pub, CAL.message(nonce.hex(), cal), csig):
+                raise PopError(400, "bad_calibration", "cal_sig_b64 is not the device key's signature")
         if req.platform == "ios":
             att, attested, key_kind = _enroll_ios(req, pub, nonce)
             reported = att["security_level"]
@@ -364,11 +381,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                        "enrolled_at": _iso(now), "platform": req.platform, "key_kind": key_kind,
                        "attest_key_id": att.get("key_id"),
                        "holder_commit": hold.hex() if hold else None, "cred": cred["cred"].hex() if cred else None,
-                       "cred_sig": cred["sig"].hex() if cred else None, "cred_expiry": cred["expiry"] if cred else None})
+                       "cred_sig": cred["sig"].hex() if cred else None, "cred_expiry": cred["expiry"] if cred else None,
+                       **CAL.columns(cal, _iso(now))})
         log.info("enrolled %s %r %s model=%r attested=%s level=%s", dev_id, name, req.platform, req.model, attested,
                  att["security_level"])
         out = {"device_id": dev_id, "attested": attested, "security_level": att["security_level"],
-               "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now)}
+               "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now),
+               "calibration": CAL.public(db.get_device(dev_id))}
         if cred:
             out["credential"] = {"format": "SBcred3", "cred_b64": base64.b64encode(cred["cred"]).decode(),
                                  "sig_b64": base64.b64encode(cred["sig"]).decode(), "expiry": cred["expiry"],
@@ -390,6 +409,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         except AttestationError as e:
             raise PopError(400, e.code, e.detail) from None
         return {**att, "security_level": kind}, True, kind
+
+    # -- recalibrate: a new calibration for the signed-in device (signed-request auth covers the body)
+    @app.post("/v1/device/calibration")
+    async def recalibrate(request: Request, dev: dict = Depends(device)):
+        try:
+            body = json.loads(await request.body() or b"{}")
+            cal = CAL.parse(body.get("calibration") if isinstance(body, dict) else None)
+        except ValueError:
+            raise PopError(400, "bad_request", "json body with a calibration object") from None
+        except CAL.CalError as e:
+            raise PopError(400, e.code, e.detail) from None
+        db.put_device({**dev, **CAL.columns(cal, _iso(cfg.now_ms()))})
+        log.info("recalibrated %s cal_us=%d sr=%d route=%s backend=%s", dev["device_id"], cal["cal_us"],
+                 cal["sample_rate"], cal["route"], cal["backend"])
+        return {"device_id": dev["device_id"], "calibration": CAL.public(db.get_device(dev["device_id"]))}
 
     # -- pairing (§3)
     @app.post("/v1/session")
