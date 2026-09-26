@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalSerializationApi::class)
+
 package com.enconomy.pop
 
 import io.ktor.client.HttpClient
@@ -16,11 +18,14 @@ import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -42,12 +47,37 @@ data class EnrollReq(
     val platform: String = "android",
     val key_kind: String? = null,
     val app_attest: AppAttestReq? = null,
+    /** SBcred3: Poseidon7(holder secret), 64 hex. Omitted for a server without an issuer (v1 enroll). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val holder_commit: String? = null,
 )
 
 /** base64 std both. */
 @Serializable data class AppAttestReq(val key_id: String, val attestation: String)
 
-@Serializable data class EnrollResp(val device_id: String, val attested: Boolean = false, val enrolled_at: JsonElement? = null)
+@Serializable
+data class EnrollResp(
+    val device_id: String,
+    val attested: Boolean = false,
+    val enrolled_at: JsonElement? = null,
+    val credential: CredentialResp? = null,
+)
+
+/** Issued when holder_commit was sent. cred/sig base64 std; sig raw r||s; issuer_pubkey 65 hex. */
+@Serializable
+data class CredentialResp(
+    val format: String,
+    val cred_b64: String,
+    val sig_b64: String,
+    val expiry: Long,
+    val issuer_pubkey: String? = null,
+)
+
+/** /v1/config "issuer".pubkey (65 bytes), null when the server issues no credentials. */
+fun issuerPubkeyOf(cfg: JsonObject): ByteArray? {
+    val iss = cfg["issuer"] as? JsonObject ?: return null
+    val hex = (iss["pubkey"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    return runCatching { hex.hexToBytes() }.getOrNull()?.takeIf { it.size == 65 && it[0] == 4.toByte() }
+}
 
 @Serializable
 data class CreateSessionResp(val session_id: String, val join_token: String, val expires_at_ms: Long, val invite_b64url: String? = null)

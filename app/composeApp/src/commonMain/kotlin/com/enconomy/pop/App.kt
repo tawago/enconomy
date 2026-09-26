@@ -93,6 +93,7 @@ private fun Home(s: UiState, c: PopController) {
             Label("device", e.deviceId)
             Label("name", e.displayName)
             Label("key", "${e.securityLevel}, ${if (e.attested) "attested" else "unattested"}")
+            Label("credential", e.credExpiry?.let { "SBcred3, expires ${formatUnixDay(it)}" } ?: "none")
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

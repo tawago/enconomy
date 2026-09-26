@@ -1,5 +1,7 @@
 package com.enconomy.pop
 
+import com.enconomy.pop.zk.CredentialException
+import com.enconomy.pop.zk.acceptCredential
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
@@ -20,7 +22,15 @@ val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 
 enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result }
 
-data class Enrollment(val deviceId: String, val serverUrl: String, val displayName: String, val attested: Boolean, val securityLevel: String)
+data class Enrollment(
+    val deviceId: String,
+    val serverUrl: String,
+    val displayName: String,
+    val attested: Boolean,
+    val securityLevel: String,
+    /** SBcred3 expiry (unix s), null = no credential (v1 server, or it was rejected). */
+    val credExpiry: Long? = null,
+)
 
 data class UiState(
     val baseUrl: String = DEFAULT_BASE_URL,
@@ -64,8 +74,10 @@ class PopController(
     private val keystore: DeviceKeystore,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     engineFactory: () -> AudioEngine = ::createAudioEngine,
+    holderFactory: () -> HolderStore = { HolderStore(createSecretStore(), PrefsKeyValue) },
 ) {
     private val engine: AudioEngine by lazy(engineFactory)
+    private val holder: HolderStore by lazy(holderFactory)
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
@@ -83,7 +95,10 @@ class PopController(
         val key = keystore.load() ?: return null
         val id = Prefs.get("enroll.deviceId") ?: return null
         if (id != key.deviceId) return null
-        return Enrollment(id, Prefs.get("enroll.url") ?: "", Prefs.get("enroll.name") ?: "", Prefs.get("enroll.attested") == "1", key.securityLevel)
+        return Enrollment(
+            id, Prefs.get("enroll.url") ?: "", Prefs.get("enroll.name") ?: "", Prefs.get("enroll.attested") == "1", key.securityLevel,
+            holder.credential(key.pubkey)?.expiry,
+        )
     }
 
     fun api(): PopApi = PopApi(state.value.baseUrl, key = { keystore.load() })
@@ -136,10 +151,16 @@ class PopController(
         }
     }
 
-    /** §2.2: nonce -> key with attestation challenge -> POST /v1/enroll. */
+    /**
+     * §2.2: nonce -> key with attestation challenge -> POST /v1/enroll.
+     * Server with an issuer in /v1/config: also send holder_commit, check and keep the SBcred3.
+     */
     fun enroll() = run("enrolling") { api ->
         val name = state.value.displayName.trim()
         require(name.length in 1..32) { "display name 1..32 chars" }
+        val issuer = issuerPubkeyOf(api.config())
+        holder.clearCredential()
+        val hold = if (issuer != null) withContext(Dispatchers.Default) { holder.commit().toBytes() } else null
         val nonce = api.enrollNonce().nonce
         _state.update { it.copy(status = "generating key") }
         val gen = withContext(Dispatchers.Default) { keystore.generate(nonce.hexToBytes()) }
@@ -157,21 +178,37 @@ class PopController(
                 platform = keystore.platform,
                 key_kind = if (keystore.platform == "ios") k.securityLevel else null,
                 app_attest = gen.appAttest?.let { AppAttestReq(it.keyId, it.attestation.toB64()) },
+                holder_commit = hold?.toHex(),
             ),
         )
         check(resp.device_id == k.deviceId) { "server device_id ${resp.device_id} != ${k.deviceId}" }
+        // enrolled either way; a bad credential only leaves us without one
+        val cred = resp.credential
+        val credErr = when {
+            issuer == null || hold == null -> null
+            cred == null -> "server issued no credential"
+            else -> try {
+                holder.saveCredential(
+                    acceptCredential(cred.format, cred.cred_b64, cred.sig_b64, cred.expiry, cred.issuer_pubkey, issuer, k.pubkey, hold),
+                )
+                null
+            } catch (e: CredentialException) {
+                "credential rejected: ${e.message}"
+            }
+        }
         val url = state.value.baseUrl
         Prefs.set("enroll.deviceId", k.deviceId)
         Prefs.set("enroll.url", url)
         Prefs.set("enroll.name", name)
         Prefs.set("enroll.attested", if (resp.attested) "1" else "0")
-        val e = Enrollment(k.deviceId, url, name, resp.attested, k.securityLevel)
-        _state.update { it.copy(enrollment = e, screen = Screen.Home, status = "enrolled") }
+        val e = Enrollment(k.deviceId, url, name, resp.attested, k.securityLevel, holder.credential(k.pubkey)?.expiry)
+        _state.update { it.copy(enrollment = e, screen = Screen.Home, status = "enrolled", error = credErr) }
     }
 
     fun forgetKey() {
         job?.cancel()
         keystore.delete()
+        holder.clearCredential()
         Prefs.set("enroll.deviceId", null)
         _state.update { it.copy(enrollment = null, screen = Screen.Enroll) }
     }

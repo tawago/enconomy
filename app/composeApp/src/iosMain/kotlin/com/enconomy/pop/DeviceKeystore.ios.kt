@@ -81,7 +81,7 @@ actual fun createDeviceKeystore(): DeviceKeystore = IosDeviceKeystore()
 /** No NSLog varargs: a Kotlin String through C varargs crashes. */
 private fun log(msg: String) = NSLog("PopKeystore: ${msg.replace("%", "%%")}")
 
-private val isSimulator: Boolean get() = NSProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] != null
+internal val isSimulator: Boolean get() = NSProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] != null
 
 /** Info.plist PopAppAttest (else PopNfcReader), both = POP_PAID in Config.xcconfig. */
 private val paidBuild: Boolean get() {
@@ -285,7 +285,7 @@ private class IosDeviceKey(private val priv: SecKeyRef) : DeviceKey {
 
 // ---- CoreFoundation glue ----
 
-private class CfDictBuilder {
+internal class CfDictBuilder {
     val ref: CFMutableDictionaryRef =
         CFDictionaryCreateMutable(null, 0, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr)!!
 
@@ -299,19 +299,19 @@ private class CfDictBuilder {
     fun putData(k: CFStringRef?, b: ByteArray) = putOwned(k, cfData(b))
 }
 
-private fun cfDict(block: CfDictBuilder.() -> Unit): CFDictionaryRef = CfDictBuilder().apply(block).ref
+internal fun cfDict(block: CfDictBuilder.() -> Unit): CFDictionaryRef = CfDictBuilder().apply(block).ref
 
-private inline fun <R> CFDictionaryRef.use(block: (CFDictionaryRef) -> R): R =
+internal inline fun <R> CFDictionaryRef.use(block: (CFDictionaryRef) -> R): R =
     try { block(this) } finally { CFRelease(this) }
 
 /** +1 CFData; caller releases. */
 @Suppress("UNCHECKED_CAST")
-private fun cfData(b: ByteArray): CFDataRef = CFBridgingRetain(b.toNSData()) as CFDataRef
+internal fun cfData(b: ByteArray): CFDataRef = CFBridgingRetain(b.toNSData()) as CFDataRef
 
 /** Consumes a +1 CFData. */
-private fun copyData(d: CFDataRef?): ByteArray? = d?.let { (CFBridgingRelease(it) as NSData).toByteArray() }
+internal fun copyData(d: CFDataRef?): ByteArray? = d?.let { (CFBridgingRelease(it) as NSData).toByteArray() }
 
-private fun errText(err: CFErrorRefVar): String =
+internal fun errText(err: CFErrorRefVar): String =
     err.value?.let { (CFBridgingRelease(it) as? NSError)?.let { e -> "${e.domain} ${e.code} ${e.localizedDescription}" } } ?: "unknown error"
 
 private fun ByteArray.toNSData(): NSData =
