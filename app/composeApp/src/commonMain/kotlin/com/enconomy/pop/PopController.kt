@@ -42,7 +42,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 /** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
 val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 
-/** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"). */
+/** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"); Android uses "audio.backend". */
 const val AUDIO_MODE_PREF = "audio.mode"
 
 /** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
@@ -108,8 +108,10 @@ data class UiState(
     /** Route before the check (or after the last one). */
     val audioRoute: AudioRoute? = null,
     val audioModes: List<String> = emptyList(),
-    /** Prefs "audio.mode" (iOS session mode, also used for runs). */
+    /** Prefs "audio.mode" (iOS session mode) or "audio.backend" (Android), also used for runs. */
     val audioMode: String = "",
+    val audioModeTitle: String = "Session mode",
+    val audioModeNote: String = "",
     /** Audio check only; runs always force the speaker. */
     val forceSpeaker: Boolean = true,
     /** /v1/config "tune_db" (null = not seen). */
@@ -593,9 +595,12 @@ class PopController(
     fun openAudioCheck() {
         go(Screen.AudioCheck)
         val modes = runCatching { engine.sessionModes }.getOrDefault(emptyList())
-        val mode = state.value.audioMode.takeIf { it in modes } ?: DEFAULT_AUDIO_MODE.takeIf { it in modes }
+        val mode = Prefs.get(engine.modePrefKey)?.takeIf { it in modes } ?: engine.defaultMode.takeIf { it in modes }
             ?: modes.firstOrNull() ?: ""
-        _state.update { it.copy(audioModes = modes, audioMode = mode, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull()) }
+        _state.update {
+            it.copy(audioModes = modes, audioMode = mode, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull(),
+                audioModeTitle = engine.modeTitle, audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))
+        }
         if (state.value.serverTuneDb == null) checkConfig()
     }
 
@@ -608,10 +613,12 @@ class PopController(
     /** iOS session mode for the check and for real runs (Prefs "audio.mode"). */
     fun setAudioMode(m: String) {
         if (state.value.audioCheckRunning) return
-        Prefs.set(AUDIO_MODE_PREF, m)
+        Prefs.set(engine.modePrefKey, m)
         _state.update { it.copy(audioMode = m, audioCheck = null) }
         refreshPreflight() // re-applies the session with the new mode
-        _state.update { it.copy(audioRoute = runCatching { engine.route() }.getOrNull()) }
+        _state.update {
+            it.copy(audioRoute = runCatching { engine.route() }.getOrNull(), audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))
+        }
     }
 
     fun setForceSpeaker(on: Boolean) {
@@ -644,7 +651,10 @@ class PopController(
                 val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings,
                     mix.requestedDb, mix.appliedDb, mix.peak)
                 println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
-                _state.update { it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}") }
+                _state.update {
+                    it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}",
+                        audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {

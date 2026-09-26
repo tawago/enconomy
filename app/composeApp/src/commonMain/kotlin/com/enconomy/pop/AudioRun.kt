@@ -67,8 +67,20 @@ interface AudioEngine {
     /** Output route, volume and session as the OS reports them now. */
     fun route(): AudioRoute = AudioRoute.UNKNOWN
 
-    /** Session modes the user can pick (iOS; Prefs "audio.mode"). Empty = fixed. */
+    /** Session modes the user can pick (iOS: Prefs "audio.mode"; Android: backend, Prefs "audio.backend"). Empty = fixed. */
     val sessionModes: List<String> get() = emptyList()
+
+    /** Prefs key that stores the picked [sessionModes] entry. */
+    val modePrefKey: String get() = AUDIO_MODE_PREF
+
+    /** [sessionModes] entry used when Prefs has none. */
+    val defaultMode: String get() = DEFAULT_AUDIO_MODE
+
+    /** Audio check heading of the mode picker. */
+    val modeTitle: String get() = "Session mode"
+
+    /** Audio check line under [modeTitle] (e.g. what the last open actually got). */
+    fun modeNote(): String = "Voice processing off; also used for runs"
 
     /**
      * Audio check only: false skips overrideOutputAudioPort(.speaker) (iOS) so the default route can be
@@ -255,6 +267,8 @@ class Capture(
     val route: AudioRoute? = null,
     /** Extra unsigned numbers for the meta (engine-specific timestamp diagnostics). */
     val extraMeta: Map<String, Double> = emptyMap(),
+    /** Extra unsigned strings for the meta (audio_backend, sharing mode ...). */
+    val extraMetaStr: Map<String, String> = emptyMap(),
 ) {
     val recSha256: ByteArray by lazy { AudioTiming.recSha256(pcm) }
     val playOnsetNs: Double get() = AudioTiming.playOnsetNs(playNanoTime, playFramePosition, sr)
@@ -278,6 +292,7 @@ class Capture(
         put("sample_rate", sr)
         route?.putMeta(this)
         for ((k, v) in extraMeta) put(k, v)
+        for ((k, v) in extraMetaStr) put(k, v)
     }
 
     /** Own sound vs the lead-in floor, from the capture (diagnostics). */

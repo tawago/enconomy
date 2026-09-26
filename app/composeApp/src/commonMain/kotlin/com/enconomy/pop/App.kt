@@ -781,7 +781,7 @@ private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
 
 // ---------------------------------------------------------------- tools
 
-private val modeLabel = mapOf("measurement" to "Measurement", "default" to "Default", "videoRecording" to "Video")
+private val modeLabel = mapOf("measurement" to "Measurement", "default" to "Default", "videoRecording" to "Video", "aaudio" to "AAudio", "java" to "Java")
 
 @Composable
 private fun AudioCheck(s: UiState, c: PopController) {
@@ -795,8 +795,8 @@ private fun AudioCheck(s: UiState, c: PopController) {
     if (s.audioModes.isNotEmpty()) {
         Panel {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Session mode", style = MaterialTheme.typography.titleSmall)
-                Text("Voice processing off; also used for runs", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                Text(s.audioModeTitle, style = MaterialTheme.typography.titleSmall)
+                if (s.audioModeNote.isNotEmpty()) Text(s.audioModeNote, style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
             }
             Segmented(s.audioModes.map { it to (modeLabel[it] ?: it) }, s.audioMode, { c.setAudioMode(it) }, enabled = !busy)
             Hairline()

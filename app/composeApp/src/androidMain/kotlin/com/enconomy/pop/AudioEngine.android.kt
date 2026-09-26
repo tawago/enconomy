@@ -71,9 +71,61 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
  * plays (fallback: the reading after drain, then play() call + latency). The after-drain reading alone
  * was used before: the static track has stopped by then, and the Pixel 6 returned the same frozen
  * framePosition 23040 (= 26400 − 3360) every run; it stays in the meta for comparison.
+
+ *
+ * Backend (Prefs "audio.backend"): "aaudio" = AAudioSession (NDK, LOW_LATENCY + EXCLUSIVE/MMAP, AAudio
+ * timestamps; the Pixel 6's Java timestamps put its own sound ~10.8 ms late), "java" = the path above.
+ * Unset: aaudio when both streams open MMAP exclusive, else java.
  */
 class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     private val am: AudioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+
+    /** Open AAudio duplex (backend "aaudio"), else the AudioRecord/AudioTrack pair above is used. */
+    private var aa: AAudioSession? = null
+    /** Why the last prepare fell back from AAudio to Java ("" = it did not). */
+    private var fallbackNote = ""
+
+    override val sessionModes: List<String> get() = if (AAudioNative.available) listOf(BACKEND_AAUDIO, BACKEND_JAVA) else emptyList()
+    override val modePrefKey: String get() = BACKEND_PREF
+    override val defaultMode: String get() = if (AAudioNative.available && mmapExclusiveOk()) BACKEND_AAUDIO else BACKEND_JAVA
+    override val modeTitle: String get() = "Audio backend"
+
+    override fun modeNote(): String {
+        aa?.let { return it.describe() }
+        lastAAudioDesc?.let { if (wantedBackend() == BACKEND_AAUDIO && fallbackNote.isEmpty()) return "Last run: $it" }
+        return when {
+            fallbackNote.isNotEmpty() -> "Java (AAudio fell back: $fallbackNote)"
+            wantedBackend() == BACKEND_AAUDIO -> "AAudio, MMAP exclusive requested"
+            else -> "Java AudioTrack / AudioRecord"
+        }
+    }
+
+    /** Prefs "audio.backend"; unset = aaudio when this device grants MMAP exclusive, else java. */
+    private fun wantedBackend(): String = when (Prefs.get(BACKEND_PREF)) {
+        BACKEND_AAUDIO -> if (AAudioNative.available) BACKEND_AAUDIO else BACKEND_JAVA
+        BACKEND_JAVA -> BACKEND_JAVA
+        else -> defaultMode
+    }
+
+    private fun inputPreset(): Int =
+        if (unprocessedSupported()) AAudioNative.PRESET_UNPROCESSED else AAudioNative.PRESET_VOICE_RECOGNITION
+
+    /** Opens both AAudio streams exclusive once (no start) and checks both were granted exclusive. Cached. */
+    private fun mmapExclusiveOk(): Boolean {
+        probeResult?.let { return it }
+        if (!hasMicPermission() || aa != null) return false
+        val h = AAudioNative.open(sampleRate(), true, inputPreset(), null, 0)
+        if (h == 0L) {
+            Log.w(TAG, "aaudio probe: ${AAudioNative.lastError()}")
+            probeResult = false
+            return false
+        }
+        val info = try { AAudioNative.info(h) } finally { AAudioNative.close(h) }
+        val ok = info[0] == AAudioNative.SHARING_EXCLUSIVE && info[1] == AAudioNative.SHARING_EXCLUSIVE
+        Log.i(TAG, "aaudio probe: exclusive out=${info[0] == 0} in=${info[1] == 0} mmap out=${info[2]} in=${info[3]}")
+        probeResult = ok
+        return ok
+    }
 
     private var rec: AudioRecord? = null
     private var track: AudioTrack? = null
@@ -174,6 +226,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         val kind = d?.let { kindOf(it.type).let { k -> if (k == "other") "other:${it.type}" else k } } ?: "unknown"
         val mode = micSource.ifEmpty { if (unprocessedSupported()) "unprocessed" else "voice_recognition" }
         val detail = listOfNotNull(
+            aa?.describe() ?: BACKEND_JAVA,
             "stream ${vol}/${max}",
             if (track != null) "routed" else "guessed",
             effectsOff.takeIf { it.isNotEmpty() }?.let { "fx off ${it.joinToString(",")}" },
@@ -192,6 +245,32 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         require(sr in PopConstants.SR_MIN..PopConstants.SR_MAX) { "sr $sr" }
         this.sr = sr
         PopAudioService.start(ctx)
+        fallbackNote = ""
+        if (wantedBackend() == BACKEND_AAUDIO) {
+            val explicit = Prefs.get(BACKEND_PREF) == BACKEND_AAUDIO
+            val primer = AudioTiming.primerFrames(sr)
+            val buf = FloatArray(primer + play.size)
+            play.copyInto(buf, primer)
+            val recFrames = ((RunPlan.REC_PRE_NS + RunPlan.REC_POST_NS) / 1e9 * sr + 2.0 * sr).toInt()
+            val preset = inputPreset()
+            micSource = if (preset == AAudioNative.PRESET_UNPROCESSED) "unprocessed" else "voice_recognition"
+            val h = AAudioNative.open(sr, true, preset, buf, recFrames)
+            if (h == 0L) {
+                fallbackNote = AAudioNative.lastError()
+                Log.w(TAG, "aaudio open failed, java: $fallbackNote")
+            } else {
+                val s = AAudioSession(h, sr, micSource)
+                // explicit "aaudio" keeps whatever sharing was granted; the auto default needs exclusive both ways
+                if (explicit || s.exclusive) {
+                    aa = s
+                    lastAAudioDesc = s.describe()
+                    Log.i(TAG, "aaudio: ${s.describe()}")
+                    return
+                }
+                fallbackNote = "not exclusive (${s.describe()})"
+                s.close()
+            }
+        }
         try {
             openRecord(sr)
             openTrack(sr, play)
@@ -267,13 +346,18 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     }
 
     override suspend fun run(plan: RunPlan): Capture = withContext(Dispatchers.IO) {
-        val r = rec ?: throw AudioException("capture_failed", "not prepared")
-        val t = track ?: throw AudioException("capture_failed", "not prepared")
         check(plan.sr == sr) { "plan sr ${plan.sr} != prepared $sr" }
+        val a = aa
         val oldPrio = Process.getThreadPriority(Process.myTid())
         Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
         try {
-            record(r, t, plan)
+            if (a != null) {
+                a.record(plan, outputLatencyMs(), runCatching { routeOf(guessOutput()) }.getOrNull())
+            } else {
+                val r = rec ?: throw AudioException("capture_failed", "not prepared")
+                val t = track ?: throw AudioException("capture_failed", "not prepared")
+                record(r, t, plan)
+            }
         } finally {
             Process.setThreadPriority(oldPrio)
         }
@@ -361,6 +445,10 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
                         AudioTiming.playOnsetNs(ts.second, ts.first, sr)) / 1e3)
                 }
             },
+            extraMetaStr = buildMap {
+                put("audio_backend", BACKEND_JAVA)
+                if (fallbackNote.isNotEmpty()) put("audio_backend_fallback", fallbackNote)
+            },
         )
     }
 
@@ -407,6 +495,8 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     }
 
     override fun release() {
+        aa?.close()
+        aa = null
         effects.forEach { runCatching { it.release() } }
         effects = emptyList()
         rec?.let { r -> runCatching { if (r.recordingState == AudioRecord.RECORDSTATE_RECORDING) r.stop() }; r.release() }
@@ -417,8 +507,16 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     }
 }
 
+const val BACKEND_PREF = "audio.backend"
+const val BACKEND_AAUDIO = "aaudio"
+const val BACKEND_JAVA = "java"
+
+/** MMAP-exclusive probe result for this process (null = not probed yet). */
+private var probeResult: Boolean? = null
+private var lastAAudioDesc: String? = null
+
 /** Coarse sleep to ~2 ms before [targetNs], then spin. */
-private fun sleepUntil(targetNs: Long) {
+internal fun sleepUntil(targetNs: Long) {
     while (true) {
         val d = targetNs - System.nanoTime()
         if (d <= 0) return
