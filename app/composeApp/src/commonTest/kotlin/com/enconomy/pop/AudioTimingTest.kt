@@ -56,6 +56,67 @@ class AudioTimingTest {
         assertEquals(24096.0, AudioTiming.frameOf(onset, f0, sr), 1e-3)
     }
 
+    @Test fun iosPresentationIsRenderTimePlusOutputLatencyOnly() {
+        // iPhone X, VideoRecording mode: outputLatency 382 frames, IO buffer 1024 frames (not added)
+        val outLat = 382.0 / sr
+        assertEquals(1_000_000_000L + 7_958_333L, AudioTiming.presentationNs(1_000_000_000L, outLat))
+        // role A: the player's render IO time of track frame 0 is the scheduled play call (t0 − primer)
+        val plan = RunPlan('A', sr, 0L, t0Ns)
+        val nano = AudioTiming.presentationNs(plan.playCallNs, outLat)
+        val f0 = plan.captureStartNs
+        val expected = AudioTiming.frameOf(AudioTiming.playOnsetNs(nano, 0L, sr), f0, sr)
+        assertEquals(24000.0 + 382.0, expected, 0.01)
+    }
+
+    @Test fun iphoneXTranscriptsWithinDelta() {
+        // real v2 transcripts (sessions 5aca0936 A, 7a3c1d25 B, a5addf50 B, da5b02ea A): signed play_nano_time had
+        // + IOBufferDuration (1024 frames). Removing it: self_os_delta −1013/−1014/−1012/−1016 -> 11/10/12/8.
+        val io = kotlin.math.round(1024.0 / sr * 1e9).toLong()
+        data class T(val pos: Long, val nano: Long, val f0: Long, val aSelf: Int, val oldDelta: Int, val newDelta: Int)
+        val runs = listOf(
+            T(116703, 7311475312249, 7308814705228, 24393, -1013, 11),
+            T(70898, 6199887484624, 6197231154978, 69992, -1014, 10),
+            T(71680, 7333431213291, 7330758581520, 69994, -1012, 12),
+            T(117855, 6178988153041, 6176303574874, 24389, -1016, 8),
+        )
+        for (t in runs) {
+            val old = kotlin.math.round(AudioTiming.frameOf(AudioTiming.playOnsetNs(t.nano, t.pos, sr), t.f0, sr)).toInt()
+            assertEquals(t.oldDelta, t.aSelf - old)
+            val new = kotlin.math.round(AudioTiming.frameOf(AudioTiming.playOnsetNs(t.nano - io, t.pos, sr), t.f0, sr)).toInt()
+            assertEquals(t.newDelta, t.aSelf - new)
+            assertTrue(kotlin.math.abs(t.aSelf - new) <= 96)
+        }
+    }
+
+    @Test fun playStampsDropStaleAndPickMedianOnset() {
+        val ps = PlayStamps(sr)
+        assertEquals(null, ps.pick())
+        val onset = t0Ns
+        fun nanoAt(pos: Long, errNs: Long = 0) = onset + (pos - 14400) * 1_000_000_000L / sr + errNs
+        assertTrue(!ps.add(0L, nanoAt(0)))                 // no position yet
+        assertTrue(ps.add(14880L, nanoAt(14880, 3_000_000))) // startup outlier, +3 ms
+        assertTrue(ps.add(15360L, nanoAt(15360)))
+        assertTrue(!ps.add(15360L, nanoAt(15360) + 5_000_000)) // same position: stale
+        assertTrue(!ps.add(15840L, nanoAt(15360) - 1))          // time went back: stale
+        assertTrue(ps.add(15840L, nanoAt(15840)))
+        assertTrue(ps.add(16320L, nanoAt(16320, -1_000_000)))
+        assertTrue(ps.add(16800L, nanoAt(16800)))
+        assertEquals(5, ps.size)
+        val p = ps.pick()!!
+        assertEquals(onset.toDouble(), AudioTiming.playOnsetNs(p.second, p.first, sr), 1.0)
+        assertEquals(4000.0, ps.spreadUs(), 1e-3)
+    }
+
+    @Test fun extraMetaInMeta() {
+        val c = Capture(
+            pcm = ShortArray(4), sr = sr, recFrame0NanoTime = 0L, playFramePosition = 1L, playNanoTime = 1L,
+            tsSource = "audiotimestamp", recTsSource = "audiotimestamp", outputLatencyMs = 8.0, micSource = "m",
+            effectsOff = emptyList(), playLateMs = 0.0, recTsSpreadUs = 0.0, framesRecorded = 4L, captureStartFrame = 0L,
+            trackDrained = true, extraMeta = mapOf("io_buffer_ms" to 21.25),
+        )
+        assertEquals("21.25", c.meta()["io_buffer_ms"].toString())
+    }
+
     @Test fun captureStartRoundsToNearest() {
         val period = 1e9 / sr
         val recF0 = 0.0

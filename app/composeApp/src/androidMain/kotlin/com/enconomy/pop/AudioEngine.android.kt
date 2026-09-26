@@ -67,7 +67,10 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
  *
  * Times: mic frame 0 = median over AudioRecord.getTimestamp(MONOTONIC) readings after 0.5 s
  * of recording (fallback: min over reads of now − framesRead/sr). Playback timestamp = the
- * last good AudioTrack.getTimestamp while or after playing (fallback: play() call + latency).
+ * AudioTrack.getTimestamp reading with the median onset among the advancing ones read while the track
+ * plays (fallback: the reading after drain, then play() call + latency). The after-drain reading alone
+ * was used before: the static track has stopped by then, and the Pixel 6 returned the same frozen
+ * framePosition 23040 (= 26400 − 3360) every run; it stays in the meta for comparison.
  */
 class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     private val am: AudioManager = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -336,7 +339,8 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
 
         val latency = outputLatencyMs()
         val route = runCatching { routeOf(t.routedDevice) }.getOrNull()
-        val ts = player.ts
+        val drainTs = player.drainTs
+        val ts = player.pick() ?: drainTs
         val (pos0, nano0, src) = if (ts != null) Triple(ts.first, ts.second, "audiotimestamp")
         else Triple(0L, player.calledNs + kotlin.math.round((latency ?: 0.0) * 1e6).toLong(), "fallback")
         if (player.calledNs == 0L) throw AudioException("capture_failed", "play() never called")
@@ -348,17 +352,31 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
             outputLatencyMs = latency, micSource = micSource, effectsOff = effectsOff,
             playLateMs = player.lateMs, recTsSpreadUs = spreadUs, framesRecorded = pos.toLong(),
             captureStartFrame = start, trackDrained = player.drained, route = route,
+            extraMeta = buildMap {
+                put("play_ts_n", player.stampCount().toDouble())
+                put("play_ts_spread_us", player.stampSpreadUs())
+                if (ts != null && drainTs != null) {
+                    // after-drain onset − used onset (0 when the fallback is the drain reading itself)
+                    put("play_drain_onset_diff_us", (AudioTiming.playOnsetNs(drainTs.second, drainTs.first, sr) -
+                        AudioTiming.playOnsetNs(ts.second, ts.first, sr)) / 1e3)
+                }
+            },
         )
     }
 
-    /** Calls play() at plan.playCallNs, then keeps the last good AudioTimestamp. */
+    /** Calls play() at plan.playCallNs, keeps the advancing AudioTimestamps while playing and the one after drain. */
     private class Player(val t: AudioTrack, val plan: RunPlan, val frames: Int) : Runnable {
         @Volatile var done = false
         @Volatile var cancel = false
         @Volatile var calledNs = 0L
         @Volatile var lateMs = 0.0
         @Volatile var drained = false
-        @Volatile var ts: Pair<Long, Long>? = null
+        @Volatile var drainTs: Pair<Long, Long>? = null
+        private val stamps = PlayStamps(plan.sr)
+
+        fun pick(): Pair<Long, Long>? = synchronized(stamps) { stamps.pick() }
+        fun stampCount(): Int = synchronized(stamps) { stamps.size }
+        fun stampSpreadUs(): Double = synchronized(stamps) { stamps.spreadUs() }
 
         override fun run() {
             try {
@@ -370,23 +388,21 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
                 val a = AudioTimestamp()
                 val end = calledNs + (frames * 1e9 / plan.sr).toLong() + 1_000_000_000L
                 while (!cancel && System.nanoTime() < end) {
-                    grab(a)
                     if (t.playbackHeadPosition >= frames) {
                         drained = true
                         break
                     }
+                    if (t.playState == AudioTrack.PLAYSTATE_PLAYING && t.getTimestamp(a)) {
+                        synchronized(stamps) { stamps.add(a.framePosition, a.nanoTime) }
+                    }
                     Thread.sleep(10)
                 }
-                grab(a) // after drain (§4.4)
+                if (t.getTimestamp(a) && a.framePosition > 0) drainTs = a.framePosition to a.nanoTime // after drain, meta
             } catch (e: Throwable) {
                 Log.w(TAG, "player: $e")
             } finally {
                 done = true
             }
-        }
-
-        private fun grab(a: AudioTimestamp) {
-            if (t.getTimestamp(a) && a.framePosition > 0) ts = a.framePosition to a.nanoTime
         }
     }
 

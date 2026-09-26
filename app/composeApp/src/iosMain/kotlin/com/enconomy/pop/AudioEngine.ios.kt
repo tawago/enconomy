@@ -132,7 +132,9 @@ internal fun sessionRate(hw: Double): Int? = round(hw).toInt().takeIf { it in Po
  * Speaker: AVAudioPlayerNode, one buffer PRIMER_S zeros ‖ play PCM, scheduled at the player
  * sample time of plan.playCallNs, so the §4.4 onset formula holds. Playback timestamp = last
  * lastRenderTime while or after playing: framePosition = player sample − scheduled start,
- * nanoTime = hostTime + outputLatency (fallback: host-time schedule, play call + latency).
+ * nanoTime = hostTime + outputLatency (fallback: host-time schedule, play call + latency). The render
+ * hostTime is already the output IO time of the buffer, so IOBufferDuration is not added (it was, until
+ * the iPhone X runs showed self_os_delta ≈ −1024 frames = one 21.33 ms IO buffer).
  *
  * Interruption (call, Siri), route loss or engine reconfiguration aborts with capture_failed.
  * Host time == monoNanos (both mach_absolute_time).
@@ -218,7 +220,8 @@ class IosAudioEngine : AudioEngine {
         return AudioRoute(kind, o?.portName ?: "", s.outputVolume.toDouble(), modeName(s.mode), round(s.sampleRate).toInt(), detail)
     }
 
-    private fun outputLatencyMs(): Double = (session.outputLatency + session.IOBufferDuration) * 1000.0
+    /** Render IO time -> heard: AVAudioSession.outputLatency only (see [AudioTiming.presentationNs]). */
+    private fun outputLatencyMs(): Double = session.outputLatency * 1000.0
 
     private fun externalOutput(): String? {
         val outs = session.currentRoute.outputs.filterIsInstance<AVAudioSessionPortDescription>()
@@ -434,11 +437,11 @@ class IosAudioEngine : AudioEngine {
         val pcm = r.copy(cs.toInt(), frames)
         val frame0 = round(f0 + cs * 1e9 / sr).toLong()
 
-        val latency = outputLatencyMs()
-        val latNs = round(latency * 1e6).toLong()
+        val outLat = session.outputLatency
+        val latency = outLat * 1000.0
         val t = ts
-        val (pos0, nano0, src) = if (t != null) Triple(t.first, t.second + latNs, "audiotimestamp")
-        else Triple(0L, plan.playCallNs + latNs, "fallback")
+        val (pos0, nano0, src) = if (t != null) Triple(t.first, AudioTiming.presentationNs(t.second, outLat), "audiotimestamp")
+        else Triple(0L, AudioTiming.presentationNs(plan.playCallNs, outLat), "fallback")
         println("PopAudio rec f0=$recTsSource spread=${round(spreadUs * 10) / 10}us gaps=${r.gaps} " +
             "play ts=$src pos=$pos0 late=${round(lateMs * 100) / 100}ms drained=$drained")
         return Capture(
@@ -447,6 +450,10 @@ class IosAudioEngine : AudioEngine {
             outputLatencyMs = latency, micSource = modeName(session.mode),
             effectsOff = emptyList(), playLateMs = lateMs, recTsSpreadUs = spreadUs, framesRecorded = pos.toLong(),
             captureStartFrame = cs, trackDrained = drained, route = route,
+            extraMeta = mapOf(
+                "io_buffer_ms" to session.IOBufferDuration * 1000.0,
+                "input_latency_ms" to r.inputLatencyNs / 1e6,
+            ),
         )
     }
 

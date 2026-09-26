@@ -135,6 +135,13 @@ object AudioTiming {
     fun playOnsetNs(tsNanoTime: Long, tsFramePosition: Long, sr: Int): Double =
         tsNanoTime + (primerFrames(sr) - tsFramePosition) * 1e9 / sr
 
+    /**
+     * iOS: when a rendered frame is heard. [renderHostNs] is the render timestamp's host time (lastRenderTime,
+     * AVAudioTime of the output IO cycle): the instant that buffer's first frame reaches the output IO. The IO
+     * buffer lead is already before that instant, so only the session's outputLatency (codec, DAC) is added.
+     */
+    fun presentationNs(renderHostNs: Long, outputLatencyS: Double): Long = renderHostNs + round(outputLatencyS * 1e9).toLong()
+
     /** Index (in the recorded stream) of the frame nearest [captureStartNs]. */
     fun captureStartFrame(captureStartNs: Long, recFrame0Ns: Double, sr: Int): Long =
         round((captureStartNs - recFrame0Ns) * sr / 1e9).toLong()
@@ -174,6 +181,37 @@ object AudioTiming {
     private fun rnd(x: Double): Int = round(x).toInt()
 }
 
+/**
+ * AudioTrack timestamps read while the track plays. A reading that does not advance (same or older
+ * framePosition / nanoTime than the last kept one) is stale and dropped. [pick] = the kept reading whose
+ * onset estimate is the median, so the transcript still carries one raw (framePosition, nanoTime) pair.
+ */
+class PlayStamps(val sr: Int) {
+    private val xs = ArrayList<Pair<Long, Long>>()
+
+    val size: Int get() = xs.size
+
+    fun add(framePosition: Long, nanoTime: Long): Boolean {
+        if (framePosition <= 0) return false
+        val last = xs.lastOrNull()
+        if (last != null && (framePosition <= last.first || nanoTime <= last.second)) return false
+        xs += framePosition to nanoTime
+        return true
+    }
+
+    private fun onset(x: Pair<Long, Long>): Double = AudioTiming.playOnsetNs(x.second, x.first, sr)
+
+    /** (framePosition, nanoTime) with the median onset (lower median), null when empty. */
+    fun pick(): Pair<Long, Long>? {
+        if (xs.isEmpty()) return null
+        val s = xs.sortedBy { onset(it) }
+        return s[(s.size - 1) / 2]
+    }
+
+    /** max − min of the onset estimates, µs. */
+    fun spreadUs(): Double = if (xs.size > 1) xs.map { onset(it) }.let { (it.max() - it.min()) / 1e3 } else 0.0
+}
+
 /** §5.3: base64 float32 LE, len == 4·n, n == round(0.25·sr). */
 fun Pcm.decodeF32(sr: Int): FloatArray {
     val b = pcm_b64.fromB64()
@@ -187,7 +225,7 @@ fun Pcm.decodeF64(sr: Int): DoubleArray = decodeF32(sr).let { f -> DoubleArray(f
 
 /**
  * One run's capture. [pcm] is exactly CAPTURE_FRAMES frames starting at t0 − LEAD_S.
- * play* are the raw AudioTimestamp of own playback; with tsSource "fallback" they are
+ * play* are one raw AudioTimestamp of own playback, read while it plays; with tsSource "fallback" they are
  * framePosition 0, nanoTime = play() call + AudioManager output latency, so the §4.4 onset
  * formula still holds.
  */
@@ -215,6 +253,8 @@ class Capture(
     val trackDrained: Boolean,
     /** Route / session at play time (null = engine does not report it). */
     val route: AudioRoute? = null,
+    /** Extra unsigned numbers for the meta (engine-specific timestamp diagnostics). */
+    val extraMeta: Map<String, Double> = emptyMap(),
 ) {
     val recSha256: ByteArray by lazy { AudioTiming.recSha256(pcm) }
     val playOnsetNs: Double get() = AudioTiming.playOnsetNs(playNanoTime, playFramePosition, sr)
@@ -237,6 +277,7 @@ class Capture(
         put("track_drained", trackDrained)
         put("sample_rate", sr)
         route?.putMeta(this)
+        for ((k, v) in extraMeta) put(k, v)
     }
 
     /** Own sound vs the lead-in floor, from the capture (diagnostics). */
