@@ -94,4 +94,38 @@ Per verified proof, `zk.<role>.code_attest` signs exactly that proof's public in
   `sessions/<sid>/public_inputs_<role>_<attempt>.bin` (12 x 32 B big-endian).
 - `zk.<role>.public_inputs` = the same 12 values as `0x` hex strings (`bytes32[]` order for `PhoneVerifier.verify(bytes proof, bytes32[] publicInputs)`).
 - Circuit / vk: `oaN_s48`, vk sha256 `769ac93112de4ec2f970d33233108d19124612b9b2ae54b8b531a23ecaa23f06` (`~/.enconomy/zk/pinned/vk/vk`, matches `~/.enconomy/zk/pinned/PhoneVerifier.sol`). Checked: both stored fixture proofs pass `bb verify -t evm` with that vk.
-- The pair proof (`noir/pair`) is not produced by the server yet.
+- Pair proof: `sessions/<sid>/proof_pair_<attempt>.bin` (7,232 B) + `public_inputs_pair_<attempt>.bin` (7 x 32 B), paths in `zk.pair.files`. See below.
+
+## Pair proof (server proves, `oa2t_pair`)
+
+Circuit `noir/pair` (`~/.enconomy/zk/optA/noir/pair`): opens both halfCommits with crossed device keys, checks NEAR with both rates and that the two device keys differ.
+
+- **When.** As soon as both `zk.A` and `zk.B` are `verified` for the NEAR attempt (phone upload or delegate, any order), the server starts one background job. Nothing for the app to send. NOT_NEAR / v1 sessions never get one.
+- **Witness** (all server-side): `nonce_hi, nonce_lo, attempt` from the session; `half_a/b`, `sr_a/b`, `xa/xb` (X of each signer's P-256 key as hi128/lo128) from the two signed POPT v2 transcripts (keys must be crossed, same nonce + attempt); `salt_a/b` = the salts of the two verified phone proofs. `commit_a` / `commit_b` = the phones' halfCommits (public #12 of the A / B proof); the server checks they match before proving.
+- **Prove.** Same prover as the delegate (`POP_ZK_PROVER` zkprove `full`: nargo 1.0.0-beta.22 ACVM + bb 5.0.0-nightly.20260522 `-t evm` bytes) on `pair.json`, one job at a time (shares the delegate lock), then `bb verify -t evm` (`POP_ZK_VERIFIER`) against the pinned pair vk. ~0.2–0.4 s on the M2.
+- **Pins.** `oa2t_pair.json` 82,704 B sha256 `7b740882…41b253fb` (`optA/noir/pair/target/pair.json`), `oa2t_pair.vk` 1,888 B sha256 `3fec12bc39d2a67ffd5443f615ec2a3b4b9e5f5d4511489c00a11e7d13dfe090` (`optA/noir/pair/vk/vk`), vk_hash `0x11efaefb263436dd19d71a689210a8975c5db080705877b310dec96f56c5b50a` = `vkHashPair` of the deployed PairVerifier (Sepolia `0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7`). `POP_ZK_DIR/oa2t_pair.{json,vk}` override the defaults if present and pinned. Not served under `/v1/zk/keys`.
+- **Public inputs** (ABI order, `bytes32[]` for `PairVerifier.verify`): `nonce_hi, nonce_lo, attempt, commit_a, commit_b, sr_a, sr_b`.
+- **zk block:** `zk.pair` = `null` until both phone proofs are verified, then
+  ```
+  {"attempt", "circuit": "oa2t_pair", "prover": "server", "at_ms", "vk_sha256", "vk_hash", "status": "proving|verified|rejected",
+   "reason", "detail", "prove_ms", "proof_sha256", "proof_bytes", "public_inputs": ["0x<64 hex>" x 7],
+   "files": {"proof", "public_inputs"}}
+  ```
+  `rejected` reasons: `witness_failed` (the circuit says no, e.g. not NEAR by the circuit's rule), `transcript_mismatch`, `proof_invalid`, `zk_unavailable` (server-side, retried on the next proof event). `zk.status` still covers only A + B.
+
+## Presence bundle (relayer / Safe guard)
+
+`GET /v1/session/{id}/zk/bundle`, signed like every session read (a member device; there is no unauthenticated session read). `404 {"error": "not_ready", "detail": "pair proof <status>"}` until `zk.pair.status == "verified"`. Then:
+```
+{"format": "pop-zk-bundle-1",
+ "session_id": "<32 hex>", "sid": "0x<32 hex>",            # bytes16 sid of PopCtx
+ "session_nonce": "0x<64 hex>",                             # = keccak PopCtx(chainId, consumer, ctxHash, notBefore, sid) for context sessions
+ "context": {"chain_id", "consumer", "ctx_hash", ...} | null,
+ "not_before": <unix s, PopCtx notBefore>, "created_at": "<iso>", "valid_at": <unix s, public #11 of A/B>,
+ "attempt": int, "verdict": "NEAR",
+ "proofs": {"A":    {"circuit": "oaN_s48",   "vk_sha256", "proof": "0x…" (10,304 B), "public_inputs": ["0x…" x 12]},
+            "B":    {… same …},
+            "pair": {"circuit": "oa2t_pair", "vk_sha256", "vk_hash": "0x11efaefb…", "proof": "0x…" (7,232 B), "public_inputs": ["0x…" x 7]}},
+ "code_attest": {"A"|"B": {"code_commit", "msg_hex", "sig_hex" (raw r||s, low-S), "issuer_pubkey": "04…", "format": "POPCC1"}}}
+```
+A verifier binds them: A/B public #1..2 = pair #1..2 = session_nonce limbs; A/B #3 = pair #3 = attempt; A #12 = pair `commit_a`, B #12 = pair `commit_b`; A/B #10 = pair `sr_a` / `sr_b`; each `code_attest` per the POPCC1 rules above.

@@ -224,9 +224,11 @@ class FailIn(BaseModel):
 
 
 def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None,
-               worldid_transport=None, prover=None) -> FastAPI:
+               worldid_transport=None, prover=None, pair_prover=None, pair_verifier=None) -> FastAPI:
     """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it).
     prover: anything with zk.Prover's prove(circuit, toml) / available(circuit).
+    pair_prover / pair_verifier: the same for the pair statement (default: real zkprove + bb on the pinned pair
+    artifacts, unless a fake verifier is injected, then off unless given).
     worldid_transport: an httpx transport for the IDKit sidecar + Portal calls (tests pass httpx.MockTransport)."""
     cfg = settings or Settings()
     if cfg.worldid_fake and not cfg.test_kinds:
@@ -242,6 +244,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     zart = zk.Artifacts(cfg.zk_dir)
     zkv = verifier or zk.Verifier(cfg.zk_verifier, zart, cfg.zk_wrap)
     zkp = prover or zk.Prover(cfg.zk_prover, zart, cfg.zk_wrap)
+    if verifier is None:
+        pair_art = zk.Artifacts(cfg.zk_dir, zk.PAIR_ARTIFACTS)
+        pair_prover = pair_prover or zk.Prover(cfg.zk_prover, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
+        pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
     prove_tasks: set = set()
     wid = WorldID(cfg, sessions, db, worldid_transport)
 
@@ -536,10 +542,58 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         return salt, meta.get("attempt", s["attempt"]), meta.get("circuit")
 
     def _verified(sid: str, role: str, entry: dict, proof: bytes, want: list[int], salt: int) -> dict:
-        return sessions.zk_record(sid, role, {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(),
-                                              "proof_bytes": len(proof), "status": "verified", "reason": None,
-                                              "detail": None, "half_commit": zk.hexes(want)[11], "salt": str(salt)},
-                                  proof, want)
+        s = sessions.zk_record(sid, role, {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(),
+                                           "proof_bytes": len(proof), "status": "verified", "reason": None,
+                                           "detail": None, "half_commit": zk.hexes(want)[11], "salt": str(salt)},
+                               proof, want)
+        return _maybe_pair(s)
+
+    def _maybe_pair(s: dict) -> dict:
+        """Both phone proofs of the NEAR attempt verified -> the server proves the pair statement in the background."""
+        if not (pair_prover and pair_verifier and sessions.zk_pair_ready(s)):
+            return s
+        entry = {"attempt": s["attempt"], "circuit": zk.PAIR, "prover": "server", "at_ms": cfg.now_ms(),
+                 "vk_sha256": zk.PAIR_VK_SHA256, "vk_hash": "0x" + zk.PAIR_VK_HASH}
+        if not (pair_prover.available(zk.PAIR) and pair_verifier.available(zk.PAIR)):
+            return sessions.zk_pair_record(s["session_id"], {**entry, "status": "rejected", "reason": "zk_unavailable",
+                                                             "detail": "pair prover / verifier not configured"})
+        s = sessions.zk_pair_record(s["session_id"], {**entry, "status": "proving", "reason": None, "detail": None})
+        task = asyncio.get_running_loop().create_task(_pair_job(s["session_id"], entry))
+        prove_tasks.add(task)
+        task.add_done_callback(prove_tasks.discard)
+        return s
+
+    async def _pair_job(sid: str, entry: dict):
+        t = time.monotonic()
+        try:
+            toml, want = sessions.zk_pair_witness(sessions.load(sid))
+            prf, pub = await asyncio.to_thread(pair_prover.prove, zk.PAIR, toml)
+            del toml
+            zk.compare(zk.from_file(pub, zk.N_PUBLIC_PAIR), want, "pair proof ")
+            await asyncio.to_thread(pair_verifier.verify, zk.PAIR, prf, want)
+        except Reject as e:
+            sessions.zk_pair_record(sid, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            log.info("pair proof %s rejected: %s %s", sid, e.reason, e.detail)
+            return
+        except Exception as e:   # zk.Unavailable or a crash: retried on the next phone proof event
+            sessions.zk_pair_record(sid, {**entry, "status": "rejected", "reason": "zk_unavailable",
+                                          "detail": str(e)[:200]})
+            log.warning("pair proof %s failed: %s", sid, e)
+            return
+        ms = round((time.monotonic() - t) * 1000)
+        sessions.zk_pair_record(sid, {**entry, "status": "verified", "reason": None, "detail": None, "prove_ms": ms},
+                                prf, want)
+        log.info("pair proof %s verified (%d ms)", sid, ms)
+
+    @app.get("/v1/session/{sid}/zk/bundle")
+    async def zk_bundle(sid: str, dev: dict = Depends(device)):
+        """Presence bundle for the onchain relayer (NoirPresenceVerifier): 404 until the pair proof is verified."""
+        s = sessions.load(sid)
+        sessions.member(s, dev)
+        b = await asyncio.to_thread(sessions.zk_bundle, s)
+        if b is None:
+            raise PopError(404, "not_ready", f"pair proof {((s.get('zk') or {}).get('pair') or {}).get('status', 'none')}")
+        return b
 
     @app.post("/v1/session/{sid}/proof")
     async def proof(sid: str, request: Request, dev: dict = Depends(device)):
