@@ -6,6 +6,12 @@ import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.header
+import io.ktor.client.request.prepareRequest
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.http.HttpHeaders
+import io.ktor.utils.io.readAvailable
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
 import io.ktor.client.request.setBody
@@ -26,6 +32,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -129,6 +137,8 @@ data class ResultRecord(
     val flight_cm: Double? = null,
     val t0_ms: Long? = null,
     val attempts: List<JsonObject> = emptyList(),
+    /** Option A validAt (unix s) when the server pins one; the phone falls back to t0 of the attempt. */
+    val valid_at: Long? = null,
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -250,6 +260,51 @@ class PopApi(
         call(HttpMethod.Post, "/v1/session/$id/fail", enc(FailReq.serializer(), FailReq(attempt, reason)), SessionView.serializer())
     suspend fun abort(id: String): SessionView = call(HttpMethod.Post, "/v1/session/$id/abort", "{}", SessionView.serializer())
     suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
+
+    /**
+     * Unsigned streaming GET of a static file from byte [from] (Range). [onStart] gets the status and the
+     * full size (from Content-Range / Content-Length) before any byte; [onChunk] then gets the body.
+     * Returns the status; the body of a non-2xx is not streamed.
+     */
+    suspend fun download(
+        path: String,
+        from: Long,
+        onStart: suspend (status: Int, total: Long?) -> Unit,
+        onChunk: suspend (ByteArray) -> Unit,
+    ): Int = client.prepareRequest(base + path) {
+        method = HttpMethod.Get
+        if (from > 0) header(HttpHeaders.Range, "bytes=$from-")
+        timeout { requestTimeoutMillis = 15 * 60_000L; socketTimeoutMillis = 60_000L }
+    }.execute { resp ->
+        val st = resp.status.value
+        val total = resp.headers[HttpHeaders.ContentRange]?.substringAfter('/')?.toLongOrNull()
+            ?: resp.headers[HttpHeaders.ContentLength]?.toLongOrNull()?.let { if (st == 206) it + from else it }
+        onStart(st, total)
+        if (st == 200 || st == 206) {
+            val ch = resp.bodyAsChannel()
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = ch.readAvailable(buf, 0, buf.size)
+                if (n < 0) break
+                if (n > 0) onChunk(buf.copyOf(n))
+            }
+        }
+        st
+    }
+
+    /**
+     * POST /v1/session/{id}/proof (server/pop/main.py): multipart, file part "proof" = raw proof bytes,
+     * "meta" = {"attempt","circuit","salt" (decimal)}. Returns body text.
+     */
+    suspend fun uploadProof(id: String, attempt: Int, circuit: String, saltDecimal: String, proof: ByteArray): String {
+        val boundary = "popzk" + sha256(proof).toHex().take(24)
+        val meta = buildJsonObject { put("attempt", attempt); put("circuit", circuit); put("salt", saltDecimal) }
+        val body = Multipart.formData(boundary, listOf(
+            Multipart.Part("proof", "proof_$attempt.bin", "application/octet-stream", proof),
+            Multipart.Part("meta", null, null, meta.toString().encodeToByteArray()),
+        ))
+        return signedRaw(HttpMethod.Post, "/v1/session/$id/proof", body, ContentType.MultiPart.FormData.withParameter("boundary", boundary))
+    }
 
     /** Raw signed request (e.g. multipart recording upload). Returns body text. */
     suspend fun signedRaw(method: HttpMethod, path: String, body: ByteArray, contentType: ContentType): String =

@@ -11,3 +11,7 @@ actual fun readTestResourceBytes(path: String): ByteArray {
         ?: error("test resource not found: $path")
     return s.use { it.readBytes() }
 }
+
+actual fun testTempDir(): String = java.nio.file.Files.createTempDirectory("poptest").toString()
+
+actual fun testEnv(name: String): String? = System.getenv(name)

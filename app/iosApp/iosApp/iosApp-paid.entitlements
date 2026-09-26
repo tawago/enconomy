@@ -6,6 +6,8 @@
 	<array>
 		<string>TAG</string>
 	</array>
+	<key>com.apple.developer.kernel.increased-memory-limit</key>
+	<true/>
 	<key>com.apple.developer.devicecheck.appattest-environment</key>
 	<string>$(POP_APPATTEST_ENV)</string>
 </dict>

@@ -57,6 +57,39 @@ val genTestResourceDir = tasks.register<GenTestResourceDir>("genTestResourceDir"
     outDir.set(layout.buildDirectory.dir("generated/testResourceDir/iosTest/kotlin"))
 }
 
+// ---- option A prover (app/prover, docs/pop-prover.md) ----
+// Native builds are heavy and need the NDK / Xcode: they run only with -Ppop.buildProver=true (or by hand,
+// app/prover/README.md). Otherwise the last dist/ output is used; without it the app builds and runs v2
+// without on-phone proofs (ProverLib.available = false). The whole gradle run goes under heavy.sh
+// (not reentrant, so these tasks don't take the lock themselves).
+val proverDir = rootProject.file("prover")
+val buildProver = providers.gradleProperty("pop.buildProver").map { it == "true" }.orElse(false)
+
+val buildProverAndroid = tasks.register<Exec>("buildProverAndroid") {
+    description = "app/prover -> prover/dist/android/arm64-v8a/libpop_prover.so (cargo-ndk, heavy)"
+    workingDir = proverDir
+    commandLine(proverDir.resolve("scripts/build_android.sh").absolutePath)
+    onlyIf { buildProver.get() }
+}
+
+val buildProverIos = tasks.register<Exec>("buildProverIos") {
+    description = "app/prover -> prover/dist/ios/PopProver.xcframework (heavy)"
+    workingDir = proverDir
+    commandLine(proverDir.resolve("scripts/build_ios.sh").absolutePath)
+    onlyIf { buildProver.get() }
+}
+
+/** jniLibs/arm64-v8a/libpop_prover.so, generated so the 25 MB .so never sits in src/. */
+val copyProverSo = tasks.register<Sync>("copyProverSo") {
+    dependsOn(buildProverAndroid)
+    from(proverDir.resolve("dist/android")) { include("arm64-v8a/libpop_prover.so") }
+    into(layout.buildDirectory.dir("generated/proverJniLibs"))
+}
+
+val proverXcf = proverDir.resolve("dist/ios/PopProver.xcframework")
+val iosSlices = mapOf("iosArm64" to "ios-arm64", "iosSimulatorArm64" to "ios-arm64-simulator")
+val iosProver = buildProver.get() || iosSlices.values.all { proverXcf.resolve("$it/libpop_prover.a").isFile }
+
 kotlin {
     androidTarget {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
@@ -65,6 +98,14 @@ kotlin {
         it.binaries.framework {
             baseName = "ComposeApp"
             isStatic = true
+        }
+        it.compilations.getByName("main").cinterops.create("popmem") {
+            definitionFile.set(project.file("src/nativeInterop/cinterop/popmem.def"))
+        }
+        if (iosProver) it.compilations.getByName("main").cinterops.create("popprover") {
+            definitionFile.set(project.file("src/nativeInterop/cinterop/popprover.def"))
+            includeDirs(proverDir.resolve("include"))
+            extraOpts("-libraryPath", proverXcf.resolve(iosSlices.getValue(it.name)).absolutePath)
         }
     }
     compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
@@ -78,6 +119,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material3)
             implementation(compose.ui)
+            implementation(compose.components.resources)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
             implementation("io.ktor:ktor-client-core:3.2.3")
@@ -100,11 +142,27 @@ kotlin {
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.2.3")
         }
+        iosMain {
+            kotlin.srcDir(if (iosProver) "src/iosProver/kotlin" else "src/iosNoProver/kotlin")
+        }
         iosTest {
             kotlin.srcDir(genTestResourceDir.flatMap { it.outDir })
         }
     }
 }
+
+compose.resources {
+    packageOfResClass = "com.enconomy.pop.res"
+    publicResClass = false
+    generateResClass = always
+}
+
+// opt-in heavy prover tests on the simulator: POP_ZK_KEYS=<dir with oa2t_s48.pk.zst>
+tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach {
+    providers.environmentVariable("POP_ZK_KEYS").orNull?.let { environment("SIMCTL_CHILD_POP_ZK_KEYS", it) }
+}
+
+tasks.matching { it.name.startsWith("cinteropPopprover") }.configureEach { dependsOn(buildProverIos) }
 
 android {
     namespace = "com.enconomy.pop"
@@ -128,5 +186,8 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
     // commonTest/resources (DSP fixtures) on the JVM unit-test classpath; read via readTestResource().
-    sourceSets["test"].resources.srcDirs("src/commonTest/resources")
+    sourceSets["test"].resources.srcDirs("src/commonTest/resources", "src/commonMain/composeResources")
+    sourceSets["main"].jniLibs.srcDir(layout.buildDirectory.dir("generated/proverJniLibs"))
 }
+
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("JniLibFolders") }.configureEach { dependsOn(copyProverSo) }

@@ -15,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -28,6 +29,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.enconomy.pop.zk.BenchFixture
+import com.enconomy.pop.zk.ProofStats
+import com.enconomy.pop.zk.ProofStatus
+import com.enconomy.pop.zk.ProverLib
+import com.enconomy.pop.zk.ProvingKeys
 
 @Composable
 fun App(c: PopController) {
@@ -58,6 +64,7 @@ fun App(c: PopController) {
                     Screen.Confirm -> Confirm(s, c)
                     Screen.Run -> Run(s, c)
                     Screen.Result -> Result(s, c)
+                    Screen.Bench -> Bench(s, c)
                 }
                 if (s.status.isNotEmpty()) Text("Status: ${s.status}", fontSize = 13.sp, color = Color.Gray)
                 s.error?.let { Text(it, color = Color(0xFFC62828), fontWeight = FontWeight.Medium) }
@@ -110,8 +117,11 @@ private fun Home(s: UiState, c: PopController) {
         OutlinedButton(onClick = c::ping, enabled = !s.busy) { Text("Ping server") }
         OutlinedButton(onClick = c::forgetKey, enabled = !s.busy) { Text("Re-enroll") }
     }
-    TextButton(onClick = { c.setPopt2(!s.popt2On) }, enabled = !s.busy) {
-        Text(if (s.popt2On) "Use POPT v1" else "Use POPT v2", fontSize = 13.sp)
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = { c.setPopt2(!s.popt2On) }, enabled = !s.busy) {
+            Text(if (s.popt2On) "Use POPT v1" else "Use POPT v2", fontSize = 13.sp)
+        }
+        TextButton(onClick = c::openBench, enabled = !s.busy) { Text("Prover bench", fontSize = 13.sp) }
     }
 }
 
@@ -252,8 +262,67 @@ private fun Result(s: UiState, c: PopController) {
             listOf("attempt", "outcome", "reason", "by").mapNotNull { k -> a[k]?.toString()?.trim('"')?.takeIf { it != "null" } }.joinToString(" ")
         })
         r.session_id?.let { Label("session", it) }
+        s.proof?.let { ProofCard("Option A proof", it, onRetry = c::proveNow) }
     }
     Button(onClick = c::again) { Text("Again") }
+}
+
+@Composable
+private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            when (p) {
+                is ProofStatus.Skipped -> Text(p.why, fontSize = 13.sp, color = Color.Gray)
+                is ProofStatus.NeedKey -> {
+                    Text("Proving key ${p.circuit} needed (${ProofStats.mb(p.bytes)}). You are on mobile data; Wi-Fi recommended.", fontSize = 13.sp)
+                    if (onRetry != null) OutlinedButton(onClick = onRetry) { Text("Download and prove") }
+                }
+                is ProofStatus.Downloading -> {
+                    Text("Downloading proving key ${ProofStats.mb(p.done)} / ${ProofStats.mb(p.total)} (Wi-Fi recommended)", fontSize = 13.sp)
+                    LinearProgressIndicator(progress = { if (p.total > 0) (p.done.toFloat() / p.total).coerceIn(0f, 1f) else 0f }, modifier = Modifier.fillMaxWidth())
+                }
+                is ProofStatus.Step -> {
+                    Text(p.name.replaceFirstChar { it.uppercase() } + "…", fontSize = 13.sp)
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                is ProofStatus.Done -> {
+                    Text("Proved", color = Color(0xFF2E7D32), fontWeight = FontWeight.Medium)
+                    p.upload?.let { Text(it, fontSize = 13.sp) }
+                    Mono(p.stats.lines().joinToString("\n"))
+                }
+                is ProofStatus.Failed -> {
+                    Text("Failed (${p.step}): ${p.why}", color = Color(0xFFC62828), fontSize = 13.sp)
+                    if (onRetry != null) OutlinedButton(onClick = onRetry) { Text("Retry") }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Bench(s: UiState, c: PopController) {
+    Text("Prover bench", fontWeight = FontWeight.Medium)
+    Text("Proves a bundled field fixture on this phone: witness input, key load, constraint check, proof. " +
+        "Needs about 2 GB of RAM and the proving key (downloaded once, Wi-Fi recommended).", fontSize = 13.sp)
+    Label("native prover", ProverLib.loadError ?: ProverLib.version())
+    val running = s.benchStatus is ProofStatus.Step || s.benchStatus is ProofStatus.Downloading
+    for (k in ProvingKeys.all) {
+        Label("key ${k.circuit} (${k.sampleRate} Hz)", s.keyState[k.circuit] ?: "?")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { c.benchDownload(k) }, enabled = !running) { Text("Download") }
+            TextButton(onClick = { c.benchDeleteKey(k) }, enabled = !running) { Text("Delete") }
+        }
+    }
+    for (n in BenchFixture.NAMES) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { c.benchRun(n) }, enabled = !running && !s.proofBusy) { Text("Prove $n") }
+            TextButton(onClick = { c.benchRun(n, force = true) }, enabled = !running && !s.proofBusy) { Text("ignore RAM check", fontSize = 12.sp) }
+        }
+    }
+    s.benchStatus?.let { ProofCard("Status", it, onRetry = null) }
+    if (s.benchLog.isNotEmpty()) Mono(s.benchLog.joinToString("\n"))
+    OutlinedButton(onClick = { c.go(Screen.Home) }, enabled = !running) { Text("Back") }
 }
 
 @Composable

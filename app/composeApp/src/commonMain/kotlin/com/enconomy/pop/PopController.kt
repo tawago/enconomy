@@ -1,7 +1,28 @@
 package com.enconomy.pop
 
+import com.enconomy.pop.res.Res
+import com.enconomy.pop.zk.BenchFixture
 import com.enconomy.pop.zk.CredentialException
+import com.enconomy.pop.zk.DeviceMemory
+import com.enconomy.pop.zk.KeyCache
+import com.enconomy.pop.zk.KeyException
+import com.enconomy.pop.zk.KeySpec
+import com.enconomy.pop.zk.Popt2Evidence
+import com.enconomy.pop.zk.ProofRunner
+import com.enconomy.pop.zk.ProofSource
+import com.enconomy.pop.zk.ProofStats
+import com.enconomy.pop.zk.ProofStatus
+import com.enconomy.pop.zk.ProverException
+import com.enconomy.pop.zk.ProverLib
+import com.enconomy.pop.zk.ProvingKeys
+import com.enconomy.pop.zk.UnprovableException
+import com.enconomy.pop.zk.WitnessInput
+import com.enconomy.pop.zk.ZkFiles
 import com.enconomy.pop.zk.acceptCredential
+import com.enconomy.pop.zk.networkIsMetered
+import com.enconomy.pop.zk.toDecimal
+import com.enconomy.pop.zk.proofUploadNote
+import com.enconomy.pop.zk.uploadSummary
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
@@ -16,11 +37,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
 val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 
-enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result }
+enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench }
 
 data class Enrollment(
     val deviceId: String,
@@ -65,6 +87,15 @@ data class UiState(
     val popt2Available: Boolean? = null,
     /** User switch (Prefs "popt"): v2 when available, else v1. */
     val popt2On: Boolean = true,
+    /** Option A proof of our half after a NEAR verdict (null = none for this result). */
+    val proof: ProofStatus? = null,
+    /** The live proof job has not finished (a cancelled native prove runs to the end). */
+    val proofBusy: Boolean = false,
+    // ---- prover bench ----
+    val benchStatus: ProofStatus? = null,
+    val benchLog: List<String> = emptyList(),
+    /** Per circuit: "present" / "partial n bytes" / "missing". */
+    val keyState: Map<String, String> = emptyMap(),
 )
 
 /**
@@ -86,6 +117,17 @@ class PopController(
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
     private var popt2: Popt2Config? = null
+    private var proofJob: Job? = null
+    private var benchJob: Job? = null
+    /** Evidence + verdict of the last NEAR v2 run, kept for "prove now" / retry. */
+    private var pendingProof: Pair<Popt2Evidence, ResultRecord>? = null
+    private val keyCache: KeyCache by lazy {
+        KeyCache(ZkFiles.dir(), { path, from, onStart, onChunk ->
+            val api = api()
+            try { api.download(path, from, onStart, onChunk) } finally { api.close() }
+        })
+    }
+    private val prover: ProofRunner by lazy { ProofRunner(keyCache) }
 
     init { checkConfig() }
 
@@ -430,7 +472,10 @@ class PopController(
         )
         try {
             val res = r.run()
-            _state.update { it.copy(result = res, resultDetail = null, screen = Screen.Result, runPhase = null) }
+            val ev = r.evidence
+            val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
+            _state.update { it.copy(result = res, resultDetail = null, screen = Screen.Result, runPhase = null, proof = null) }
+            if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
             _state.update { it.copy(runBlocked = e.message, runPhase = null) }
@@ -455,8 +500,155 @@ class PopController(
     }
 
     fun again() {
-        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false) }
+        proofJob?.cancel()
+        pendingProof = null
+        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null) }
         go(Screen.Home)
+    }
+
+    // ---- option A proof (after NEAR) ----
+
+    /** Download the key on a metered network too, or retry after a failure. */
+    fun proveNow() {
+        val (ev, res) = pendingProof ?: return
+        startProof(ev, res, allowMetered = true)
+    }
+
+    /**
+     * Our half of the option A proof: witness from the signed POPT v2 + capture + codes + SBcred3, constraint
+     * check, proof on a background thread, then POST /v1/session/{id}/proof. validAt = the view's valid_at
+     * when the server sends one, else t0 of the attempt in unix seconds (port spec §1.4).
+     */
+    private fun startProof(ev: Popt2Evidence, res: ResultRecord, allowMetered: Boolean) {
+        pendingProof = ev to res
+        proofJob?.cancel()
+        val set: (ProofStatus) -> Unit = { st -> _state.update { it.copy(proof = st) } }
+        _state.update { it.copy(proofBusy = true) }
+        proofJob = scope.launch {
+            try {
+                val key = keystore.load() ?: error("not enrolled")
+                val cred = holder.credential(key.pubkey)
+                if (cred == null) { set(ProofStatus.Skipped("No SBcred3 credential on this phone (enroll with a server that issues one).")); return@launch }
+                if (ev.provable == false) { set(ProofStatus.Skipped("Not provable: own arrival is more than 2 ms from the OS timestamp.")); return@launch }
+                val validAt = res.valid_at ?: (ev.t0Ms / 1000)
+                val salt = secureRandomBytes(31)
+                val src = ProofSource(ev.transcript, ev.sig, ev.capture, ev.own, ev.partner, cred.cred, cred.sig, cred.issuerPub, validAt, salt, ev.tree)
+                val out = prover.run(src, allowDownload = allowMetered || networkIsMetered() != true, onStatus = set) ?: return@launch
+                runCatching { ZkFiles.write("${ZkFiles.dir()}/proof_${ev.sessionId.take(8)}_${ev.role}${ev.attempt}.bin", out.proof) }
+                set(ProofStatus.Step("uploading proof"))
+                val api = api()
+                val up = try {
+                    uploadSummary(api.uploadProof(ev.sessionId, ev.attempt, out.built.circuit,
+                        com.enconomy.pop.zk.BigNat.fromBytes(salt).toDecimal(), out.proof))
+                } catch (e: PopHttpException) {
+                    proofUploadNote(e)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    "upload failed: ${e.message}; kept on the phone"
+                } finally {
+                    api.close()
+                }
+                set(ProofStatus.Done(out.stats, up))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: UnprovableException) {
+                set(ProofStatus.Skipped("Not provable (${e.reason}): ${e.message}"))
+            } catch (e: KeyException) {
+                set(ProofStatus.Failed("proving key", e.message ?: e.reason))
+            } catch (e: ProverException) {
+                set(ProofStatus.Failed("prover", e.message ?: e.code))
+            } catch (e: Throwable) {
+                set(ProofStatus.Failed("proof", "${e::class.simpleName}: ${e.message}"))
+            }
+        }
+        proofJob?.invokeOnCompletion { _state.update { it.copy(proofBusy = proofJob?.isCompleted == false) } }
+    }
+
+    // ---- prover bench ----
+
+    fun openBench() {
+        go(Screen.Bench)
+        refreshKeys()
+    }
+
+    fun refreshKeys() {
+        val m = ProvingKeys.all.associate { k ->
+            k.circuit to when {
+                keyCache.present(k) -> "downloaded (${ProofStats.mb(k.size)})"
+                keyCache.partial(k) > 0 -> "partial ${ProofStats.mb(keyCache.partial(k))} of ${ProofStats.mb(k.size)}"
+                else -> "missing (${ProofStats.mb(k.size)} download)"
+            }
+        }
+        _state.update { it.copy(keyState = m) }
+    }
+
+    private fun benchLog(line: String) = _state.update { it.copy(benchLog = it.benchLog + line) }
+
+    fun benchDownload(k: KeySpec) {
+        if (benchJob?.isActive == true) return
+        benchJob = scope.launch {
+            _state.update { it.copy(benchStatus = null, benchLog = listOf("key ${k.circuit}: ${if (networkIsMetered() == true) "on a metered network" else "downloading"}")) }
+            try {
+                val t0 = monoNanos()
+                keyCache.ensure(k) { d, n -> _state.update { it.copy(benchStatus = ProofStatus.Downloading(d, n)) } }
+                benchLog("key ok in ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (sha256 pinned)")
+                _state.update { it.copy(benchStatus = null) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _state.update { it.copy(benchStatus = ProofStatus.Failed("proving key", e.message ?: "")) }
+            } finally {
+                refreshKeys()
+            }
+        }
+    }
+
+    fun benchDeleteKey(k: KeySpec) {
+        if (benchJob?.isActive == true) return
+        keyCache.delete(k)
+        refreshKeys()
+    }
+
+    /** Proves a bundled fixture: witness parity with the spike, then key load / check / prove, time and memory. */
+    @OptIn(ExperimentalResourceApi::class)
+    fun benchRun(name: String, force: Boolean = false) {
+        if (benchJob?.isActive == true) return
+        if (proofJob?.isCompleted == false || ProofRunner.busy) {
+            _state.update { it.copy(benchStatus = ProofStatus.Skipped("A session proof is still running; retry when it is done.")) }
+            return
+        }
+        benchJob = scope.launch {
+            val m = DeviceMemory.info()
+            _state.update {
+                it.copy(benchStatus = ProofStatus.Step("loading fixture"), benchLog = listOf(
+                    "fixture $name", "native: ${ProverLib.loadError ?: ProverLib.version()}",
+                    "device RAM ${ProofStats.mb(m.totalBytes)}" + (m.availBytes?.let { a -> ", free ${ProofStats.mb(a)}" } ?: ""),
+                ))
+            }
+            try {
+                val fx = BenchFixture.parse(Res.readBytes("files/zk/bench_$name.json").decodeToString())
+                val t0 = monoNanos()
+                val built = withContext(Dispatchers.Default) { WitnessInput.build(fx.source) }
+                val bad = withContext(Dispatchers.Default) { fx.fieldMismatches(built) }
+                benchLog("witness input ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (tree + I/Q), " +
+                    if (bad.isEmpty()) "all ${built.fields.size} fields = spike" else "DIFFERS from spike: ${bad.joinToString()}")
+                if (built.halfCommit.toDecimal() != fx.halfCommit) benchLog("halfCommit DIFFERS from spike")
+                val out = prover.run(fx.source, allowDownload = true, onStatus = { st -> _state.update { it.copy(benchStatus = st) } },
+                    force = force, expectPublicSha = fx.publicSha, prebuilt = built)
+                if (out != null) {
+                    out.stats.lines().forEach(::benchLog)
+                    _state.update { it.copy(benchStatus = ProofStatus.Done(out.stats, null)) }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                val step = when (e) { is KeyException -> "proving key"; is ProverException -> "prover"; is UnprovableException -> "witness"; else -> "bench" }
+                _state.update { it.copy(benchStatus = ProofStatus.Failed(step, e.message ?: e::class.simpleName ?: "error")) }
+            } finally {
+                refreshKeys()
+            }
+        }
     }
 
     /** Leave pairing: best-effort abort of the server session. */

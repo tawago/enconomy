@@ -1,0 +1,6 @@
+# app/prover C ABI. Header dir and the per-target libpop_prover.a dir come from build.gradle.kts
+# (-compiler-option -I, -libraryPath); the static lib is embedded in the klib and linked into the framework.
+headers = pop_prover.h
+package = com.enconomy.pop.zk.native
+staticLibraries = libpop_prover.a
+linkerOpts = -lc++

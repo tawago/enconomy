@@ -5,6 +5,10 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
 import platform.Foundation.NSData
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSProcessInfo
+import platform.Foundation.NSTemporaryDirectory
+import platform.Foundation.NSUUID
 import platform.Foundation.NSString
 import platform.Foundation.NSUTF8StringEncoding
 import platform.Foundation.dataWithContentsOfFile
@@ -25,3 +29,12 @@ actual fun readTestResourceBytes(path: String): ByteArray {
     if (n > 0) out.usePinned { memcpy(it.addressOf(0), d.bytes, d.length) }
     return out
 }
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun testTempDir(): String {
+    val d = NSTemporaryDirectory() + "poptest-" + NSUUID().UUIDString
+    NSFileManager.defaultManager.createDirectoryAtPath(d, true, null, null)
+    return d
+}
+
+actual fun testEnv(name: String): String? = NSProcessInfo.processInfo.environment[name] as? String

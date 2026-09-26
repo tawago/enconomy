@@ -138,3 +138,25 @@ cd app/iosApp
   -destination 'platform=iOS Simulator,name=iPhone 16 Pro' -derivedDataPath build/dd CODE_SIGNING_ALLOWED=NO build
 # device: -destination 'generic/platform=iOS'
 ```
+
+## Option A proof on the phone (POPT v2)
+
+After a NEAR verdict on a v2 run, the phone proves its half with `app/prover` (docs/pop-prover.md):
+
+- `zk/WitnessInput.kt` builds the `oa2t_s48` / `oa2t_s44` witness JSON from the signed POPT v2 bytes, the capture, the rec tree, own + partner int8 codes and the SBcred3 (port of spike `prep_popt2.py`). It first re-checks what the circuit needs (integer rule at a_self / a_partner, `|self_os_delta| <= delta`, geometry, code_commit, rec_root, credential expiry vs validAt) and refuses in ms instead of after the native witness.
+- `zk/ProvingKeys.kt`: keys from `GET /v1/zk/keys/<circuit>.pk.zst`, sha256 pinned, cached in `filesDir/zk` / `Application Support/zk` (no backup), resumable (`.part` + Range), one refetch on a bad hash. On mobile data the proof waits for "Download and prove" (Wi-Fi recommended, ~12 MB).
+- Keys come from `app/prover/keys/oa2t_s48.pk.zst` / `oa2t_s44.pk.zst` (gitignored; zstd of the spike's `oa2t_s48.pk` / `oa2t_s44.pk`, sha256 = the pins in `ProvingKeys.kt`). The server serves `POP_ZK_KEYS` (default `server/data/zk/`, empty in a fresh checkout): before any phone test either copy both files there or start the server with `POP_ZK_KEYS=../app/prover/keys`. Otherwise the first download is a 404 (`not_served`).
+- `zk/ProofRunner.kt`: memory guard (skip when RAM < ~3.4 GB or Android free < ~1.5 GB; iOS: skip when `os_proc_available_memory` + footprint < ~1.95 GB, i.e. no increased-memory-limit), key, witness input, open key, constraint check (public vector must equal the derived one), prove, close; native calls on `Dispatchers.Default`, one prover instance at a time (live proof and bench share a lock; a cancelled prove holds it until the native call returns). Then `POST /v1/session/{id}/proof` multipart: file `proof` (raw bytes) + `meta` `{"attempt","circuit","salt"}` (salt decimal), as in `server/pop/main.py`. 409 `already_submitted` shows as verified; 503 `zk_unavailable`, 404 or any reject keep the proof in `zk/`.
+- Key missing on a metered network: the phone stays on v2 and waits for "Download and prove" (docs/pop-prover.md says fall back to v1; v2 is chosen before the verdict, so it can't be undone per run).
+- validAt = `valid_at` of the result when the server sends one, else t0 of the attempt in unix seconds.
+- Result screen shows the proof status; **Prover bench** (Home) proves a bundled fixture (`composeResources/files/zk/bench_*.json`, `commonTest/resources/zk/tools/gen_bench.py`) and shows witness parity with the spike, key load / check / prove time, proof size, peak footprint (Android VmRSS/VmHWM + native heap, iOS phys_footprint + ledger peak).
+
+Native lib wiring: Android copies `prover/dist/android/arm64-v8a/libpop_prover.so` into generated jniLibs (`copyProverSo`); iOS links `prover/dist/ios/PopProver.xcframework` through cinterop `src/nativeInterop/cinterop/popprover.def` (static lib embedded in the klib). Without `dist/` the app still builds (`ProverLib.available = false`, iOS uses `src/iosNoProver`). `-Ppop.buildProver=true` rebuilds the libs first (run the whole gradle under heavy.sh). iOS paid builds request `com.apple.developer.kernel.increased-memory-limit`.
+
+Heavy checks:
+```
+S=<dir with oa2t_s48.pk.zst>
+POP_ZK_DUMP=/tmp/zkin ./gradlew :composeApp:testDebugUnitTest --tests '*WitnessInputTest' --rerun
+prover/target/release/popprover check $S/oa2t_s48.pk.zst /tmp/zkin/180ca04b_48k_A.input.json   # ACCEPT
+POP_ZK_KEYS=$S ./gradlew :composeApp:iosSimulatorArm64Test                                    # proves on the simulator
+```

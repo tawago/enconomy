@@ -136,4 +136,60 @@ class PopApiTest {
         assertEquals(CLOCK_OFF_TEXT, e.hint)
         assertEquals(CLOCK_OFF_TEXT, e.message)
     }
+
+    /**
+     * Proof upload = server/pop/main.py proof route: multipart, file part "proof" + JSON "meta" {attempt, circuit, salt}.
+     * POP_API_DUMP=<dir> writes the body + content type (server-side parse check).
+     */
+    @Test fun proofUploadIsMultipart() = runTest {
+        val key = FakeKey()
+        var ct = ""
+        var body = ByteArray(0)
+        var pq = ""
+        val engine = MockEngine { req ->
+            ct = req.body.contentType.toString()
+            body = req.body.toByteArray()
+            pq = req.url.encodedPath
+            respond("""{"status":"verified","role":"A","zk":{}}""", HttpStatusCode.OK, jsonHdr)
+        }
+        val api = PopApi("http://h:8000", key = { key }, nowMs = { 9 }, engine = engine, clockSync = false)
+        val proof = ByteArray(3000) { (it * 7).toByte() }
+        val out = api.uploadProof("sid1", 2, "oa2t_s48", "123456789012345678901234567890", proof)
+        assertEquals("server: verified", com.enconomy.pop.zk.uploadSummary(out))
+        assertEquals("/v1/session/sid1/proof", pq)
+        assertTrue(ct.startsWith("multipart/form-data; boundary="), ct)
+        val boundary = ct.substringAfter("boundary=")
+        testEnv("POP_API_DUMP")?.let { d ->
+            com.enconomy.pop.zk.ZkFiles.write("$d/proof_upload.body", body)
+            com.enconomy.pop.zk.ZkFiles.write("$d/proof_upload.ct", ct.encodeToByteArray())
+        }
+        // parts: split on the boundary, headers \r\n\r\n body \r\n
+        val text = body.decodeToString(throwOnInvalidSequence = false)
+        assertTrue(text.endsWith("--$boundary--\r\n"))
+        val heads = Regex("Content-Disposition: form-data; name=\"(\\w+)\"(; filename=\"[^\"]+\")?").findAll(text).map { it.groupValues }.toList()
+        assertEquals(listOf("proof", "meta"), heads.map { it[1] })
+        assertTrue(heads[0][2].isNotEmpty(), "proof must be a file part")
+        assertTrue(heads[1][2].isEmpty(), "meta must be a plain field")
+        // raw proof bytes between the proof part's header and the next boundary
+        val start = indexOf(body, "\r\n\r\n".encodeToByteArray(), indexOf(body, "name=\"proof\"".encodeToByteArray(), 0)) + 4
+        assertContentEquals(proof, body.copyOfRange(start, start + proof.size))
+        assertEquals("\r\n--$boundary", body.copyOfRange(start + proof.size, start + proof.size + boundary.length + 4).decodeToString())
+        val meta = popJson.parseToJsonElement(text.substringAfter("name=\"meta\"\r\n\r\n").substringBefore("\r\n--$boundary")).toString()
+        assertEquals("""{"attempt":2,"circuit":"oa2t_s48","salt":"123456789012345678901234567890"}""", meta)
+        // signature covers the exact multipart bytes
+        assertContentEquals(requestMessage("POST", "/v1/session/sid1/proof", body, 9), key.signed.single())
+    }
+
+    @Test fun proofUploadStatusNotes() {
+        fun note(st: Int, code: String?) = com.enconomy.pop.zk.proofUploadNote(PopHttpException(st, code, ""))
+        assertEquals("server: verified (already submitted)", note(409, "already_submitted"))
+        assertTrue(note(503, "zk_unavailable").contains("kept on the phone"))
+        assertTrue(note(400, "bad_attempt").contains("bad_attempt"))
+        assertTrue(note(409, "bad_state").contains("bad_state"))
+    }
+
+    private fun indexOf(h: ByteArray, n: ByteArray, from: Int): Int {
+        for (i in from..h.size - n.size) if ((n.indices).all { h[i + it] == n[it] }) return i
+        return -1
+    }
 }

@@ -7,6 +7,7 @@ import com.enconomy.pop.dsp.PopRound2
 import com.enconomy.pop.dsp.Popt2Code
 import com.enconomy.pop.dsp.Popt2Rate
 import com.enconomy.pop.zk.CodeCommit
+import com.enconomy.pop.zk.Popt2Evidence
 import com.enconomy.pop.zk.RecTree
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
@@ -90,6 +91,10 @@ class PopRun(
 ) {
     private val partnerRole = if (role == 'A') 'B' else 'A'
 
+    /** Last POPT v2 attempt this phone signed and submitted (option A proof after a NEAR verdict). */
+    var evidence: Popt2Evidence? = null
+        private set
+
     /** Runs until the session is done or aborted. Throws RunBlocked before arming. */
     suspend fun run(): ResultRecord {
         var v = api.session(sessionId)
@@ -157,7 +162,7 @@ class PopRun(
             if (plan.recStartNs <= nowNs()) throw AudioException("capture_failed", "t0 already passed")
             status(RunPhase.Running, k)
             cap = engine.run(plan)
-            if (rate2 != null && ownCode != null) return afterCapture2(k, nonce, pkPartner, plan, cap, rate2, ownCode)
+            if (rate2 != null && ownCode != null) return afterCapture2(k, nonce, pkPartner, plan, cap, rate2, ownCode, started.t0_ms)
             return afterCapture(k, nonce, pkPartner, plan, cap, ownBed)
         } catch (e: AudioException) {
             engine.release()
@@ -230,7 +235,7 @@ class PopRun(
 
     /** POPT v2 after the capture: same phases and failure handling as [afterCapture]. */
     private suspend fun afterCapture2(k: Int, nonce: ByteArray, pkPartner: ByteArray, plan: RunPlan, cap: Capture,
-                                      rate: Popt2Rate, own: Popt2Code): SessionView = coroutineScope {
+                                      rate: Popt2Rate, own: Popt2Code, t0Ms: Long): SessionView = coroutineScope {
         engine.release()
         val sr = plan.sr
         check(sr == rate.sr) { "rate ${rate.sr} != $sr" }
@@ -245,7 +250,8 @@ class PopRun(
         }
 
         status(RunPhase.Committing, k)
-        val recRoot = tree.await().rootBytes()
+        val recTree = tree.await()
+        val recRoot = recTree.rootBytes()
         val commit = TranscriptCodec.commit(role, k, nonce, recRoot, version = 2)
         val commitSig = sign(commit)
         val resp = try {
@@ -276,6 +282,7 @@ class PopRun(
         )
         val tx = t.encode()
         val sig = sign(tx)
+        evidence = Popt2Evidence(sessionId, k, role, tx, sig, cap.pcm, recTree, own, partnerCode, t0Ms, r.provable)
         try {
             api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta2(cap, r, expSelf, expPartner, p.half, recRoot)))
         } catch (e: PopHttpException) {
