@@ -12,8 +12,10 @@ verify_record()     re-run every check offline from a §8.4 result record (what 
 
 POPT v2 (docs/pop-transcript-v2.md): same verdict math. check_transcript also pins the version the phone armed
 with, rec_root against the POPC v2 commit, delta = DELTA_MS*sr//1000 and code_commit against the codes the
-server sent. SELF_OS_TOL_MS applies to both versions, around the device's enrollment calibration cal_us
-(pop/calibration.py): |self_os_delta - cal_frames| <= SELF_OS_TOL_MS.
+server sent. SELF_OS_TOL_MS applies to both versions. v1: around the device's enrollment calibration cal_us
+(pop/calibration.py): |self_os_delta - cal_frames| <= SELF_OS_TOL_MS. v2: the app folds cal_us into p_self before
+signing (p_self = round(expected_self + cal_frames)), so the signed self_os_delta is already the calibrated
+residual and the check is |self_os_delta| <= SELF_OS_TOL_MS (the circuit then needs |self_os_delta| <= delta).
 
 Swapping the two halves flips the sign (100 cm -> -100 cm), so the pair checks pin role, nonce,
 attempt and the key pair on both sides; a swapped pair is transcript_mismatch, not a flight.
@@ -145,7 +147,8 @@ def check_transcript(raw: bytes, sig: bytes, *, role: str, pk_self: bytes, pk_pa
 def combine(ta: dict, tb: dict, cal_us: dict | None = None) -> dict:
     """Both decoded, individually checked transcripts of one attempt -> {flight_cm, verdict, reason}.
 
-    cal_us = {role: µs} enrollment calibration per device (missing = 0).
+    cal_us = {role: µs} enrollment calibration per device (missing = 0). v1 only: a v2 transcript's
+    self_os_delta is already calibrated (the app folds cal into p_self), so cal is not subtracted again.
 
     Pair checks repeat what check_transcript pinned per side, so this is safe on its own too.
     """
@@ -156,7 +159,8 @@ def combine(ta: dict, tb: dict, cal_us: dict | None = None) -> dict:
     if ta["pk_partner"] != tb["pk_self"] or tb["pk_partner"] != ta["pk_self"] or ta["pk_self"] == tb["pk_self"]:
         raise Reject("transcript_mismatch", "key pair differs")
     for t in (ta, tb):
-        if not self_os_ok(t["self_os_delta"], t["sample_rate"], (cal_us or {}).get(t["role"]) or 0):
+        cal = 0 if version_of(t) == 2 else ((cal_us or {}).get(t["role"]) or 0)
+        if not self_os_ok(t["self_os_delta"], t["sample_rate"], cal):
             return {"flight_cm": None, "verdict": None, "reason": "self_timestamp_mismatch", "by": t["role"]}
     f = flight_exact(ta["half"], ta["sample_rate"], tb["half"], tb["sample_rate"])
     v, why = decide(f)

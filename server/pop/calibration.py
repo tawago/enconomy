@@ -5,8 +5,9 @@ rejects when max - min > CAL_SPREAD_MAX_US or the median is outside 0..CAL_MAX_U
 [-CAL_NEG_CLAMP_US, 0) is clamped to 0. from_samples() is that rule; the app's Calibration.fromSamples
 must agree (tests on both sides pin the same vectors).
 
-The plaintext self check becomes |self_os_delta - cal_frames| <= SELF_OS_TOL_MS (verdict.self_os_ok), exact:
-|delta * 1e6 - cal_us * sr| <= SELF_OS_TOL_MS * 1000 * sr.
+The plaintext self check (POPT v1) becomes |self_os_delta - cal_frames| <= SELF_OS_TOL_MS (verdict.self_os_ok), exact:
+|delta * 1e6 - cal_us * sr| <= SELF_OS_TOL_MS * 1000 * sr. POPT v2: the app folds cal into p_self before signing,
+so the signed self_os_delta is the residual and the server checks it with cal 0.
 
 Enroll: the calibration object rides in the enroll body with cal_sig_b64 = device-key signature (raw r||s)
 over message(nonce, cal). Recalibrate: POST /v1/device/calibration, covered by the signed-request auth.
