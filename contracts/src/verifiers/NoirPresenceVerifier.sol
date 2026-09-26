@@ -3,6 +3,7 @@ pragma solidity ^0.8.28;
 
 import {IPopPresenceVerifier, IHonkVerifier} from "../interfaces/IPopPresenceVerifier.sol";
 import {PopCtx} from "../lib/PopCtx.sol";
+import {PopAttest} from "../lib/PopAttest.sol";
 
 /// Presence = Noir "option A" proofs, verified onchain by the bb UltraHonk verifiers (`verify(bytes, bytes32[])`).
 /// Three proofs per session (enconomy-zk zkmobile/APP_SERVER_CONTRACT.md, noir/phone oaN_s48 + noir/pair):
@@ -17,6 +18,9 @@ import {PopCtx} from "../lib/PopCtx.sol";
 /// same attempt; role_b 0/1; issuer = the Safe's pinned P-256 key (the SBcred3 issuer); phone sr/halfCommit
 /// = pair sr_x/commit_x; valid_at equal in A and B and fresh.
 ///
+/// code_commit (#4) is bound by the server's POPCC1 attestation, one per phone proof, signed by the same pinned
+/// issuer key: sig = P-256 over sha256("POPCC1" || nonce (32 B) || u8 attempt || 'A'|'B' || code_commit), raw r||s.
+///
 /// presence = abi.encode(Bundle).
 ///
 /// TODO(zk lane):
@@ -24,7 +28,6 @@ import {PopCtx} from "../lib/PopCtx.sol";
 ///    only require two device-owning signers, not that the *proving* phones are those owners' phones, and human
 ///    uniqueness (nA != nB) stays a server claim. Ask for sha256(pub65) or X hi/lo of both devices as pair
 ///    public inputs; then return (devA, devB) here and the guard binds devices exactly like the POP2 path.
-///  - code_commit (#4) is free onchain; the server vouches for it off chain (POPCC1). Optional: verify POPCC1 here.
 ///  - Pin final PhoneVerifier / PairVerifier (vk sha256) when the server produces the pair proof.
 contract NoirPresenceVerifier is IPopPresenceVerifier {
     struct Bundle {
@@ -36,6 +39,8 @@ contract NoirPresenceVerifier is IPopPresenceVerifier {
         bytes32[] pubB;
         bytes proofPair;
         bytes32[] pubPair;
+        bytes ccSigA; // POPCC1 r||s (64 B) over pubA's code_commit
+        bytes ccSigB; // POPCC1 r||s (64 B) over pubB's code_commit
     }
 
     uint256 public constant N_PHONE = 12;
@@ -49,6 +54,7 @@ contract NoirPresenceVerifier is IPopPresenceVerifier {
     error BadPublicInputs(uint256 which); // 0 = lengths, 1 = nonce, 2 = attempt, 3 = role, 4 = issuer, 5 = sr, 6 = halfCommit
     error Stale();
     error ProofRejected(uint256 which); // 0 = A, 1 = B, 2 = pair
+    error BadCodeAttest(uint256 which); // POPCC1 sig invalid: 0 = A, 1 = B
 
     constructor(IHonkVerifier phone, IHonkVerifier pair, uint64 maxAge_) {
         phoneVerifier = phone;
@@ -86,6 +92,9 @@ contract NoirPresenceVerifier is IPopPresenceVerifier {
         if (a[9] != p[5] || bb[9] != p[6]) revert BadPublicInputs(5);
         if (a[11] != p[3] || bb[11] != p[4]) revert BadPublicInputs(6);
 
+        if (!_ccOk(nonce, a, "A", b.ccSigA, qx, qy)) revert BadCodeAttest(0);
+        if (!_ccOk(nonce, bb, "B", b.ccSigB, qx, qy)) revert BadCodeAttest(1);
+
         uint256 validAt = uint256(a[10]);
         if (
             bb[10] != a[10] || validAt < b.notBefore || validAt > block.timestamp + CLOCK_SKEW
@@ -95,6 +104,23 @@ contract NoirPresenceVerifier is IPopPresenceVerifier {
         if (!phoneVerifier.verify(b.proofA, a)) revert ProofRejected(0);
         if (!phoneVerifier.verify(b.proofB, bb)) revert ProofRejected(1);
         if (!pairVerifier.verify(b.proofPair, p)) revert ProofRejected(2);
+    }
+
+    /// POPCC1: nonce (= hi||lo, already checked against the proof), attempt, role, code_commit from the proof.
+    function _ccOk(bytes32 nonce, bytes32[] memory v, bytes1 role, bytes memory sig, uint256 qx, uint256 qy)
+        internal
+        view
+        returns (bool)
+    {
+        if (sig.length != 64 || uint256(v[2]) > type(uint8).max) return false;
+        bytes32 r;
+        bytes32 s;
+        assembly {
+            r := mload(add(sig, 32))
+            s := mload(add(sig, 64))
+        }
+        bytes32 h = sha256(abi.encodePacked("POPCC1", nonce, uint8(uint256(v[2])), role, v[4]));
+        return PopAttest.p256(h, r, s, qx, qy);
     }
 
     function _issuerOk(bytes32[] memory v, uint256 qx, uint256 qy) internal pure returns (bool) {

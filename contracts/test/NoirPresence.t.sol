@@ -28,7 +28,8 @@ contract NoirPresenceTest is PopSafeBase {
     function _bundle(bytes32 h) internal view returns (NoirPresenceVerifier.Bundle memory b) {
         b.notBefore = uint64(block.timestamp - 60);
         b.sid = SID;
-        (bytes32 hi, bytes32 lo) = PopCtx.split(PopCtx.nonce(block.chainid, address(safe), h, b.notBefore, SID));
+        bytes32 n = PopCtx.nonce(block.chainid, address(safe), h, b.notBefore, SID);
+        (bytes32 hi, bytes32 lo) = PopCtx.split(n);
         (uint256 qx, uint256 qy) = _issuerKey();
         b.pubA = new bytes32[](12);
         b.pubB = new bytes32[](12);
@@ -55,9 +56,17 @@ contract NoirPresenceTest is PopSafeBase {
         b.pubPair[4] = b.pubB[11];
         b.pubPair[5] = bytes32(uint256(48000));
         b.pubPair[6] = bytes32(uint256(48000));
+        b.ccSigA = _cc(n, b.pubA, "A");
+        b.ccSigB = _cc(n, b.pubB, "B");
         b.proofA = hex"aa";
         b.proofB = hex"bb";
         b.proofPair = hex"cc";
+    }
+
+    function _cc(bytes32 n, bytes32[] memory v, bytes1 role) internal pure returns (bytes memory) {
+        (bytes32 r, bytes32 s) =
+            vm.signP256(ISSUER, sha256(abi.encodePacked("POPCC1", n, uint8(uint256(v[2])), role, v[4])));
+        return abi.encodePacked(r, s);
     }
 
     function _presenceFor(bytes32 h, uint256, uint256) internal view override returns (bytes memory) {
@@ -124,6 +133,24 @@ contract NoirPresenceTest is PopSafeBase {
         b = _bundle(h);
         b.pubPair = new bytes32[](6);
         _expectBad(h, b, abi.encodeWithSelector(sel, 0));
+    }
+
+    function test_noir_code_attest() public {
+        bytes32 h = _h(bob, 1, "");
+        bytes4 sel = NoirPresenceVerifier.BadCodeAttest.selector;
+        NoirPresenceVerifier.Bundle memory b = _bundle(h);
+        b.pubA[4] = bytes32(uint256(b.pubA[4]) ^ 1); // code_commit not the one the server vouched for
+        _expectBad(h, b, abi.encodeWithSelector(sel, 0));
+        b = _bundle(h);
+        (b.ccSigA, b.ccSigB) = (b.ccSigB, b.ccSigA); // A's attestation reused for B (role binds)
+        _expectBad(h, b, abi.encodeWithSelector(sel, 0));
+        b = _bundle(h);
+        b.ccSigB = new bytes(0);
+        _expectBad(h, b, abi.encodeWithSelector(sel, 1));
+        b = _bundle(h);
+        (uint256 r, uint256 s) = abi.decode(b.ccSigB, (uint256, uint256));
+        b.ccSigB = abi.encodePacked(r, s ^ 1); // forged sig
+        _expectBad(h, b, abi.encodeWithSelector(sel, 1));
     }
 
     function test_noir_freshness() public {

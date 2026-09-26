@@ -42,7 +42,7 @@ contract NoirRealGasTest is PopSafeBase {
         vm.warp(VALID_AT + 120);
         phoneV = IHonkVerifier(_deployLinked("PhoneVerifier", "PhoneVerifier"));
         pairV = IHonkVerifier(_deployLinked("PairVerifier", "HonkVerifier"));
-        nv = new NoirFixedNonce(phoneV, pairV, 900, NONCE);
+        nv = new NoirFixedNonce(phoneV, pairV, 86_400, NONCE);
         return nv;
     }
 
@@ -105,6 +105,27 @@ contract NoirRealGasTest is PopSafeBase {
         b.pubB = _pubs("test/fixtures/zk/B/public_inputs");
         b.proofPair = vm.readFileBinary("test/fixtures/zk/pair/proof");
         b.pubPair = _pubs("test/fixtures/zk/pair/public_inputs");
+        b.ccSigA = abi.encodePacked(keccak256("ccA-r"), keccak256("ccA-s"));
+        b.ccSigB = abi.encodePacked(keccak256("ccB-r"), keccak256("ccB-s"));
+    }
+
+    /// The fixture issuer's private key isn't in this repo (the proofs pin it), so the two POPCC1 checks hit a
+    /// mocked 0x100 that accepts exactly these digests/sigs; anything else still goes to the real precompile.
+    /// Real P-256 cost (EIP-7951: 6,900 each) is covered by NoirPresenceTest.test_noir_code_attest.
+    function _mockCc(NoirPresenceVerifier.Bundle memory b) internal {
+        bytes32[] memory v;
+        bytes memory sig;
+        for (uint256 r; r < 2; r++) {
+            (v, sig) = r == 0 ? (b.pubA, b.ccSigA) : (b.pubB, b.ccSigB);
+            bytes32 h = sha256(abi.encodePacked("POPCC1", NONCE, uint8(uint256(v[2])), r == 0 ? bytes1("A") : bytes1("B"), v[4]));
+            (bytes32 sr, bytes32 ss) = abi.decode(sig, (bytes32, bytes32));
+            vm.mockCall(address(0x100), abi.encode(h, sr, ss, QX, QY), abi.encode(uint256(1)));
+        }
+    }
+
+    function setUp() public override {
+        super.setUp();
+        _mockCc(_bundle());
     }
 
     function _presenceFor(bytes32, uint256, uint256) internal view override returns (bytes memory) {
@@ -136,6 +157,10 @@ contract NoirRealGasTest is PopSafeBase {
 
     function test_real_adapter_rejects_tampered() public {
         NoirPresenceVerifier.Bundle memory b = _bundle();
+        b.pubA[4] = bytes32(uint256(b.pubA[4]) ^ 1); // code_commit the server didn't vouch for
+        vm.expectRevert(abi.encodeWithSelector(NoirPresenceVerifier.BadCodeAttest.selector, 0));
+        nv.verifyNonce(NONCE, QX, QY, b);
+        b = _bundle();
         b.proofB[100] ^= 0x01;
         vm.expectRevert(); // bb verifier reverts (or returns false -> ProofRejected)
         nv.verifyNonce(NONCE, QX, QY, b);

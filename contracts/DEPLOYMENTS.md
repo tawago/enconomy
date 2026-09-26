@@ -11,6 +11,8 @@
 | PopSafeSetup | `0x3d4e549F13CCee540884481b35Fd1CA42A9E0707` | `0x8081bd0ebfbd8747f8cdaf56f7b93fb74d3cb35c3800bc45dd8367dac5566ac9` |
 | P256OwnerFactory | `0x99565991Ec5414Ee2d3A2fA48Ab4d92efBd2466e` | `0x1321eb91a8cc4c635d5707362c2d249630289a1c1d6f8c3e50c8742127c1b9cf` |
 
+Noir path (**not broadcast yet**; deploys once the server pair proof lands): `VERIFIER=noir forge script script/Deploy.s.sol` makes a `NoirPresenceVerifier` (maxAge 86,400 s) over the live PhoneVerifier `0x5b69C5a7D3e5A56D33809b9B95d02984D4aFa791` and PairVerifier `0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7` (both accept the fixture proofs on a fork), plus a new `PopSafeGuard` on it, reusing the Setup and OwnerFactory above. Dry run on an anvil Sepolia fork: ~3.45M gas. A Safe on the Noir guard must pin the server's **SBcred3 issuer** (`server/data/issuer.pem`, `GET /v1/config` `issuer.pub_x/pub_y`): X `0x0a0ad09977240bdc4e46a6c38c9faa88ddd24674a06f722e92426d299ecc5bed`, Y `0xbf99508f8f84d3a6f36f9cae47c130310d1830f481c58d2bd0f67e8a3ca2a661`. Not the attest-demo key below.
+
 Safe: canonical 1.5.0 SafeL2 `0xEdd160fEBBD92E350D4D398fb636302fccd67C7e` via SafeProxyFactory `0x14F2982D601c9458F93bd70B218933A6f8165e7b`.
 
 ## Demo Safe (test keys, not real phones)
