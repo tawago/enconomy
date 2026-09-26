@@ -10,6 +10,8 @@ import com.enconomy.pop.toHex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -122,6 +124,15 @@ class ProofRunner(val keys: KeyCache) {
         force: Boolean = false,
         expectPublic: ByteArray? = null,
         prebuilt: WitnessInput.Built? = null,
+    ): Out? = awake { runAwake(src, allowDownload, onStatus, force, expectPublic, prebuilt) }
+
+    private suspend fun runAwake(
+        src: ProofSource,
+        allowDownload: Boolean,
+        onStatus: (ProofStatus) -> Unit,
+        force: Boolean,
+        expectPublic: ByteArray?,
+        prebuilt: WitnessInput.Built?,
     ): Out? {
         if (!ProverLib.available) { onStatus(ProofStatus.Skipped(ProverLib.loadError ?: "no native prover")); return null }
         val t = com.enconomy.pop.TranscriptCodec.decodeTranscript2(src.transcript)
@@ -180,6 +191,18 @@ class ProofRunner(val keys: KeyCache) {
 
     companion object {
         private val nativeLock = Mutex()
+
+        /**
+         * >0 while witness building / proving runs. Android keeps the screen on meanwhile: a locked or dozing
+         * phone moves the app to the background cpuset (Pixel 6: little cores 0-3), and the prove takes ~4x longer.
+         */
+        val awakeCount = MutableStateFlow(0)
+
+        suspend fun <T> awake(block: suspend () -> T): T {
+            awakeCount.update { it + 1 }
+            try { return block() } finally { awakeCount.update { it - 1 } }
+        }
+
         /** A native prover call is running (possibly from a cancelled job). */
         val busy: Boolean get() = nativeLock.isLocked
     }

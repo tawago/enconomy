@@ -1086,7 +1086,7 @@ class PopController(
             _state.update { it.copy(benchStatus = ProofStatus.Skipped("A session proof is still running; retry when it is done.")) }
             return
         }
-        benchJob = scope.launch {
+        benchJob = scope.launch { ProofRunner.awake {
             val m = DeviceMemory.info()
             _state.update {
                 it.copy(benchStatus = ProofStatus.Step("loading fixture"), benchLog = listOf(
@@ -1124,7 +1124,7 @@ class PopController(
             } finally {
                 refreshKeys()
             }
-        }
+        } }
     }
 
     /** Leave pairing: best-effort abort of the server session. */

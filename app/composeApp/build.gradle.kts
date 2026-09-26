@@ -187,7 +187,8 @@ android {
         }
     }
     buildTypes {
-        getByName("release") { isMinifyEnabled = false }
+        // debug key: hackathon installs; release = optimized, non-debuggable ART (the prover bench build)
+        getByName("release") { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
