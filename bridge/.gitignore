@@ -1,0 +1,5 @@
+state.json
+log.jsonl
+names.json
+config.json
+*.tmp

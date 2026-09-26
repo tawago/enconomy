@@ -1,0 +1,6 @@
+{
+ "_comment": "device_id (preferred, stable) or display_name -> ENS label under enconomy.eth. Keys starting with _ are ignored. Copy to names.json.",
+ "0123456789abcdef0123456789abcdef": "alice",
+ "fedcba9876543210fedcba9876543210": "bob",
+ "Pixel 6": "bob"
+}

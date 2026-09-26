@@ -1,0 +1,8 @@
+{
+ "_comment": "Copy to config.json (all keys optional). zk addresses come from contracts/deployments/zk-sepolia.json when it exists.",
+ "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+ "dataDir": "~/dev/enconomy/server/data",
+ "pollSeconds": 3,
+ "phoneVerifier": null,
+ "verifyLog": null
+}
