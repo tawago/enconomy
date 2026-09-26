@@ -27,7 +27,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.enconomy.pop.zkbench
         TARGETED_DEVICE_FAMILY: "1,2"
-        LIBRARY_SEARCH_PATHS: $(HOME)/.enconomy/zk/ios/lib
+        LIBRARY_SEARCH_PATHS: $(HOME)/.enconomy/zk/ios/v500/barretenberg-static-arm64-ios
         OTHER_LDFLAGS: -lbb-external -lc++
         ENABLE_BITCODE: NO
         DEAD_CODE_STRIPPING: YES
