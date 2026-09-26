@@ -1,5 +1,7 @@
 # enconomy
 
+[Demo video](https://ethglobal.b0bd725bc77a3ea7cd3826627d01fcb6.r2.cloudflarestorage.com/projects/9m8x8/videos/final.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=9594f0cc2b6eca8d6fd42063391f5760%2F20260926%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260926T235545Z&X-Amz-Expires=3600&X-Amz-Signature=59783a60642c0a0bc7587e78bae34b634790d5e4145e33e1310cfb40425138c8&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject)
+
 ![Enconomy: ZK proof of presence](assets/hero.jpg)
 
 Proof of presence: two phones use sound to prove they were physically close.
