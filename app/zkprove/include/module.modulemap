@@ -1,0 +1,5 @@
+module ZkProve {
+    header "zkprove.h"
+    link "c++"
+    export *
+}
