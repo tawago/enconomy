@@ -12,6 +12,21 @@ uv run python -m pop                     # listens on 0.0.0.0:8000
 uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 ```
 
+Configuration: copy `.env.example` to `.env` and fill it in (`python -m pop` reads it; real env vars win).
+
+### Demo server (ETHGlobal Tokyo)
+
+The demo runs on the laptop on port 8001 and is published at **https://pop.enconomy.dev** through a Cloudflare named tunnel:
+
+```sh
+cd server && POP_PORT=8001 uv run python -m pop          # .env: World ID ids, POP_TEST_KINDS=1, POP_ALLOW_UNATTESTED=1
+cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   # pop.enconomy.dev -> localhost:8001
+```
+
+- The World ID IDKit sidecar (`idkit-sidecar/`) must also be running (`POP_WORLDID_SIDECAR`).
+- `POP_TEST_KINDS=1` is required for the app's "Host with World ID (test)" button; without it session create answers 400 `bad_kind`.
+- The apps are built with `-Ppop.serverUrl=https://pop.enconomy.dev` (Android) / `POP_SERVER_URL` in `iosApp/Configuration/Local.xcconfig`. A server URL saved in the app wins over the built-in one: Server → Reset to default.
+
 | Env | Default | What |
 |---|---|---|
 | `POP_DB` | `data/pop.sqlite` | SQLite file. `data/` is gitignored. |
@@ -25,10 +40,10 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_ISSUER_KEY_FILE` | `data/issuer.pem` | Issuer key file (PEM). Created (0600) on first run if missing. Gitignored; never commit it. |
 | `POP_ISSUER_AUTOGEN` | `1` | `0` refuses to start without an issuer key instead of generating one. |
 | `POP_CRED_TTL_S` | `2592000` | Credential lifetime (30 days, as the spike). |
-| `POP_ZK_VERIFIER` | `../app/prover/target/release/popprover` if built | Host build of the option A prover; the server runs `popprover verify` on uploaded proofs. Unset/missing = proof upload answers 503 `zk_unavailable`. |
-| `POP_ZK_KEYS` | `data/zk/` | Proving keys served for download: `oa2t_s48.pk.zst`, `oa2t_s44.pk.zst` (zstd, never recompressed; the app pins their sha256). Gitignored. |
-| `POP_ZK_VK_DIR` | `POP_ZK_KEYS` | `oa2t_s48.vk`, `oa2t_s44.vk`; sha256-pinned in `pop/zk.py` (`VK_PINS`), else `circuit_unknown`. |
-| `POP_ZK_WRAP` | unset | Command prefix for the verifier, e.g. `research/sound-bound/spikes/zk/tools/heavy.sh zk-verify` on the 8 GB Mac. |
+| `POP_ZK_VERIFIER` | `~/.enconomy/zk/pinned/bin/bb` | Barretenberg `bb` v5.0.0-nightly.20260522 (pinned; must match the vk and the onchain verifier). The server runs `bb verify -t evm` on every proof against its own public vector. Missing = proof routes answer 503 `zk_unavailable`. |
+| `POP_ZK_PROVER` | `~/.enconomy/zk/android/target/release/zkprove` | Host build of `app/zkprove` (ACVM witness + UltraHonk prove). Used by delegated proving (`POST /v1/session/{id}/proof/delegate`). |
+| `POP_ZK_DIR` | team build + pinned dirs | Circuit artifacts served at `/v1/zk/keys/`: `oaN_s48.json` (circuit), `oaN_s48.vk`, `bn254_g1_2p20.dat` (CRS). Served only when size and sha256 match the pins in `pop/zk.py`. |
+| `POP_ZK_WRAP` | unset | Command prefix for `bb` / `zkprove`, e.g. a memory-limit wrapper on an 8 GB Mac. |
 | `POP_HOST`, `POP_PORT` | `0.0.0.0`, `8000` | Only used by `python -m pop`. |
 | `POP_WORLDID_APP_ID`, `POP_WORLDID_RP_ID` | unset | Portal app id and `rp_…`. RP unset = World ID off: a create with a `context` answers 503 `worldid_unavailable`. |
 | `POP_WORLDID_SIGNING_KEY_FILE` | `data/worldid-rp.key` | RP signer (secp256k1 hex, 0600, gitignored). `POP_WORLDID_SIGNING_KEY` (hex) wins over the file. |
