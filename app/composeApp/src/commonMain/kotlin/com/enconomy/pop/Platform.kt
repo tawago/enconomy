@@ -19,5 +19,8 @@ expect fun isDebugBuild(): Boolean
 /** Open [url] in another app (World ID connector link, docs/worldid/01 §6.7). false = nothing could open it. */
 expect fun openExternalUrl(url: String): Boolean
 
+/** Web app (wasmJs): no device-bound tools (ENS name). */
+expect fun isWeb(): Boolean
+
 /** Default server URL: the baked one; the web build served by the PoP server uses the page origin. */
 expect fun platformDefaultBaseUrl(baked: String): String

@@ -30,4 +30,6 @@ actual fun openExternalUrl(url: String): Boolean = try {
     false
 }
 
+actual fun isWeb(): Boolean = false
+
 actual fun platformDefaultBaseUrl(baked: String): String = baked

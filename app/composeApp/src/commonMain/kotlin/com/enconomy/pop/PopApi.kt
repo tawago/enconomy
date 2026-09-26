@@ -221,6 +221,10 @@ data class ArmResp(
 @Serializable data class CommitResp(val partner_bed: Pcm, val partner_code: CodeWire? = null)
 @Serializable data class TranscriptReq(val transcript_b64: String, val sig_b64: String, val meta: JsonObject)
 @Serializable data class TranscriptResp(val accepted: Boolean, val state: String? = null)
+/** GET / POST /v1/device/ens: one name per device, <label>.enconomy.eth. status none | pending | registered | failed. */
+@Serializable data class EnsReq(val label: String)
+@Serializable data class EnsResp(val label: String? = null, val name: String? = null, val status: String = "none", val tx: String? = null)
+
 @Serializable data class FailReq(val attempt: Int, val reason: String)
 @Serializable class Empty
 
@@ -303,6 +307,12 @@ class PopApi(
     /** Recalibrate: replace this device's calibration (signed request). */
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
+
+    /** This device's ENS name (signed). */
+    suspend fun ens(): EnsResp = call(HttpMethod.Get, "/v1/device/ens", null, EnsResp.serializer())
+    /** Claim <label>.enconomy.eth once; 400 bad_label, 409 already_claimed / label_taken. */
+    suspend fun claimEns(label: String): EnsResp =
+        call(HttpMethod.Post, "/v1/device/ens", enc(EnsReq.serializer(), EnsReq(label)), EnsResp.serializer())
 
     suspend fun createSession(req: SessionReq = SessionReq()): CreateSessionResp =
         call(HttpMethod.Post, "/v1/session", req.body(), CreateSessionResp.serializer())

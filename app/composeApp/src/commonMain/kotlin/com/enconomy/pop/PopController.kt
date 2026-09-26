@@ -56,7 +56,7 @@ const val AUDIO_MODE_PREF = "audio.mode"
 /** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
 const val DEFAULT_AUDIO_MODE = "videoRecording"
 
-enum class Screen { Enroll, Home, Safe, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
+enum class Screen { Enroll, Home, Safe, Host, Join, Confirm, Run, Result, Bench, AudioCheck, Ens }
 
 /** Safe spend form (docs/worldid/02 §9): the Safe this phone co-owns, plus one native ETH transfer. Prefs "safe.*". */
 data class SafeForm(
@@ -68,6 +68,9 @@ data class SafeForm(
     val rpc: String = DEFAULT_SEPOLIA_RPC,
     val note: String? = null,
 )
+
+val ENS_LABEL = Regex("^[a-z0-9-]{3,32}$")
+const val ENS_SUFFIX = ".enconomy.eth"
 
 const val DEFAULT_SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
 
@@ -170,6 +173,12 @@ data class UiState(
     val serverTuneDb: Double? = null,
     /** Audio check tune boost picked on screen (null = follow the server's tune_db, else 0). */
     val audioTuneDb: Double? = null,
+    // ---- ENS name (not on the web app) ----
+    /** Last GET/POST /v1/device/ens; null = not fetched yet. */
+    val ens: EnsResp? = null,
+    val ensLabel: String = "",
+    /** Claimed name as last seen (Prefs "ens.name"), for the Home row. */
+    val ensName: String? = null,
 ) {
     val tuneDb: Double get() = audioTuneDb ?: serverTuneDb ?: 0.0
 }
@@ -232,7 +241,8 @@ class PopController(
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
         return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
-            popt2On = Prefs.get("popt") != "1", widSandbox = Prefs.get("widSandbox")?.let { it == "1" } ?: defaultWidSandbox(), audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
+            popt2On = Prefs.get("popt") != "1", widSandbox = Prefs.get("widSandbox")?.let { it == "1" } ?: defaultWidSandbox(), audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "",
+            ensName = Prefs.get("ens.name"))
     }
 
     private fun storedEnrollment(): Enrollment? {
@@ -414,7 +424,8 @@ class PopController(
         holder.clearCredential()
         Calibration.save(null)
         Prefs.set("enroll.deviceId", null)
-        _state.update { it.copy(enrollment = null, screen = Screen.Enroll) }
+        Prefs.set("ens.name", null)
+        _state.update { it.copy(enrollment = null, screen = Screen.Enroll, ens = null, ensName = null) }
     }
 
     /** Server sanity: /v1/time + /v1/config (also re-runs the §1 constants check). */
@@ -1232,6 +1243,53 @@ class PopController(
             }
         }
     }
+
+    // ---- ENS name ----
+
+    fun openEns() {
+        if (isWeb()) return
+        go(Screen.Ens)
+        refreshEns()
+    }
+
+    fun refreshEns() = run("ens") { api -> setEns(api.ens()) }
+
+    fun setEnsLabel(v: String) {
+        _state.update { it.copy(ensLabel = v.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '-' }.take(32)) }
+    }
+
+    /** One name per device, no renames: the server refuses a second claim. */
+    fun claimEns() {
+        val label = state.value.ensLabel
+        if (isWeb() || !ENS_LABEL.matches(label)) return
+        run("claiming $label$ENS_SUFFIX") { api ->
+            val r = try {
+                api.claimEns(label)
+            } catch (e: PopHttpException) {
+                // claimed from elsewhere (or a lost reply): show what the server holds
+                if (e.code == "already_claimed") runCatching { api.ens() }.getOrNull()?.takeIf { it.status != "none" }?.let { setEns(it); return@run }
+                throw PopHttpException(e.status, e.code, e.body, e.hint ?: ensErrorText(e))
+            }
+            setEns(r)
+        }
+    }
+
+    private fun setEns(r: EnsResp) {
+        val name = r.name?.takeIf { r.status != "none" }
+        Prefs.set("ens.name", name)
+        _state.update { it.copy(ens = r, ensName = name, status = "ens: ${r.status}") }
+    }
+
+    /** Server's `detail` when it sends one, else a line per contract code. */
+    private fun ensErrorText(e: PopHttpException): String =
+        runCatching { popJson.parseToJsonElement(e.body).jsonObject["detail"]?.jsonPrimitive?.content }.getOrNull()
+            ?: when (e.code) {
+                "bad_label" -> "Use 3-32 characters: a-z, 0-9 and -."
+                "already_claimed" -> "This phone already has a name."
+                "label_taken" -> "That name is taken."
+                "not_allowed" -> "ENS names are for phones."
+                else -> e.code ?: "http_${e.status}"
+            }
 
     // ---- prover bench ----
 

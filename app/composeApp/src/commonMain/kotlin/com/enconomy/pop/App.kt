@@ -89,6 +89,7 @@ import com.enconomy.pop.ui.SwitchRow
 import com.enconomy.pop.ui.Tone
 import com.enconomy.pop.ui.VerdictBadge
 import com.enconomy.pop.ui.fmt1
+import com.enconomy.pop.ui.toneColor
 import com.enconomy.pop.zk.BenchFixture
 import com.enconomy.pop.zk.ProofStats
 import com.enconomy.pop.zk.ProofStatus
@@ -130,6 +131,7 @@ fun App(c: PopController) {
                                 Screen.Result -> Result(s, c)
                                 Screen.Bench -> Bench(s, c)
                                 Screen.AudioCheck -> AudioCheck(s, c)
+                                Screen.Ens -> if (!isWeb()) Ens(s, c)
                             }
                             StatusLine(s)
                         }
@@ -165,6 +167,7 @@ private fun TopBar(s: UiState, c: PopController) {
             Screen.Bench -> { { c.go(Screen.Home) } }
             Screen.AudioCheck -> { { c.go(Screen.Home) } }
             Screen.Safe -> { { c.go(Screen.Home) } }
+            Screen.Ens -> { { c.go(Screen.Home) } }
             else -> null
         }
         if (back != null) {
@@ -381,6 +384,10 @@ private fun Home(s: UiState, c: PopController) {
                 Hairline()
                 NavRow(PopIcons.Chip, "Prover bench", "Prove a bundled fixture on this phone", c::openBench, enabled = !s.busy)
                 Hairline()
+                if (!isWeb()) {
+                    NavRow(PopIcons.Key, "ENS name", s.ensName ?: "Claim <label>$ENS_SUFFIX for this phone", c::openEns, enabled = !s.busy)
+                    Hairline()
+                }
                 SwitchRow(
                     "Transcript v2", transcriptText(s), s.popt2On, { c.setPopt2(it) }, enabled = !s.busy, icon = PopIcons.Wave,
                 )
@@ -1070,6 +1077,56 @@ private fun SafeSpend(s: UiState, c: PopController) {
     }
     PrimaryButton("Host spend", c::hostSafeSpend, Modifier.fillMaxWidth(), enabled = !s.busy && s.configOk != false, icon = PopIcons.Qr)
     Text("The other phone taps Join as usual.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+}
+
+// ---------------------------------------------------------------- ENS name
+
+/** One name per phone, no renames: once claimed only the name and its status are shown. */
+@Composable
+private fun Ens(s: UiState, c: PopController) {
+    val r = s.ens
+    PageTitle("ENS name", "A name under enconomy.eth for this phone. No wallet needed.")
+    if (r == null) {
+        if (!s.busy) SecondaryButton("Retry", c::refreshEns, icon = PopIcons.Refresh, compact = true)
+        return
+    }
+    if (r.status == "none") {
+        Panel {
+            OutlinedTextField(
+                value = s.ensLabel,
+                onValueChange = c::setEnsLabel,
+                label = { Text("Name") },
+                suffix = { Text(ENS_SUFFIX, color = Pop.palette.muted) },
+                supportingText = { Text("3-32 characters: a-z, 0-9, -") },
+                singleLine = true,
+                enabled = !s.busy,
+                shape = MaterialTheme.shapes.medium,
+                colors = popTextFieldColors(),
+                textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text("One name per phone. Can't be changed later.", style = MaterialTheme.typography.bodySmall, color = toneColor(Tone.Warn))
+            PrimaryButton(if (s.busy) "Claiming…" else "Claim", c::claimEns, Modifier.fillMaxWidth(),
+                enabled = !s.busy && ENS_LABEL.matches(s.ensLabel), loading = s.busy, icon = PopIcons.Key)
+        }
+        return
+    }
+    Panel {
+        Text(r.name ?: (r.label ?: "?") + ENS_SUFFIX, style = MaterialTheme.typography.titleLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            when (r.status) {
+                "registered" -> Pill("Registered", Tone.Good, icon = PopIcons.Check)
+                "pending" -> Pill("Pending", Tone.Neutral, dot = true)
+                "failed" -> Pill("Failed", Tone.Bad)
+                else -> Pill(r.status, Tone.Neutral)
+            }
+        }
+        r.tx?.let { tx ->
+            Field("tx", tx)
+            QuietButton("Open on Etherscan", { openExternalUrl("https://sepolia.etherscan.io/tx/$tx") })
+        }
+        if (r.status == "pending") SecondaryButton("Refresh", c::refreshEns, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
+    }
 }
 
 @Composable
