@@ -1,9 +1,0 @@
-.venv/
-__pycache__/
-data/audio/
-data/archive/
-# Generated diagnostic reports (analysis/inspect_trial.py --plot).
-data/reports/
-# Raw ranging sessions and their immutable analysis artifacts.
-data/ranging/
-.claude/settings.local.json
