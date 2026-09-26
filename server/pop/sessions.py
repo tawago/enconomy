@@ -98,6 +98,7 @@ class Sessions:
                  data_dir: str | Path | None = None, tune_db: float = 0.0):
         self.store, self.now_ms, self.gain_db, self.tune_db = store, now_ms, gain_db, tune_db
         self.data_dir = None if data_dir is None else Path(data_dir)
+        self.code_attester: Callable[[bytes, int, str, bytes], dict] | None = None   # main.py: issuer.attest_code
 
     # -- persistence
     def _save(self, s: dict) -> dict:
@@ -263,6 +264,9 @@ class Sessions:
         out = {"partner_bed": pcm(jbl250.template(self._key(s, other), other, sr))}
         if self._popt(s, role) == 2:
             out["partner_code"] = popt2.code_wire(self._key(s, other), other, sr)
+            mine = s["per_role"][role]
+            out["code_commit"] = mine.get("code_commit")
+            out["code_attest"] = mine.get("code_attest")
         return out
 
     def _code_commit(self, s: dict, role: str) -> bytes:
@@ -295,6 +299,11 @@ class Sessions:
         mine.update({"commit_b64": commit_b64, "commit_sig_b64": sig_b64,
                      "commit_sha256": hashlib.sha256(raw).hexdigest(), REC_KEY[ver]: c[REC_KEY[ver]].hex(),
                      "committed_ms": self.now_ms()})
+        if ver == 2:   # the Poseidon2 code_commit the transcript must carry, attested by the issuer key
+            cc = self._code_commit(s, role)
+            mine["code_commit"] = cc.hex()
+            if self.code_attester is not None:
+                mine["code_attest"] = self.code_attester(bytes.fromhex(s["nonce_hex"]), s["attempt"], role, cc)
         s["committed"][role] = True
         self._save(s)
         return self._partner_bed(s, role)
@@ -517,10 +526,12 @@ class Sessions:
                for r in ROLES for e in [self.zk_entry(s, r)]}
         st = [e["status"] for e in ent.values() if e]
         status = ("rejected" if "rejected" in st else "verified" if st.count("verified") == 2
-                  else "partial" if st else "none")
-        return {"valid_at": self.zk_valid_at(s), "status": status, **ent}
+                  else "proving" if "proving" in st else "partial" if st else "none")
+        attest = {r: s["per_role"][r].get("code_attest") for r in ROLES if s["per_role"][r].get("code_attest")}
+        return {"valid_at": self.zk_valid_at(s), "status": status, **ent, "circuit": zk.CIRCUIT,
+                "vk_sha256": zk.VK_PINS[zk.CIRCUIT], "code_attest": attest or None}
 
-    def zk_expected(self, s: dict, role: str, dev: dict, attempt, circuit, salt: int, issuer_pub: bytes) -> list[str]:
+    def zk_expected(self, s: dict, role: str, dev: dict, attempt, circuit, salt: int, issuer_pub: bytes) -> list[int]:
         """The public vector a proof by `role` must carry. PopError = wrong moment/request; V.Reject = the proof's
         credential can't pass (recorded like a failed proof)."""
         if s["state"] != "done" or (s["result"] or {}).get("verdict") != "NEAR":
@@ -532,7 +543,7 @@ class Sessions:
             raise PopError(409, "bad_state", "no POPT v2 transcript for this role")
         sr = pr["sample_rate"]
         if sr not in zk.CIRCUITS:
-            raise PopError(409, "bad_state", f"no circuit at {sr} Hz")
+            raise PopError(409, "bad_state", f"no circuit at {sr} Hz (only {sorted(zk.CIRCUITS)} are provable)")
         if circuit != zk.CIRCUITS[sr]:
             raise V.Reject("circuit_unknown", f"{circuit!r}: the {sr} Hz circuit is {zk.CIRCUITS[sr]}")
         d = self.store.get_device(dev["device_id"])
@@ -550,12 +561,23 @@ class Sessions:
         return zk.public_vector(t, popt2.code(self._key(s, role), role, sr), popt2.code(self._key(s, other), other, sr),
                                 issuer_pub, valid_at, salt)
 
-    def zk_record(self, session_id: str, role: str, entry: dict, proof: bytes | None = None) -> dict:
-        """Store one proof outcome (reloads: verification ran off the event loop)."""
+    def zk_record(self, session_id: str, role: str, entry: dict, proof: bytes | None = None,
+                  public: list[int] | None = None) -> dict:
+        """Store one proof outcome (reloads: verification ran off the event loop). A verified proof is written next
+        to result.json as proof_<role>_<attempt>.bin (bb `proof`, 10,304 B) + public_inputs_<role>_<attempt>.bin
+        (12 x 32 B); entry["files"] has their paths relative to the data dir, entry["public_inputs"] the hex values."""
         s = self.load(session_id)
+        if proof is not None and public is not None:
+            names = {"proof": f"proof_{role}_{entry['attempt']}.bin",
+                     "public_inputs": f"public_inputs_{role}_{entry['attempt']}.bin"}
+            p1 = self._write(s["session_id"], names["proof"], proof)
+            self._write(s["session_id"], names["public_inputs"], zk.to_file(public))
+            if self.code_attester is not None:   # the issuer vouches for public input #5 of this very proof
+                entry = {**entry, "code_attest": self.code_attester(bytes.fromhex(s["nonce_hex"]), entry["attempt"],
+                                                                    role, zk.to_file([public[4]]))}
+            entry = {**entry, "public_inputs": zk.hexes(public),
+                     "files": None if p1 is None else {k: f"sessions/{s['session_id']}/{v}" for k, v in names.items()}}
         s.setdefault("zk", {"A": None, "B": None})[role] = entry
-        if proof is not None:
-            self._write(s["session_id"], f"proof_{role}_{entry['attempt']}.bin", proof)
         if s["result"] is not None:
             s["result"]["zk"] = self.zk_public(s)
             self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
