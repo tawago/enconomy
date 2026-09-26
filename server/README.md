@@ -53,6 +53,8 @@ uv run pytest -q
 | `test_jbl250.py` | vendored generator vs goldens (`tests/golden/*.f32`) and vs `fieldprobes` itself (read-only import, skipped without `research/`); sample rates 36k..96k; peak limit; bed key per (session, role, attempt) |
 | `test_arm_commit.py` | `/v1/time` ping; arm material (own play + own bed only) and `t0 = now + 3 s` once both armed; bad sample rate / attempt / rtt; unauthenticated and non-member refused; partner bed absent before commit, released after (at the committer's rate); `too_early`; commit signature / role / attempt / nonce checks; attempt 1 gets new codes |
 | `test_transcript_codec.py` | 269-byte transcript / 71-byte commit layout, offsets, pinned sha256 of a known vector (same literal goes in the Kotlin test) |
+| `test_popt2.py` | POPT v2 (311 B) / POPC v2 layout, pinned vector sha256, rejects (length/version mix, rec_root >= p); Poseidon7 perm/sponge/node/leaf/root vectors, lockstep = scalar; int8 codes and `code_commit`; exact `decide()` ties at -20 / 60 cm (68.6 kHz) and random parity with the pair-circuit inequality; `/v1/config` v2 keys. With `research/` (read-only): codec and Poseidon7 vs the spike, per-rate table vs `oa_rate.params`, every `fixtures/popt_v2` session (12 JBL250 x 48k/mix + sodfar/sodwide) through `check_commit`/`check_transcript`/`combine` with server-derived `code_commit`, rec_root from the dumped trees + sampled leaves (2 full captures; `POP_SLOW=1` all), the app's integer rule (`tests/twin2.py`) finding the signed arrivals |
+| `test_flow_v2.py` | fake phones on v2 (`tests/sim2.py`): NEAR with real rec_root, codes on the wire, too far, mixed v1 + v2 pair, bad code_commit / delta final, 50 ms tolerance edge, POPC version vs arm, v1-armed phone sending v2, `popt` validation, non-canonical rec_root, rec_root recording upload |
 | `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
 | `test_flow_fake_phones.py` | two fake phones (`tests/sim.py`, software keys, `dsp_ref` as DSP) over HTTP: NEAR at 0/30 cm, NOT_NEAR `too_far` at 100/200 cm with no retry, glitch (20 ms zero block) -> retry -> NEAR, two failures -> final, timeout -> retry, stale transcript/fail after a retry, swapped role (sign flip), relayed partner transcript, tampered bytes, every field check, replay from another session, transcript before commit, impossible flight and self-timestamp retries, `/fail` checks, result access, offline `verify_record` on swapped records, recording upload hash check, and a real field recording as room background (skipped without the wavs) |
 | `test_pairing.py` | create + invite decode + host key hint; join; 404 / self_join / bad_token / token_expired / already_joined / not_member; confirm (nonce appears only after both confirm); long-poll wake-up and timeout; abort; 10-min expiry; seed never in a response |
@@ -113,6 +115,21 @@ Choices the contract leaves open (see also the `pop/sessions.py` docstring):
 - `/recording` (multipart `wav` + `meta` JSON with `attempt`) needs the WAV's int16 frames to hash to that attempt's committed `rec_sha256`, else 400 `transcript_mismatch`.
 
 `dsp_ref.py` uses Python `round` (half to even) for every rate-derived count; the Kotlin port must use `kotlin.math.round`. Flat runs are the maximal runs of t with x[t+1] == x[t], returned as [first t, last t + 1).
+
+## POPT v2 (option A)
+
+`docs/pop-transcript-v2.md`, behind a per-phone switch; pop-v1 is unchanged when `popt` is absent.
+
+- `POST /arm` takes `"popt": 1 | 2` (default 1). It is pinned for that role and attempt (another value on re-arm = 409). The roles may differ; an option A pair proof needs both at 2 and `sample_rate` in `zk_rates` (44100, 48000).
+- v2 arm adds `popt: 2`, `delta` (`DELTA_MS*sr//1000`) and `own_code {cI_b64, cQ_b64, n}`: int8 band-masked bed template + Hilbert pair at the phone's rate, one common scale (`pop/popt2.py`, same math as the spike's `oa_rate.templates`). The commit response adds `partner_code` (same form, the partner's bed at my rate). Float beds are still sent.
+- `POST /commit` needs the armed version: POPC v2 = `"POPC" 0x02 role attempt nonce rec_root`, rec_root < p.
+- `POST /transcript` v2 (311 B) adds to the v1 checks: version = armed, `rec_root` = committed, `delta` = `DELTA_MS*sr//1000`, `code_commit` = `sha256("pop-code-v2" | own cI | own cQ | partner cI | partner cQ)` of the codes sent. `SELF_OS_TOL_MS` (50, one constant for v1, v2 and the app via `/v1/config`) still bounds `self_os_delta`; the circuit needs <= `delta` (2 ms), so 2..50 ms passes here and can't be proved.
+- `decide()` takes the exact `Fraction` flight, so exact -20 / 60 cm ties match `oa2t_pair` (`c*N <= -40*S`, `c*N >= 120*S`).
+- `/recording` for a v2 attempt recomputes rec_root (Poseidon7 x^7, depth-4 4-ary tree, `pop/poseidon7.py`, ~2.5 s per 48 kHz capture, in a worker thread).
+- `/v1/config` adds `popt_versions, delta_ms, t0_v2, fir_taps, template_bits, leaf, tree_depth, zk_rates` and `popt2_rates` (per rate: `L, B, delta, wpre, wpost, h`, what the app's integer rule needs).
+- The result record's `devices[role].popt` and the view's `popt {A, B}` say which version each side used. `verify_record` re-checks v2 records except `code_commit` (needs the seed).
+
+Poseidon7 params (`pop/p7params/params_t{5,16}.json`) are copied from `research/sound-bound/spikes/zk/optionA-v2/poseidon7/`; the code is a port of `p7.py` + `rectree.py` (no runtime import from research/).
 
 ## SBcred3 credential (option A, ZK readiness)
 

@@ -1,4 +1,5 @@
-"""pop-v1 shared constants (contract §6.1). Same values in dsp_ref.py and Kotlin PopConstants."""
+"""pop-v1 shared constants (contract §6.1) + POPT v2 (docs/pop-transcript-v2.md §6). Same values in dsp_ref.py
+and Kotlin PopConstants; the app reads them from GET /v1/config."""
 PROTO = "pop-v1"
 SR_MIN, SR_MAX = 36000, 96000
 CODE_S = 0.25
@@ -21,9 +22,21 @@ FLAT_RUN_MIN_S = 0.008
 IMPOSSIBLE_CM = -20
 NEAR_CM = 60
 SPEED_OF_SOUND_CM_S = 34300
+# |self_os_delta| bound for the plaintext verdict, v1 and v2; one value for server and app (/v1/config).
+# TODO: set after on-device timestamp measurement (the option A circuit allows DELTA_MS = 2).
 SELF_OS_TOL_MS = 50
 TRANSCRIPT_DEADLINE_S = 20
 MAX_ATTEMPTS = 2
+
+# POPT v2 (option A): transcript/commit version chosen per role at arm ("popt": 1 | 2)
+POPT_VERSIONS = (1, 2)
+DELTA_MS = 2
+T0_V2 = 0.09
+FIR_TAPS = 63
+TEMPLATE_BITS = 8
+LEAF = 1024
+TREE_DEPTH = 4
+ZK_RATES = (44100, 48000)
 
 # server-side timing (contract §2.2, §2.3, §3.1, §9.1)
 ENROLL_NONCE_TTL_S = 600
@@ -40,6 +53,7 @@ def table() -> dict:
              "PRIMER_S", "LEAD_S", "CAPTURE_S", "A_PLAY_S", "B_PLAY_S", "SEARCH_PRE_S", "SEARCH_POST_S",
              "SEGMENT_MARGIN_S", "N_NULL", "NULL_P", "NULL_P_SAFETY", "FLOOR_SCORE", "HALF_FRAC",
              "HALF_LOOKAHEAD_S", "FLAT_RUN_MIN_S", "IMPOSSIBLE_CM", "NEAR_CM", "SPEED_OF_SOUND_CM_S",
-             "SELF_OS_TOL_MS", "TRANSCRIPT_DEADLINE_S", "MAX_ATTEMPTS"]
+             "SELF_OS_TOL_MS", "TRANSCRIPT_DEADLINE_S", "MAX_ATTEMPTS",
+             "POPT_VERSIONS", "DELTA_MS", "T0_V2", "FIR_TAPS", "TEMPLATE_BITS", "LEAF", "TREE_DEPTH", "ZK_RATES"]
     g = globals()
     return {n.lower(): (list(g[n]) if isinstance(g[n], tuple) else g[n]) for n in names}

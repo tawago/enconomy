@@ -1,4 +1,5 @@
 """pop-v1 server: enrollment, signed-request auth, pairing, arm/start, commit, transcript, verdict (contract §2-§9).
+POPT v2 (docs/pop-transcript-v2.md) is opt-in per phone with "popt": 2 at arm; see pop/sessions.py.
 
 Run: uv run python -m pop            (0.0.0.0:8000)
  or: uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
@@ -35,6 +36,7 @@ from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
 from pop import issuer as sbcred
+from pop import popt2
 from pop.errors import PopError
 from pop.sessions import Sessions
 from pop.store import SqliteStore, Store
@@ -120,6 +122,7 @@ class ArmIn(BaseModel):
     attempt: Any = None
     sample_rate: Any = None
     rtt_min_ms: Any = None
+    popt: Any = None
 
 
 class CommitIn(BaseModel):
@@ -189,7 +192,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.get("/v1/config")
     async def config():
         return {**K.table(), "allow_unattested": cfg.allow_unattested, "gain_db": cfg.gain_db,
-                "upload_recordings": cfg.upload_recordings, "issuer": issuer.public()}
+                "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config()}
 
     # -- enrollment (§2.2)
     @app.get("/v1/enroll/nonce")
@@ -311,7 +314,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     async def arm(sid: str, req: ArmIn, dev: dict = Depends(device)):
         s = sessions.load(sid)
         role = sessions.member(s, dev)
-        return sessions.arm(s, role, req.attempt, req.sample_rate, req.rtt_min_ms)
+        return sessions.arm(s, role, req.attempt, req.sample_rate, req.rtt_min_ms, req.popt)
 
     @app.post("/v1/session/{sid}/commit")
     async def commit(sid: str, req: CommitIn, dev: dict = Depends(device)):
@@ -351,7 +354,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         except ValueError:
             raise PopError(400, "bad_request", "meta must be JSON") from None
         attempt = meta.get("attempt", s["attempt"]) if isinstance(meta, dict) else s["attempt"]
-        return sessions.recording(s, role, attempt, await wav.read(), meta)
+        data = await wav.read()
+        return await asyncio.to_thread(sessions.recording, s, role, attempt, data, meta)
 
     @app.post("/v1/session/{sid}/abort")
     async def abort(sid: str, dev: dict = Depends(device)):

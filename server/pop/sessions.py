@@ -27,6 +27,16 @@ Choices the contract leaves open:
     re-arms; `error` is the final reason once done (null for NEAR), as for aborted.
   - the result record also carries `commits` {role: {commit_b64, sig_b64}} and `user_text`
     so verify_record() can re-check everything offline.
+
+POPT v2 (docs/pop-transcript-v2.md), the version switch:
+  - each phone picks its transcript version at arm: "popt": 1 (default, pop-v1 unchanged) or 2. It is pinned
+    for that role and attempt (re-arm with another popt = 409); the two roles may differ (the plaintext
+    verdict doesn't care; an option A pair proof needs both at 2).
+  - v2 arm also returns own_code {cI_b64, cQ_b64, n} (int8); commit also returns partner_code, both at the
+    phone's sr. Beds (float PCM) are still sent, for the v1 rule in meta.
+  - commit and transcript must carry the armed version; POPC v2 commits rec_root; the transcript's
+    code_commit must equal sha256("pop-code-v2" | own code | partner code) of the codes sent.
+  - v2 recording upload is checked against rec_root (Poseidon7 tree, ~2.5 s in Python; run off the event loop).
 """
 from __future__ import annotations
 
@@ -40,9 +50,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+import numpy as np
+
 from pop import constants as K
-from pop import invite, jbl250, verdict as V
-from pop.codec import b64d, decode_commit, decode_transcript, pcm
+from pop import invite, jbl250, popt2, poseidon7, verdict as V
+from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
 from pop.errors import PopError
 from pop.store import Store
@@ -172,14 +184,23 @@ class Sessions:
     def _key(self, s: dict, role: str) -> bytes:
         return jbl250.bed_key(s["seed_hex"], role, s["attempt"])
 
+    @staticmethod
+    def _popt(s: dict, role: str) -> int:
+        return s["per_role"][role].get("popt", 1)
+
     def _arm_material(self, s: dict, role: str) -> dict:
         sr = s["per_role"][role]["sample_rate"]
         key = self._key(s, role)
         play, _ = jbl250.render(key, role, sr, self.gain_db)
-        return {"attempt": s["attempt"], "sample_rate": sr, "play": pcm(play),
-                "own_bed": pcm(jbl250.template(key, role, sr))}
+        out = {"attempt": s["attempt"], "sample_rate": sr, "play": pcm(play),
+               "own_bed": pcm(jbl250.template(key, role, sr))}
+        if self._popt(s, role) == 2:   # v1 response stays exactly pop-v1
+            out["popt"] = 2
+            out["own_code"] = popt2.code_wire(key, role, sr)
+            out["delta"] = popt2.delta(sr)
+        return out
 
-    def arm(self, s: dict, role: str, attempt, sample_rate, rtt_min_ms) -> dict:
+    def arm(self, s: dict, role: str, attempt, sample_rate, rtt_min_ms, popt=None) -> dict:
         if s["state"] not in ("confirmed", "started"):
             raise PopError(409, "bad_state", s["state"])
         if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt != s["attempt"]:
@@ -188,13 +209,19 @@ class Sessions:
             raise PopError(400, "bad_sample_rate", f"{K.SR_MIN}..{K.SR_MAX}")
         if not isinstance(rtt_min_ms, (int, float)) or isinstance(rtt_min_ms, bool) or not 0 <= rtt_min_ms <= MAX_RTT_MS:
             raise PopError(400, "bad_request", f"rtt_min_ms must be 0..{MAX_RTT_MS}")
+        popt = 1 if popt is None else popt
+        if not _int(popt) or popt not in K.POPT_VERSIONS:
+            raise PopError(400, "bad_request", f"popt must be one of {list(K.POPT_VERSIONS)}")
         if s["armed"][role]:
             if s["per_role"][role]["sample_rate"] != sample_rate:
                 raise PopError(409, "bad_state", "already armed at another sample_rate")
+            if self._popt(s, role) != popt:
+                raise PopError(409, "bad_state", "already armed with another popt")
             return self._arm_material(s, role)
         if s["state"] != "confirmed":
             raise PopError(409, "bad_state", s["state"])
-        s["per_role"][role] = {"sample_rate": sample_rate, "rtt_min_ms": float(rtt_min_ms), "armed_ms": self.now_ms()}
+        s["per_role"][role] = {"sample_rate": sample_rate, "rtt_min_ms": float(rtt_min_ms), "armed_ms": self.now_ms(),
+                               "popt": popt}
         s["armed"][role] = True
         if all(s["armed"].values()):
             s["state"], s["t0_ms"] = "started", self.now_ms() + T0_DELAY_MS
@@ -205,7 +232,15 @@ class Sessions:
     def _partner_bed(self, s: dict, role: str) -> dict:
         other = OTHER[role]
         sr = s["per_role"][role]["sample_rate"]
-        return {"partner_bed": pcm(jbl250.template(self._key(s, other), other, sr))}
+        out = {"partner_bed": pcm(jbl250.template(self._key(s, other), other, sr))}
+        if self._popt(s, role) == 2:
+            out["partner_code"] = popt2.code_wire(self._key(s, other), other, sr)
+        return out
+
+    def _code_commit(self, s: dict, role: str) -> bytes:
+        """What a v2 transcript of `role` must carry: own + partner codes at role's sr."""
+        sr, other = s["per_role"][role]["sample_rate"], OTHER[role]
+        return popt2.code_commit(popt2.code(self._key(s, role), role, sr), popt2.code(self._key(s, other), other, sr))
 
     def commit(self, s: dict, role: str, dev: dict, commit_b64, sig_b64) -> dict:
         if s["state"] != "started":
@@ -219,6 +254,9 @@ class Sessions:
             raise PopError(400, "signature_invalid", "commit")
         if c["role"] != role or c["attempt"] != s["attempt"] or c["nonce"] != bytes.fromhex(s["nonce_hex"]):
             raise PopError(400, "transcript_mismatch", "role/attempt/nonce")
+        ver = version_of(c)
+        if ver != self._popt(s, role):
+            raise PopError(400, "transcript_mismatch", f"POPC version {ver} != armed popt {self._popt(s, role)}")
         mine = s["per_role"][role]
         if s["committed"][role]:
             if mine["commit_b64"] != commit_b64:
@@ -227,7 +265,7 @@ class Sessions:
         if self.now_ms() < s["t0_ms"] + int((K.B_PLAY_S + K.CODE_S) * 1000):
             raise PopError(409, "too_early", "commit before the schedule ends")
         mine.update({"commit_b64": commit_b64, "commit_sig_b64": sig_b64,
-                     "commit_sha256": hashlib.sha256(raw).hexdigest(), "rec_sha256": c["rec_sha256"].hex(),
+                     "commit_sha256": hashlib.sha256(raw).hexdigest(), REC_KEY[ver]: c[REC_KEY[ver]].hex(),
                      "committed_ms": self.now_ms()})
         s["committed"][role] = True
         self._save(s)
@@ -278,7 +316,7 @@ class Sessions:
             if d is not None:
                 devices[r] = {"device_id": d["device_id"], "pubkey": d["pubkey"], "display_name": d["display_name"],
                               "model": d["model"], "attested": d["attested"], "security_level": d["security_level"],
-                              "sample_rate": pr.get("sample_rate"), "half": pr.get("half")}
+                              "sample_rate": pr.get("sample_rate"), "half": pr.get("half"), "popt": pr.get("popt", 1)}
             if "transcript_b64" in pr:
                 transcripts[r] = {"transcript_b64": pr["transcript_b64"], "sig_b64": pr["sig_b64"],
                                   "sha256": pr["transcript_sha256"]}
@@ -329,13 +367,15 @@ class Sessions:
             raise PopError(409, "already_submitted", "")
         if not s["committed"][role]:
             raise PopError(409, "bad_state", "commit first")
+        ver = self._popt(s, role)
         try:
             if raw is None:
                 raise V.Reject("transcript_mismatch", "bad base64")
             t = V.check_transcript(raw, sig, role=role, pk_self=bytes.fromhex(dev["pubkey"]),
                                    pk_partner=self._pk(s, OTHER[role]), nonce=bytes.fromhex(s["nonce_hex"]),
                                    attempt=s["attempt"], commit_sha256=bytes.fromhex(mine["commit_sha256"]),
-                                   rec_sha256=bytes.fromhex(mine["rec_sha256"]), sample_rate=mine["sample_rate"])
+                                   rec=bytes.fromhex(mine[REC_KEY[ver]]), sample_rate=mine["sample_rate"],
+                                   version=ver, code_commit=self._code_commit(s, role) if ver == 2 else None)
         except V.Reject as e:
             self._finalize(s, "NOT_NEAR", e.reason, None, "rejected", role)
             raise PopError(400, e.reason, e.detail) from None
@@ -382,13 +422,15 @@ class Sessions:
             raise PopError(404, "no_result", s["state"])
         return s["result"]
 
-    # -- optional recording upload (§9): int16 mono WAV whose frames hash to the committed rec_sha256
+    # -- optional recording upload (§9): int16 mono WAV whose frames hash to the committed rec_sha256 (v1)
+    #    or build the committed rec_root (v2). Pure CPU for v2; main.py runs it in a worker thread.
     def recording(self, s: dict, role: str, attempt, wav_bytes: bytes, meta) -> dict:
         if not _int(attempt):
             raise PopError(400, "bad_attempt", "")
         pr = s["per_role"][role] if attempt == s["attempt"] else next(
             (a["per_role"][role] for a in s["attempts"] if a["attempt"] == attempt and "per_role" in a), {})
-        want = pr.get("rec_sha256")
+        ver = pr.get("popt", 1)
+        want = pr.get(REC_KEY[ver])
         if want is None:
             raise PopError(409, "bad_state", "no commit for that attempt")
         try:
@@ -398,8 +440,14 @@ class Sessions:
                 frames = w.readframes(w.getnframes())
         except (wave.Error, EOFError) as e:
             raise PopError(400, "bad_request", f"wav: {e}") from None
-        if hashlib.sha256(frames).hexdigest() != want:
+        if ver == 1 and hashlib.sha256(frames).hexdigest() != want:
             raise PopError(400, "transcript_mismatch", "recording sha256 != committed rec_sha256")
+        if ver == 2:
+            x = np.frombuffer(frames, dtype="<i2")
+            if x.size > poseidon7.NLEAVES * poseidon7.LEAF:
+                raise PopError(400, "bad_request", "recording longer than the rec_root tree")
+            if poseidon7.rec_root(x).hex() != want:
+                raise PopError(400, "transcript_mismatch", "recording rec_root != committed rec_root")
         path = self._write(s["session_id"], f"recording_{role}_{attempt}.wav", wav_bytes)
         if path is not None and meta is not None:
             self._write(s["session_id"], f"recording_{role}_{attempt}.json", json.dumps(meta, indent=1).encode())
@@ -422,6 +470,7 @@ class Sessions:
                 "attested": other["attested"], "security_level": other["security_level"], "pubkey": other["pubkey"]},
             "confirmed": dict(s["confirmed"]), "armed": dict(s["armed"]),
             "committed": dict(s["committed"]), "submitted": dict(s["submitted"]),
+            "popt": {r: s["per_role"][r].get("popt") for r in ROLES},
             "t0_ms": s["t0_ms"],
             "constants": {"a_play_s": K.A_PLAY_S, "b_play_s": K.B_PLAY_S, "lead_s": K.LEAD_S, "capture_s": K.CAPTURE_S},
             "result": s["result"],
