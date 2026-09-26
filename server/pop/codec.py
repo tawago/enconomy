@@ -1,7 +1,7 @@
 """Fixed-layout binary records (contract §7, docs/pop-transcript-v2.md §1, §4) and the PCM wire format (§5.3).
 
 Commitment (71 bytes): "POPC" | version | role | attempt u8 | session_nonce 32 | rec 32
-  (v1 rec = rec_sha256, v2 rec = rec_root, a Poseidon7 root < p).
+  (v1 rec = rec_sha256, v2 rec = rec_root, a Poseidon2 root < BN254 r).
 Transcript v1 (269 bytes, §7.1): "POPT" | 0x01 | role | attempt u8 | session_nonce 32 | pk_self 65 |
   pk_partner 65 | sample_rate u32 | half i32 | rec_sha256 32 | play_frame_position u64 |
   play_nano_time u64 | rec_frame0_nano_time u64 | self_os_delta i32 | commit_hash 32.  All big-endian.
@@ -18,7 +18,7 @@ import struct
 
 import numpy as np
 
-from pop.poseidon7 import P as FIELD_P
+from pop.poseidon2 import R as FIELD_P
 
 COMMIT_MAGIC, COMMIT_LEN = b"POPC", 71
 VERSION = 1
@@ -42,7 +42,7 @@ def version_of(d: dict) -> int:
 
 def _root_ok(rec: bytes) -> None:
     if int.from_bytes(rec, "big") >= FIELD_P:
-        raise ValueError("rec_root not < p")
+        raise ValueError("rec_root not < r (BN254)")
 
 
 def encode_commit(role: str, attempt: int, nonce: bytes, rec: bytes, version: int = VERSION) -> bytes:

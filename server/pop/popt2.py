@@ -2,7 +2,8 @@
 
   cI, cQ      = band-masked bed template at the listener's sr and its Hilbert pair, truncated to L,
                 int8 with one common scale 127 / max(|cI|, |cQ|) (numpy round, half to even)
-  code_commit = sha256("pop-code-v2" | cI_self | cQ_self | cI_partner | cQ_partner), int8 bytes, signer's sr
+  code_commit = Poseidon2 code_commitment (oalib, Noir option A) over cI_self, cQ_self, cI_partner, cQ_partner as
+                u8 = int8 + 128, 31 bytes big-endian per absorbed element, tag 10; 32 B big-endian, signer's sr
   delta       = DELTA_MS * sr // 1000   (the circuit's self window half-width)
 
 The server derives the codes and sends them (own_code at arm, partner_code after the POPC v2 commit): a phone
@@ -12,15 +13,14 @@ can't reproduce this FFT path bit for bit. RATES holds what the app's integer tw
 from __future__ import annotations
 
 import base64
-import hashlib
 from functools import lru_cache
 
 import numpy as np
 
 from pop import constants as K
 from pop import jbl250
+from pop import poseidon2 as p2
 
-CODE_TAG = b"pop-code-v2"
 NFFT = 1 << 17
 
 # oa_rate.params(sr): h = firwin(63, [2000, 18000], kaiser 6) scaled to max|h| = 127, g = rms gain 3-16 kHz,
@@ -77,8 +77,16 @@ def code_wire(key: bytes, role: str, sr: int) -> dict:
     return {"cI_b64": base64.b64encode(cI).decode(), "cQ_b64": base64.b64encode(cQ).decode(), "n": len(cI)}
 
 
+def code_commit_int(self_code: tuple[bytes, bytes], partner_code: tuple[bytes, bytes]) -> int:
+    """oalib code_commitment(c_is, c_qs, c_ip, c_qp); any L (the circuit fixes L = 12000 at 48 kHz)."""
+    sp = p2.Sp(p2.TAG_CODE)
+    for c in (*self_code, *partner_code):
+        p2._absorb_bytes(sp, bytes((b + 128) & 0xFF for b in c))   # int8 byte -> u8 = v + 128
+    return sp.finish()[0]
+
+
 def code_commit(self_code: tuple[bytes, bytes], partner_code: tuple[bytes, bytes]) -> bytes:
-    return hashlib.sha256(CODE_TAG + self_code[0] + self_code[1] + partner_code[0] + partner_code[1]).digest()
+    return p2.to_bytes32(code_commit_int(self_code, partner_code))
 
 
 def config() -> dict:

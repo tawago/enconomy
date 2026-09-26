@@ -7,7 +7,7 @@ import wave
 import numpy as np
 import pytest
 
-from pop import popt2, poseidon7
+from pop import popt2, poseidon2
 from pop.codec import b64d, decode_transcript, encode_commit
 from pop.crypto import sign_raw
 from pop.verdict import verify_record
@@ -36,7 +36,7 @@ def test_near_v2_real_root(world):
     for p in w.phones:
         raw = b64d(rec["transcripts"][p.role]["transcript_b64"])
         t = decode_transcript(raw)
-        assert len(raw) == 311 and t["version"] == 2 and t["rec_root"] == poseidon7.rec_root(p.last["capture"])
+        assert len(raw) == 311 and t["version"] == 2 and t["rec_root"] == poseidon2.to_bytes32(poseidon2.rec_root(p.last["capture"]))
         assert t["a_partner"] == p.last["a_partner"] and t["p_self"] == p.last["p_self"]
         assert abs(t["self_os_delta"]) <= t["delta"]      # provable: inside the circuit's 2 ms window
         assert b64d(rec["commits"][p.role]["commit_b64"])[4] == 2
@@ -56,7 +56,7 @@ def test_codes_on_the_wire(world):
     t0 = w.view()["t0_ms"]
     w.clock.ms = t0 + 1500
     cap = w.capture(w.a, t0, 0)
-    commit = encode_commit("A", 0, w.a.nonce, poseidon7.rec_root(cap[:5000]), version=2)
+    commit = encode_commit("A", 0, w.a.nonce, poseidon2.to_bytes32(poseidon2.rec_root(cap[:5000])), version=2)
     r = w.a.post(f"/v1/session/{w.sid}/commit", {"commit_b64": b64(commit), "sig_b64": b64(sign_raw(w.a.sk, commit))})
     assert r.status_code == 200 and code_of(r.json()["partner_code"]) == popt2.code(kb, "B", 48000)
     # B listens at 44.1 kHz: its own code is at its rate
@@ -145,7 +145,7 @@ def test_rec_root_commit_must_be_canonical(world):
     w.a.arm(0)
     w.b.arm(0)
     w.clock.ms = w.view()["t0_ms"] + 1500
-    commit = encode_commit("A", 0, w.a.nonce, poseidon7.P.to_bytes(32, "big"), version=2)
+    commit = encode_commit("A", 0, w.a.nonce, poseidon2.R.to_bytes(32, "big"), version=2)
     r = w.a.post(f"/v1/session/{w.sid}/commit", {"commit_b64": b64(commit), "sig_b64": b64(sign_raw(w.a.sk, commit))})
     assert r.status_code == 400 and "rec_root" in r.json()["detail"]
 

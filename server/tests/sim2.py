@@ -9,7 +9,7 @@ import hashlib
 import numpy as np
 
 from pop import constants as K
-from pop import popt2, poseidon7
+from pop import popt2, poseidon2
 from pop.codec import encode_commit, encode_transcript
 from pop.crypto import sign_raw
 from tests import sim, twin2
@@ -22,7 +22,7 @@ def code_of(d: dict) -> tuple[bytes, bytes]:
 
 def fake_root(capture: np.ndarray) -> bytes:
     """Stand-in rec_root (< p) for tests that never upload: the server only compares it with the commit."""
-    return (int.from_bytes(hashlib.sha256(capture.tobytes()).digest(), "big") >> 1).to_bytes(32, "big")
+    return (int.from_bytes(hashlib.sha256(capture.tobytes()).digest(), "big") >> 3).to_bytes(32, "big")
 
 
 class FakePhone2(sim.FakePhone):
@@ -56,7 +56,7 @@ class FakePhone2(sim.FakePhone):
         sod = a_self - p_self
         if self.k.self_os_delta_override is not None:
             sod = self.k.self_os_delta_override      # a wrong OS timestamp: p_self = a_self - sod moves
-        root = poseidon7.rec_root(capture) if self.real_root else fake_root(capture)
+        root = poseidon2.to_bytes32(poseidon2.rec_root(capture)) if self.real_root else fake_root(capture)
         commit = encode_commit(role, attempt, self.nonce, root, version=self.commit_version)
         r = self.post(f"/v1/session/{self.sid}/commit", {"commit_b64": b64(commit), "sig_b64": b64(sign_raw(self.sk, commit))})
         if r.status_code != 200:

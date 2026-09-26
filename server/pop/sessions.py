@@ -36,8 +36,8 @@ POPT v2 (docs/pop-transcript-v2.md), the version switch:
   - v2 arm also returns own_code {cI_b64, cQ_b64, n} (int8); commit also returns partner_code, both at the
     phone's sr. Beds (float PCM) are still sent, for the v1 rule in meta.
   - commit and transcript must carry the armed version; POPC v2 commits rec_root; the transcript's
-    code_commit must equal sha256("pop-code-v2" | own code | partner code) of the codes sent.
-  - v2 recording upload is checked against rec_root (Poseidon7 tree, ~2.5 s in Python; run off the event loop).
+    code_commit must equal the Poseidon2 code_commitment (popt2.code_commit) of the codes sent.
+  - v2 recording upload is checked against rec_root (Poseidon2/BN254 oalib tree; run off the event loop).
 
 Option A proofs (pop/zk.py), after the verdict:
   - only once the session is done with NEAR, per role, for the final attempt, POPT v2 at 44.1 / 48 kHz, from a
@@ -63,7 +63,7 @@ import numpy as np
 
 from pop import calibration as CAL
 from pop import constants as K
-from pop import human as H, invite, jbl250, popctx, popt2, poseidon7, verdict as V, zk
+from pop import human as H, invite, jbl250, popctx, popt2, poseidon2, verdict as V, zk
 from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
@@ -494,9 +494,9 @@ class Sessions:
             raise PopError(400, "transcript_mismatch", "recording sha256 != committed rec_sha256")
         if ver == 2:
             x = np.frombuffer(frames, dtype="<i2")
-            if x.size > poseidon7.NLEAVES * poseidon7.LEAF:
+            if x.size > poseidon2.CAP:
                 raise PopError(400, "bad_request", "recording longer than the rec_root tree")
-            if poseidon7.rec_root(x).hex() != want:
+            if poseidon2.to_bytes32(poseidon2.rec_root(x)).hex() != want:
                 raise PopError(400, "transcript_mismatch", "recording rec_root != committed rec_root")
         path = self._write(s["session_id"], f"recording_{role}_{attempt}.wav", wav_bytes)
         if path is not None and meta is not None:
