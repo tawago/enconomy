@@ -1,0 +1,19 @@
+[Unit]
+Description=enconomy remote zkprove worker (127.0.0.1:8090)
+After=network.target
+
+[Service]
+User=zkw
+Group=zkw
+EnvironmentFile=/etc/enconomy-prover/worker.env
+Environment=ZKPROVE=/opt/zk/bin/zkprove ZK_ART=/opt/zk/art WORKER_PORT=8090 PROVE_TIMEOUT_S=120
+ExecStart=/usr/bin/python3 /opt/zk/worker/worker.py
+Restart=always
+RestartSec=2
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

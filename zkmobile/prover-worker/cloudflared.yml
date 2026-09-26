@@ -1,0 +1,7 @@
+# /etc/cloudflared/config.yml on the droplet (tunnel "enconomy-prover", DNS prover.enconomy.dev)
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+ingress:
+  - hostname: prover.enconomy.dev
+    service: http://127.0.0.1:8090
+  - service: http_status:404

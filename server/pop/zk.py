@@ -359,3 +359,57 @@ class Prover:
         if m:
             raise Reject("witness_failed", m.group(1)[:200])
         raise Unavailable(f"zkprove rc={r.returncode}: {err[-200:]}")
+
+
+class RemoteProver:
+    """Delegated proving on the remote worker (zkmobile/prover-worker, POST /prove behind cloudflared), falling back to
+    the local zkprove when the worker errors or times out. A witness failure is the inputs' fault: no fallback.
+    POP_ZK_REMOTE_PROVER = base URL, POP_ZK_REMOTE_SECRET_FILE = bearer secret file (never logged)."""
+
+    def __init__(self, url: str, secret_file: str, local: Prover, timeout_s: float = 150):
+        self.url, self.local, self.timeout_s = url.rstrip("/") + "/prove", local, timeout_s
+        self.secret = Path(secret_file).expanduser().read_text().strip()
+
+    def available(self, circuit: str) -> bool:
+        return circuit in VK_PINS or self.local.available(circuit)
+
+    def prove(self, circuit: str, toml: str) -> tuple[bytes, bytes]:
+        return self.prove_ex(circuit, toml)[:2]
+
+    def prove_ex(self, circuit: str, toml: str) -> tuple[bytes, bytes, str]:
+        """-> (proof, public_inputs, "remote" | "local")."""
+        import base64
+        import gzip
+        import json
+        import logging
+        import time
+        import urllib.error
+        import urllib.request
+        log = logging.getLogger("pop.zk")
+        if circuit not in VK_PINS:
+            raise Unavailable(f"{circuit} is not a pinned circuit")
+        body = gzip.compress(json.dumps({"circuit": circuit, "inputs": toml}).encode(), 6)
+        req = urllib.request.Request(self.url, data=body, method="POST", headers={
+            "Authorization": f"Bearer {self.secret}", "Content-Type": "application/json",
+            "Content-Encoding": "gzip", "User-Agent": "pop-server"})
+        t = time.monotonic()
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout_s) as r:
+                d = json.loads(r.read())
+            proof, pub = base64.b64decode(d["proof_b64"]), base64.b64decode(d["public_inputs_b64"])
+            log.info("zk prove ran on remote worker (%.1f s, worker %s ms)", time.monotonic() - t, d.get("ms"))
+            return proof, pub, "remote"
+        except urllib.error.HTTPError as e:
+            try:
+                d = json.loads(e.read())
+            except Exception:
+                d = {}
+            if e.code == 422 and d.get("error") == "witness_failed":
+                raise Reject("witness_failed", str(d.get("detail", ""))[:200]) from None
+            why = f"http {e.code} {d.get('error', '')}"
+        except Exception as e:   # timeout, DNS, TLS, bad JSON
+            why = f"{type(e).__name__}: {str(e)[:120]}"
+        log.warning("remote prover failed after %.1f s (%s); proving locally", time.monotonic() - t, why)
+        proof, pub = self.local.prove(circuit, toml)
+        log.info("zk prove ran locally (%.1f s total)", time.monotonic() - t)
+        return proof, pub, "local"

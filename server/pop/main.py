@@ -11,7 +11,9 @@ POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP
 POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkprove host build, default
 ~/.enconomy/zk/android/target/release/zkprove; delegated proving), POP_ZK_DIR (served / used circuit artifacts
 oaN_s48.json, oaN_s48.vk, bn254_g1_2p20.dat; default: the team build + pinned dirs, see pop/zk.py),
-POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
+POP_ZK_WRAP (command prefix for bb / zkprove), POP_ZK_REMOTE_PROVER (remote worker base URL, e.g.
+https://prover.enconomy.dev; delegated proofs run there, local zkprove as fallback) + POP_ZK_REMOTE_SECRET_FILE
+(its bearer secret), POP_ZK_REMOTE_TIMEOUT_S (150). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
 attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
 """
@@ -95,6 +97,9 @@ class Settings:
     zk_prover: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_PROVER") or str(zk.DEFAULT_PROVER))
     zk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_DIR") or None)
     zk_wrap: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_WRAP") or None)
+    zk_remote: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_REMOTE_PROVER") or None)
+    zk_remote_secret_file: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_REMOTE_SECRET_FILE") or None)
+    zk_remote_timeout_s: float = field(default_factory=lambda: float(os.environ.get("POP_ZK_REMOTE_TIMEOUT_S", "150")))
     chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "11155111")))
     attest_key_file: str = field(default_factory=lambda: os.environ.get(
         "POP_ATTEST_KEY_FILE", str(SERVER_DIR / "data" / "attest.pem")))
@@ -264,6 +269,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         pair_art = zk.Artifacts(cfg.zk_dir, zk.PAIR_ARTIFACTS)
         pair_prover = pair_prover or zk.Prover(cfg.zk_prover, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
         pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
+    if prover is None and cfg.zk_remote and cfg.zk_remote_secret_file:
+        zkp = zk.RemoteProver(cfg.zk_remote, cfg.zk_remote_secret_file, zkp, cfg.zk_remote_timeout_s)
+        log.info("delegated proofs: remote worker %s (local zkprove fallback)", cfg.zk_remote)
     prove_tasks: set = set()
     wid = WorldID(cfg, sessions, db, worldid_transport)
     att_key = attest.load_key(cfg.attest_key_file)
@@ -660,8 +668,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     async def _delegate_job(sid: str, role: str, entry: dict, circuit: str, toml: str, want: list[int], salt: int):
         t = time.monotonic()
         try:
-            prf, pub = await asyncio.to_thread(zkp.prove, circuit, toml)
+            if hasattr(zkp, "prove_ex"):
+                prf, pub, host = await asyncio.to_thread(zkp.prove_ex, circuit, toml)
+            else:
+                (prf, pub), host = await asyncio.to_thread(zkp.prove, circuit, toml), "local"
             del toml
+            entry = {**entry, "prover_host": host}
             zk.compare(zk.from_file(pub), want, "server proof ")
             await asyncio.to_thread(zkv.verify, circuit, prf, want)
         except Reject as e:
@@ -673,7 +685,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
             log.warning("delegated proof %s %s failed: %s", sid, role, e)
             return
         _verified(sid, role, {**entry, "prove_ms": round((time.monotonic() - t) * 1000)}, prf, want, salt)
-        log.info("delegated proof %s %s verified (%s, %.1f s)", sid, role, circuit, time.monotonic() - t)
+        log.info("delegated proof %s %s verified (%s, %s, %.1f s)", sid, role, circuit, entry.get("prover_host"),
+                 time.monotonic() - t)
 
     @app.post("/v1/session/{sid}/proof/delegate")
     async def proof_delegate(sid: str, request: Request, dev: dict = Depends(device)):
