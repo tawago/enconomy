@@ -28,6 +28,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val controller = (application as PopApplication).controller
         setContent { App(controller) }
+        // adb shell am start -n com.enconomy.pop/.MainActivity --es pop.bench 180ca04b_48k_A [--ez pop.force true]
+        intent.getStringExtra("pop.bench")?.let { controller.openBench(); controller.benchRun(it, intent.getBooleanExtra("pop.force", false)) }
     }
 
     /** enconomy://worldid from World App (singleTask). */

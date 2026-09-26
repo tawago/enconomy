@@ -1047,7 +1047,11 @@ class PopController(
         _state.update { it.copy(keyState = m) }
     }
 
-    private fun benchLog(line: String) = _state.update { it.copy(benchLog = it.benchLog + line) }
+    private fun benchLog(line: String) {
+        println("PopBench: $line")
+        _state.update { it.copy(benchLog = it.benchLog + line) }
+        runCatching { ZkFiles.append("${ZkFiles.dir()}/bench.log", "$line\n".encodeToByteArray()) }
+    }
 
     fun benchDownload(k: KeySpec) {
         if (benchJob?.isActive == true) return
@@ -1101,6 +1105,7 @@ class PopController(
                 if (!built.expectedPublic.contentEquals(fx.publicInputs)) benchLog("expected public inputs DIFFER from the team's proof")
                 val out = prover.run(fx.source, allowDownload = true, onStatus = { st -> _state.update { it.copy(benchStatus = st) } },
                     force = force, expectPublic = fx.publicInputs, prebuilt = built)
+                if (out == null) benchLog("not proved: ${state.value.benchStatus}")
                 if (out != null) {
                     out.stats.lines().forEach(::benchLog)
                     runCatching {
@@ -1114,6 +1119,7 @@ class PopController(
                 throw e
             } catch (e: Throwable) {
                 val step = when (e) { is KeyException -> "proving key"; is ProverException -> "prover"; is UnprovableException -> "witness"; else -> "bench" }
+                benchLog("FAILED ($step): ${e.message ?: e::class.simpleName}")
                 _state.update { it.copy(benchStatus = ProofStatus.Failed(step, e.message ?: e::class.simpleName ?: "error")) }
             } finally {
                 refreshKeys()
