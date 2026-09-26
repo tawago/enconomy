@@ -122,7 +122,11 @@ h2 { font-size: 21px; font-weight: 700; }
 .total:first-child { margin-left: 0; border-left: 0; padding-left: 0; }
 .total dt { font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: .14em; color: var(--ink-3); }
 .total dd { display: inline-block; text-align: left; margin: 6px 0 0; font-size: clamp(52px, 6.4vw, 92px); font-weight: 800; line-height: .9; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.total dd .none { color: var(--line); }
+.total dd .loading, .stat .big .loading {
+  display: inline-block; width: .9em; height: .62em; vertical-align: baseline; border-radius: .1em;
+  background: var(--line-2); color: transparent; animation: shimmer 1.1s ease-in-out infinite alternate;
+}
+@keyframes shimmer { to { opacity: .45; } }
 
 /* latest meeting */
 .just {
@@ -268,7 +272,7 @@ h2 { font-size: 21px; font-weight: 700; }
 .stat.met .big { color: var(--accent); }
 .stat.met .num { --hot: var(--ink); }
 .stat .lbl { font-size: 14px; color: var(--ink-2); }
-.stat .big .err { font-size: 16px; color: var(--err); font-weight: 600; }
+.stat .big .err { font: 600 15px var(--mono); letter-spacing: 0; color: var(--err); }
 .stat .big .none { color: var(--ink-3); }
 .desc { margin: 18px 0 4px; }
 .desc .k { font: 11px var(--mono); color: var(--ink-3); display: block; margin-bottom: 2px; }

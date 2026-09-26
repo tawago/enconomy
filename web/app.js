@@ -229,7 +229,7 @@ async function refreshCounts(nodes) {
 
 // ---------- rendering: numbers
 function cellHtml(st) {
-  if (!st) return '<span class="none">…</span>'
+  if (!st) return '<span class="none loading">…</span>'
   let h
   if (st.v != null) h = `<span class="num">${st.v}</span>`
   else if (st.empty) h = '<span class="none" title="empty text record">—</span>'
@@ -411,9 +411,9 @@ function setProfile(input) {
     <div class="p-name">${p.underParent ? nameHtml(p.label) : esc(p.name)}</div>
     ${p.underParent ? '' : `<div class="p-notice">This name is not under ${esc(S.parent)}. Showing whatever its resolver returns.</div>`}
     <div class="stats">
-      <div class="stat met"><div class="k">${KEYS.met}</div><div class="big v" id="pMet"><span class="none">…</span></div><div class="lbl">people met</div></div>
-      <div class="stat"><div class="k">${KEYS.meetings}</div><div class="big v" id="pMt"><span class="none">…</span></div><div class="lbl">meetings</div></div>
-      <div class="stat"><div class="k">${KEYS.zk}</div><div class="big v" id="pZk"><span class="none">…</span></div><div class="lbl">ZK verified</div></div>
+      <div class="stat met"><div class="k">${KEYS.met}</div><div class="big v" id="pMet"><span class="none loading">…</span></div><div class="lbl">people met</div></div>
+      <div class="stat"><div class="k">${KEYS.meetings}</div><div class="big v" id="pMt"><span class="none loading">…</span></div><div class="lbl">meetings</div></div>
+      <div class="stat"><div class="k">${KEYS.zk}</div><div class="big v" id="pZk"><span class="none loading">…</span></div><div class="lbl">ZK verified</div></div>
     </div>
     <p class="desc" id="pDesc"><span class="k">description</span>…</p>
     <dl class="kv" id="pKv"></dl>
@@ -509,7 +509,7 @@ async function loadSnapshot() {
 function renderStatus(ok) {
   const dot = $('liveDot')
   if (ok === true) { dot.className = 'live-dot ok'; void dot.offsetWidth; dot.classList.add('tick') }
-  if (ok === false) dot.className = 'live-dot bad'
+  if (ok === false) { dot.className = 'live-dot bad'; if (S.head == null) $('blockText').textContent = 'RPC unreachable' }
   tickClock()
 }
 function tickClock() {

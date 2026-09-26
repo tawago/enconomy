@@ -10,7 +10,9 @@ Files: `index.html`, `app.js`, `style.css`, `config.json`, optional `snapshot.js
 - Finds the MeetResolver with `getEnsResolver(parent)` through the Universal Resolver. Fallback: `RootRegistry.getSubregistry("eth")` → `ETHRegistry.getResolver(label)`. Any candidate must answer `DEPLOY_BLOCK()`.
 - Leaderboard: `Member` + `Met` (+ `ZkVerified`, `MeetVoided`) logs from `DEPLOY_BLOCK` in 45,000-block chunks. Counts come from ENS text records (`getEnsText`, `strict: true`) and are cross-checked with `countsOf`; a disagreement shows as "chain N" under the value. Names whose `countsOf` says not registered are hidden.
 - Profile: `?name=alice` or `?name=alice.enconomy.eth`, or the search box. Shows met / meetings / zk, `description`, registry status + expiry + owner, `addr()`, meetings (partner + hour from `timeBucket`), links to explorer.ens.dev and Etherscan.
-- Live: polls every `pollMs` (default 8 s). New logs bump the counts in place (number pop, "+1", row flash, rank slide) and the "Latest meeting" card lights up.
+- Header totals: live meetings (not voided) and names on the board.
+- Live: polls every `pollMs` (default 8 s). When a meeting lands, the "Latest meeting" card swaps to the new pair and glows, each count that went up rolls N → N+1 with a "+1" pill, the row washes accent and slides to its new rank, and the meeting drops into the feed (latest 8). All steps chain on `animationend`, so pausing the page's animations freezes the moment for a screenshot.
+- Chain details (parent, resolver, registry, deploy block, UR, RPC) sit in the footer.
 - Errors (RPC failure, UR revert) are shown as errors, never as empty values. An empty text record shows "—".
 - Banner when `UR.ROOT_REGISTRY()` differs from `config.json` `rootRegistry` (ENS redeployed the beta).
 
