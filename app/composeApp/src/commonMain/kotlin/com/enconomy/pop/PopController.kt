@@ -42,7 +42,10 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
 /** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
 val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 
-enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench }
+/** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"). */
+const val AUDIO_MODE_PREF = "audio.mode"
+
+enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
 
 data class Enrollment(
     val deviceId: String,
@@ -96,6 +99,16 @@ data class UiState(
     val benchLog: List<String> = emptyList(),
     /** Per circuit: "present" / "partial n bytes" / "missing". */
     val keyState: Map<String, String> = emptyMap(),
+    // ---- audio check ----
+    val audioCheck: AudioCheckResult? = null,
+    val audioCheckRunning: Boolean = false,
+    /** Route before the check (or after the last one). */
+    val audioRoute: AudioRoute? = null,
+    val audioModes: List<String> = emptyList(),
+    /** Prefs "audio.mode" (iOS session mode, also used for runs). */
+    val audioMode: String = "",
+    /** Audio check only; runs always force the speaker. */
+    val forceSpeaker: Boolean = true,
 )
 
 /**
@@ -136,7 +149,7 @@ class PopController(
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
         return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
-            popt2On = Prefs.get("popt") != "1")
+            popt2On = Prefs.get("popt") != "1", audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
     }
 
     private fun storedEnrollment(): Enrollment? {
@@ -474,7 +487,7 @@ class PopController(
             val res = r.run()
             val ev = r.evidence
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
-            _state.update { it.copy(result = res, resultDetail = null, screen = Screen.Result, runPhase = null, proof = null) }
+            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null) }
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
@@ -563,6 +576,65 @@ class PopController(
             }
         }
         proofJob?.invokeOnCompletion { _state.update { it.copy(proofBusy = proofJob?.isCompleted == false) } }
+    }
+
+    // ---- audio check ----
+
+    fun openAudioCheck() {
+        go(Screen.AudioCheck)
+        val modes = runCatching { engine.sessionModes }.getOrDefault(emptyList())
+        val mode = state.value.audioMode.takeIf { it in modes } ?: modes.firstOrNull() ?: ""
+        _state.update { it.copy(audioModes = modes, audioMode = mode, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull()) }
+    }
+
+    /** iOS session mode for the check and for real runs (Prefs "audio.mode"). */
+    fun setAudioMode(m: String) {
+        if (state.value.audioCheckRunning) return
+        Prefs.set(AUDIO_MODE_PREF, m)
+        _state.update { it.copy(audioMode = m, audioCheck = null) }
+        refreshPreflight() // re-applies the session with the new mode
+        _state.update { it.copy(audioRoute = runCatching { engine.route() }.getOrNull()) }
+    }
+
+    fun setForceSpeaker(on: Boolean) {
+        if (state.value.audioCheckRunning) return
+        _state.update { it.copy(forceSpeaker = on, audioCheck = null) }
+    }
+
+    /**
+     * Plays the local JBL250 stand-in through the run's own path (prepare + run with a role A plan,
+     * sound at t0, 0.5 s quiet lead-in) and measures how loud the phone hears itself.
+     */
+    fun audioCheck() {
+        if (state.value.busy || state.value.audioCheckRunning) return
+        _state.update { it.copy(audioCheckRunning = true, audioCheck = null, error = null, status = "audio check") }
+        job = scope.launch {
+            try {
+                engine.setForceSpeaker(state.value.forceSpeaker)
+                val pre = engine.preflight()
+                _state.update { it.copy(preflight = pre) }
+                if (!pre.micPermission) error("Microphone permission needed.")
+                val sr = pre.sampleRate
+                val play = withContext(Dispatchers.Default) { TestSound.generate(sr) }
+                engine.prepare(sr, play)
+                val before = engine.route()
+                val plan = RunPlan('A', sr, 0L, monoNanos() + 1_400_000_000L)
+                val cap = engine.run(plan)
+                engine.release()
+                val lv = withContext(Dispatchers.Default) { cap.selfHear() }
+                val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings)
+                println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
+                _state.update { it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}") }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _state.update { it.copy(error = "Audio check failed: ${e.message}", status = "") }
+            } finally {
+                runCatching { engine.release() }
+                engine.setForceSpeaker(true)
+                _state.update { it.copy(audioCheckRunning = false) }
+            }
+        }
     }
 
     // ---- prover bench ----

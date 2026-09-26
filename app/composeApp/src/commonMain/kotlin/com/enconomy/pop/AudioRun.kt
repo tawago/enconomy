@@ -63,6 +63,18 @@ interface AudioEngine {
 
     /** Releases mic, track, effects, foreground service. Idempotent. */
     fun release()
+
+    /** Output route, volume and session as the OS reports them now. */
+    fun route(): AudioRoute = AudioRoute.UNKNOWN
+
+    /** Session modes the user can pick (iOS; Prefs "audio.mode"). Empty = fixed. */
+    val sessionModes: List<String> get() = emptyList()
+
+    /**
+     * Audio check only: false skips overrideOutputAudioPort(.speaker) (iOS) so the default route can be
+     * compared. Runs always force the speaker; the caller sets it back to true after the check.
+     */
+    fun setForceSpeaker(on: Boolean) {}
 }
 
 expect fun createAudioEngine(): AudioEngine
@@ -201,6 +213,8 @@ class Capture(
     val framesRecorded: Long,
     val captureStartFrame: Long,
     val trackDrained: Boolean,
+    /** Route / session at play time (null = engine does not report it). */
+    val route: AudioRoute? = null,
 ) {
     val recSha256: ByteArray by lazy { AudioTiming.recSha256(pcm) }
     val playOnsetNs: Double get() = AudioTiming.playOnsetNs(playNanoTime, playFramePosition, sr)
@@ -222,7 +236,11 @@ class Capture(
         put("capture_start_frame", captureStartFrame)
         put("track_drained", trackDrained)
         put("sample_rate", sr)
+        route?.putMeta(this)
     }
+
+    /** Own sound vs the lead-in floor, from the capture (diagnostics). */
+    fun selfHear(): SelfHear = SelfHear.measure(pcm, sr, expectedSelf())
 }
 
 internal fun secToNs(s: Double): Long = round(s * 1e9).toLong()

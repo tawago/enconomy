@@ -95,6 +95,10 @@ class PopRun(
     var evidence: Popt2Evidence? = null
         private set
 
+    /** Message of the last audio failure (e.g. output not on the speaker), for the result screen. */
+    var audioError: String? = null
+        private set
+
     /** Runs until the session is done or aborted. Throws RunBlocked before arming. */
     suspend fun run(): ResultRecord {
         var v = api.session(sessionId)
@@ -166,6 +170,7 @@ class PopRun(
             return afterCapture(k, nonce, pkPartner, plan, cap, ownBed)
         } catch (e: AudioException) {
             engine.release()
+            audioError = e.message
             return fail(k, e.reason, buildJsonObject { put("error", e.message) })
         } finally {
             engine.release()
@@ -180,6 +185,7 @@ class PopRun(
                                      ownBed: DoubleArray): SessionView = coroutineScope {
         engine.release() // mic + speaker off once Running is over (§9.2)
         val sr = plan.sr
+        val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
         // Nulls only now: nothing CPU-heavy runs while the mic is open.
         val selfNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, role, k, sr) }
         status(RunPhase.SelfCheck, k)
@@ -188,7 +194,7 @@ class PopRun(
         val self = selfNulls.await().let { n -> withContext(Dispatchers.Default) { r.selfCheck(ownBed, expSelf, n) } }
         if (self !is PopRound.Step.SelfOk) {
             val f = self as PopRound.Step.Failed
-            return@coroutineScope fail(k, f.reason, meta(cap, r, expSelf, null, null))
+            return@coroutineScope fail(k, f.reason, meta(cap, r, expSelf, null, null, hear.await()))
         }
         // Partner nulls overlap commit + partner bed fetch.
         val partnerNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, partnerRole, k, sr) }
@@ -210,7 +216,7 @@ class PopRun(
         val expPartner = cap.expectedPartner(plan)
         val p = partnerNulls.await().let { n -> withContext(Dispatchers.Default) { r.measurePartner(partnerBed, expPartner, n) } }
         if (p !is PopRound.Step.PartnerOk) {
-            return@coroutineScope fail(k, (p as PopRound.Step.Failed).reason, meta(cap, r, expSelf, expPartner, null))
+            return@coroutineScope fail(k, (p as PopRound.Step.Failed).reason, meta(cap, r, expSelf, expPartner, null, hear.await()))
         }
 
         status(RunPhase.Submitting, k)
@@ -224,7 +230,7 @@ class PopRun(
         val tx = t.encode()
         val sig = sign(tx)
         try {
-            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta(cap, r, expSelf, expPartner, p.half)))
+            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta(cap, r, expSelf, expPartner, p.half, hear.await())))
         } catch (e: PopHttpException) {
             // 409: partner moved on; 400: server rejected and finalized. Either way the view says what happened.
             if (e.status != 409 && e.status != 400) throw e
@@ -239,6 +245,7 @@ class PopRun(
         engine.release()
         val sr = plan.sr
         check(sr == rate.sr) { "rate ${rate.sr} != $sr" }
+        val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
         val tree = async(Dispatchers.Default) { RecTree.buildParallel(cap.pcm, 4) }
         status(RunPhase.SelfCheck, k)
         val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs)
@@ -246,7 +253,7 @@ class PopRun(
         val self = withContext(Dispatchers.Default) { r.selfCheck(own, expSelf) }
         if (self !is PopRound2.Step.SelfOk) {
             tree.cancel()
-            return@coroutineScope fail(k, (self as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, null, null, null))
+            return@coroutineScope fail(k, (self as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, null, null, null, hear.await()))
         }
 
         status(RunPhase.Committing, k)
@@ -268,7 +275,7 @@ class PopRun(
         val expPartner = cap.expectedPartner(plan)
         val p = withContext(Dispatchers.Default) { r.measurePartner(partnerCode, expPartner) }
         if (p !is PopRound2.Step.PartnerOk) {
-            return@coroutineScope fail(k, (p as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, expPartner, null, recRoot))
+            return@coroutineScope fail(k, (p as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, expPartner, null, recRoot, hear.await()))
         }
 
         status(RunPhase.Submitting, k)
@@ -284,7 +291,7 @@ class PopRun(
         val sig = sign(tx)
         evidence = Popt2Evidence(sessionId, k, role, tx, sig, cap.pcm, recTree, own, partnerCode, t0Ms, r.provable)
         try {
-            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta2(cap, r, expSelf, expPartner, p.half, recRoot)))
+            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta2(cap, r, expSelf, expPartner, p.half, recRoot, hear.await())))
         } catch (e: PopHttpException) {
             if (e.status != 409 && e.status != 400) throw e
         }
@@ -367,8 +374,9 @@ class PopRun(
     }
 
     /** §7.1 meta: unsigned diagnostics. */
-    private fun meta(cap: Capture, r: PopRound, expSelf: Double, expPartner: Double?, half: Int?): JsonObject = buildJsonObject {
+    private fun meta(cap: Capture, r: PopRound, expSelf: Double, expPartner: Double?, half: Int?, hear: SelfHear?): JsonObject = buildJsonObject {
         cap.meta().forEach { (k, v) -> put(k, v) }
+        hear?.putMeta(this)
         put("role", role.toString())
         put("expected_self", expSelf)
         expPartner?.let { put("expected_partner", it) }
@@ -381,9 +389,11 @@ class PopRun(
     }
 
     /** v2 meta: the integer rule's arrivals, predictions and scores (diagnostics, unsigned). */
-    private fun meta2(cap: Capture, r: PopRound2, expSelf: Double, expPartner: Double?, half: Int?, recRoot: ByteArray?): JsonObject =
+    private fun meta2(cap: Capture, r: PopRound2, expSelf: Double, expPartner: Double?, half: Int?, recRoot: ByteArray?,
+                      hear: SelfHear?): JsonObject =
         buildJsonObject {
             cap.meta().forEach { (k, v) -> put(k, v) }
+            hear?.putMeta(this)
             put("role", role.toString())
             put("rule", "popt2")
             put("expected_self", expSelf)

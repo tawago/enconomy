@@ -65,6 +65,7 @@ fun App(c: PopController) {
                     Screen.Run -> Run(s, c)
                     Screen.Result -> Result(s, c)
                     Screen.Bench -> Bench(s, c)
+                    Screen.AudioCheck -> AudioCheck(s, c)
                 }
                 if (s.status.isNotEmpty()) Text("Status: ${s.status}", fontSize = 13.sp, color = Color.Gray)
                 s.error?.let { Text(it, color = Color(0xFFC62828), fontWeight = FontWeight.Medium) }
@@ -123,7 +124,71 @@ private fun Home(s: UiState, c: PopController) {
         }
         TextButton(onClick = c::openBench, enabled = !s.busy) { Text("Prover bench", fontSize = 13.sp) }
     }
+    OutlinedButton(onClick = c::openAudioCheck, enabled = !s.busy) { Text("Audio check") }
 }
+
+private val modeLabel = mapOf("measurement" to "Measurement", "default" to "Default", "videoRecording" to "VideoRecording")
+
+@Composable
+private fun AudioCheck(s: UiState, c: PopController) {
+    KeepScreenOn(s.audioCheckRunning)
+    Text("Audio check", fontWeight = FontWeight.Medium)
+    Text("Plays a test sound like the real one through the same audio path, records it and measures how loud " +
+        "this phone hears itself. Quiet room, phone on the table, speaker uncovered.", fontSize = 13.sp)
+    val busy = s.audioCheckRunning
+    if (s.audioModes.isNotEmpty()) {
+        Text("Session mode (voice processing off; also used for runs)", fontSize = 12.sp, color = Color.Gray)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (m in s.audioModes) {
+                val label = modeLabel[m] ?: m
+                if (m == s.audioMode) Button(onClick = {}, enabled = !busy) { Text(label, fontSize = 12.sp) }
+                else OutlinedButton(onClick = { c.setAudioMode(m) }, enabled = !busy) { Text(label, fontSize = 12.sp) }
+            }
+        }
+        TextButton(onClick = { c.setForceSpeaker(!s.forceSpeaker) }, enabled = !busy) {
+            Text(if (s.forceSpeaker) "Force speaker: ON (tap for OFF, check only)" else "Force speaker: OFF (tap for ON)", fontSize = 13.sp)
+        }
+    }
+    s.audioRoute?.let { r -> if (s.audioCheck == null) Label("route now", routeText(r)) }
+    val askMic = rememberMicPermissionRequest { if (it) c.audioCheck() }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = askMic, enabled = !busy && !s.busy) { Text(if (busy) "Playing…" else "Run check") }
+        OutlinedButton(onClick = { c.go(Screen.Home) }) { Text("Back") }
+    }
+    if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+    s.audioCheck?.let { r ->
+        val lv = r.levels
+        Card(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(r.verdict, fontSize = 28.sp, fontWeight = FontWeight.Bold,
+                    color = when {
+                        r.pass -> Color(0xFF2E7D32)
+                        r.route.isSpeaker && lv.verdict == "weak" -> Color(0xFFEF6C00)
+                        else -> Color(0xFFC62828)
+                    })
+                Label("route", routeText(r.route))
+                Label("volume", "${kotlin.math.round(r.route.volume * 100).toInt()}%")
+                Label("mode", r.route.mode)
+                Label("sample rate", "${r.route.sampleRate} Hz, latency ${r.latencyMs?.let { f1(it) } ?: "?"} ms, ts ${r.tsSource}")
+                if (r.route.detail.isNotEmpty()) Label("detail", r.route.detail)
+                Mono(
+                    "band          self    floor   margin\n" +
+                        "200-1600 Hz ${pad(lv.lowDb)} ${pad(lv.floorLowDb)} ${pad(lv.lowMarginDb)}\n" +
+                        "2-18 kHz    ${pad(lv.highDb)} ${pad(lv.floorHighDb)} ${pad(lv.highMarginDb)}\n" +
+                        "peak        ${lv.peak} (${f1(lv.peakDb)} dBFS), floor ${lv.floorPeak}\n" +
+                        "dBFS; OK needs 2-18 kHz margin >= ${SelfHear.OK_MARGIN_DB.toInt()} dB",
+                )
+            }
+        }
+        r.warnings.forEach { Text(it, fontSize = 12.sp, color = Color.Gray) }
+    }
+}
+
+private fun routeText(r: AudioRoute) = r.output + (if (r.outputName.isNotBlank()) " (${r.outputName})" else "")
+
+private fun f1(x: Double) = (kotlin.math.round(x * 10) / 10).toString()
+
+private fun pad(x: Double) = f1(x).padStart(7)
 
 @Composable
 private fun Host(s: UiState, c: PopController) {

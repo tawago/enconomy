@@ -27,11 +27,20 @@ import platform.AVFAudio.AVAudioSessionInterruptionNotification
 import platform.AVFAudio.AVAudioSessionInterruptionTypeBegan
 import platform.AVFAudio.AVAudioSessionInterruptionTypeKey
 import platform.AVFAudio.AVAudioSessionMediaServicesWereResetNotification
+import platform.AVFAudio.AVAudioSessionModeDefault
 import platform.AVFAudio.AVAudioSessionModeMeasurement
+import platform.AVFAudio.AVAudioSessionModeVideoRecording
+import platform.AVFAudio.AVAudioSessionPortBluetoothA2DP
+import platform.AVFAudio.AVAudioSessionPortBluetoothHFP
+import platform.AVFAudio.AVAudioSessionPortBluetoothLE
 import platform.AVFAudio.AVAudioSessionPortBuiltInMic
 import platform.AVFAudio.AVAudioSessionPortBuiltInReceiver
 import platform.AVFAudio.AVAudioSessionPortBuiltInSpeaker
 import platform.AVFAudio.AVAudioSessionPortDescription
+import platform.AVFAudio.AVAudioSessionPortHeadphones
+import platform.AVFAudio.AVAudioSessionPortOverrideNone
+import platform.AVFAudio.AVAudioSessionPortOverrideSpeaker
+import platform.AVFAudio.AVAudioSessionPortUSBAudio
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonNewDeviceAvailable
 import platform.AVFAudio.AVAudioSessionRouteChangeNotification
 import platform.AVFAudio.AVAudioSessionRouteChangeReasonOldDeviceUnavailable
@@ -95,14 +104,26 @@ internal fun f32ToPcm16(x: Float): Short {
     }
 }
 
+/** User-selectable session modes (Prefs AUDIO_MODE_PREF), all PlayAndRecord with voice processing off. */
+internal val IOS_MODES: Map<String, String> = linkedMapOf(
+    "measurement" to AVAudioSessionModeMeasurement!!,
+    "default" to AVAudioSessionModeDefault!!,
+    "videoRecording" to AVAudioSessionModeVideoRecording!!,
+)
+
+internal fun modeName(m: String?): String = IOS_MODES.entries.firstOrNull { it.value == m }?.key ?: (m ?: "?")
+
 /** Rate the session runs at, or null outside [SR_MIN, SR_MAX] (§4.2). */
 internal fun sessionRate(hw: Double): Int? = round(hw).toInt().takeIf { it in PopConstants.SR_MIN..PopConstants.SR_MAX }
 
 /**
  * Contract §4.2-§4.4 on iOS (decision note §4).
  *
- * Session: .playAndRecord, mode .measurement (no AGC / voice processing), .defaultToSpeaker, 48 kHz
- * preferred; whatever the hardware takes is reported as sample_rate. Voice processing stays off.
+ * Session: .playAndRecord, mode from Prefs "audio.mode" (default .measurement; .default and
+ * .videoRecording selectable on the audio check screen), .defaultToSpeaker, 48 kHz preferred, then
+ * overrideOutputAudioPort(.speaker) after every activation (a category set or route change clears
+ * it). The route is re-checked right before the sound is scheduled; not on the built-in speaker =
+ * capture_failed. Voice processing stays off (asserted on the input node).
  *
  * Mic: inputNode tap (hardware format, channel 0) -> preallocated int16 buffer, placed by the
  * tap's sampleTime. Frame 0 = median over tap buffers after 0.5 s of hostTime − inputLatency −
@@ -129,6 +150,15 @@ class IosAudioEngine : AudioEngine {
 
     @Volatile private var failure: String? = null
     @Volatile private var drained = false
+    private var forceSpeaker = true
+    /** Engine facts from open(): mixer / player volume, hardware formats, voice processing. */
+    private var engineDetail = ""
+
+    override val sessionModes: List<String> get() = IOS_MODES.keys.toList()
+
+    override fun setForceSpeaker(on: Boolean) { forceSpeaker = on }
+
+    private fun wantedMode(): String = IOS_MODES[Prefs.get(AUDIO_MODE_PREF)] ?: IOS_MODES.getValue("measurement")
 
     private fun <T> nsCall(what: String, f: (kotlinx.cinterop.CPointer<ObjCObjectVar<NSError?>>) -> T): T = memScoped {
         val e = alloc<ObjCObjectVar<NSError?>>()
@@ -137,14 +167,55 @@ class IosAudioEngine : AudioEngine {
         r
     }
 
-    /** Category + mode + rate, then active. Only with mic permission: activating a record category prompts. */
+    /**
+     * Category + mode + rate, active, then speaker override. Only with mic permission: activating a
+     * record category prompts. PlayAndRecord without an override may play through the receiver
+     * (earpiece) even with .defaultToSpeaker, e.g. after another app or a route change reset it.
+     */
     private fun configureSession() {
         val s = session
         nsCall("setCategory") {
-            s.setCategory(AVAudioSessionCategoryPlayAndRecord, AVAudioSessionModeMeasurement, AVAudioSessionCategoryOptionDefaultToSpeaker, it)
+            s.setCategory(AVAudioSessionCategoryPlayAndRecord, wantedMode(), AVAudioSessionCategoryOptionDefaultToSpeaker, it)
         }
         nsCall("setPreferredSampleRate") { s.setPreferredSampleRate(48000.0, it) }
         nsCall("setActive") { s.setActive(true, it) }
+        if (forceSpeaker) overrideSpeaker()
+        else nsCall("overrideOutputAudioPort(none)") { s.overrideOutputAudioPort(AVAudioSessionPortOverrideNone, it) }
+    }
+
+    private fun overrideSpeaker() {
+        nsCall("overrideOutputAudioPort(speaker)") { session.overrideOutputAudioPort(AVAudioSessionPortOverrideSpeaker, it) }
+    }
+
+    private fun firstOutput(): AVAudioSessionPortDescription? =
+        session.currentRoute.outputs.filterIsInstance<AVAudioSessionPortDescription>().firstOrNull()
+
+    private fun onSpeaker(): Boolean {
+        val outs = session.currentRoute.outputs.filterIsInstance<AVAudioSessionPortDescription>()
+        return outs.isNotEmpty() && outs.all { it.portType == AVAudioSessionPortBuiltInSpeaker }
+    }
+
+    override fun route(): AudioRoute {
+        val s = session
+        val o = firstOutput()
+        val kind = when (o?.portType) {
+            null -> "none"
+            AVAudioSessionPortBuiltInSpeaker -> "speaker"
+            AVAudioSessionPortBuiltInReceiver -> "earpiece"
+            AVAudioSessionPortBluetoothA2DP, AVAudioSessionPortBluetoothHFP, AVAudioSessionPortBluetoothLE -> "bluetooth"
+            AVAudioSessionPortHeadphones -> "headphones"
+            AVAudioSessionPortUSBAudio -> "usb"
+            else -> "other:${o.portType}"
+        }
+        val input = s.currentRoute.inputs.filterIsInstance<AVAudioSessionPortDescription>().firstOrNull()
+        val detail = listOfNotNull(
+            "category ${s.category?.removePrefix("AVAudioSessionCategory")}",
+            "in ${input?.portName ?: "none"}",
+            "override ${if (forceSpeaker) "speaker" else "none"}",
+            "io ${round(s.IOBufferDuration * 1e5) / 100} ms",
+            engineDetail.ifEmpty { null },
+        ).joinToString(", ")
+        return AudioRoute(kind, o?.portName ?: "", s.outputVolume.toDouble(), modeName(s.mode), round(s.sampleRate).toInt(), detail)
     }
 
     private fun outputLatencyMs(): Double = (session.outputLatency + session.IOBufferDuration) * 1000.0
@@ -178,7 +249,7 @@ class IosAudioEngine : AudioEngine {
         val ext = externalOutput()
         if (ext != null) problems += "Audio goes to $ext. Disconnect it so the phone speaker plays."
         val unp = s.mode == AVAudioSessionModeMeasurement
-        if (mic && !unp) warnings += "Measurement mode not active; mic may be processed."
+        if (mic && s.mode != wantedMode()) warnings += "Session mode is ${modeName(s.mode)}, wanted ${modeName(wantedMode())}."
         val input = s.currentRoute.inputs.filterIsInstance<AVAudioSessionPortDescription>().firstOrNull()
         if (mic && input != null && input.portType != AVAudioSessionPortBuiltInMic) warnings += "Mic input is ${input.portName}, not the phone's mic."
         if (otherAudio) warnings += "Other audio is playing; stop it for a clean run."
@@ -230,6 +301,8 @@ class IosAudioEngine : AudioEngine {
         player = p
         e.attachNode(p)
         e.connect(p, e.mainMixerNode, fmt)
+        p.volume = 1f
+        e.mainMixerNode.outputVolume = 1f
 
         // rec start .. stop + margin, allocated once here
         val r = Recorder(sr, ((RunPlan.REC_POST_NS + RunPlan.REC_PRE_NS) / 1e9 * sr + 2.0 * sr).toInt(),
@@ -240,6 +313,12 @@ class IosAudioEngine : AudioEngine {
         e.prepare()
         nsCall("engine start") { e.startAndReturnError(it) }
         p.play() // renders silence until the scheduled buffer; output path is running well before t0
+        // starting the input can re-route; put the speaker back while there is time
+        if (forceSpeaker && !onSpeaker()) overrideSpeaker()
+        val outFmt = e.outputNode.outputFormatForBus(0u)
+        engineDetail = "player ${p.volume} mixer ${e.mainMixerNode.outputVolume}, out ${outFmt.sampleRate.toInt()} Hz ${outFmt.channelCount}ch, " +
+            "in ${inFmt.sampleRate.toInt()} Hz ${inFmt.channelCount}ch, vp ${if (input.voiceProcessingEnabled) "ON" else "off"}"
+        if (input.voiceProcessingEnabled) throw AudioException("capture_failed", "voice processing is on")
     }
 
     private fun observe() {
@@ -300,6 +379,12 @@ class IosAudioEngine : AudioEngine {
         waitUntil(plan.recStartNs)
         checkFailure()
         r.armed = true
+        // the sound must leave the loudspeaker, not the earpiece: checked right before scheduling
+        val route = route()
+        if (forceSpeaker && !onSpeaker()) {
+            throw AudioException("capture_failed", "Output is ${route.output}${if (route.outputName.isNotBlank()) " (${route.outputName})" else ""}, " +
+                "not the loudspeaker. Disconnect headphones / Bluetooth and try again.")
+        }
 
         // schedule primer ‖ play so its frame 0 renders at plan.playCallNs
         val now0 = playerNow(p)
@@ -359,9 +444,9 @@ class IosAudioEngine : AudioEngine {
         return Capture(
             pcm = pcm, sr = sr, recFrame0NanoTime = frame0,
             playFramePosition = pos0, playNanoTime = nano0, tsSource = src, recTsSource = recTsSource,
-            outputLatencyMs = latency, micSource = if (session.mode == AVAudioSessionModeMeasurement) "measurement" else "default",
+            outputLatencyMs = latency, micSource = modeName(session.mode),
             effectsOff = emptyList(), playLateMs = lateMs, recTsSpreadUs = spreadUs, framesRecorded = pos.toLong(),
-            captureStartFrame = cs, trackDrained = drained,
+            captureStartFrame = cs, trackDrained = drained, route = route,
         )
     }
 
@@ -386,6 +471,7 @@ class IosAudioEngine : AudioEngine {
         player = null
         playBuf = null
         rec = null
+        engineDetail = ""
     }
 }
 

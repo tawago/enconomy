@@ -146,6 +146,39 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         }
     }
 
+    override fun route(): AudioRoute = routeOf(track?.routedDevice ?: guessOutput())
+
+    /** Media output the policy would pick: first external device, else the built-in speaker. */
+    private fun guessOutput(): AudioDeviceInfo? {
+        val outs = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+        return outs.firstOrNull { kindOf(it.type) !in setOf("speaker", "earpiece", "other") }
+            ?: outs.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+    }
+
+    private fun kindOf(type: Int): String = when (type) {
+        AudioDeviceInfo.TYPE_BUILTIN_SPEAKER -> "speaker"
+        AudioDeviceInfo.TYPE_BUILTIN_EARPIECE -> "earpiece"
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLUETOOTH_SCO -> "bluetooth"
+        AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES -> "headphones"
+        AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_DEVICE -> "usb"
+        else -> if (Build.VERSION.SDK_INT >= 31 && (type == AudioDeviceInfo.TYPE_BLE_HEADSET || type == AudioDeviceInfo.TYPE_BLE_SPEAKER)) "bluetooth"
+        else "other"
+    }
+
+    private fun routeOf(d: AudioDeviceInfo?): AudioRoute {
+        val vol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val kind = d?.let { kindOf(it.type).let { k -> if (k == "other") "other:${it.type}" else k } } ?: "unknown"
+        val mode = micSource.ifEmpty { if (unprocessedSupported()) "unprocessed" else "voice_recognition" }
+        val detail = listOfNotNull(
+            "stream ${vol}/${max}",
+            if (track != null) "routed" else "guessed",
+            effectsOff.takeIf { it.isNotEmpty() }?.let { "fx off ${it.joinToString(",")}" },
+        ).joinToString(", ")
+        return AudioRoute(kind, d?.productName?.toString() ?: "", if (max > 0) vol.toDouble() / max else 0.0, mode,
+            if (sr > 0) sr else sampleRate(), detail)
+    }
+
     private fun hasBuiltinSpeaker() =
         am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
 
@@ -302,6 +335,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         val frame0 = kotlin.math.round(f0 + start * 1e9 / sr).toLong()
 
         val latency = outputLatencyMs()
+        val route = runCatching { routeOf(t.routedDevice) }.getOrNull()
         val ts = player.ts
         val (pos0, nano0, src) = if (ts != null) Triple(ts.first, ts.second, "audiotimestamp")
         else Triple(0L, player.calledNs + kotlin.math.round((latency ?: 0.0) * 1e6).toLong(), "fallback")
@@ -313,7 +347,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
             playFramePosition = pos0, playNanoTime = nano0, tsSource = src, recTsSource = recTsSource,
             outputLatencyMs = latency, micSource = micSource, effectsOff = effectsOff,
             playLateMs = player.lateMs, recTsSpreadUs = spreadUs, framesRecorded = pos.toLong(),
-            captureStartFrame = start, trackDrained = player.drained,
+            captureStartFrame = start, trackDrained = player.drained, route = route,
         )
     }
 
