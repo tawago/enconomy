@@ -529,7 +529,74 @@ class Sessions:
                   else "proving" if "proving" in st else "partial" if st else "none")
         attest = {r: s["per_role"][r].get("code_attest") for r in ROLES if s["per_role"][r].get("code_attest")}
         return {"valid_at": self.zk_valid_at(s), "status": status, **ent, "circuit": zk.CIRCUIT,
-                "vk_sha256": zk.VK_PINS[zk.CIRCUIT], "code_attest": attest or None}
+                "vk_sha256": zk.VK_PINS[zk.CIRCUIT], "code_attest": attest or None,
+                "pair": (s.get("zk") or {}).get("pair")}
+
+    def zk_pair_ready(self, s: dict) -> bool:
+        """Both phone proofs verified for the NEAR attempt and no pair proof yet (or a failed one to retry)."""
+        if s["state"] != "done" or (s["result"] or {}).get("verdict") != "NEAR":
+            return False
+        ents = [self.zk_entry(s, r) for r in ROLES]
+        if not all(e and e["status"] == "verified" and e["attempt"] == s["attempt"] for e in ents):
+            return False
+        p = (s.get("zk") or {}).get("pair")
+        return p is None or (p["status"] == "rejected" and p.get("reason") == "zk_unavailable")
+
+    def zk_pair_witness(self, s: dict) -> tuple[str, list[int]]:
+        """(pair Prover.toml, 7 public inputs) from the signed transcripts + the salts of the verified phone proofs.
+        commit_a / commit_b must equal the phone proofs' halfCommits (public #12)."""
+        ts = {r: decode_transcript(b64d(s["per_role"][r]["transcript_b64"])) for r in ROLES}
+        toml, pub = zk.pair_witness(ts["A"], ts["B"], int(self.zk_entry(s, "A")["salt"]),
+                                    int(self.zk_entry(s, "B")["salt"]))
+        for i, r in ((3, "A"), (4, "B")):
+            if int(self.zk_entry(s, r)["public_inputs"][11], 16) != pub[i]:
+                raise V.Reject("transcript_mismatch", f"pair: commit_{r.lower()} != {r}'s halfCommit")
+        return toml, pub
+
+    def zk_pair_record(self, session_id: str, entry: dict, proof: bytes | None = None,
+                       public: list[int] | None = None) -> dict:
+        """Pair outcome -> s["zk"]["pair"]; a verified proof goes next to result.json as proof_pair_<attempt>.bin
+        (bb -t evm proof) + public_inputs_pair_<attempt>.bin (7 x 32 B)."""
+        s = self.load(session_id)
+        if proof is not None and public is not None:
+            names = {"proof": f"proof_pair_{entry['attempt']}.bin",
+                     "public_inputs": f"public_inputs_pair_{entry['attempt']}.bin"}
+            p1 = self._write(s["session_id"], names["proof"], proof)
+            self._write(s["session_id"], names["public_inputs"], zk.to_file(public))
+            entry = {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(), "proof_bytes": len(proof),
+                     "public_inputs": zk.hexes(public),
+                     "files": None if p1 is None else {k: f"sessions/{s['session_id']}/{v}" for k, v in names.items()}}
+        s.setdefault("zk", {"A": None, "B": None})["pair"] = entry
+        if s["result"] is not None:
+            s["result"]["zk"] = self.zk_public(s)
+            self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
+        self._save(s)
+        return s
+
+    def zk_bundle(self, s: dict) -> dict | None:
+        """Everything a NoirPresenceVerifier needs, once the pair proof is verified (else None). Proof bytes are read
+        back from the files next to result.json."""
+        def proof_hex(e: dict) -> str | None:
+            f = (e.get("files") or {}).get("proof")
+            return None if f is None or self.data_dir is None else "0x" + (self.data_dir / f).read_bytes().hex()
+        z = s.get("zk") or {}
+        pair = z.get("pair")
+        if not pair or pair["status"] != "verified" or not all(self.zk_entry(s, r) for r in ROLES):
+            return None
+        ent = {r: self.zk_entry(s, r) for r in ROLES}
+        return {
+            "format": "pop-zk-bundle-1", "session_id": s["session_id"], "sid": "0x" + s["session_id"],
+            "session_nonce": "0x" + s["nonce_hex"], "context": s.get("context"), "not_before": s.get("not_before"),
+            "created_at": _iso(s["created_ms"]), "valid_at": self.zk_valid_at(s), "attempt": pair["attempt"],
+            "verdict": (s["result"] or {}).get("verdict"),
+            "proofs": {
+                **{r: {"circuit": ent[r]["circuit"], "vk_sha256": zk.VK_PINS[zk.CIRCUIT], "proof": proof_hex(ent[r]),
+                       "public_inputs": ent[r]["public_inputs"]} for r in ROLES},
+                "pair": {"circuit": zk.PAIR, "vk_sha256": zk.PAIR_VK_SHA256, "vk_hash": "0x" + zk.PAIR_VK_HASH,
+                         "proof": proof_hex(pair), "public_inputs": pair["public_inputs"]},
+            },
+            "code_attest": {r: ent[r].get("code_attest") for r in ROLES},
+        }
 
     def zk_expected(self, s: dict, role: str, dev: dict, attempt, circuit, salt: int, issuer_pub: bytes) -> list[int]:
         """The public vector a proof by `role` must carry. PopError = wrong moment/request; V.Reject = the proof's

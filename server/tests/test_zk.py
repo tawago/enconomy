@@ -145,11 +145,12 @@ HOLD = "%064x" % p2.hash_n(11, [123456789])
 
 @pytest.fixture
 def zk_world(clock, tmp_path):
-    def make(d=30, holder=True, v1=(), verifier=None, prover=None, **cfg):
+    def make(d=30, holder=True, v1=(), verifier=None, prover=None, pair=(None, None), **cfg):
         cfg.setdefault("issuer_key_file", str(tmp_path / "issuer.pem"))
         fv = verifier or FakeVerifier()
         app = create_app(Settings(db=":memory:", allow_unattested=True, now_ms=clock, data_dir=str(tmp_path), **cfg),
-                         SqliteStore(":memory:"), verifier=fv, prover=prover)
+                         SqliteStore(":memory:"), verifier=fv, prover=prover,
+                         pair_prover=pair[0], pair_verifier=pair[1])
         w = World2(TestClient(app), clock, d, Knobs(),
                    Knobs(sr=48000, mono_off_ns=9_000_000_000, sync_err_ms=-3, out_lat_ms=25), v1=v1, real_root=False)
         if holder:
@@ -393,3 +394,64 @@ def test_delegate(zk_world):
             break
         time.sleep(0.05)
     assert z["status"] == "rejected" and z["reason"] == "witness_failed" and z["prover"] == "server"
+
+
+@pytest.mark.skipif(not FIX.is_dir(), reason="research/ fixtures not present")
+@need_real
+def test_pair_proof_on_fixture():
+    """180ca04b_48k: pair witness from the two signed transcripts + salts; commit_a/b = the pinned phone proofs'
+    halfCommits; real zkprove + bb verify against the pinned pair vk (skipped without the prover)."""
+    fx = json.loads((FIX / "180ca04b_48k.json").read_text())
+    ts = {r: decode_transcript(bytes(bytearray(b64d(fx["roles"][r]["transcript_b64"]))[:177]) + bytes(32)
+                               + b64d(fx["roles"][r]["transcript_b64"])[209:]) for r in "AB"}
+    toml, pub = zk.pair_witness(ts["A"], ts["B"], int(fx["roles"]["A"]["salt_dev"], 16),
+                                int(fx["roles"]["B"]["salt_dev"], 16))
+    pa, pb = _pinned("A")[1], _pinned("B")[1]
+    assert pub == [pa[0], pa[1], 0, pa[11], pb[11], 48000, 48000]
+    art = zk.Artifacts(None, zk.PAIR_ARTIFACTS)
+    prover = zk.Prover(str(zk.DEFAULT_PROVER), art, pins=zk.PAIR_PINS)
+    if not prover.available(zk.PAIR):
+        pytest.skip("zkprove / pair artifacts missing")
+    prf, raw = prover.prove(zk.PAIR, toml)
+    assert zk.from_file(raw, zk.N_PUBLIC_PAIR) == pub
+    zk.Verifier(str(BB), art, pins=zk.PAIR_PINS).verify(zk.PAIR, prf, pub)
+    with pytest.raises(Reject):
+        zk.Verifier(str(BB), art, pins=zk.PAIR_PINS).verify(zk.PAIR, prf, [*pub[:3], pub[3] + 1, *pub[4:]])
+
+
+class FakePair:
+    """Pair prover + verifier: 'proves' by echoing the Prover.toml's public values."""
+    def available(self, circuit):
+        return circuit == zk.PAIR
+
+    def prove(self, circuit, toml):
+        v = {ln.split(" = ")[0]: ln.split(" = ", 1)[1].strip('"') for ln in toml.splitlines()}
+        return b"pairproof", zk.to_file([int(v[k]) for k in ("nonce_hi", "nonce_lo", "attempt", "commit_a", "commit_b",
+                                                             "sr_a", "sr_b")])
+
+    def verify(self, circuit, proof, expected):
+        assert proof == b"pairproof" and len(expected) == zk.N_PUBLIC_PAIR
+
+
+def test_pair_job_and_bundle(zk_world):
+    fp = FakePair()
+    w = zk_world(pair=(fp, fp))
+    _near(w)
+    path = f"/v1/session/{w.sid}/zk/bundle"
+    get = lambda: w.a.client.get(path, headers=w.a.headers("GET", path, b""))  # noqa: E731
+    assert _send(w, w.a).status_code == 200
+    assert get().status_code == 404 and w.result().json()["zk"]["pair"] is None
+    assert _send(w, w.b, salt=99).status_code == 200
+    for _ in range(50):
+        z = w.result().json()["zk"]["pair"]
+        if z["status"] != "proving":
+            break
+        time.sleep(0.05)
+    assert z["status"] == "verified", z
+    va, vb = _vector(w, w.a), _vector(w, w.b, salt=99)
+    assert z["public_inputs"] == zk.hexes([va[0], va[1], 0, va[11], vb[11], va[9], vb[9]])
+    assert (w.tmp / z["files"]["proof"]).read_bytes() == b"pairproof"
+    b = get().json()
+    assert b["sid"] == "0x" + w.sid and b["attempt"] == 0 and b["proofs"]["pair"]["proof"] == "0x" + b"pairproof".hex()
+    assert b["proofs"]["A"]["public_inputs"] == zk.hexes(va) and b["code_attest"]["B"]["format"] == "POPCC1"
+    assert b["proofs"]["pair"]["vk_hash"] == "0x" + zk.PAIR_VK_HASH

@@ -16,7 +16,9 @@ verifies against the server's own vector.
 
 Binaries (none in git): POP_ZK_VERIFIER = bb (default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER = zkprove host
 build (zkmobile/android/zkprove, `zkprove full`: noir ACVM witness + bbapi prove, same bytes as `bb prove -t evm`;
-default ~/.enconomy/zk/android/target/release/zkprove). Artifacts: POP_ZK_DIR/<served name> if present, else the
+default ~/.enconomy/zk/android/target/release/zkprove). Pair proof (`oa2t_pair`, noir/pair): the same zkprove + bb on pair.json / the pair vk (pinned to the deployed
+PairVerifier's vkHash), run by the server after both phone proofs of a NEAR attempt are verified.
+Artifacts: POP_ZK_DIR/<served name> if present, else the
 default source path below; each is sha256-pinned and never served or used when it doesn't match.
 """
 from __future__ import annotations
@@ -50,6 +52,18 @@ ARTIFACTS = {
                           _HOME / ".bb-crs/bn254_g1.dat"),
     f"{CIRCUIT}.vk": (1888, VK_PINS[CIRCUIT], _HOME / ".enconomy/zk/pinned/vk/vk"),
 }
+# pair statement (noir/pair, "oa2t_pair"): not served to phones, only proved + verified by the server
+PAIR = "oa2t_pair"
+N_PUBLIC_PAIR = 7   # nonce_hi, nonce_lo, attempt, commit_a, commit_b, sr_a, sr_b
+PAIR_VK_SHA256 = "3fec12bc39d2a67ffd5443f615ec2a3b4b9e5f5d4511489c00a11e7d13dfe090"
+PAIR_VK_HASH = "11efaefb263436dd19d71a689210a8975c5db080705877b310dec96f56c5b50a"   # = PairVerifier.sol / vkHashPair
+PAIR_ARTIFACTS = {
+    f"{PAIR}.json": (82704, "7b7408823bdd08565861e9c92ce67bcdc2de300ea32538863a4b65aa41b253fb",
+                     _HOME / ".enconomy/zk/optA/noir/pair/target/pair.json"),
+    "bn254_g1_2p20.dat": ARTIFACTS["bn254_g1_2p20.dat"],
+    f"{PAIR}.vk": (1888, PAIR_VK_SHA256, _HOME / ".enconomy/zk/optA/noir/pair/vk/vk"),
+}
+PAIR_PINS = {PAIR: PAIR_VK_SHA256}
 KEY_FILE = re.compile(r"^(oaN_s48\.json|oaN_s48\.vk|bn254_g1_2p20\.dat)$")
 DEFAULT_BB = _HOME / ".enconomy/zk/pinned/bin/bb"
 DEFAULT_PROVER = _HOME / ".enconomy/zk/android/target/release/zkprove"
@@ -104,9 +118,9 @@ def to_file(vals: list[int]) -> bytes:
     return b"".join((v % R).to_bytes(32, "big") for v in vals)
 
 
-def from_file(raw: bytes) -> list[int]:
-    if len(raw) != 32 * N_PUBLIC:
-        raise Reject("proof_invalid", f"public_inputs must be {32 * N_PUBLIC} bytes, got {len(raw)}")
+def from_file(raw: bytes, n: int = N_PUBLIC) -> list[int]:
+    if len(raw) != 32 * n:
+        raise Reject("proof_invalid", f"public_inputs must be {32 * n} bytes, got {len(raw)}")
     return [int.from_bytes(raw[i:i + 32], "big") for i in range(0, len(raw), 32)]
 
 
@@ -140,6 +154,27 @@ def compare(got: list[int], want: list[int], who: str = "") -> None:
     if i is not None:
         r, what = reason_at(i)
         raise Reject(r, f"{who}public[{i}] {what} != derived")
+
+
+def pair_witness(ta: dict, tb: dict, salt_a: int, salt_b: int) -> tuple[str, list[int]]:
+    """Decoded POPT v2 transcripts of A and B (same nonce + attempt, crossed keys) + the salts the phones used for
+    their halfCommits -> (pair Prover.toml, the 7 public inputs). commit_a / commit_b = the phones' halfCommits."""
+    if ta["role"] != "A" or tb["role"] != "B":
+        raise Reject("transcript_mismatch", "pair: roles")
+    if ta["nonce"] != tb["nonce"] or ta["attempt"] != tb["attempt"]:
+        raise Reject("transcript_mismatch", "pair: nonce / attempt differ")
+    if ta["pk_self"] != tb["pk_partner"] or tb["pk_self"] != ta["pk_partner"]:
+        raise Reject("transcript_mismatch", "pair: device keys not crossed")
+    nh, nl = _limbs(ta["nonce"])
+    ca, cb = half_commit(ta, salt_a), half_commit(tb, salt_b)
+    xa, xb = _limbs(ta["pk_self"][1:33]), _limbs(tb["pk_self"][1:33])
+    public = [nh, nl, ta["attempt"], ca, cb, ta["sample_rate"], tb["sample_rate"]]
+    q = lambda v: f'"{v % R}"'   # noqa: E731
+    toml = (f"nonce_hi = {q(nh)}\nnonce_lo = {q(nl)}\nattempt = {ta['attempt']}\ncommit_a = {q(ca)}\n"
+            f"commit_b = {q(cb)}\nsr_a = {ta['sample_rate']}\nsr_b = {tb['sample_rate']}\n"
+            f"half_a = {q(ta['half'])}\nsalt_a = {q(salt_a)}\nhalf_b = {q(tb['half'])}\nsalt_b = {q(salt_b)}\n"
+            f"xa = [{q(xa[0])}, {q(xa[1])}]\nxb = [{q(xb[0])}, {q(xb[1])}]\n")
+    return toml, public
 
 
 class Unavailable(Exception):
@@ -289,16 +324,18 @@ class Prover:
     The input map (private audio windows, templates, signatures) only lives in a 0700 temp dir during the run."""
     _one = threading.Lock()
 
-    def __init__(self, binary: str | None, artifacts: Artifacts, wrap: str | None = None, timeout_s: float = 300):
+    def __init__(self, binary: str | None, artifacts: Artifacts, wrap: str | None = None, timeout_s: float = 300,
+                 pins: dict | None = None):
         self.binary = Path(binary).expanduser() if binary else None
         self.art, self.wrap, self.timeout_s = artifacts, shlex.split(wrap) if wrap else [], timeout_s
+        self.pins = dict(pins or VK_PINS)
 
     def files(self, circuit: str) -> tuple[Path, Path, Path] | None:
         f = (self.art.ok(f"{circuit}.json"), self.art.ok("bn254_g1_2p20.dat"), self.art.ok(f"{circuit}.vk"))
         return f if all(f) else None
 
     def available(self, circuit: str) -> bool:
-        return bool(self.binary and os.access(self.binary, os.X_OK) and circuit in VK_PINS and self.files(circuit))
+        return bool(self.binary and os.access(self.binary, os.X_OK) and circuit in self.pins and self.files(circuit))
 
     def prove(self, circuit: str, toml: str) -> tuple[bytes, bytes]:
         """-> (proof, public_inputs). Reject("witness_failed") when the ACVM rejects the inputs."""
