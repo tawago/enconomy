@@ -16,6 +16,7 @@ def make_client(clock, tmp_path):
     def make(allow_unattested: bool = False, **kw):
         kw.setdefault("issuer_key_file", str(tmp_path / "issuer.pem"))
         kw.setdefault("worldid_signing_key_file", str(tmp_path / "worldid-rp.key"))
+        kw.setdefault("attest_key_file", str(tmp_path / "attest.pem"))
         kw.setdefault("worldid_bg_poll", False)
         kw.setdefault("worldid_poll_s", 0.0)
         transport = kw.pop("worldid_transport", None)

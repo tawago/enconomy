@@ -2,3 +2,5 @@ out/
 cache/
 broadcast/
 .smoke/
+deployments/anvil-*.json
+.env*
