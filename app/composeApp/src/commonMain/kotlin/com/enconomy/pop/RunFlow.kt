@@ -419,7 +419,13 @@ class PopRun(
             r.provable?.let { put("zk_provable", it) }
             val a = r.self?.frame
             val p = r.pSelf
-            if (a != null && p != null) calMeta(this, a - p, cap.sr) else put("cal_us", calUs)
+            // v2: p_self already includes cal, so a - p is the calibrated residual; raw = residual + cal
+            put("cal_us", calUs)
+            if (a != null && p != null) {
+                put("self_os_delta", a - p)
+                put("self_os_calibrated_us", Calibration.framesToUs(a - p, cap.sr))
+                put("self_os_raw_frames", pyRound(a - expSelf))
+            }
             recRoot?.let { put("rec_root", it.toHex()) }
             put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
             put("security_level", key.securityLevel)

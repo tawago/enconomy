@@ -7,10 +7,12 @@ import kotlin.math.abs
  * POPT v2 steps for one phone and one attempt (docs/pop-transcript-v2.md §3). Same order as [PopRound]:
  * [selfCheck], then the caller commits rec_root and gets the partner code, then [measurePartner].
  *
- *   p_self    = round(expected_self)       a_self    = earliest pass, own code, [p_self − WPRE, p_self + WPOST)
+ *   p_self    = round(expected_self + cal_frames)   a_self = earliest pass, own code, [p_self − WPRE, p_self + WPOST)
  *   p_partner = round(expected_partner)    a_partner = same with the partner code around p_partner
- *   self_os_delta = a_self − p_self, |· − cal_frames| ≤ selfOsTolMs (exact: |d·1e6 − calUs·sr| ≤ tol·1000·sr,
- *   as the server; calUs = enrollment calibration, 0 = the old |d|·1000 ≤ tol·sr)
+ *   self_os_delta = a_self − p_self, |·| ≤ selfOsTolMs (|d|·1000 ≤ tol·sr, as the server for v2).
+ *   cal_frames = calUs·sr/1e6 (enrollment calibration, 0 = none) is folded into p_self before signing, so the
+ *   signed self_os_delta is the residual after calibration and the circuit's |self_os_delta| ≤ delta can hold
+ *   on a device with a stable audio latency.
  *   half = A: a_partner − a_self, B: a_self − a_partner
  *
  * Glitch (flat runs) and capture-length checks are the v1 ones. The v1 null-bar rule is not run.
@@ -23,7 +25,7 @@ class PopRound2(
     val role: Char,
     val selfOsTolMs: Int = PopConstants.SELF_OS_TOL_MS,
     requireCaptureFrames: Boolean = true,
-    /** Enrollment calibration, µs (0 = none): the check is |self_os_delta − cal_frames| ≤ tol. */
+    /** Enrollment calibration, µs (0 = none): folded into p_self (p_self = round(expected_self + cal_frames)). */
     val calUs: Long = 0,
 ) {
     sealed class Step {
@@ -49,7 +51,7 @@ class PopRound2(
 
     fun selfCheck(own: Popt2Code, expectedSelf: Double): Step {
         if (!captureOk || own.n != rate.L) return Step.Failed(DspReason.CAPTURE_FAILED)
-        val p = pyRound(expectedSelf)
+        val p = pyRound(expectedSelf + calUs * rate.sr / 1e6)
         pSelf = p
         val w = window(p)
         if (w.first < 0 || w.last + rate.L > capture.size) return Step.Failed(DspReason.CAPTURE_FAILED)
@@ -79,7 +81,8 @@ class PopRound2(
         return Step.PartnerOk(f, p, if (role == 'A') f - s else s - f)
     }
 
-    fun selfOsOk(d: Int): Boolean = com.enconomy.pop.Calibration.selfOsOk(d, rate.sr, calUs, selfOsTolMs)
+    /** d is already calibrated (cal folded into p_self): |d| ≤ tol. */
+    fun selfOsOk(d: Int): Boolean = com.enconomy.pop.Calibration.selfOsOk(d, rate.sr, 0, selfOsTolMs)
 
     /** Option A provability of the signed values (§3.7 of the port spec); null before both arrivals. */
     val provable: Boolean?
