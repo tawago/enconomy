@@ -7,3 +7,8 @@ import platform.UIKit.UIViewController
 private val controller by lazy { PopController(createDeviceKeystore()) }
 
 fun MainViewController(): UIViewController = ComposeUIViewController { App(controller) }
+
+/** SwiftUI .onOpenURL / scene active: enconomy://worldid back from World App (docs/worldid/01 §12). */
+fun onOpenUrl(url: String?) {
+    if (url == null || WorldId.isReturnLink(url)) controller.onWorldIdReturn()
+}

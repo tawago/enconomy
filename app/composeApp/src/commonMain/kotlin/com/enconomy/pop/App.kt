@@ -355,6 +355,8 @@ private fun Home(s: UiState, c: PopController) {
                     PrimaryButton("Host", { c.host() }, Modifier.weight(1f), enabled = ok, icon = PopIcons.Qr)
                     PrimaryButton("Join", c::join, Modifier.weight(1f), enabled = ok, icon = PopIcons.Scan)
                 }
+                // debug: a `test` context makes the server require World ID (fake mode or real)
+                if (isDebugBuild()) SecondaryButton("Host with World ID (test)", c::hostWorldIdTest, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Shield)
             }
         }
     }
@@ -543,13 +545,81 @@ private fun Confirm(s: UiState, c: PopController) {
             else Pill("Partner deciding", Tone.Neutral, dot = true)
         }
     }
+    if (v != null && s.wid != null) WorldIdPanel(s, v, s.wid, c)
     val askMic = rememberMicPermissionRequest { c.confirmPartner() }
+    val widOk = s.wid == null || s.wid.verified
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SecondaryButton("Cancel", c::abortPairing, Modifier.weight(1f))
         PrimaryButton(
             if (s.confirmSent) "Waiting…" else "Confirm", askMic, Modifier.weight(1.4f),
-            enabled = !s.busy && p != null, loading = s.confirmSent, icon = PopIcons.Check,
+            enabled = !s.busy && p != null && widOk, loading = s.confirmSent, icon = PopIcons.Check,
         )
+    }
+}
+
+/** World ID step (docs/worldid/01 §6.7, §6.9): both roles' status, "This phone" / "Other phone" on one request. */
+@Composable
+private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController) {
+    val mine = v.role ?: s.role ?: "A"
+    val other = if (mine == "A") "B" else "A"
+    val partner = WorldId.role(v.human, other)
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("World ID", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+            s.ctxOk?.let { Pill("Request checks out", Tone.Good, icon = PopIcons.Check) }
+        }
+        Text(
+            "Each person proves they're a unique human with their own World ID. Confirm unlocks once yours is verified.",
+            style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted,
+        )
+        WidRow("You ($mine)", w.status)
+        WidRow("Partner ($other)", partner.status, partner.error)
+        if (!w.verified && !w.failed) {
+            val uri = w.connectorUri
+            if (uri == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Preparing World ID request…", style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted)
+                }
+            } else {
+                Segmented(listOf("app" to "This phone", "qr" to "Other phone"), w.mode, c::setWidMode)
+                if (w.mode == "app") {
+                    PrimaryButton("Open World ID", c::openWorldIdApp, Modifier.fillMaxWidth(), icon = PopIcons.Shield)
+                    Text("Approve in World ID, then come back here.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                } else {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Surface(Modifier.size(240.dp), shape = RoundedCornerShape(20.dp), color = Color.White) {
+                            Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) { QrCode(uri, Modifier.fillMaxSize()) }
+                        }
+                    }
+                    Text("Scan with the World ID app on the phone that holds your World ID.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                }
+            }
+            if (w.error == "network") Text(WorldId.errorText("network"), style = MaterialTheme.typography.bodySmall, color = Pop.palette.warn)
+        }
+        if (w.failed) {
+            val newOnly = WorldId.needsNewSession(w.error)
+            Banner(WorldId.errorText(w.error), Tone.Bad, title = "World ID") {
+                if (!newOnly) SecondaryButton("Try again", { c.startWorldId() }, compact = true)
+                SecondaryButton("New session", c::newSession, compact = true)
+            }
+        }
+        if (partner.status == WorldId.FAILED) Text("Partner: " + WorldId.errorText(partner.error), style = MaterialTheme.typography.bodySmall, color = Pop.palette.bad)
+        w.error?.takeIf { w.failed }?.let { Field("code", it) }
+    }
+}
+
+@Composable
+private fun WidRow(who: String, status: String, error: String? = null) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(who, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        when (status) {
+            WorldId.VERIFIED -> Pill(WorldId.statusText(status), Tone.Good, icon = PopIcons.Check)
+            WorldId.FAILED -> Pill(if (error != null) error else "Failed", Tone.Bad, icon = PopIcons.Alert)
+            "idle" -> Pill(WorldId.statusText(status), Tone.Neutral)
+            else -> Pill(WorldId.statusText(status), Tone.Accent, dot = true)
+        }
     }
 }
 
@@ -709,6 +779,7 @@ private fun Result(s: UiState, c: PopController) {
                             listOf("attempt", "outcome", "reason", "by").mapNotNull { k -> a[k]?.toString()?.trim('"')?.takeIf { it != "null" } }.joinToString(" ")
                         })
                         r.session_id?.let { Field("session", it) }
+                        s.attText?.let { Field("attestation", it) }
                     }
                 }
             }

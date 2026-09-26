@@ -1,6 +1,7 @@
 package com.enconomy.pop
 
 import android.app.Application
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -27,5 +28,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val controller = (application as PopApplication).controller
         setContent { App(controller) }
+    }
+
+    /** enconomy://worldid from World App (singleTask). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (WorldId.isReturnLink(intent.dataString)) (application as PopApplication).controller.onWorldIdReturn()
+    }
+
+    /** Back from World App by hand: make sure the World ID poll is running. */
+    override fun onResume() {
+        super.onResume()
+        (application as PopApplication).controller.onWorldIdReturn()
     }
 }

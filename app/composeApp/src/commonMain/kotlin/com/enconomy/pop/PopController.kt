@@ -85,6 +85,12 @@ data class UiState(
     val runNote: String? = null,
     /** Context gate passed (docs/worldid/01 §7.1): the PopCtx nonce this session is bound to; null = no context. */
     val ctxOk: ContextGate.Result.Ok? = null,
+    /** World ID step of this phone (docs/worldid/01 §7.1); null = the session needs none. */
+    val wid: WidUi? = null,
+    /** /v1/config "chain".chain_id (debug test context). */
+    val serverChainId: Long? = null,
+    /** Attestation state on the result screen (§8.4), null = not asked. */
+    val attText: String? = null,
     /** Pre-flight / clock problem; user fixes it and taps Start. */
     val runBlocked: String? = null,
     val preflight: AudioPreflight? = null,
@@ -146,6 +152,10 @@ class PopController(
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
+    /** World ID start + status/view polling while on Confirm. */
+    private var widJob: Job? = null
+    /** Context of the last host(), reused by "new session". */
+    private var hostContext: JsonObject? = null
     private var popt2: Popt2Config? = null
     private var proofJob: Job? = null
     private var benchJob: Job? = null
@@ -206,6 +216,7 @@ class PopController(
 
     fun go(s: Screen) {
         if (s != Screen.Host) job?.cancel()
+        if (s != Screen.Confirm) widJob?.cancel()
         if (s != Screen.Host) InviteBeacon.publish(null)
         _state.update { it.copy(screen = s, error = null, status = "") }
     }
@@ -328,8 +339,9 @@ class PopController(
         val v2 = Popt2Config.from(cfg)
         popt2 = v2
         val tune = (cfg["tune_db"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
+        val chainId = ((cfg["chain"] as? JsonObject)?.get("chain_id") as? kotlinx.serialization.json.JsonPrimitive)?.content?.toLongOrNull()
         _state.update {
-            it.copy(uploadRecordings = up, serverTuneDb = tune ?: it.serverTuneDb, configOk = bad.isEmpty(), popt2Available = v2 != null,
+            it.copy(uploadRecordings = up, serverChainId = chainId ?: it.serverChainId, serverTuneDb = tune ?: it.serverTuneDb, configOk = bad.isEmpty(), popt2Available = v2 != null,
                 error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
         }
         return bad.isEmpty()
@@ -354,7 +366,8 @@ class PopController(
      */
     fun host(context: JsonObject? = null) {
         go(Screen.Host)
-        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, ctxOk = null) }
+        hostContext = context
+        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, ctxOk = null, wid = null) }
         run("creating session") { api ->
             requireConfig(api)
             val me = keystore.load() ?: error("not enrolled")
@@ -377,6 +390,8 @@ class PopController(
                     if (v?.partner != null) {
                         InviteBeacon.publish(null)
                         _state.update { it.copy(session = v, screen = Screen.Confirm, status = "guest joined") }
+                        // §7.1: host starts World ID once the partner is known
+                        if (context != null || WorldId.required(inv.policy) || WorldId.required(v.policy)) startWorldId()
                         return@run
                     }
                     // §7.3: with a context a new sid means a new action/nonce, so no auto-renew
@@ -449,7 +464,7 @@ class PopController(
             _state.update { it.copy(error = e.code, status = e.message ?: "") }
             return
         }
-        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, ctxOk = null) }
+        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, ctxOk = null, wid = null) }
         run("joining ${inv.sessionId.take(8)}") { api ->
             var v = api.join(inv.sessionId, inv.joinToken)
             _state.update { it.copy(session = v) }
@@ -470,6 +485,8 @@ class PopController(
                 ContextGate.Result.NoContext -> {}
             }
             _state.update { it.copy(session = v, screen = Screen.Confirm, status = "joined") }
+            // §7.1: guest starts World ID after the join view passed the gate
+            if (state.value.ctxOk != null || WorldId.required(v.policy)) startWorldId()
         }
     }
 
@@ -483,6 +500,156 @@ class PopController(
         val r = g as ContextGate.Result.Refused
         runCatching { api.abort(sid) }
         _state.update { it.copy(error = r.code, status = ContextGate.text(r.code), ctxOk = null) }
+    }
+
+    // ---- World ID (docs/worldid/01 §6.7, §7.2, §12) ----
+
+    /** Debug: host with a `test` kind context, so the server forces World ID (server fake mode or real). */
+    fun hostWorldIdTest() {
+        val ctx = kotlinx.serialization.json.buildJsonObject {
+            put("kind", kotlinx.serialization.json.JsonPrimitive("test"))
+            put("chain_id", kotlinx.serialization.json.JsonPrimitive(state.value.serverChainId ?: 4801L))
+            put("consumer", kotlinx.serialization.json.JsonPrimitive("0x" + "5afe".repeat(10)))
+            put("ctx_hash", kotlinx.serialization.json.JsonPrimitive("0x" + secureRandomBytes(32).toHex()))
+        }
+        host(ctx)
+    }
+
+    /**
+     * [create] = POST /worldid/start (reuses the server's live request), then long-poll own status until
+     * verified/failed while a second loop refreshes the view (partner's World ID, confirms).
+     * create = false only resumes polling (return from World App).
+     */
+    fun startWorldId(create: Boolean = true) {
+        val sid = state.value.session?.session_id ?: return
+        widJob?.cancel()
+        val mode = state.value.wid?.mode ?: defaultWidMode()
+        _state.update { it.copy(wid = (it.wid ?: WidUi(mode = mode)).copy(status = if (create) "starting" else it.wid?.status ?: "starting", error = null)) }
+        val api = api()
+        widJob = scope.launch {
+            try {
+                if (create) {
+                    try {
+                        val r = api.worldidStart(sid)
+                        setWid { it.copy(status = "requested", connectorUri = r.connector_uri, expiresAtS = r.expires_at_s) }
+                    } catch (e: PopHttpException) {
+                        if (e.code != "already_verified") throw e
+                        setWid { it.copy(status = WorldId.VERIFIED) }
+                    }
+                }
+                kotlinx.coroutines.coroutineScope {
+                    launch { widViewLoop(api, sid) }
+                    if (state.value.wid?.verified != true) widOwnLoop(api, sid)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                setWid { it.copy(status = WorldId.FAILED, error = e.code ?: "http_${e.status}") }
+            } catch (e: Throwable) {
+                setWid { it.copy(status = WorldId.FAILED, error = "worldid_unavailable") }
+                _state.update { it.copy(status = "${e::class.simpleName}: ${e.message}") }
+            } finally {
+                api.close()
+            }
+        }
+    }
+
+    /** iOS default = QR (§6.7): the PoP phone stays in the foreground. */
+    private fun defaultWidMode(): String = if (keystore.platform == "ios") "qr" else "app"
+
+    fun setWidMode(m: String) = setWid { it.copy(mode = m) }
+
+    /** "This phone": hand the connector link to World App. */
+    fun openWorldIdApp() {
+        val uri = state.value.wid?.connectorUri ?: return
+        if (!openExternalUrl(uri)) setWid { it.copy(mode = "qr") }.also { _state.update { it.copy(status = "No app opened the World ID link; showing the code.") } }
+    }
+
+    /** enconomy://worldid came back (or the app returned to the foreground): make sure the poll runs. */
+    fun onWorldIdReturn() {
+        val w = state.value.wid ?: return
+        if (state.value.screen != Screen.Confirm || w.verified || w.failed) return
+        if (widJob?.isActive != true) startWorldId(create = false)
+    }
+
+    /** A failed World ID that this session can't fix (§7.3): abort, then host/join again. */
+    fun newSession() {
+        val role = state.value.role
+        val ctx = hostContext
+        abortPairing()
+        if (role == "A") host(ctx) else join()
+    }
+
+    private fun setWid(f: (WidUi) -> WidUi) = _state.update { s -> s.wid?.let { s.copy(wid = f(it)) } ?: s }
+
+    private suspend fun widOwnLoop(api: PopApi, sid: String) {
+        var misses = 0
+        while (true) {
+            val st = try {
+                api.worldidStatus(sid, timeoutS = 25)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                throw e
+            } catch (_: Throwable) {
+                // backgrounded while World App is open, or a flaky network: keep polling
+                setWid { it.copy(error = "network") }
+                delay((500L shl misses.coerceAtMost(3)))
+                misses++
+                continue
+            }
+            misses = 0
+            setWid { it.copy(status = st.status, error = st.error, connectorUri = it.connectorUri ?: st.connector_uri, expiresAtS = it.expiresAtS ?: st.expires_at_s) }
+            if (st.status == WorldId.VERIFIED || st.status == WorldId.FAILED) return
+            if (st.status == "idle") delay(1000) // no request yet: the server answers at once
+        }
+    }
+
+    private suspend fun widViewLoop(api: PopApi, sid: String) {
+        var seq: Long? = state.value.session?.seq
+        while (true) {
+            val v = try {
+                api.session(sid, after = seq, timeoutS = 5)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                return
+            } catch (_: Throwable) {
+                delay(1000); continue
+            }
+            seq = v.seq
+            _state.update { if (it.session?.session_id == sid && it.screen == Screen.Confirm) it.copy(session = v) else it }
+            if (v.state == "aborted") {
+                _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
+                return
+            }
+            if (v.state == "done") return
+        }
+    }
+
+    /** Result screen: signed / refused (§8.1, §8.4). Best effort. */
+    private fun fetchAttestation(sid: String) {
+        val api = api()
+        scope.launch {
+            try {
+                val a = api.attestation(sid)
+                val att = a["att"] as? JsonObject
+                val refused = (a["att_refused"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content
+                val v = (att?.get("v") as? kotlinx.serialization.json.JsonPrimitive)?.content
+                _state.update { it.copy(attText = when {
+                    v != null -> "signed ($v)"
+                    refused != null -> "refused: $refused"
+                    else -> "not signed yet"
+                }) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                _state.update { it.copy(attText = "unavailable (${e.code ?: e.status})") }
+            } catch (_: Throwable) {
+            } finally {
+                api.close()
+            }
+        }
     }
 
     // ---- confirm (§3.3 step 3) ----
@@ -499,6 +666,7 @@ class PopController(
                 _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
                 return@run
             }
+            widJob?.cancel()
             _state.update { it.copy(session = v, screen = Screen.Run, status = "confirmed", result = null, runBlocked = null) }
             runSession(api, v)
         }
@@ -537,7 +705,8 @@ class PopController(
             val res = r.run()
             val ev = r.evidence
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
-            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null) }
+            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null, attText = null) }
+            if (state.value.wid != null) fetchAttestation(v.session_id)
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
@@ -565,7 +734,7 @@ class PopController(
     fun again() {
         proofJob?.cancel()
         pendingProof = null
-        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null) }
+        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null, wid = null, attText = null) }
         go(Screen.Home)
     }
 

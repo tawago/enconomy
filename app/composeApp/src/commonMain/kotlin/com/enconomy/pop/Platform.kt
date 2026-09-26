@@ -15,3 +15,6 @@ expect fun unixMs(): Long
 
 /** Debuggable build (Android FLAG_DEBUGGABLE, iOS debug binary). Gates the `test` context kind (docs/worldid/01 §12). */
 expect fun isDebugBuild(): Boolean
+
+/** Open [url] in another app (World ID connector link, docs/worldid/01 §6.7). false = nothing could open it. */
+expect fun openExternalUrl(url: String): Boolean
