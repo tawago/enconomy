@@ -1,4 +1,4 @@
-"""POPT v2 / POPC v2 layout, Poseidon7 + rec_root, int8 codes, code_commit and exact decide.
+"""POPT v2 / POPC v2 layout, Poseidon7 (legacy) + rec_root, int8 codes, code_commit and exact decide.
 
 Literal vectors run everywhere. Spike parity (research/sound-bound/spikes/zk, read-only; skipped when absent):
 every fixtures/popt_v2 session (12 JBL250 sessions x {48k, mix} + sodfar/sodwide): transcript + commit bytes,
@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from pop import constants as K
+from pop import poseidon2 as p2
 from pop import poseidon7 as p7
 from pop import popt2
 from pop.codec import decode_commit, decode_transcript, encode_commit, encode_transcript
@@ -34,12 +35,12 @@ FIXTURES = sorted(FIX.glob("*.json")) if FIX.is_dir() else []
 SLOW = os.environ.get("POP_SLOW") == "1"
 
 VEC2 = dict(version=2, role="B", attempt=1, nonce=bytes(range(32)), pk_self=b"\x04" + b"\x11" * 64,
-            pk_partner=b"\x04" + b"\x22" * 64, sample_rate=44100, half=-45566, rec_root=b"\x33" * 32,
+            pk_partner=b"\x04" + b"\x22" * 64, sample_rate=44100, half=-45566, rec_root=b"\x23" * 32,
             play_frame_position=26400, play_nano_time=123456789012345, rec_frame0_nano_time=123456000000000,
             self_os_delta=-7, commit_hash=b"\x44" * 32, a_self=69253, p_partner=27958, delta=88,
             code_commit=b"\x55" * 32)
-VEC2_SHA = "77c8f8f8755d2767e41618c5fd009084854d8321932fe4c2eb372f6c313a1f71"
-COMMIT2_SHA = "e8a0dc9bfb77e580677d6f110250db7ee07e0b24880a1e9b9e446685bf467a1d"   # ("B", 1, range(32), 0x33*32)
+VEC2_SHA = "77cb6f5d1bac26f7e474e1a210b9051675154e1f6b3dd2eae204582eb54c3376"
+COMMIT2_SHA = "934498aab52fb4601d7ee42f0ea304cb8c31bf76b3558b33afe44d8295f0cfcc"   # ("B", 1, range(32), 0x23*32)
 
 
 def _spike(mod: str, sub: str):
@@ -55,7 +56,7 @@ def _spike(mod: str, sub: str):
 def test_v2_vector_and_offsets():
     raw = encode_transcript(VEC2)
     assert len(raw) == 311 and hashlib.sha256(raw).hexdigest() == VEC2_SHA
-    assert raw[:7] == b"POPT\x02B\x01" and raw[177:209] == b"\x33" * 32 and raw[237:269] == b"\x44" * 32
+    assert raw[:7] == b"POPT\x02B\x01" and raw[177:209] == b"\x23" * 32 and raw[237:269] == b"\x44" * 32
     assert struct.unpack(">IIH", raw[269:279]) == (69253, 27958, 88) and raw[279:311] == b"\x55" * 32
     t = decode_transcript(raw)
     assert {k: t[k] for k in VEC2} == VEC2
@@ -63,16 +64,16 @@ def test_v2_vector_and_offsets():
 
 
 def test_v2_commit_vector():
-    c = encode_commit("B", 1, bytes(range(32)), b"\x33" * 32, version=2)
+    c = encode_commit("B", 1, bytes(range(32)), b"\x23" * 32, version=2)
     assert len(c) == 71 and c[:7] == b"POPC\x02B\x01" and hashlib.sha256(c).hexdigest() == COMMIT2_SHA
     d = decode_commit(c)
-    assert d["version"] == 2 and d["rec_root"] == b"\x33" * 32 and "rec_sha256" not in d
+    assert d["version"] == 2 and d["rec_root"] == b"\x23" * 32 and "rec_sha256" not in d
 
 
 @pytest.mark.parametrize("mut", [
     lambda r: r[:-1], lambda r: r + b"\0", lambda r: r[:4] + b"\x01" + r[5:],       # 311 bytes must be v2
     lambda r: r[:269], lambda r: r[:4] + b"\x01" + r[5:269] + b"\0" * 42,
-    lambda r: r[:5] + b"C" + r[6:], lambda r: r[:177] + p7.P.to_bytes(32, "big") + r[209:]])
+    lambda r: r[:5] + b"C" + r[6:], lambda r: r[:177] + p2.R.to_bytes(32, "big") + r[209:]])
 def test_v2_decode_rejects(mut):
     with pytest.raises(ValueError):
         decode_transcript(mut(encode_transcript(VEC2)))
@@ -86,8 +87,8 @@ def test_v1_269_with_version2_rejected():
 
 def test_commit_root_canonical():
     with pytest.raises(ValueError):
-        decode_commit(encode_commit("A", 0, bytes(32), p7.P.to_bytes(32, "big"), version=2))
-    assert decode_commit(encode_commit("A", 0, bytes(32), (p7.P - 1).to_bytes(32, "big"), version=2))
+        decode_commit(encode_commit("A", 0, bytes(32), p2.R.to_bytes(32, "big"), version=2))
+    assert decode_commit(encode_commit("A", 0, bytes(32), (p2.R - 1).to_bytes(32, "big"), version=2))
     assert decode_commit(encode_commit("A", 0, bytes(32), b"\xff" * 32))["rec_sha256"] == b"\xff" * 32   # v1: any
 
 
@@ -96,8 +97,8 @@ def test_codec_matches_spike_popt():
     popt = _spike("popt", "enclave")
     raw = encode_transcript(VEC2)
     t = {("rec" if k == "rec_root" else k): v for k, v in VEC2.items() if k != "version"}
-    assert popt.encode(t, 2) == raw and popt.popc(2, "B", 1, bytes(range(32)), b"\x33" * 32) == \
-        encode_commit("B", 1, bytes(range(32)), b"\x33" * 32, version=2)
+    assert popt.encode(t, 2) == raw and popt.popc(2, "B", 1, bytes(range(32)), b"\x23" * 32) == \
+        encode_commit("B", 1, bytes(range(32)), b"\x23" * 32, version=2)
     d = popt.decode(raw)
     ours = decode_transcript(raw)
     assert (d["p_self"], d["a_partner"]) == (ours["p_self"], ours["a_partner"])
@@ -168,7 +169,8 @@ def test_code_shape_and_commit():
         a = np.frombuffer(cI + cQ, dtype=np.int8)
         assert a.min() >= -127 and a.max() <= 127 and max(abs(a.min()), a.max()) == 127
     own, other = popt2.code(key, "A", 48000), popt2.code(hashlib.sha256(b"k2").digest(), "B", 48000)
-    assert popt2.code_commit(own, other) == hashlib.sha256(b"pop-code-v2" + own[0] + own[1] + other[0] + other[1]).digest()
+    i8 = lambda b: np.frombuffer(b, dtype=np.int8).tolist()   # noqa: E731
+    assert popt2.code_commit(own, other) == p2.to_bytes32(p2.code_commitment(*map(i8, (*own, *other))))
     assert popt2.code_commit(own, other) != popt2.code_commit(other, own)
     assert popt2.delta(48000) == 96 and popt2.delta(44100) == 88
 
@@ -267,6 +269,7 @@ def _checked(fx: dict, r: str) -> dict:
 
 
 @need_spike
+@pytest.mark.skip(reason="Poseidon7/sha256-era fixtures: POPT v2 rec_root and code_commit are Poseidon2 (Noir option A) now")
 @pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.stem)
 def test_fixture_transcripts_and_verdict(path):
     fx = json.loads(path.read_text())

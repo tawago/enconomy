@@ -2,7 +2,7 @@ package com.enconomy.pop.zk
 
 /** App-private files under [dir] (proving keys, proofs). Paths are absolute. */
 expect object ZkFiles {
-    /** Android filesDir/zk, iOS Application Support/zk (excluded from backup). Created on first use. */
+    /** Android external app files/zk (fallback filesDir/zk), iOS Application Support/zk (excluded from backup). Created on first use. */
     fun dir(): String
     /** -1 when missing. */
     fun size(path: String): Long
@@ -30,6 +30,8 @@ expect object DeviceMemory {
     fun resetPeak()
     /** Android Debug.getNativeHeapAllocatedSize, null elsewhere. */
     fun nativeHeap(): Long?
+    /** Drop what we can before the native prove: iOS full Kotlin GC; Android no-op. */
+    fun trim()
 }
 
 /** true = cellular / metered, false = Wi-Fi / unmetered, null = unknown. */

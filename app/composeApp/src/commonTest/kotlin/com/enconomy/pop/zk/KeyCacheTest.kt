@@ -94,8 +94,8 @@ class KeyCacheTest {
 
     @Test
     fun pinsMatchDocs() {
-        assertEquals("49b6ed65e25fb25018cbc87beba5061f36aa9b24ddf3c47fb0a72ad2243bd045", ProvingKeys.forRate(48000)!!.sha256)
-        assertEquals("oa2t_s44", ProvingKeys.forRate(44100)!!.circuit)
-        assertEquals("/v1/zk/keys/oa2t_s48.pk.zst", ProvingKeys.s48.urlPath)
+        assertEquals("5499f99eed7aecfd6615ab470cfed7a3345e28954385005d8080b810aaf04f3a", ProvingKeys.forRate(48000)!!.artifact.sha256)
+        assertEquals(null, ProvingKeys.forRate(44100))
+        assertEquals("/v1/zk/keys/oaN_s48.json", ProvingKeys.s48.artifact.urlPath)
     }
 }

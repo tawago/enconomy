@@ -4,6 +4,7 @@ package com.enconomy.pop
 
 import androidx.compose.ui.window.ComposeUIViewController
 import platform.Foundation.NSLog
+import platform.Foundation.NSProcessInfo
 import platform.UIKit.UIViewController
 
 /** Process-lifetime controller, like PopApplication.controller on Android. */
@@ -27,7 +28,12 @@ private fun installCrashLog() {
 
 fun MainViewController(): UIViewController {
     installCrashLog()
-    return ComposeUIViewController { App(controller) }
+    return ComposeUIViewController { App(controller) }.also {
+        // ios-deploy --envs "POP_BENCH=180ca04b_48k_A POP_FORCE=1": run the prover bench at launch
+        NSProcessInfo.processInfo.environment["POP_BENCH"]?.let { n ->
+            controller.openBench(); controller.benchRun(n.toString(), NSProcessInfo.processInfo.environment["POP_FORCE"] != null)
+        }
+    }
 }
 
 /**

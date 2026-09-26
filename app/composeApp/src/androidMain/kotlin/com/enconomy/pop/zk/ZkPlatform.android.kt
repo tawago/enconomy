@@ -9,7 +9,9 @@ import java.io.File
 import java.io.FileOutputStream
 
 actual object ZkFiles {
-    actual fun dir(): String = File(PopApplication.instance.filesDir, "zk").apply { mkdirs() }.absolutePath
+    /** App-specific external dir (adb can push keys / pull bench output without run-as, so release builds bench too). */
+    actual fun dir(): String = (PopApplication.instance.getExternalFilesDir("zk") ?: File(PopApplication.instance.filesDir, "zk"))
+        .apply { mkdirs() }.absolutePath
     actual fun size(path: String): Long = File(path).let { if (it.isFile) it.length() else -1L }
     actual fun append(path: String, bytes: ByteArray) = FileOutputStream(path, true).use { it.write(bytes) }
     actual fun write(path: String, bytes: ByteArray) = File(path).writeBytes(bytes)
@@ -34,6 +36,7 @@ actual object DeviceMemory {
     actual fun peak(): Long? = status("VmHWM")
     actual fun resetPeak() { runCatching { File("/proc/self/clear_refs").writeText("5") } }
     actual fun nativeHeap(): Long? = Debug.getNativeHeapAllocatedSize()
+    actual fun trim() {}
 
     /** /proc/self/status "<key>:   123 kB" in bytes. */
     private fun status(key: String): Long? = runCatching {

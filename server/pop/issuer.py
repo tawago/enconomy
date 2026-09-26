@@ -5,6 +5,11 @@ sig  = ECDSA P-256 over SHA-256(cred), raw r||s. Layout = research/sound-bound/s
 (build_fixtures_popt2.cred3, circuit gen_popt2.py Sha256(8*111)). The circuit checks the signature against the
 public issuerX/issuerY and validAt <= expiry; it never opens holder_commit (only the _nf variant does).
 
+Code attestation (Noir option A: the templates are private, the proof only exposes their Poseidon2 code_commit, so
+the issuer vouches that code_commit is the codes this server sent for that session, attempt and role):
+  msg = "POPCC1" || session_nonce 32 || attempt u8 || role 'A'|'B' || code_commit 32 BE     (72 bytes)
+  sig = ECDSA P-256 over SHA-256(msg) by the issuer key, raw r||s, low-S.
+
 Key: POP_ISSUER_KEY (PEM, or 64 hex = private scalar) wins over POP_ISSUER_KEY_FILE (default data/issuer.pem,
 created 0600 on first run unless POP_ISSUER_AUTOGEN=0). data/ and *.pem are gitignored.
 """
@@ -24,6 +29,13 @@ MAGIC = b"SBcred3"
 CRED_LEN = 111
 P256_P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
 CRED_TTL_S = 30 * 86400
+CODE_ATTEST_MAGIC = b"POPCC1"
+
+
+def code_attest_msg(nonce: bytes, attempt: int, role: str, code_commit: bytes) -> bytes:
+    if len(nonce) != 32 or len(code_commit) != 32 or role not in ("A", "B") or not 0 <= attempt < 256:
+        raise ValueError("bad code attestation fields")
+    return CODE_ATTEST_MAGIC + nonce + bytes([attempt]) + role.encode() + code_commit
 _HEX64 = re.compile(r"^(0x)?[0-9a-fA-F]{64}$")
 
 
@@ -79,6 +91,11 @@ class Issuer:
         exp = now_s + self.ttl_s
         cred = build(pub65, exp, holder_commit)
         return {"cred": cred, "sig": sign_raw(self.sk, cred), "expiry": exp}
+
+    def attest_code(self, nonce: bytes, attempt: int, role: str, code_commit: bytes) -> dict:
+        msg = code_attest_msg(nonce, attempt, role, code_commit)
+        return {"code_commit": code_commit.hex(), "msg_hex": msg.hex(), "sig_hex": sign_raw(self.sk, msg).hex(),
+                "issuer_pubkey": self.pub.hex(), "format": "POPCC1"}
 
     def public(self) -> dict:
         return {"alg": "ES256", "pubkey": self.pub.hex(), "pub_x": self.pub[1:33].hex(), "pub_y": self.pub[33:].hex(),

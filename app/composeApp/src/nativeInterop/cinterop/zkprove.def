@@ -1,0 +1,6 @@
+# app/zkprove C ABI (include/zkprove.h). Header dir and the per-target libzkprove.a dir come from build.gradle.kts
+# (-I, -libraryPath); the static lib is embedded in the klib and linked into the framework.
+headers = zkprove.h
+package = com.enconomy.pop.zk.native
+staticLibraries = libzkprove.a
+linkerOpts = -lc++

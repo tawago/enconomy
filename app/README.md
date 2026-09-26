@@ -139,24 +139,16 @@ cd app/iosApp
 # device: -destination 'generic/platform=iOS'
 ```
 
-## Option A proof on the phone (POPT v2)
+## Option A proof on the phone (POPT v2, Noir)
 
-After a NEAR verdict on a v2 run, the phone proves its half with `app/prover` (docs/pop-prover.md):
+After a NEAR verdict on a v2 run at 48 kHz, the phone proves its half with the Noir circuit `noir/phone` (research/worldid/prototypes/optA-noir) on Barretenberg UltraHonk, circuit id `oaN_s48`. App <-> server contract: `../zkmobile/APP_SERVER_CONTRACT.md`. 44.1 kHz runs are skipped (no circuit).
 
-- `zk/WitnessInput.kt` builds the `oa2t_s48` / `oa2t_s44` witness JSON from the signed POPT v2 bytes, the capture, the rec tree, own + partner int8 codes and the SBcred3 (port of spike `prep_popt2.py`). It first re-checks what the circuit needs (integer rule at a_self / a_partner, `|self_os_delta| <= delta`, geometry, code_commit, rec_root, credential expiry vs validAt) and refuses in ms instead of after the native witness.
-- `zk/ProvingKeys.kt`: keys from `GET /v1/zk/keys/<circuit>.pk.zst`, sha256 pinned, cached in `filesDir/zk` / `Application Support/zk` (no backup), resumable (`.part` + Range), one refetch on a bad hash. On mobile data the proof waits for "Download and prove" (Wi-Fi recommended, ~12 MB).
-- Keys come from `app/prover/keys/oa2t_s48.pk.zst` / `oa2t_s44.pk.zst` (gitignored; zstd of the spike's `oa2t_s48.pk` / `oa2t_s44.pk`, sha256 = the pins in `ProvingKeys.kt`). The server serves `POP_ZK_KEYS` (default `server/data/zk/`, empty in a fresh checkout): before any phone test either copy both files there or start the server with `POP_ZK_KEYS=../app/prover/keys`. Otherwise the first download is a 404 (`not_served`).
-- `zk/ProofRunner.kt`: memory guard (skip when RAM < ~3.4 GB or Android free < ~1.5 GB; iOS: skip when `os_proc_available_memory` + footprint < ~1.95 GB, i.e. no increased-memory-limit), key, witness input, open key, constraint check (public vector must equal the derived one), prove, close; native calls on `Dispatchers.Default`, one prover instance at a time (live proof and bench share a lock; a cancelled prove holds it until the native call returns). Then `POST /v1/session/{id}/proof` multipart: file `proof` (raw bytes) + `meta` `{"attempt","circuit","salt"}` (salt decimal), as in `server/pop/main.py`. 409 `already_submitted` shows as verified; 503 `zk_unavailable`, 404 or any reject keep the proof in `zk/`.
-- Key missing on a metered network: the phone stays on v2 and waits for "Download and prove" (docs/pop-prover.md says fall back to v1; v2 is chosen before the verdict, so it can't be undone per run).
-- validAt = `valid_at` of the result when the server sends one, else t0 of the attempt in unix seconds.
-- Result screen shows the proof status; **Prover bench** (Home) proves a bundled fixture (`composeResources/files/zk/bench_*.json`, `commonTest/resources/zk/tools/gen_bench.py`) and shows witness parity with the spike, key load / check / prove time, proof size, peak footprint (Android VmRSS/VmHWM + native heap, iOS phys_footprint + ledger peak).
+- Hashes (`zk/OaHash.kt`, `zk/CodeCommit.kt`): rec_root = oalib Poseidon2/BN254 tree (built during the run, signed in POPC/POPT), code_commit = oalib `code_commitment`, halfCommit = `hash_n(8, 11 values)`.
+- `zk/WitnessInput.kt`: the Noir ABI input map as JSON (Field = decimal string, uN = number, bool), ECDSA sigs normalized to low-S. Same pre-checks as before (rule at a_self / a_partner, geometry, code_commit, rec_root, credential). An ACVM failure on the phone = unprovable.
+- `app/zkprove` (Rust): ACVM witness (noir v1.0.0-beta.22) + bb v5.0.0-nightly.20260522 `libbb-external.a`, JNI (`ZkProverNative`) and C ABI (`include/zkprove.h`). Proof + public_inputs = the exact `bb prove -t evm` files. Build: `zkprove/scripts/build_android.sh` (zig libc++, cargo-ndk) -> `dist/android/arm64-v8a/libzkprove.so` (copied into jniLibs by `copyProverSo`); `zkprove/scripts/build_ios.sh` -> `dist/ios/ZkProve.xcframework` (cinterop `zkprove.def`). Without `dist/` the app builds without on-phone proofs.
+- Files (`zk/ProvingKeys.kt`, sha256 pinned, `GET /v1/zk/keys/<file>`, resumable): `oaN_s48.json` (14.6 MB), `bn254_g1_2p20.dat` (64 MB), `oaN_s48.vk`. For a bench without a server, push them into the app's `files/zk` (Android: `adb push` + `run-as com.enconomy.pop cp`).
+- Memory guard: ~1.7 GB (Android) / ~1.35 GB (iOS jetsam limit). Refused -> the result screen still offers **Delegate proof to server** (`POST /v1/session/{id}/proof/delegate` with the same input map; the server proves and records it).
+- Upload: `POST /v1/session/{id}/proof`, parts `proof`, `public_inputs`, `meta {attempt, circuit, salt}`.
+- **Prover bench** proves `composeResources/files/zk/bench_180ca04b_48k_{A,B}.json` (`commonTest/resources/zk/tools/gen_bench_noir.py`, from the team's Prover_{A,B}.toml) and checks every input and the 12 public inputs against the team's proof. The proof lands in `files/zk/bench_<name>.proof` / `.pub`; check with `bb verify -t evm -k ~/.enconomy/zk/pinned/vk/vk -p proof -i pub`.
 
-Native lib wiring: Android copies `prover/dist/android/arm64-v8a/libpop_prover.so` into generated jniLibs (`copyProverSo`); iOS links `prover/dist/ios/PopProver.xcframework` through cinterop `src/nativeInterop/cinterop/popprover.def` (static lib embedded in the klib). Without `dist/` the app still builds (`ProverLib.available = false`, iOS uses `src/iosNoProver`). `-Ppop.buildProver=true` rebuilds the libs first (run the whole gradle under heavy.sh). iOS paid builds request `com.apple.developer.kernel.increased-memory-limit`.
-
-Heavy checks:
-```
-S=<dir with oa2t_s48.pk.zst>
-POP_ZK_DUMP=/tmp/zkin ./gradlew :composeApp:testDebugUnitTest --tests '*WitnessInputTest' --rerun
-prover/target/release/popprover check $S/oa2t_s48.pk.zst /tmp/zkin/180ca04b_48k_A.input.json   # ACCEPT
-POP_ZK_KEYS=$S ./gradlew :composeApp:iosSimulatorArm64Test                                    # proves on the simulator
-```
+Parity check (JVM): `./gradlew :composeApp:testDebugUnitTest --tests '*WitnessInputTest'`.

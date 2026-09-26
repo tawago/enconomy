@@ -373,18 +373,37 @@ class PopApi(
     }
 
     /**
-     * POST /v1/session/{id}/proof (server/pop/main.py): multipart, file part "proof" = raw proof bytes,
-     * "meta" = {"attempt","circuit","salt" (decimal)}. Returns body text.
+     * POST /v1/session/{id}/proof (zkmobile/APP_SERVER_CONTRACT.md): multipart, file parts "proof" and
+     * "public_inputs" = the exact `bb prove -t evm` output files, "meta" = {"attempt","circuit","salt" (decimal)}.
+     * Returns body text.
      */
-    suspend fun uploadProof(id: String, attempt: Int, circuit: String, saltDecimal: String, proof: ByteArray): String {
+    suspend fun uploadProof(id: String, attempt: Int, circuit: String, saltDecimal: String, proof: ByteArray, publicInputs: ByteArray): String {
         val boundary = "popzk" + sha256(proof).toHex().take(24)
         val meta = buildJsonObject { put("attempt", attempt); put("circuit", circuit); put("salt", saltDecimal) }
         val body = Multipart.formData(boundary, listOf(
             Multipart.Part("proof", "proof_$attempt.bin", "application/octet-stream", proof),
+            Multipart.Part("public_inputs", "public_inputs_$attempt.bin", "application/octet-stream", publicInputs),
             Multipart.Part("meta", null, null, meta.toString().encodeToByteArray()),
         ))
         return signedRaw(HttpMethod.Post, "/v1/session/$id/proof", body, ContentType.MultiPart.FormData.withParameter("boundary", boundary))
     }
+
+    /**
+     * POST /v1/session/{id}/proof/delegate: the server proves from our Noir input map ([inputsJson], WitnessInput).
+     * Body {"attempt","circuit","salt","inputs"}; reply 200 (done) or 202 {"status":"proving"}. Returns (status, body).
+     */
+    suspend fun delegateProof(id: String, attempt: Int, circuit: String, saltDecimal: String, inputsJson: String): Pair<Int, String> {
+        val head = buildJsonObject { put("attempt", attempt); put("circuit", circuit); put("salt", saltDecimal) }.toString()
+        // splice the (large, prebuilt) input map in without re-encoding it
+        val body = head.dropLast(1) + ",\"inputs\":" + inputsJson + "}"
+        val r = send(HttpMethod.Post, "/v1/session/$id/proof/delegate", body.encodeToByteArray(), ContentType.Application.Json, signed = true)
+        val st = r.status.value
+        return st to r.textOrThrow()
+    }
+
+    /** GET /v1/session/{id}/result as raw JSON (for the zk block). */
+    suspend fun resultJson(id: String): JsonObject =
+        popJson.parseToJsonElement(send(HttpMethod.Get, "/v1/session/$id/result", ByteArray(0), null, signed = true).textOrThrow()).jsonObject
 
     /** Raw signed request (e.g. multipart recording upload). Returns body text. */
     suspend fun signedRaw(method: HttpMethod, path: String, body: ByteArray, contentType: ContentType): String =

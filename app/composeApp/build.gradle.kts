@@ -57,38 +57,38 @@ val genTestResourceDir = tasks.register<GenTestResourceDir>("genTestResourceDir"
     outDir.set(layout.buildDirectory.dir("generated/testResourceDir/iosTest/kotlin"))
 }
 
-// ---- option A prover (app/prover, docs/pop-prover.md) ----
+// ---- option A prover (app/zkprove: ACVM witness + Barretenberg UltraHonk, Noir circuit oaN_s48) ----
 // Native builds are heavy and need the NDK / Xcode: they run only with -Ppop.buildProver=true (or by hand,
-// app/prover/README.md). Otherwise the last dist/ output is used; without it the app builds and runs v2
-// without on-phone proofs (ProverLib.available = false). The whole gradle run goes under heavy.sh
+// app/zkprove/scripts/build_{android,ios}.sh). Otherwise the last dist/ output is used; without it the app builds
+// and runs v2 without on-phone proofs (ProverLib.available = false). The whole gradle run goes under heavy.sh
 // (not reentrant, so these tasks don't take the lock themselves).
-val proverDir = rootProject.file("prover")
+val proverDir = rootProject.file("zkprove")
 val buildProver = providers.gradleProperty("pop.buildProver").map { it == "true" }.orElse(false)
 
 val buildProverAndroid = tasks.register<Exec>("buildProverAndroid") {
-    description = "app/prover -> prover/dist/android/arm64-v8a/libpop_prover.so (cargo-ndk, heavy)"
+    description = "app/zkprove -> zkprove/dist/android/arm64-v8a/libzkprove.so (cargo-ndk, heavy)"
     workingDir = proverDir
     commandLine(proverDir.resolve("scripts/build_android.sh").absolutePath)
     onlyIf { buildProver.get() }
 }
 
 val buildProverIos = tasks.register<Exec>("buildProverIos") {
-    description = "app/prover -> prover/dist/ios/PopProver.xcframework (heavy)"
+    description = "app/zkprove -> zkprove/dist/ios/ZkProve.xcframework (heavy)"
     workingDir = proverDir
     commandLine(proverDir.resolve("scripts/build_ios.sh").absolutePath)
     onlyIf { buildProver.get() }
 }
 
-/** jniLibs/arm64-v8a/libpop_prover.so, generated so the 25 MB .so never sits in src/. */
+/** jniLibs/arm64-v8a/libzkprove.so, generated so the 25 MB .so never sits in src/. */
 val copyProverSo = tasks.register<Sync>("copyProverSo") {
     dependsOn(buildProverAndroid)
-    from(proverDir.resolve("dist/android")) { include("arm64-v8a/libpop_prover.so") }
+    from(proverDir.resolve("dist/android")) { include("arm64-v8a/libzkprove.so") }
     into(layout.buildDirectory.dir("generated/proverJniLibs"))
 }
 
-val proverXcf = proverDir.resolve("dist/ios/PopProver.xcframework")
+val proverXcf = proverDir.resolve("dist/ios/ZkProve.xcframework")
 val iosSlices = mapOf("iosArm64" to "ios-arm64", "iosSimulatorArm64" to "ios-arm64-simulator")
-val iosProver = buildProver.get() || iosSlices.values.all { proverXcf.resolve("$it/libpop_prover.a").isFile }
+val iosProver = buildProver.get() || iosSlices.values.all { proverXcf.resolve("$it/libzkprove.a").isFile }
 
 kotlin {
     androidTarget {
@@ -102,8 +102,8 @@ kotlin {
         it.compilations.getByName("main").cinterops.create("popmem") {
             definitionFile.set(project.file("src/nativeInterop/cinterop/popmem.def"))
         }
-        if (iosProver) it.compilations.getByName("main").cinterops.create("popprover") {
-            definitionFile.set(project.file("src/nativeInterop/cinterop/popprover.def"))
+        if (iosProver) it.compilations.getByName("main").cinterops.create("zkprove") {
+            definitionFile.set(project.file("src/nativeInterop/cinterop/zkprove.def"))
             includeDirs(proverDir.resolve("include"))
             extraOpts("-libraryPath", proverXcf.resolve(iosSlices.getValue(it.name)).absolutePath)
         }
@@ -163,7 +163,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimu
     providers.environmentVariable("POP_ZK_KEYS").orNull?.let { environment("SIMCTL_CHILD_POP_ZK_KEYS", it) }
 }
 
-tasks.matching { it.name.startsWith("cinteropPopprover") }.configureEach { dependsOn(buildProverIos) }
+tasks.matching { it.name.startsWith("cinteropZkprove") }.configureEach { dependsOn(buildProverIos) }
 
 android {
     namespace = "com.enconomy.pop"
@@ -187,7 +187,8 @@ android {
         }
     }
     buildTypes {
-        getByName("release") { isMinifyEnabled = false }
+        // debug key: hackathon installs; release = optimized, non-debuggable ART (the prover bench build)
+        getByName("release") { isMinifyEnabled = false; signingConfig = signingConfigs.getByName("debug") }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

@@ -10,6 +10,8 @@ import com.enconomy.pop.toHex
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -30,7 +32,7 @@ class Popt2Evidence(
     val transcript: ByteArray,
     val sig: ByteArray,
     val capture: ShortArray,
-    val tree: RecTree.Tree,
+    val tree: OaHash.RecTree2,
     val own: Popt2Code,
     val partner: Popt2Code,
     val t0Ms: Long,
@@ -44,6 +46,8 @@ sealed class ProofStatus {
     data class Downloading(val done: Long, val total: Long) : ProofStatus()
     data class Step(val name: String) : ProofStatus()
     data class Done(val stats: ProofStats, val upload: String?) : ProofStatus()
+    /** The server proved from our inputs ([ok] = verified). */
+    data class Delegated(val note: String, val ok: Boolean) : ProofStatus()
     data class Failed(val step: String, val why: String) : ProofStatus()
 }
 
@@ -66,12 +70,12 @@ class ProofStats(
 ) {
     fun lines(): List<String> = listOfNotNull(
         "circuit $circuit",
-        "witness input ${ms(witnessMs)}, key load ${ms(loadMs)}, check ${ms(checkMs)}, prove ${ms(proveMs)}",
+        "input map ${ms(witnessMs)}, ACVM witness + prove ${ms(proveMs)}",
         "proof ${kb(proofBytes.toLong())}",
         "peak footprint ${mb(peakBytes)}" + (osPeakBytes?.let { ", OS peak ${mb(it)}" } ?: "") +
             (nativeHeapPeak?.let { ", native heap ${mb(it)}" } ?: ""),
         "device RAM ${mb(totalRam)}",
-        "public vector ${if (publicMatches) "matches" else "DIFFERS"}",
+        "public inputs ${if (publicMatches) "match" else "DIFFER"}",
     )
 
     companion object {
@@ -83,17 +87,17 @@ class ProofStats(
 
 /**
  * Proving pipeline shared by the post-verdict proof and the bench:
- * memory guard -> key (download if needed) -> witness input (Kotlin) -> open key -> constraint check
- * (public vector compared with the expected one) -> prove -> close. Native calls run on Dispatchers.Default.
+ * memory guard -> artifacts (download if needed) -> Noir input map (Kotlin, with the pre-checks) ->
+ * native ACVM witness + UltraHonk prove -> public inputs compared with the expected ones. Native call on Dispatchers.Default.
  */
 class ProofRunner(val keys: KeyCache) {
-    class Out(val built: WitnessInput.Built, val proof: ByteArray, val stats: ProofStats)
+    class Out(val built: WitnessInput.Built, val proof: ByteArray, val publicInputs: ByteArray, val stats: ProofStats)
 
-    /** Non-null = do not try: RAM clearly too small (or too little free on Android). */
-    fun memoryProblem(k: KeySpec): String? {
+    /** Non-null = do not try locally: RAM clearly too small (or too little free on Android). */
+    fun memoryProblem(c: CircuitSpec): String? {
         val m = DeviceMemory.info()
-        val need = k.peakBytes
-        if (m.totalBytes in 1 until need * 7 / 4) {
+        val need = c.peakBytes(m.hardLimit)
+        if (m.totalBytes in 1 until need * 3 / 2) {
             return "This phone has ${ProofStats.mb(m.totalBytes)} RAM; the prover needs about ${ProofStats.mb(need)}. Skipped."
         }
         val avail = m.availBytes
@@ -107,8 +111,10 @@ class ProofRunner(val keys: KeyCache) {
         return null
     }
 
+    fun missing(c: CircuitSpec): Long = c.files.filter { !keys.present(it) }.sumOf { it.size - keys.partial(it) }
+
     /**
-     * [expectPublicSha] (bench): sha256 of the compact public JSON array the proof must carry.
+     * [expectPublic] (bench): the public_inputs bytes the proof must carry.
      * Throws UnprovableException / KeyException / ProverException.
      */
     suspend fun run(
@@ -116,27 +122,45 @@ class ProofRunner(val keys: KeyCache) {
         allowDownload: Boolean,
         onStatus: (ProofStatus) -> Unit,
         force: Boolean = false,
-        expectPublicSha: String? = null,
+        expectPublic: ByteArray? = null,
         prebuilt: WitnessInput.Built? = null,
+    ): Out? = awake { runAwake(src, allowDownload, onStatus, force, expectPublic, prebuilt) }
+
+    private suspend fun runAwake(
+        src: ProofSource,
+        allowDownload: Boolean,
+        onStatus: (ProofStatus) -> Unit,
+        force: Boolean,
+        expectPublic: ByteArray?,
+        prebuilt: WitnessInput.Built?,
     ): Out? {
         if (!ProverLib.available) { onStatus(ProofStatus.Skipped(ProverLib.loadError ?: "no native prover")); return null }
         val t = com.enconomy.pop.TranscriptCodec.decodeTranscript2(src.transcript)
-        val k = ProvingKeys.forRate(t.sampleRate) ?: run {
-            onStatus(ProofStatus.Skipped("no circuit for ${t.sampleRate} Hz")); return null
+        val c = ProvingKeys.forRate(t.sampleRate) ?: run {
+            onStatus(ProofStatus.Skipped("no circuit for ${t.sampleRate} Hz (48 kHz only)")); return null
         }
-        if (!force) memoryProblem(k)?.let { onStatus(ProofStatus.Skipped(it)); return null }
-        if (!keys.present(k) && !allowDownload) { onStatus(ProofStatus.NeedKey(k.circuit, k.size)); return null }
+        if (!force) memoryProblem(c)?.let { onStatus(ProofStatus.Skipped(it)); return null }
+        val need = missing(c)
+        if (need > 0 && !allowDownload) { onStatus(ProofStatus.NeedKey(c.id, need)); return null }
 
-        val keyPath = keys.ensure(k) { d, n -> onStatus(ProofStatus.Downloading(d, n)) }
+        val paths = c.files.map { f -> keys.ensure(f) { d, n -> onStatus(ProofStatus.Downloading(d, n)) } }
         onStatus(ProofStatus.Step("building witness input"))
         var t0 = monoNanos()
         val built = prebuilt ?: withContext(Dispatchers.Default) { WitnessInput.build(src) }
         val input = withContext(Dispatchers.Default) { built.json.encodeToByteArray() }
         val witnessMs = (monoNanos() - t0) / 1_000_000
 
-        // one key open at a time (~2 GB each): the bench and a live proof, or a cancelled native prove still running
+        // one native prove at a time (~1.5 GB each): the bench and a live proof, or a cancelled prove still running
         if (nativeLock.isLocked) onStatus(ProofStatus.Step("waiting for the other proof to finish"))
         return nativeLock.withLock { coroutineScope {
+            DeviceMemory.trim()
+            val m = DeviceMemory.info()
+            val left = m.availBytes
+            if (!force && m.hardLimit && left != null && left < c.iosHeadroomBytes) {
+                onStatus(ProofStatus.Skipped("Only ${ProofStats.mb(left)} left for the prover (needs ${ProofStats.mb(c.iosHeadroomBytes)}); " +
+                    "proving here could crash the app. Delegate the proof to the server, or restart the app and retry."))
+                return@coroutineScope null
+            }
             var peak = DeviceMemory.footprint()
             var heapPeak = DeviceMemory.nativeHeap()
             DeviceMemory.resetPeak()
@@ -149,33 +173,23 @@ class ProofRunner(val keys: KeyCache) {
             }
             try {
                 withContext(Dispatchers.Default) {
-                    onStatus(ProofStatus.Step("loading proving key"))
+                    onStatus(ProofStatus.Step("witness + proving (UltraHonk)"))
                     t0 = monoNanos()
-                    val h = ProverLib.open(keyPath)
-                    try {
-                        val loadMs = (monoNanos() - t0) / 1_000_000
-                        val sr = ProverLib.sampleRate(h)
-                        if (sr != built.sampleRate) throw ProverException("Arg", "key is for $sr Hz, input for ${built.sampleRate} Hz")
-                        onStatus(ProofStatus.Step("checking constraints"))
-                        t0 = monoNanos()
-                        val pub = popJson.parseToJsonElement(ProverLib.check(h, input)).jsonObject["public"]!!.jsonArray
-                            .map { it.jsonPrimitive.content }
-                        val checkMs = (monoNanos() - t0) / 1_000_000
-                        val matches = pub == built.expectedPublic &&
-                            (expectPublicSha == null || sha256(publicJson(pub).encodeToByteArray()).toHex() == expectPublicSha)
-                        if (!matches) throw ProverException("Arg", "public vector differs from the expected one (${pub.size} values)")
-                        onStatus(ProofStatus.Step("proving"))
-                        t0 = monoNanos()
-                        val proof = ProverLib.prove(h, input)
-                        val proveMs = (monoNanos() - t0) / 1_000_000
-                        peak = maxOf(peak, DeviceMemory.footprint())
-                        Out(built, proof, ProofStats(
-                            built.circuit, witnessMs, loadMs, checkMs, proveMs, proof.size, peak, DeviceMemory.peak(),
-                            heapPeak, DeviceMemory.info().totalBytes, built.halfCommit.toDecimal(), matches,
-                        ))
-                    } finally {
-                        ProverLib.close(h)
+                    val p = try {
+                        ProverLib.prove(paths[0], input, paths[1], paths[2])
+                    } catch (e: ProverException) {
+                        if (e.code == "Witness") throw UnprovableException("witness", e.message ?: "ACVM execute failed")
+                        throw e
                     }
+                    val proveMs = (monoNanos() - t0) / 1_000_000
+                    peak = maxOf(peak, DeviceMemory.footprint())
+                    val matches = p.publicInputs.contentEquals(built.expectedPublic) &&
+                        (expectPublic == null || p.publicInputs.contentEquals(expectPublic))
+                    if (!matches) throw ProverException("Arg", "public inputs differ from the expected ones (${p.publicInputs.size / 32} values)")
+                    Out(built, p.proof, p.publicInputs, ProofStats(
+                        built.circuit, witnessMs, 0, 0, proveMs, p.proof.size, peak, DeviceMemory.peak(),
+                        heapPeak, DeviceMemory.info().totalBytes, built.halfCommit.toDecimal(), matches,
+                    ))
                 }
             } finally {
                 sampler.cancel()
@@ -185,17 +199,27 @@ class ProofRunner(val keys: KeyCache) {
 
     companion object {
         private val nativeLock = Mutex()
-        /** A native prover instance is open (possibly from a cancelled job). */
-        val busy: Boolean get() = nativeLock.isLocked
 
-        fun publicJson(pub: List<String>): String = pub.joinToString(",", "[", "]") { "\"$it\"" }
+        /**
+         * >0 while witness building / proving runs. Android keeps the screen on meanwhile: a locked or dozing
+         * phone moves the app to the background cpuset (Pixel 6: little cores 0-3), and the prove takes ~4x longer.
+         */
+        val awakeCount = MutableStateFlow(0)
+
+        suspend fun <T> awake(block: suspend () -> T): T {
+            awakeCount.update { it + 1 }
+            try { return block() } finally { awakeCount.update { it - 1 } }
+        }
+
+        /** A native prover call is running (possibly from a cancelled job). */
+        val busy: Boolean get() = nativeLock.isLocked
     }
 }
 
-/** Bundled bench fixture (composeResources/files/zk/bench_*.json, tools/gen_bench.py). */
-class BenchFixture(val name: String, val source: ProofSource, val inputSha: Map<String, String>, val publicSha: String, val halfCommit: String) {
+/** Bundled bench fixture (composeResources/files/zk/bench_*.json, commonTest/resources/zk/tools/gen_bench_noir.py). */
+class BenchFixture(val name: String, val source: ProofSource, val inputSha: Map<String, String>, val publicInputs: ByteArray, val halfCommit: String) {
     companion object {
-        val NAMES = listOf("180ca04b_48k_A", "180ca04b_mix_B")
+        val NAMES = listOf("180ca04b_48k_A", "180ca04b_48k_B")
 
         fun parse(text: String): BenchFixture {
             val o = popJson.parseToJsonElement(text).jsonObject
@@ -214,12 +238,12 @@ class BenchFixture(val name: String, val source: ProofSource, val inputSha: Map<
             check(o["sample_rate"]!!.jsonPrimitive.int > 0)
             return BenchFixture(
                 s("name"), src, e["input_sha256"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content },
-                e["public_sha256"]!!.jsonPrimitive.content, e["half_commit"]!!.jsonPrimitive.content,
+                e["public_inputs_hex"]!!.jsonPrimitive.content.hexToBytes(), e["half_commit"]!!.jsonPrimitive.content,
             )
         }
     }
 
-    /** Witness fields whose compact JSON differs from the spike's prep_popt2 output. */
+    /** Input fields whose compact JSON differs from the team's Prover.toml (gen_inputs.py). */
     fun fieldMismatches(b: WitnessInput.Built): List<String> {
         val names = (inputSha.keys + b.fields.keys).sorted()
         return names.filter { n -> b.fields[n]?.let { sha256(it.toString().encodeToByteArray()).toHex() } != inputSha[n] }

@@ -35,7 +35,7 @@ data class Transcript2(
     val pkPartner: ByteArray,
     val sampleRate: Int,
     val half: Int,
-    /** Poseidon7 rec_root, 32 bytes BE (< p). */
+    /** Poseidon2/BN254 rec_root (oalib), 32 bytes BE (< r). */
     val recRoot: ByteArray,
     val playFramePosition: Long,
     val playNanoTime: Long,

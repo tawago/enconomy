@@ -8,8 +8,10 @@ Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json 
 sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_TUNE_DB (0, tune-only boost, bed level fixed), POP_UPLOAD_RECORDINGS (1),
 POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
 POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
-POP_ZK_VERIFIER (popprover binary, default ../app/prover/target/release/popprover), POP_ZK_KEYS (default data/zk/,
-<circuit>.pk.zst served at /v1/zk/keys), POP_ZK_VK_DIR (<circuit>.vk, default POP_ZK_KEYS), POP_ZK_WRAP (prefix).
+POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkprove host build, default
+~/.enconomy/zk/android/target/release/zkprove; delegated proving), POP_ZK_DIR (served / used circuit artifacts
+oaN_s48.json, oaN_s48.vk, bn254_g1_2p20.dat; default: the team build + pinned dirs, see pop/zk.py),
+POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
 attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
 """
@@ -48,6 +50,7 @@ from pop.consumers import safe_tx
 from pop.errors import PopError
 from pop.human import WorldID
 from pop.sessions import Sessions
+from pop.codec import b64d
 from pop.verdict import Reject
 from pop.store import SqliteStore, Store
 
@@ -88,9 +91,9 @@ class Settings:
         "POP_ISSUER_KEY_FILE", str(SERVER_DIR / "data" / "issuer.pem")))
     issuer_autogen: bool = field(default_factory=lambda: _env_bool("POP_ISSUER_AUTOGEN", True))
     cred_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_CRED_TTL_S", str(sbcred.CRED_TTL_S))))
-    zk_verifier: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VERIFIER") or _default_prover())
-    zk_keys: str = field(default_factory=lambda: os.environ.get("POP_ZK_KEYS", str(SERVER_DIR / "data" / "zk")))
-    zk_vk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VK_DIR") or None)
+    zk_verifier: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VERIFIER") or str(zk.DEFAULT_BB))
+    zk_prover: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_PROVER") or str(zk.DEFAULT_PROVER))
+    zk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_DIR") or None)
     zk_wrap: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_WRAP") or None)
     chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "11155111")))
     attest_key_file: str = field(default_factory=lambda: os.environ.get(
@@ -115,11 +118,6 @@ class Settings:
     worldid_sandbox: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_SANDBOX", False))  # simulator per role, test sessions
     worldid_bg_poll: bool = True   # tests turn it off and drive polls through the status long-poll
     now_ms: Callable[[], int] = wall_ms
-
-
-def _default_prover() -> str | None:
-    p = SERVER_DIR.parent / "app" / "prover" / "target" / "release" / "popprover"
-    return str(p) if p.exists() else None
 
 
 def _read_root(path: str | None) -> bytes:
@@ -242,8 +240,11 @@ class FailIn(BaseModel):
 
 
 def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None,
-               worldid_transport=None) -> FastAPI:
+               worldid_transport=None, prover=None, pair_prover=None, pair_verifier=None) -> FastAPI:
     """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it).
+    prover: anything with zk.Prover's prove(circuit, toml) / available(circuit).
+    pair_prover / pair_verifier: the same for the pair statement (default: real zkprove + bb on the pinned pair
+    artifacts, unless a fake verifier is injected, then off unless given).
     worldid_transport: an httpx transport for the IDKit sidecar + Portal calls (tests pass httpx.MockTransport)."""
     cfg = settings or Settings()
     if cfg.worldid_fake and not cfg.test_kinds:
@@ -255,13 +256,21 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir, cfg.tune_db)
     issuer = sbcred.Issuer(sbcred.load_key(cfg.issuer_key, cfg.issuer_key_file, cfg.issuer_autogen), cfg.cred_ttl_s)
 
-    zkv = verifier or zk.Verifier(cfg.zk_verifier, cfg.zk_vk_dir or cfg.zk_keys, cfg.zk_wrap)
+    sessions.code_attester = issuer.attest_code
+    zart = zk.Artifacts(cfg.zk_dir)
+    zkv = verifier or zk.Verifier(cfg.zk_verifier, zart, cfg.zk_wrap)
+    zkp = prover or zk.Prover(cfg.zk_prover, zart, cfg.zk_wrap)
+    if verifier is None:
+        pair_art = zk.Artifacts(cfg.zk_dir, zk.PAIR_ARTIFACTS)
+        pair_prover = pair_prover or zk.Prover(cfg.zk_prover, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
+        pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
+    prove_tasks: set = set()
     wid = WorldID(cfg, sessions, db, worldid_transport)
     att_key = attest.load_key(cfg.attest_key_file)
 
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
-    app.state.zk, app.state.worldid, app.state.attest_key = zkv, wid, att_key
+    app.state.zk, app.state.zk_prover, app.state.worldid, app.state.attest_key = zkv, zkp, wid, att_key
 
     @app.exception_handler(PopError)
     async def _pop_error(req: Request, e: PopError):
@@ -313,24 +322,24 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 "tune_db_applied": {sr: {r: min(cfg.tune_db, v) for r, v in m.items()} for sr, m in mx.items()},
                 "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config(),
                 "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
-                       "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}},
+                       "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR},
+                       "delegate": {c: zkp.available(c) for c in zk.CIRCUIT_SR}, "n_public": zk.N_PUBLIC},
                 "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id}, "attest": attest.public(att_key),
                 "safe": {"owner_msg_tag": safe_tx.OWNER_MSG_TAG.decode(),
                          "tokens": {a: {"symbol": t[0], "decimals": t[1]}
                                     for a, t in safe_tx.TOKENS.get(cfg.chain_id, {}).items()}}}
 
-    # -- option A proving keys: public, static, Range for resume (docs/pop-prover.md)
+    # -- option A circuit artifacts (phone.json, CRS, vk): public, static, sha256-pinned, Range for resume
     @app.get("/v1/zk/keys")
     async def zk_keys():
-        return {"keys": await asyncio.to_thread(zk.key_manifest, cfg.zk_keys)}
+        return {"keys": await asyncio.to_thread(zart.manifest)}
 
     @app.get("/v1/zk/keys/{name}")
     async def zk_key(name: str):
-        p = Path(cfg.zk_keys) / name
-        if not zk.KEY_FILE.match(name) or not p.is_file():
-            raise PopError(404, "not_found", "no such proving key")
-        sha = await asyncio.to_thread(zk.file_sha256, p)
-        return FileResponse(p, media_type="application/zstd", headers={"X-Pop-Sha256": sha})
+        p = await asyncio.to_thread(zart.ok, name) if zk.KEY_FILE.match(name) else None
+        if p is None:
+            raise PopError(404, "not_found", "no such circuit artifact")
+        return FileResponse(p, media_type="application/octet-stream", headers={"X-Pop-Sha256": zart.pins[name][1]})
 
     # -- enrollment (§2.2)
     @app.get("/v1/enroll/nonce")
@@ -544,13 +553,74 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         data = await wav.read()
         return await asyncio.to_thread(sessions.recording, s, role, attempt, data, meta)
 
-    # -- option A proof upload, per role, after NEAR (pop/zk.py)
+    # -- option A proof, per role, after NEAR (pop/zk.py, zkmobile/APP_SERVER_CONTRACT.md)
+    def _zk_req(meta: dict, s: dict) -> tuple[int, object, object]:
+        try:
+            salt = zk.parse_salt(meta.get("salt"))
+        except ValueError as e:
+            raise PopError(400, "bad_request", str(e)) from None
+        return salt, meta.get("attempt", s["attempt"]), meta.get("circuit")
+
+    def _verified(sid: str, role: str, entry: dict, proof: bytes, want: list[int], salt: int) -> dict:
+        s = sessions.zk_record(sid, role, {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(),
+                                           "proof_bytes": len(proof), "status": "verified", "reason": None,
+                                           "detail": None, "half_commit": zk.hexes(want)[11], "salt": str(salt)},
+                               proof, want)
+        return _maybe_pair(s)
+
+    def _maybe_pair(s: dict) -> dict:
+        """Both phone proofs of the NEAR attempt verified -> the server proves the pair statement in the background."""
+        if not (pair_prover and pair_verifier and sessions.zk_pair_ready(s)):
+            return s
+        entry = {"attempt": s["attempt"], "circuit": zk.PAIR, "prover": "server", "at_ms": cfg.now_ms(),
+                 "vk_sha256": zk.PAIR_VK_SHA256, "vk_hash": "0x" + zk.PAIR_VK_HASH}
+        if not (pair_prover.available(zk.PAIR) and pair_verifier.available(zk.PAIR)):
+            return sessions.zk_pair_record(s["session_id"], {**entry, "status": "rejected", "reason": "zk_unavailable",
+                                                             "detail": "pair prover / verifier not configured"})
+        s = sessions.zk_pair_record(s["session_id"], {**entry, "status": "proving", "reason": None, "detail": None})
+        task = asyncio.get_running_loop().create_task(_pair_job(s["session_id"], entry))
+        prove_tasks.add(task)
+        task.add_done_callback(prove_tasks.discard)
+        return s
+
+    async def _pair_job(sid: str, entry: dict):
+        t = time.monotonic()
+        try:
+            toml, want = sessions.zk_pair_witness(sessions.load(sid))
+            prf, pub = await asyncio.to_thread(pair_prover.prove, zk.PAIR, toml)
+            del toml
+            zk.compare(zk.from_file(pub, zk.N_PUBLIC_PAIR), want, "pair proof ")
+            await asyncio.to_thread(pair_verifier.verify, zk.PAIR, prf, want)
+        except Reject as e:
+            sessions.zk_pair_record(sid, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            log.info("pair proof %s rejected: %s %s", sid, e.reason, e.detail)
+            return
+        except Exception as e:   # zk.Unavailable or a crash: retried on the next phone proof event
+            sessions.zk_pair_record(sid, {**entry, "status": "rejected", "reason": "zk_unavailable",
+                                          "detail": str(e)[:200]})
+            log.warning("pair proof %s failed: %s", sid, e)
+            return
+        ms = round((time.monotonic() - t) * 1000)
+        sessions.zk_pair_record(sid, {**entry, "status": "verified", "reason": None, "detail": None, "prove_ms": ms},
+                                prf, want)
+        log.info("pair proof %s verified (%d ms)", sid, ms)
+
+    @app.get("/v1/session/{sid}/zk/bundle")
+    async def zk_bundle(sid: str, dev: dict = Depends(device)):
+        """Presence bundle for the onchain relayer (NoirPresenceVerifier): 404 until the pair proof is verified."""
+        s = sessions.load(sid)
+        sessions.member(s, dev)
+        b = await asyncio.to_thread(sessions.zk_bundle, s)
+        if b is None:
+            raise PopError(404, "not_ready", f"pair proof {((s.get('zk') or {}).get('pair') or {}).get('status', 'none')}")
+        return b
+
     @app.post("/v1/session/{sid}/proof")
     async def proof(sid: str, request: Request, dev: dict = Depends(device)):
         s = sessions.load(sid)
         role = sessions.member(s, dev)
         form = await request.form()
-        pf, meta_raw = form.get("proof"), form.get("meta")
+        pf, pi, meta_raw = form.get("proof"), form.get("public_inputs"), form.get("meta")
         if pf is None or isinstance(pf, str):
             raise PopError(400, "bad_request", "multipart field 'proof' (file) required")
         try:
@@ -560,34 +630,95 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         if not isinstance(meta, dict):
             raise PopError(400, "bad_request", "meta must be a JSON object {attempt, circuit, salt}")
         data = await pf.read()
+        pub_raw = None if pi is None else (pi.encode() if isinstance(pi, str) else await pi.read())
         if not 0 < len(data) <= zk.MAX_PROOF_BYTES:
             raise PopError(400, "bad_request", f"proof must be 1..{zk.MAX_PROOF_BYTES} bytes")
-        try:
-            salt = zk.parse_salt(meta.get("salt"))
-        except ValueError as e:
-            raise PopError(400, "bad_request", str(e)) from None
-        attempt, circuit = meta.get("attempt", s["attempt"]), meta.get("circuit")
+        salt, attempt, circuit = _zk_req(meta, s)
         sha = hashlib.sha256(data).hexdigest()
         prev = sessions.zk_entry(s, role)
-        if prev and prev["status"] == "verified":
-            if prev["proof_sha256"] == sha and prev["attempt"] == attempt:
+        if prev and prev["status"] in ("verified", "proving"):
+            if prev["status"] == "verified" and prev.get("proof_sha256") == sha and prev["attempt"] == attempt:
                 return {"status": "verified", "role": role, "zk": sessions.zk_public(s)}
-            raise PopError(409, "already_submitted", "a proof for this role is already verified")
-        entry = {"attempt": attempt, "circuit": circuit, "proof_sha256": sha, "proof_bytes": len(data),
-                 "at_ms": cfg.now_ms()}
+            raise PopError(409, "already_submitted", f"a proof for this role is already {prev['status']}")
+        entry = {"attempt": attempt, "circuit": circuit, "prover": "phone", "delegated": False, "at_ms": cfg.now_ms()}
         try:
             want = sessions.zk_expected(s, role, dev, attempt, circuit, salt, issuer.pub)
+            if pub_raw is not None:
+                zk.compare(zk.from_file(pub_raw), want)
             await asyncio.to_thread(zkv.verify, circuit, data, want)
         except Reject as e:
-            sessions.zk_record(sid, role, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            sessions.zk_record(sid, role, {**entry, "proof_sha256": sha, "proof_bytes": len(data),
+                                           "status": "rejected", "reason": e.reason, "detail": e.detail})
             log.info("proof %s %s rejected: %s %s", sid, role, e.reason, e.detail)
             raise PopError(400, e.reason, e.detail) from None
         except zk.Unavailable as e:
             raise PopError(503, "zk_unavailable", str(e)) from None
-        s = sessions.zk_record(sid, role, {**entry, "status": "verified", "reason": None, "detail": None,
-                                           "half_commit": want[0], "salt": str(salt)}, data)
+        s = _verified(sid, role, entry, data, want, salt)
         log.info("proof %s %s verified (%s)", sid, role, circuit)
         return {"status": "verified", "role": role, "zk": sessions.zk_public(s)}
+
+    async def _delegate_job(sid: str, role: str, entry: dict, circuit: str, toml: str, want: list[int], salt: int):
+        t = time.monotonic()
+        try:
+            prf, pub = await asyncio.to_thread(zkp.prove, circuit, toml)
+            del toml
+            zk.compare(zk.from_file(pub), want, "server proof ")
+            await asyncio.to_thread(zkv.verify, circuit, prf, want)
+        except Reject as e:
+            sessions.zk_record(sid, role, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            log.info("delegated proof %s %s rejected: %s %s", sid, role, e.reason, e.detail)
+            return
+        except Exception as e:   # zk.Unavailable or a crash: retryable
+            sessions.zk_record(sid, role, {**entry, "status": "rejected", "reason": "zk_unavailable", "detail": str(e)[:200]})
+            log.warning("delegated proof %s %s failed: %s", sid, role, e)
+            return
+        _verified(sid, role, {**entry, "prove_ms": round((time.monotonic() - t) * 1000)}, prf, want, salt)
+        log.info("delegated proof %s %s verified (%s, %.1f s)", sid, role, circuit, time.monotonic() - t)
+
+    @app.post("/v1/session/{sid}/proof/delegate")
+    async def proof_delegate(sid: str, request: Request, dev: dict = Depends(device)):
+        """The server proves for the phone from its Noir input map (contract: Delegated proof). 202 + background job;
+        poll /result zk.<role>.status. The input map is kept in memory and a 0700 temp dir only while proving."""
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        try:
+            body = json.loads(await request.body())
+        except ValueError:
+            body = None
+        if not isinstance(body, dict) or not isinstance(body.get("inputs"), dict):
+            raise PopError(400, "bad_request", "body must be {attempt, circuit, salt, inputs}")
+        salt, attempt, circuit = _zk_req(body, s)
+        inputs = body["inputs"]
+        prev = sessions.zk_entry(s, role)
+        if prev and prev["status"] == "proving":
+            return JSONResponse({"status": "proving", "role": role, "zk": sessions.zk_public(s)}, status_code=202)
+        if prev and prev["status"] == "verified":
+            raise PopError(409, "already_submitted", "a proof for this role is already verified")
+        entry = {"attempt": attempt, "circuit": circuit, "prover": "server", "delegated": True, "at_ms": cfg.now_ms()}
+        try:
+            toml = zk.prover_toml(inputs)
+            got = zk.inputs_public(inputs)
+            t_in = bytes(inputs["t"]) if isinstance(inputs["t"], list) else b""
+            in_salt = zk.field_of(inputs["salt"])
+        except (ValueError, TypeError, KeyError) as e:
+            raise PopError(400, "bad_request", f"inputs: {e}") from None
+        try:
+            want = sessions.zk_expected(s, role, dev, attempt, circuit, salt, issuer.pub)
+            zk.compare(got, want[:11], "inputs ")
+            if t_in != b64d(s["per_role"][role]["transcript_b64"]):
+                raise Reject("transcript_mismatch", "inputs.t is not the signed transcript")
+            if in_salt != salt:
+                raise Reject("transcript_mismatch", "inputs.salt != salt")
+        except Reject as e:
+            sessions.zk_record(sid, role, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            raise PopError(400, e.reason, e.detail) from None
+        if not zkp.available(circuit):
+            raise PopError(503, "zk_unavailable", "server prover not configured")
+        s = sessions.zk_record(sid, role, {**entry, "status": "proving", "reason": None, "detail": None})
+        task = asyncio.create_task(_delegate_job(sid, role, entry, circuit, toml, want, salt))
+        prove_tasks.add(task)
+        task.add_done_callback(prove_tasks.discard)
+        return JSONResponse({"status": "proving", "role": role, "zk": sessions.zk_public(s)}, status_code=202)
 
     # -- SAFE (02 §7.3): owner signature at Confirm, public attestation after NEAR
     @app.post("/v1/session/{sid}/safe/owner-sig")

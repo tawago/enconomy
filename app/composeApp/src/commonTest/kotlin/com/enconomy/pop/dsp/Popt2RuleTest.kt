@@ -126,6 +126,9 @@ class Popt2RuleTest {
         // the same phone calibrated at 60 ms: |sod − cal| ≈ 4 ms, passes; at 10 ms it is still 54 ms off
         val calOk = PopRound2(capture(30000 + 60 * sr / 1000 + 200), r48, 'A', calUs = 60_000).selfCheck(own, 30000.0)
         assertIs<PopRound2.Step.SelfOk>(calOk)
+        // cal is folded into p_self: the signed self_os_delta is the residual (200 frames), not 60 ms + 200
+        assertEquals(30000 + 60 * sr / 1000, calOk.pSelf)
+        assertTrue(kotlin.math.abs(calOk.selfOsDelta - 200) <= 16, "residual ${calOk.selfOsDelta}")
         assertEquals(DspReason.SELF_TIMESTAMP_MISMATCH,
             (PopRound2(capture(30000 + 60 * sr / 1000 + 200), r48, 'A', calUs = 10_000).selfCheck(own, 30000.0) as PopRound2.Step.Failed).reason)
         // a tighter shared tolerance moves the bar

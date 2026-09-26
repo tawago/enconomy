@@ -42,6 +42,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
@@ -118,7 +120,8 @@ data class UiState(
     val benchStatus: ProofStatus? = null,
     val benchLog: List<String> = emptyList(),
     /** Per circuit: "present" / "partial n bytes" / "missing". */
-    val keyState: Map<String, String> = emptyMap(),
+    /** Prover files (circuit, CRS, vk) together: downloaded / missing / partly downloaded. */
+    val keyState: String = "?",
     // ---- audio check ----
     val audioCheck: AudioCheckResult? = null,
     val audioCheckRunning: Boolean = false,
@@ -848,12 +851,13 @@ class PopController(
                 val salt = secureRandomBytes(31)
                 val src = ProofSource(ev.transcript, ev.sig, ev.capture, ev.own, ev.partner, cred.cred, cred.sig, cred.issuerPub, validAt, salt, ev.tree)
                 val out = prover.run(src, allowDownload = allowMetered || networkIsMetered() != true, onStatus = set) ?: return@launch
-                runCatching { ZkFiles.write("${ZkFiles.dir()}/proof_${ev.sessionId.take(8)}_${ev.role}${ev.attempt}.bin", out.proof) }
+                val tag = "${ZkFiles.dir()}/proof_${ev.sessionId.take(8)}_${ev.role}${ev.attempt}"
+                runCatching { ZkFiles.write("$tag.bin", out.proof); ZkFiles.write("$tag.pub", out.publicInputs) }
                 set(ProofStatus.Step("uploading proof"))
                 val api = api()
                 val up = try {
                     uploadSummary(api.uploadProof(ev.sessionId, ev.attempt, out.built.circuit,
-                        com.enconomy.pop.zk.BigNat.fromBytes(salt).toDecimal(), out.proof))
+                        com.enconomy.pop.zk.BigNat.fromBytes(salt).toDecimal(), out.proof, out.publicInputs))
                 } catch (e: PopHttpException) {
                     proofUploadNote(e)
                 } catch (e: CancellationException) {
@@ -874,6 +878,59 @@ class PopController(
                 set(ProofStatus.Failed("prover", e.message ?: e.code))
             } catch (e: Throwable) {
                 set(ProofStatus.Failed("proof", "${e::class.simpleName}: ${e.message}"))
+            }
+        }
+        proofJob?.invokeOnCompletion { _state.update { it.copy(proofBusy = proofJob?.isCompleted == false) } }
+    }
+
+    /**
+     * Delegated proof: same input map and pre-checks as [startProof], no local prove; POST it to
+     * /v1/session/{id}/proof/delegate and poll the result's zk block (zkmobile/APP_SERVER_CONTRACT.md).
+     */
+    fun delegateProof() {
+        val (ev, res) = pendingProof ?: return
+        proofJob?.cancel()
+        val set: (ProofStatus) -> Unit = { st -> _state.update { it.copy(proof = st) } }
+        _state.update { it.copy(proofBusy = true) }
+        proofJob = scope.launch {
+            val api = api()
+            try {
+                val key = keystore.load() ?: error("not enrolled")
+                val cred = holder.credential(key.pubkey)
+                if (cred == null) { set(ProofStatus.Skipped("No SBcred3 credential on this phone (enroll with a server that issues one).")); return@launch }
+                val validAt = res.valid_at ?: (ev.t0Ms / 1000)
+                val salt = secureRandomBytes(31)
+                val src = ProofSource(ev.transcript, ev.sig, ev.capture, ev.own, ev.partner, cred.cred, cred.sig, cred.issuerPub, validAt, salt, ev.tree)
+                set(ProofStatus.Step("building witness input"))
+                val built = withContext(Dispatchers.Default) { WitnessInput.build(src) }
+                set(ProofStatus.Step("sending inputs to the server"))
+                val (st, body) = api.delegateProof(ev.sessionId, ev.attempt, built.circuit,
+                    com.enconomy.pop.zk.BigNat.fromBytes(salt).toDecimal(), built.json)
+                val role = ev.role.toString()
+                fun zkOf(o: JsonObject): JsonObject? = (o["zk"] as? JsonObject)?.get(role) as? JsonObject
+                var entry = runCatching { zkOf(popJson.parseToJsonElement(body).jsonObject) }.getOrNull()
+                val t0 = monoNanos()
+                set(ProofStatus.Step("server proving"))
+                while (entry?.get("status")?.jsonPrimitive?.content !in setOf("verified", "rejected")) {
+                    if (st != 202 && st != 200) break
+                    if ((monoNanos() - t0) / 1_000_000 > 180_000) { set(ProofStatus.Failed("delegate", "server did not finish in 3 min")); return@launch }
+                    delay(2000)
+                    entry = runCatching { zkOf(api.resultJson(ev.sessionId)) }.getOrNull()
+                }
+                val status = entry?.get("status")?.jsonPrimitive?.content
+                val secs = (monoNanos() - t0) / 1_000_000_000
+                if (status == "verified") set(ProofStatus.Delegated("Server proved and verified our half (${secs} s after upload).", true))
+                else set(ProofStatus.Failed("delegate", "server: ${entry?.get("reason")?.jsonPrimitive?.content ?: status ?: "no result"}"))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: UnprovableException) {
+                set(ProofStatus.Skipped("Not provable (${e.reason}): ${e.message}"))
+            } catch (e: PopHttpException) {
+                set(ProofStatus.Failed("delegate", if (e.status == 404 || e.status == 405) "server takes no delegated proofs" else "${e.code ?: e.status}: ${e.message}"))
+            } catch (e: Throwable) {
+                set(ProofStatus.Failed("delegate", "${e::class.simpleName}: ${e.message}"))
+            } finally {
+                api.close()
             }
         }
         proofJob?.invokeOnCompletion { _state.update { it.copy(proofBusy = proofJob?.isCompleted == false) } }
@@ -1042,40 +1099,44 @@ class PopController(
     }
 
     fun refreshKeys() {
-        val m = ProvingKeys.all.associate { k ->
-            k.circuit to when {
-                keyCache.present(k) -> "downloaded (${ProofStats.mb(k.size)})"
-                keyCache.partial(k) > 0 -> "partial ${ProofStats.mb(keyCache.partial(k))} of ${ProofStats.mb(k.size)}"
-                else -> "missing (${ProofStats.mb(k.size)} download)"
-            }
+        val ks = ProvingKeys.all
+        val st = when {
+            ks.all { keyCache.present(it) } -> "downloaded"
+            ks.none { keyCache.present(it) || keyCache.partial(it) > 0 } -> "missing"
+            else -> "partly downloaded"
         }
-        _state.update { it.copy(keyState = m) }
+        _state.update { it.copy(keyState = st) }
     }
 
-    private fun benchLog(line: String) = _state.update { it.copy(benchLog = it.benchLog + line) }
+    private fun benchLog(line: String) {
+        println("PopBench: $line")
+        _state.update { it.copy(benchLog = it.benchLog + line) }
+        runCatching { ZkFiles.append("${ZkFiles.dir()}/bench.log", "$line\n".encodeToByteArray()) }
+    }
 
-    fun benchDownload(k: KeySpec) {
+    /** Fetches every missing prover file (circuit, CRS, vk). */
+    fun benchDownload() {
         if (benchJob?.isActive == true) return
         benchJob = scope.launch {
-            _state.update { it.copy(benchStatus = null, benchLog = listOf("key ${k.circuit}: ${if (networkIsMetered() == true) "on a metered network" else "downloading"}")) }
+            _state.update { it.copy(benchStatus = null, benchLog = listOf("prover files: ${if (networkIsMetered() == true) "on a metered network" else "downloading"}")) }
             try {
                 val t0 = monoNanos()
-                keyCache.ensure(k) { d, n -> _state.update { it.copy(benchStatus = ProofStatus.Downloading(d, n)) } }
-                benchLog("key ok in ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (sha256 pinned)")
+                for (k in ProvingKeys.all) keyCache.ensure(k) { d, n -> _state.update { it.copy(benchStatus = ProofStatus.Downloading(d, n)) } }
+                benchLog("prover files ok in ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (sha256 pinned)")
                 _state.update { it.copy(benchStatus = null) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _state.update { it.copy(benchStatus = ProofStatus.Failed("proving key", e.message ?: "")) }
+                _state.update { it.copy(benchStatus = ProofStatus.Failed("prover files", e.message ?: "")) }
             } finally {
                 refreshKeys()
             }
         }
     }
 
-    fun benchDeleteKey(k: KeySpec) {
+    fun benchDeleteKeys() {
         if (benchJob?.isActive == true) return
-        keyCache.delete(k)
+        ProvingKeys.all.forEach(keyCache::delete)
         refreshKeys()
     }
 
@@ -1087,7 +1148,7 @@ class PopController(
             _state.update { it.copy(benchStatus = ProofStatus.Skipped("A session proof is still running; retry when it is done.")) }
             return
         }
-        benchJob = scope.launch {
+        benchJob = scope.launch { ProofRunner.awake {
             val m = DeviceMemory.info()
             _state.update {
                 it.copy(benchStatus = ProofStatus.Step("loading fixture"), benchLog = listOf(
@@ -1101,23 +1162,31 @@ class PopController(
                 val built = withContext(Dispatchers.Default) { WitnessInput.build(fx.source) }
                 val bad = withContext(Dispatchers.Default) { fx.fieldMismatches(built) }
                 benchLog("witness input ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (tree + I/Q), " +
-                    if (bad.isEmpty()) "all ${built.fields.size} fields = spike" else "DIFFERS from spike: ${bad.joinToString()}")
-                if (built.halfCommit.toDecimal() != fx.halfCommit) benchLog("halfCommit DIFFERS from spike")
+                    if (bad.isEmpty()) "all ${built.fields.size} inputs = team Prover.toml" else "DIFFERS from Prover.toml: ${bad.joinToString()}")
+                if (built.halfCommit.toDecimal() != fx.halfCommit) benchLog("halfCommit DIFFERS from the team's proof")
+                if (!built.expectedPublic.contentEquals(fx.publicInputs)) benchLog("expected public inputs DIFFER from the team's proof")
                 val out = prover.run(fx.source, allowDownload = true, onStatus = { st -> _state.update { it.copy(benchStatus = st) } },
-                    force = force, expectPublicSha = fx.publicSha, prebuilt = built)
+                    force = force, expectPublic = fx.publicInputs, prebuilt = built)
+                if (out == null) benchLog("not proved: ${state.value.benchStatus}")
                 if (out != null) {
                     out.stats.lines().forEach(::benchLog)
+                    runCatching {
+                        ZkFiles.write("${ZkFiles.dir()}/bench_$name.proof", out.proof)
+                        ZkFiles.write("${ZkFiles.dir()}/bench_$name.pub", out.publicInputs)
+                        benchLog("saved bench_$name.proof / .pub")
+                    }
                     _state.update { it.copy(benchStatus = ProofStatus.Done(out.stats, null)) }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
                 val step = when (e) { is KeyException -> "proving key"; is ProverException -> "prover"; is UnprovableException -> "witness"; else -> "bench" }
+                benchLog("FAILED ($step): ${e.message ?: e::class.simpleName}")
                 _state.update { it.copy(benchStatus = ProofStatus.Failed(step, e.message ?: e::class.simpleName ?: "error")) }
             } finally {
                 refreshKeys()
             }
-        }
+        } }
     }
 
     /** Leave pairing: best-effort abort of the server session. */

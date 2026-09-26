@@ -154,7 +154,7 @@ class PopApiTest {
         }
         val api = PopApi("http://h:8000", key = { key }, nowMs = { 9 }, engine = engine, clockSync = false)
         val proof = ByteArray(3000) { (it * 7).toByte() }
-        val out = api.uploadProof("sid1", 2, "oa2t_s48", "123456789012345678901234567890", proof)
+        val out = api.uploadProof("sid1", 2, "oaN_s48", "123456789012345678901234567890", proof, ByteArray(384))
         assertEquals("server: verified", com.enconomy.pop.zk.uploadSummary(out))
         assertEquals("/v1/session/sid1/proof", pq)
         assertTrue(ct.startsWith("multipart/form-data; boundary="), ct)

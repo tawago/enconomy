@@ -130,8 +130,9 @@ def _calibrate(w, role, cal_us):
 
 
 def test_flow_calibrated_self_check(world):  # noqa: F811
-    """A phone whose OS timestamps sit 80 ms off passes once calibrated at 40 ms (|80 - 40| <= 50)."""
-    w = world(30, ka=Knobs(self_os_delta_override=3840), real_root=False)   # 80 ms at 48 kHz
+    """v2: a phone whose OS timestamps sit 80 ms off, calibrated at 40 ms, folds cal into p_self and signs the
+    40 ms residual (1920 frames); the server checks it as is (|40| <= 50), cal is not subtracted again."""
+    w = world(30, ka=Knobs(self_os_delta_override=1920), real_root=False)   # 80 - 40 ms at 48 kHz
     _calibrate(w, "A", 40000)
     w.run_attempt(0)
     v = w.view()
@@ -140,9 +141,9 @@ def test_flow_calibrated_self_check(world):  # noqa: F811
     assert rec["verdict"] == "NEAR" and rec["devices"]["A"]["cal_us"] == 40000 and rec["devices"]["B"]["cal_us"] == 0
     assert verify_record(rec)["verdict"] == "NEAR"
     assert w.view(w.a)["self"]["cal_us"] == 40000 and w.view(w.b)["partner"]["cal_us"] == 40000
-    # the same record with the calibration stripped fails the self check offline
+    # v2: the signed residual carries the calibration; the record's cal_us does not change the offline check
     rec["devices"]["A"]["cal_us"] = 0
-    assert verify_record(rec)["reason"] == "self_timestamp_mismatch"
+    assert verify_record(rec)["verdict"] == "NEAR"
 
 
 def test_flow_uncalibrated_same_offset_retries(world):  # noqa: F811
@@ -152,13 +153,19 @@ def test_flow_uncalibrated_same_offset_retries(world):  # noqa: F811
     assert v["attempt"] == 1 and v["last_failure"]["reason"] == "self_timestamp_mismatch"
 
 
-def test_flow_calibration_cuts_both_ways(world):  # noqa: F811
-    """A calibrated phone with a raw offset of 0 now fails when cal is 50 ms and the reading is -1 frame past."""
-    w = world(30, ka=Knobs(self_os_delta_override=-1), real_root=False)
-    _calibrate(w, "A", 50000)
+def test_flow_calibration_not_subtracted_twice(world):  # noqa: F811
+    """v2: a calibrated phone (cal 40 ms) that signs an uncalibrated 80 ms offset fails: the server no longer
+    subtracts cal from a v2 self_os_delta."""
+    w = world(30, ka=Knobs(self_os_delta_override=3840), real_root=False)
+    _calibrate(w, "A", 40000)
     w.run_attempt(0)
     v = w.view()
     assert v["attempt"] == 1 and v["last_failure"]["reason"] == "self_timestamp_mismatch"
+
+
+def test_self_os_ok_v1_keeps_cal():
+    from pop.verdict import self_os_ok   # v1 rule: |sod - cal| <= tol
+    assert self_os_ok(3840, 48000, 40000) and not self_os_ok(3840, 48000, 0)
 
 
 def test_config_exports_cal_constants(client):

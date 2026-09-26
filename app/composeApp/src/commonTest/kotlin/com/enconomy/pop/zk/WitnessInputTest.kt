@@ -11,9 +11,9 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 /**
- * Witness input parity with the spike's prep_popt2.py on the bundled bench fixtures (tools/gen_bench.py):
- * every field's compact JSON, halfCommit, and the public vector the verifier derives.
- * POP_ZK_DUMP=<dir> also writes the inputs there (host check: `popprover check <pk> <input>`).
+ * Noir input map parity with the ZK team's Prover.toml (gen_inputs.py) on the bundled bench fixtures
+ * (tools/gen_bench_noir.py): every input's compact JSON, halfCommit, and the 12 public inputs of the team's proof.
+ * POP_ZK_DUMP=<dir> also writes the inputs there (host check: `zkprove full phone.json <input.json> ...`).
  */
 class WitnessInputTest {
     private fun fixture(n: String) = BenchFixture.parse(readComposeResource("files/zk/bench_$n.json"))
@@ -25,8 +25,7 @@ class WitnessInputTest {
             val b = WitnessInput.build(fx.source)
             assertEquals(emptyList(), fx.fieldMismatches(b), n)
             assertEquals(fx.halfCommit, b.halfCommit.toDecimal(), n)
-            assertEquals(fx.publicSha, sha256(ProofRunner.publicJson(b.expectedPublic).encodeToByteArray()).toHex(), n)
-            assertEquals(if (n.contains("mix")) 44111 else 48011, b.expectedPublic.size)
+            assertEquals(fx.publicInputs.toHex(), b.expectedPublic.toHex(), n)
             testEnv("POP_ZK_DUMP")?.let { ZkFiles.write("$it/$n.input.json", b.json.encodeToByteArray()) }
         }
     }
