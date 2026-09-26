@@ -572,9 +572,9 @@ class PopController(
 
     // ---- context gate (docs/worldid/01 §7.1, §12) ----
 
-    /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the debug `test` kind passes. */
+    /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the `test` kind passes (all builds, for the demo). */
     private fun gate(sid: String, context: JsonObject?, notBefore: Long?, nonce: String?): ContextGate.Result =
-        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = emptySet(), allowTestKind = isDebugBuild())
+        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = emptySet(), allowTestKind = true)
 
     private suspend fun refuse(api: PopApi, sid: String, g: ContextGate.Result) {
         val r = g as ContextGate.Result.Refused

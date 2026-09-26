@@ -359,8 +359,8 @@ private fun Home(s: UiState, c: PopController) {
                     PrimaryButton("Host", { c.host() }, Modifier.weight(1f), enabled = ok, icon = PopIcons.Qr)
                     PrimaryButton("Join", c::join, Modifier.weight(1f), enabled = ok, icon = PopIcons.Scan)
                 }
-                // debug: a `test` context makes the server require World ID (fake mode or real)
-                if (isDebugBuild()) SecondaryButton("Host with World ID (test)", c::hostWorldIdTest, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Shield)
+                // a `test` context makes the server require World ID (fake mode or real)
+                SecondaryButton("Host with World ID (test)", c::hostWorldIdTest, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Shield)
             }
         }
     }
