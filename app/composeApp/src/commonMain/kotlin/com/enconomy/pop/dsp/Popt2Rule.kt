@@ -49,6 +49,34 @@ class Popt2Code(val cI: ByteArray, val cQ: ByteArray) {
     val cn2: Long = cI.fold(0L) { a, v -> a + v.toLong() * v }
 
     companion object {
+        /**
+         * Server popt2.code_from_template: band-masked (2-18 kHz) template on a 2^17 FFT, cI = its real part,
+         * cQ = the analytic signal's imaginary part, one int8 scale 127 / max(|cI|, |cQ|), round half to even.
+         */
+        fun fromTemplate(c: DoubleArray, sr: Int): Popt2Code {
+            val nfft = 1 shl 17
+            val re = DoubleArray(nfft)
+            val im = DoubleArray(nfft)
+            c.copyInto(re)
+            Fft.transform(re, im, false)
+            for (k in 0 until nfft) {
+                val f = k.toDouble() * sr / nfft
+                val inBand = k <= nfft / 2 && f >= com.enconomy.pop.PopConstants.BAND_HZ[0] && f <= com.enconomy.pop.PopConstants.BAND_HZ[1]
+                val g = when {
+                    !inBand -> 0.0
+                    k == 0 || k == nfft / 2 -> 1.0
+                    else -> 2.0
+                }
+                re[k] *= g; im[k] *= g
+            }
+            Fft.transform(re, im, true)
+            val L = c.size
+            var m = 0.0
+            for (i in 0 until L) { re[i] /= nfft; im[i] /= nfft; m = maxOf(m, kotlin.math.abs(re[i]), kotlin.math.abs(im[i])) }
+            val s = 127.0 / m
+            return Popt2Code(ByteArray(L) { kotlin.math.round(re[it] * s).toInt().toByte() }, ByteArray(L) { kotlin.math.round(im[it] * s).toInt().toByte() })
+        }
+
         fun fromB64(cIb64: String, cQb64: String, n: Int): Popt2Code {
             val c = Popt2Code(cIb64.fromB64(), cQb64.fromB64())
             require(c.n == n) { "code n ${c.n} != $n" }

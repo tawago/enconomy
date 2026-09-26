@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
  *   mic frame 0 = median over input readings of nanoTime − framePosition/sr (after 0.5 s of recording),
  *   play = the output reading with the median onset among the advancing ones read while playing (PlayStamps).
  */
-internal class AAudioSession(private val h: Long, private val sr: Int, private val micSource: String) {
+internal class AAudioSession(private val h: Long, private val sr: Int, private val micSource: String, private val preset: Int) {
     private val info = AAudioNative.info(h)
     private var closed = false
 
@@ -103,7 +103,7 @@ internal class AAudioSession(private val h: Long, private val sr: Int, private v
         val (pos0, nano0, src) = if (ts != null) Triple(ts.first, ts.second, "audiotimestamp")
         else Triple(0L, calledNs + kotlin.math.round((outputLatencyMs ?: 0.0) * 1e6).toLong(), "fallback")
         val lateMs = maxOf(0.0, (calledNs - plan.playCallNs) / 1e6)
-        Log.i("PopAudio", "aaudio ${describe()} src=$micSource spread=${"%.1f".format(spreadUs)}us play ts=$src n=${stamps.size} " +
+        Log.i("PopAudio", "aaudio ${describe()} src=$micSource preset=$preset granted=${info[12]} spread=${"%.1f".format(spreadUs)}us play ts=$src n=${stamps.size} " +
             "spread=${"%.1f".format(stamps.spreadUs())}us late=${"%.2f".format(lateMs)}ms xruns=${st[6]}/${st[7]}")
         return Capture(
             pcm = pcm, sr = sr, recFrame0NanoTime = frame0,
@@ -126,6 +126,8 @@ internal class AAudioSession(private val h: Long, private val sr: Int, private v
                 put("aaudio_perf_out", info[10].toDouble())
                 put("aaudio_perf_in", info[11].toDouble())
                 put("aaudio_input_preset", info[12].toDouble())
+                put("input_preset_requested", preset.toDouble())
+                put("input_preset_granted", info[12].toDouble())
                 put("aaudio_format_out", info[13].toDouble())
                 put("aaudio_format_in", info[14].toDouble())
                 if (latOut.isNotEmpty()) put("aaudio_latency_out_ms", AudioTiming.median(latOut))

@@ -114,6 +114,9 @@ data class UiState(
     val audioModeNote: String = "",
     /** Audio check only; runs always force the speaker. */
     val forceSpeaker: Boolean = true,
+    /** Mic input presets (key, label), empty = none to pick (iOS). Prefs "audio.input", also used for runs. */
+    val audioInputs: List<Pair<String, String>> = emptyList(),
+    val audioInput: String = "",
     /** /v1/config "tune_db" (null = not seen). */
     val serverTuneDb: Double? = null,
     /** Audio check tune boost picked on screen (null = follow the server's tune_db, else 0). */
@@ -595,10 +598,13 @@ class PopController(
     fun openAudioCheck() {
         go(Screen.AudioCheck)
         val modes = runCatching { engine.sessionModes }.getOrDefault(emptyList())
+        val inputs = runCatching { engine.inputPresets }.getOrDefault(emptyList())
+        val input = Prefs.get(INPUT_PRESET_PREF)?.takeIf { k -> inputs.any { it.first == k } }
+            ?: runCatching { engine.defaultInputPreset }.getOrDefault("")
         val mode = Prefs.get(engine.modePrefKey)?.takeIf { it in modes } ?: engine.defaultMode.takeIf { it in modes }
             ?: modes.firstOrNull() ?: ""
         _state.update {
-            it.copy(audioModes = modes, audioMode = mode, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull(),
+            it.copy(audioModes = modes, audioMode = mode, audioInputs = inputs, audioInput = input, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull(),
                 audioModeTitle = engine.modeTitle, audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))
         }
         if (state.value.serverTuneDb == null) checkConfig()
@@ -619,6 +625,13 @@ class PopController(
         _state.update {
             it.copy(audioRoute = runCatching { engine.route() }.getOrNull(), audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))
         }
+    }
+
+    /** Android mic input preset for the check and for real runs (Prefs "audio.input"). */
+    fun setAudioInput(k: String) {
+        if (state.value.audioCheckRunning) return
+        Prefs.set(INPUT_PRESET_PREF, k)
+        _state.update { it.copy(audioInput = k, audioCheck = null) }
     }
 
     fun setForceSpeaker(on: Boolean) {
@@ -648,9 +661,20 @@ class PopController(
                 val cap = engine.run(plan)
                 engine.release()
                 val lv = withContext(Dispatchers.Default) { cap.selfHear() }
+                val off = withContext(Dispatchers.Default) {
+                    runCatching { SelfOffset.measure(cap, TestSound.parts(sr).first) }.getOrElse {
+                        SelfOffset(sr, null, null, null, Popt2Config.DELTA_MS * sr / 1000, "error: ${it.message}")
+                    }
+                }
+                val path = cap.pathFacts()
                 val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings,
-                    mix.requestedDb, mix.appliedDb, mix.peak)
+                    mix.requestedDb, mix.appliedDb, mix.peak, off, path)
                 println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
+                println("POPCHECK preset=${cap.extraMeta["input_preset_requested"]?.toInt() ?: cap.micSource} " +
+                    "granted=${cap.extraMeta["input_preset_granted"]?.toInt() ?: cap.micSource} sod=${off.frames} " +
+                    "ms=${off.ms?.let { kotlin.math.round(it * 100) / 100 }} within2ms=${off.within} p=${off.pSelf} a=${off.aSelf} " +
+                    "score=${kotlin.math.round(off.score * 1000) / 1000} reason=${off.reason} " +
+                    path.joinToString(" ") { (k, v) -> "$k=[${v}]" } + " margin=${SelfHear.r1(lv.highMarginDb)}")
                 _state.update {
                     it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}",
                         audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))

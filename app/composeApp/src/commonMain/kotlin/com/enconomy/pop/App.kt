@@ -803,6 +803,15 @@ private fun AudioCheck(s: UiState, c: PopController) {
             SwitchRow("Force speaker", "Check only; runs always use the speaker", s.forceSpeaker, { c.setForceSpeaker(it) }, enabled = !busy)
         }
     }
+    if (s.audioInputs.isNotEmpty()) {
+        Panel {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("Input", style = MaterialTheme.typography.titleSmall)
+                Text("Mic input preset; also used for runs", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+            }
+            Segmented(s.audioInputs, s.audioInput, { c.setAudioInput(it) }, enabled = !busy)
+        }
+    }
     Panel {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text("Tune boost", style = MaterialTheme.typography.titleSmall)
@@ -834,11 +843,17 @@ private fun AudioCheck(s: UiState, c: PopController) {
                         Text("Self-hearing level", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
                     }
                 }
+                r.offset?.let { o ->
+                    Text(o.line(), style = Pop.mono.copy(fontWeight = FontWeight.SemiBold),
+                        color = com.enconomy.pop.ui.toneColor(when (o.within) { true -> Tone.Good; false -> Tone.Bad; null -> Tone.Warn }))
+                    FactRow("Self timestamp", "p_self ${o.pSelf ?: "?"}, a_self ${o.aSelf ?: "?"}, score ${o.score.let { kotlin.math.round(it * 1000) / 1000 }}")
+                }
                 MarginBar("2–18 kHz margin (needs ${SelfHear.OK_MARGIN_DB.toInt()} dB)", lv.highMarginDb, SelfHear.OK_MARGIN_DB, SelfHear.WEAK_MARGIN_DB)
                 Hairline()
                 FactRow("Route", routeText(r.route))
                 FactRow("Volume", "${kotlin.math.round(r.route.volume * 100).toInt()}%")
                 FactRow("Mode", r.route.mode)
+                for ((k, v) in r.path) FactRow(k, v)
                 FactRow("Sample rate", "${r.route.sampleRate} Hz")
                 FactRow("Latency", "${r.latencyMs?.let { f1(it) } ?: "?"} ms, ts ${r.tsSource}")
                 FactRow("Tune boost", "+${f1(r.tuneRequestedDb)} asked, +${f1(r.tuneAppliedDb)} dB applied")

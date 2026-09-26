@@ -276,6 +276,46 @@ data class SelfHear(
     }
 }
 
+/**
+ * Self timestamp offset exactly as a POPT v2 run computes it: [PopRound2.selfCheck] on the capture with the
+ * check sound's own bed as the int8 code (server code_from_template), p_self = round(expected_self) from the
+ * play onset + rec frame0 timestamps, a_self = earliest pass. [frames] = self_os_delta = a_self − p_self.
+ */
+data class SelfOffset(
+    val sr: Int,
+    val pSelf: Int?,
+    val aSelf: Int?,
+    /** Null = no v2 rate for [sr] or own sound not found (see [reason]). */
+    val frames: Int?,
+    /** 2 ms in frames (v2 delta, the option A bound). */
+    val deltaFrames: Int,
+    val reason: String?,
+    val score: Double = 0.0,
+) {
+    val ms: Double? get() = frames?.let { it * 1000.0 / sr }
+    val within: Boolean? get() = frames?.let { abs(it) <= deltaFrames }
+
+    fun line(): String {
+        val f = frames ?: return "offset ? (${reason ?: "not measured"})"
+        return "offset $f frames (${round(ms!! * 100) / 100} ms) — within 2 ms: ${if (within == true) "yes" else "no"}"
+    }
+
+    companion object {
+        fun measure(cap: Capture, bed: DoubleArray): SelfOffset {
+            val sr = cap.sr
+            val rate = com.enconomy.pop.dsp.Popt2Rates.builtIn[sr]
+                ?: return SelfOffset(sr, null, null, null, Popt2Config.DELTA_MS * sr / 1000, "no v2 rate for $sr Hz")
+            val code = com.enconomy.pop.dsp.Popt2Code.fromTemplate(bed, sr)
+            val r = com.enconomy.pop.dsp.PopRound2(cap.pcm, rate, 'A')
+            val st = r.selfCheck(code, cap.expectedSelf())
+            val a = r.self?.frame
+            val p = r.pSelf
+            val reason = (st as? com.enconomy.pop.dsp.PopRound2.Step.Failed)?.reason
+            return SelfOffset(sr, p, a, if (a != null && p != null) a - p else null, rate.delta, reason, r.self?.score ?: 0.0)
+        }
+    }
+}
+
 /** One audio check: route/session as played, self-hear levels, verdict text. */
 data class AudioCheckResult(
     val route: AudioRoute,
@@ -287,6 +327,9 @@ data class AudioCheckResult(
     val tuneRequestedDb: Double = 0.0,
     val tuneAppliedDb: Double = 0.0,
     val playPeak: Double = 0.0,
+    val offset: SelfOffset? = null,
+    /** Audio path as opened: backend, sharing/mmap (AAudio), requested/granted input preset. */
+    val path: List<Pair<String, String>> = emptyList(),
 ) {
     val verdict: String get() = when {
         !route.isSpeaker -> "Wrong output: ${route.output}"

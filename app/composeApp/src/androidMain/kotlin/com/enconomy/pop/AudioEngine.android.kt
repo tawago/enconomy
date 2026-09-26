@@ -107,8 +107,21 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         else -> defaultMode
     }
 
-    private fun inputPreset(): Int =
+    override val inputPresets: List<Pair<String, String>>
+        get() = PRESETS.filter { it.key != PRESET_VOICE_PERFORMANCE || Build.VERSION.SDK_INT >= 29 }.map { it.key.toString() to it.value.second }
+
+    override val defaultInputPreset: String get() = defaultPreset().toString()
+
+    private fun defaultPreset(): Int =
         if (unprocessedSupported()) AAudioNative.PRESET_UNPROCESSED else AAudioNative.PRESET_VOICE_RECOGNITION
+
+    /**
+     * Prefs "audio.input" (AAudio input preset = MediaRecorder.AudioSource number, same values); unset = UNPROCESSED
+     * when the HAL says so, else VOICE_RECOGNITION. A picked preset is requested even if reported unsupported.
+     */
+    private fun inputPreset(): Int =
+        Prefs.get(INPUT_PRESET_PREF)?.toIntOrNull()?.takeIf { it in PRESETS && (it != PRESET_VOICE_PERFORMANCE || Build.VERSION.SDK_INT >= 29) }
+            ?: defaultPreset()
 
     /** Opens both AAudio streams exclusive once (no start) and checks both were granted exclusive. Cached. */
     private fun mmapExclusiveOk(): Boolean {
@@ -132,6 +145,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
     private var effects: List<AudioEffect> = emptyList()
     private var effectsOff: List<String> = emptyList()
     private var micSource = ""
+    private var javaSource = 0
     private var sr = 0
     private var trackFrames = 0
 
@@ -167,7 +181,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         if (max <= 0 || vol < 0.6 * max) problems += "Media volume too low (${vol}/${max}). Raise it to at least 60%."
         if (ext != null) problems += "Audio goes to $ext. Disconnect it so the phone speaker plays."
         if (!hasBuiltinSpeaker()) warnings += "No built-in speaker reported."
-        if (!unp) warnings += "Unprocessed mic not supported; using voice recognition source."
+        if (!unp && Prefs.get(INPUT_PRESET_PREF) == null) warnings += "Unprocessed mic not supported; using voice recognition source."
         if (am.isMusicActive) warnings += "Other audio is playing; stop it for a clean run."
         return AudioPreflight(sampleRate(), vol, max, ext, mic, unp, outputLatencyMs(), problems, warnings)
     }
@@ -224,7 +238,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
         val vol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
         val kind = d?.let { kindOf(it.type).let { k -> if (k == "other") "other:${it.type}" else k } } ?: "unknown"
-        val mode = micSource.ifEmpty { if (unprocessedSupported()) "unprocessed" else "voice_recognition" }
+        val mode = micSource.ifEmpty { presetName(inputPreset()) }
         val detail = listOfNotNull(
             aa?.describe() ?: BACKEND_JAVA,
             "stream ${vol}/${max}",
@@ -253,13 +267,13 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
             play.copyInto(buf, primer)
             val recFrames = ((RunPlan.REC_PRE_NS + RunPlan.REC_POST_NS) / 1e9 * sr + 2.0 * sr).toInt()
             val preset = inputPreset()
-            micSource = if (preset == AAudioNative.PRESET_UNPROCESSED) "unprocessed" else "voice_recognition"
+            micSource = presetName(preset)
             val h = AAudioNative.open(sr, true, preset, buf, recFrames)
             if (h == 0L) {
                 fallbackNote = AAudioNative.lastError()
                 Log.w(TAG, "aaudio open failed, java: $fallbackNote")
             } else {
-                val s = AAudioSession(h, sr, micSource)
+                val s = AAudioSession(h, sr, micSource, preset)
                 // explicit "aaudio" keeps whatever sharing was granted; the auto default needs exclusive both ways
                 if (explicit || s.exclusive) {
                     aa = s
@@ -283,9 +297,9 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
 
     @SuppressLint("MissingPermission")
     private fun openRecord(sr: Int) {
-        val unp = unprocessedSupported()
-        val source = if (unp) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_RECOGNITION
-        micSource = if (unp) "unprocessed" else "voice_recognition"
+        val source = inputPreset() // MediaRecorder.AudioSource: same numbers as the AAudio presets
+        javaSource = source
+        micSource = presetName(source)
         val min = AudioRecord.getMinBufferSize(sr, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
         if (min <= 0) throw AudioException("capture_failed", "AudioRecord.getMinBufferSize($sr) = $min")
         val r = AudioRecord.Builder()
@@ -295,7 +309,7 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
                     .setSampleRate(sr).setChannelMask(AudioFormat.CHANNEL_IN_MONO).build(),
             )
             .setBufferSizeInBytes(maxOf(min, 2 * sr)) // ≥ 1 s int16
-            .build()
+            .let { b -> try { b.build() } catch (e: Exception) { throw AudioException("capture_failed", "AudioRecord source $source: ${e.message}") } }
         rec = r
         if (r.state != AudioRecord.STATE_INITIALIZED) throw AudioException("capture_failed", "AudioRecord not initialized")
         if (r.sampleRate != sr) throw AudioException("capture_failed", "mic runs at ${r.sampleRate}, wanted $sr")
@@ -439,6 +453,8 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
             extraMeta = buildMap {
                 put("play_ts_n", player.stampCount().toDouble())
                 put("play_ts_spread_us", player.stampSpreadUs())
+                put("input_preset_requested", javaSource.toDouble())
+                put("input_preset_granted", r.audioSource.toDouble())
                 if (ts != null && drainTs != null) {
                     // after-drain onset − used onset (0 when the fallback is the drain reading itself)
                     put("play_drain_onset_diff_us", (AudioTiming.playOnsetNs(drainTs.second, drainTs.first, sr) -
@@ -508,6 +524,19 @@ class AndroidAudioEngine(private val ctx: Context) : AudioEngine {
 }
 
 const val BACKEND_PREF = "audio.backend"
+
+private const val PRESET_VOICE_PERFORMANCE = 10
+
+/** AAudio input preset = MediaRecorder.AudioSource number -> (meta name, picker label). */
+private val PRESETS = linkedMapOf(
+    6 to ("voice_recognition" to "VoiceRec"),
+    9 to ("unprocessed" to "Unproc"),
+    5 to ("camcorder" to "Camcorder"),
+    1 to ("generic" to "Generic"),
+    10 to ("voice_performance" to "VoicePerf"),
+)
+
+internal fun presetName(p: Int): String = PRESETS[p]?.first ?: "preset_$p"
 const val BACKEND_AAUDIO = "aaudio"
 const val BACKEND_JAVA = "java"
 

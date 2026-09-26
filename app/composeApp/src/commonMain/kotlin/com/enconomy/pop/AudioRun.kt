@@ -87,7 +87,16 @@ interface AudioEngine {
      * compared. Runs always force the speaker; the caller sets it back to true after the check.
      */
     fun setForceSpeaker(on: Boolean) {}
+
+    /** Mic input presets the user can pick, (key, label); Prefs [INPUT_PRESET_PREF]. Empty = fixed (iOS). */
+    val inputPresets: List<Pair<String, String>> get() = emptyList()
+
+    /** [inputPresets] key used when Prefs has none. */
+    val defaultInputPreset: String get() = ""
 }
+
+/** Prefs key of the picked mic input preset (Android AAudio preset / AudioSource number). */
+const val INPUT_PRESET_PREF = "audio.input"
 
 expect fun createAudioEngine(): AudioEngine
 
@@ -293,6 +302,23 @@ class Capture(
         route?.putMeta(this)
         for ((k, v) in extraMeta) put(k, v)
         for ((k, v) in extraMetaStr) put(k, v)
+    }
+
+    /** Audio check lines: backend, sharing, mmap, input preset (requested → granted). */
+    fun pathFacts(): List<Pair<String, String>> {
+        fun n(k: String) = extraMeta[k]?.toInt()
+        fun mm(v: Int?) = when (v) { 1 -> "mmap"; 0 -> "legacy"; else -> "?" }
+        val out = ArrayList<Pair<String, String>>()
+        out += "Backend" to (extraMetaStr["audio_backend"] ?: "platform") +
+            (extraMetaStr["audio_backend_fallback"]?.let { " (AAudio fell back: $it)" } ?: "")
+        extraMetaStr["aaudio_sharing_out"]?.let { o ->
+            out += "Sharing" to "out $o, in ${extraMetaStr["aaudio_sharing_in"]}"
+            out += "MMAP" to "out ${mm(n("aaudio_mmap_out"))}, in ${mm(n("aaudio_mmap_in"))}"
+        }
+        val req = n("input_preset_requested")
+        val got = n("input_preset_granted")
+        out += "Input" to if (req != null) "asked $req, granted ${got ?: "?"} ($micSource)" else micSource
+        return out
     }
 
     /** Own sound vs the lead-in floor, from the capture (diagnostics). */
