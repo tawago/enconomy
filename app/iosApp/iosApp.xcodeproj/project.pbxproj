@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1000000000000000000B001 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000F001 /* iOSApp.swift */; };
 		A1000000000000000000B002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000F002 /* ContentView.swift */; };
+		A1000000000000000000B003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000F008 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -18,6 +19,7 @@
 		A1000000000000000000F004 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
 		A1000000000000000000F005 /* iosApp-paid.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "iosApp-paid.entitlements"; sourceTree = "<group>"; };
 		A1000000000000000000F006 /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		A1000000000000000000F008 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000000000000000000F007 /* pop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = pop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -46,6 +48,7 @@
 			children = (
 				A1000000000000000000F001 /* iOSApp.swift */,
 				A1000000000000000000F002 /* ContentView.swift */,
+				A1000000000000000000F008 /* Assets.xcassets */,
 				A1000000000000000000F003 /* Info.plist */,
 				A1000000000000000000F004 /* iosApp.entitlements */,
 				A1000000000000000000F005 /* iosApp-paid.entitlements */,
@@ -128,6 +131,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1000000000000000000B003 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -218,7 +222,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1000000000000000000F006 /* Config.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "$(TEAM_ID)";
 				ENABLE_PREVIEWS = NO;
@@ -250,7 +254,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1000000000000000000F006 /* Config.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = "";
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = "$(TEAM_ID)";
 				ENABLE_PREVIEWS = NO;

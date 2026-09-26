@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pop_background">#FFF5F6F8</color>
+    <style name="Theme.Pop" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/pop_background</item>
+        <item name="android:colorAccent">#FF0B9E6F</item>
+    </style>
+</resources>
