@@ -48,7 +48,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
-val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
+val DEFAULT_BASE_URL: String = platformDefaultBaseUrl(PopBuildConfig.SERVER_URL)
 
 /** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"); Android uses "audio.backend". */
 const val AUDIO_MODE_PREF = "audio.mode"
@@ -976,6 +976,10 @@ class PopController(
      */
     private fun startProof(ev: Popt2Evidence, res: ResultRecord, allowMetered: Boolean) {
         pendingProof = ev to res
+        if (keystore.platform == "web" && !ProverLib.available) { // web: no local prover
+            if (ev.provable == false) { _state.update { it.copy(proof = ProofStatus.Skipped("Not provable: own arrival is more than 2 ms from the OS timestamp.")) }; return }
+            delegateProof(); return
+        }
         proofJob?.cancel()
         val set: (ProofStatus) -> Unit = { st -> _state.update { it.copy(proof = st) } }
         _state.update { it.copy(proofBusy = true) }

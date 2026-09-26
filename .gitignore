@@ -53,3 +53,6 @@ node_modules/
 
 # wrangler
 .wrangler/
+
+# web app build copied for Workers hosting (app/scripts/build_web.sh --workers)
+/web/app/

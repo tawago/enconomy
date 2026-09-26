@@ -60,8 +60,19 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_ATTEST_KEY_FILE` | `data/attest.pem` | Chain attester, P-256 PEM (not the issuer key). Loaded if present, else created 0600. A Safe pins its qx/qy (`/v1/config` `attest`): back it up, never regenerate. |
 | `POP_ATT_TTL_S` | `900` | Attestation `expiry = finished_s + TTL`. |
 | `POP_UNATTESTED_ALLOW` | empty | Comma list of device_ids that may be unattested and still get a chain attestation (the free-team iPhone). |
+| `POP_ALLOW_WEB` | `0` | `1` accepts `platform: "web"` at enroll (the browser build, `app/README.md` "Web"): software P-256 key, `key_kind` / `security_level` `software`, `attested: false`, no chain / app_attest. `POP_ALLOW_UNATTESTED=1` also lets web in. Web devices get no chain attestation unless listed in `POP_UNATTESTED_ALLOW` or `POP_ATTEST_ALLOW_WEB=1`. |
+| `POP_ATTEST_ALLOW_WEB` | `0` | Demo only: `1` lets `platform: "web"` devices through the chain attestation check (ENS / World ID flows with a browser on one side). Software keys, so this attests nothing about the device. |
+| `POP_WEB_DIR` | unset | Directory with the web build (`app/scripts/build_web.sh` fills `server/web-app/`, gitignored), served at `/app/` after every API route (`.wasm` as `application/wasm`). Relative paths are from `server/`. Refused (exit 2) if it is missing or inside `server/data`. Same origin as the API, so no CORS. |
+| `POP_CORS_ORIGINS` | empty | Comma list of origins allowed to call the API from a browser (e.g. `http://localhost:8080` for `wasmJsBrowserDevelopmentRun`, `https://enconomy.dev` for the Workers-hosted app). Methods GET/POST/OPTIONS; headers `X-Pop-Device`, `X-Pop-Ts`, `X-Pop-Sig`, `Content-Type`, `Range`; exposes `Content-Range`, `Accept-Ranges`. Off by default. |
 
 `python -m pop` also reads `server/.env` (gitignored; real env vars win). Run **one** uvicorn worker: World ID state is read-modify-write on the session doc and relies on a single event loop.
+
+Web app on the same origin (`https://pop.enconomy.dev/app/` through the existing tunnel):
+
+```sh
+app/scripts/build_web.sh                 # -> server/web-app/
+cd server && POP_ALLOW_WEB=1 POP_WEB_DIR=web-app uv run python -m pop
+```
 
 ### How phones reach it
 
