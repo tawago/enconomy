@@ -41,7 +41,17 @@ def verify_raw(pub65: bytes, msg: bytes, sig64: bytes) -> bool:
         return False
 
 
+P256_N = 0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551
+
+
+def low_s(sig64: bytes) -> bytes:
+    """r||s with s <= n/2 (the bb secp256r1 blackbox rejects high-S; anyone can flip s -> n - s)."""
+    s = int.from_bytes(sig64[32:], "big")
+    return sig64 if s <= P256_N // 2 else sig64[:32] + (P256_N - s).to_bytes(32, "big")
+
+
 def sign_raw(sk: ec.EllipticCurvePrivateKey, msg: bytes) -> bytes:
-    """What the phone does (DER -> r||s). Used by tests / fake phones."""
+    """DER -> r||s, always low-S (issuer credentials and code attestations must be provable in Noir).
+    Also what tests / fake phones use."""
     r, s = decode_dss_signature(sk.sign(msg, ec.ECDSA(hashes.SHA256())))
-    return r.to_bytes(32, "big") + s.to_bytes(32, "big")
+    return low_s(r.to_bytes(32, "big") + s.to_bytes(32, "big"))
