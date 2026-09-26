@@ -89,3 +89,12 @@ def test_bad_sig_encoding(phones):
     assert a.client.post("/v1/session", content=b"{}", headers=h).json()["error"] == "auth_bad_signature"
     h["X-Pop-Sig"] = base64.b64encode(b"\x00" * 64).decode()
     assert a.client.post("/v1/session", content=b"{}", headers=h).json()["error"] == "auth_bad_signature"
+
+
+def test_401_code_in_request_log(phones, clock, caplog):
+    import logging
+    a, _ = phones
+    with caplog.at_level(logging.INFO, logger="pop"):
+        assert a.post("/v1/session", ts=clock() + 61_000).status_code == 401
+    lines = [r.getMessage() for r in caplog.records if "-> 401" in r.getMessage()]
+    assert lines and "err=auth_stale ts=" in lines[-1]

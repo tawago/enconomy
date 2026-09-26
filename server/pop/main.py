@@ -246,15 +246,18 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     app.state.zk, app.state.worldid = zkv, wid
 
     @app.exception_handler(PopError)
-    async def _pop_error(_req, e: PopError):
+    async def _pop_error(req: Request, e: PopError):
+        req.state.pop_err = f"{e.code} {e.detail}".strip()
         return JSONResponse({"error": e.code, "detail": e.detail}, status_code=e.status)
 
     @app.exception_handler(RequestValidationError)
-    async def _bad_request(_req, e: RequestValidationError):
+    async def _bad_request(req: Request, e: RequestValidationError):
+        req.state.pop_err = "bad_request " + str(e.errors())[:200]
         return JSONResponse({"error": "bad_request", "detail": str(e.errors())[:500]}, status_code=400)
 
     @app.exception_handler(StarletteHTTPException)
-    async def _http(_req, e: StarletteHTTPException):
+    async def _http(req: Request, e: StarletteHTTPException):
+        req.state.pop_err = f"{'not_found' if e.status_code == 404 else 'http_error'} {e.detail}"
         return JSONResponse({"error": "not_found" if e.status_code == 404 else "http_error", "detail": str(e.detail)},
                             status_code=e.status_code)
 
@@ -262,9 +265,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     async def _log(request: Request, call_next):
         t = time.monotonic()
         resp = await call_next(request)
-        log.info("%s %s %s -> %d (%.0fms) dev=%s", request.client.host if request.client else "?", request.method,
+        err = getattr(request.state, "pop_err", None) if resp.status_code >= 400 else None
+        log.info("%s %s %s -> %d (%.0fms) dev=%s%s", request.client.host if request.client else "?", request.method,
                  request.url.path, resp.status_code, (time.monotonic() - t) * 1000,
-                 request.headers.get("x-pop-device", "-"))
+                 request.headers.get("x-pop-device", "-"), f" err={err}" if err else "")
         return resp
 
     async def device(request: Request) -> dict:
