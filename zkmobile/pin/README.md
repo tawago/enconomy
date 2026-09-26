@@ -4,7 +4,7 @@
 
 - Darwin CLI sha256 `ab4ff1ab…a7330d`, byte-identical to the ZK team's `~/.enconomy/zk/bin/bb`. Same build as the team's vk, proofs, and PhoneVerifier.sol.
 - The same release ships mobile libs: `barretenberg-static-arm64-{android,ios,ios-sim}.tar.gz`, in `~/.enconomy/zk/pinned/rel50/` (hashes in SHA256SUMS).
-- Do not use aztec-packages `v4.4.0-nightly.20260522`. Its bb can't read nargo 1.0.0-beta.22 ACIR. On the 12k-gate test circuit it fails with `error converting into field Circuit::current_witness_index`, and on phone.json it dumps the whole circuit, which runs away.
+- Do not use aztec-packages `v4.4.0-nightly.20260522`. Its bb can't read nargo 1.0.0-beta.22 ACIR. On a tiny x*x==y test circuit it fails with `error converting into field Circuit::current_witness_index`, and on phone.json it dumps the whole circuit, which runs away.
 
 ## Artifacts (`~/.enconomy/zk/pinned/`)
 - `bin/bb` — pinned CLI
