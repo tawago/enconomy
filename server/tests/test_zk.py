@@ -455,3 +455,5 @@ def test_pair_job_and_bundle(zk_world):
     assert b["sid"] == "0x" + w.sid and b["attempt"] == 0 and b["proofs"]["pair"]["proof"] == "0x" + b"pairproof".hex()
     assert b["proofs"]["A"]["public_inputs"] == zk.hexes(va) and b["code_attest"]["B"]["format"] == "POPCC1"
     assert b["proofs"]["pair"]["vk_hash"] == "0x" + zk.PAIR_VK_HASH
+    assert w.a.client.get(path).json() == b   # public: the relayer reads it without a device key
+    assert set(b["devices"]) == {"A", "B"} and b["devices"]["A"]["device_hash"].startswith("0x")

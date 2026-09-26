@@ -339,6 +339,23 @@ class PopApi(
     suspend fun attestation(id: String): JsonObject =
         call(HttpMethod.Get, "/v1/session/$id/attestation", null, JsonObject.serializer(), signed = false)
 
+    /** SAFE (02 §7.3): this phone's P256Owner signature over "pop-safe-owner-v1" ‖ safeTxHash, raw r‖s. */
+    suspend fun safeOwnerSig(id: String, sigHex: String): JsonObject =
+        call(HttpMethod.Post, "/v1/session/$id/safe/owner-sig", buildJsonObject { put("sig", sigHex) }.toString(), JsonObject.serializer())
+
+    /** What the laptop relayer did (relayer/out/<sid>.result.json via the server), unsigned. status "none" = nothing yet. */
+    suspend fun relayStatus(id: String): JsonObject =
+        call(HttpMethod.Get, "/v1/session/$id/relay", null, JsonObject.serializer(), signed = false)
+
+    /** JSON-RPC eth_call to [rpcUrl] (not the PoP server). Returns the 0x result. */
+    suspend fun ethCall(rpcUrl: String, to: String, data: String): String {
+        val body = """{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"$to","data":"$data"},"latest"]}"""
+        val text = request(HttpMethod.Post, rpcUrl, body.encodeToByteArray(), ContentType.Application.Json, null).textOrThrow()
+        val o = popJson.parseToJsonElement(text).jsonObject
+        o["error"]?.let { error("rpc: $it") }
+        return o["result"]?.jsonPrimitive?.content ?: error("rpc: no result")
+    }
+
     suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 
     /**
