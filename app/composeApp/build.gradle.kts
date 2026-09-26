@@ -123,6 +123,7 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
             implementation("io.ktor:ktor-client-core:3.2.3")
+            implementation("org.kotlincrypto.hash:sha3:0.8.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
