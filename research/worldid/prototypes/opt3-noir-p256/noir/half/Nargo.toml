@@ -1,0 +1,6 @@
+[package]
+name = "half"
+type = "bin"
+authors = [""]
+[dependencies]
+poplib = { path = "../poplib" }

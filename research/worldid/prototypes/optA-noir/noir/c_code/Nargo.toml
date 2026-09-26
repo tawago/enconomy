@@ -1,0 +1,6 @@
+[package]
+name = "c_code"
+type = "bin"
+authors = [""]
+[dependencies]
+oalib = { path = "../oalib" }

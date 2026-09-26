@@ -1,0 +1,6 @@
+[package]
+name = "phone"
+type = "bin"
+authors = [""]
+[dependencies]
+oalib = { path = "../oalib" }

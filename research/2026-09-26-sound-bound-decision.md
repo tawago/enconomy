@@ -32,7 +32,7 @@ Each phone's speaker delay and clock offset appear in both terms of its own file
 
 ### Finding an arrival
 
-The phone knows the secret sound exactly. It slides it along the recording and computes a match score at every position, 0% to 100%. The whole curve comes out of one Fourier transform: multiply the two spectra, transform back. The real arrival shows up as a jump (17–62% for JBL250 on the walk). Everywhere else there are small chance matches, mostly well under the bar of about 4%.
+The phone knows the secret sound exactly. It slides it along the recording and computes a match score at every position, 0% to 100%. The whole curve comes out of one Fourier transform: multiply the two spectra, transform back. The real arrival shows up as a jump (17–62% for JBL250 on the walk). Everywhere else there are small chance matches, below the bar. The bar depends on sound length: 6.9–8.3% (median 7.6%) for JBL250, about 4% for the 1 s sounds. On JBL250 the highest chance match more than 1 ms before an arrival was 4.9%.
 
 The rule takes the earliest peak above the random-code bar, provided it is at least half the size of the biggest peak in the next 5 ms. That bar is measured on the same recording, so a noisy room raises it along with everything else.
 

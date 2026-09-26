@@ -1,0 +1,9 @@
+[32mtemplate instances[0m: 222
+[0m[1m[38;5;11mwarning[CA02][0m[1m: In template "LessThan(6)": Array of subcomponent input/output signals n2b.out contains a total of 6 signals that do not appear in any constraint of the father component[0m
+ [0m[34m=[0m For example: n2b.out[0], n2b.out[1].
+[0m[1m[38;5;11mwarning[CA02][0m[1m: In template "PresenceTransfer(32,20)": Array of subcomponent input/output signals r1.out contains a total of 128 signals that do not appear in any constraint of the father component[0m
+ [0m[34m=[0m For example: r1.out[0], r1.out[100].
+[0m[1m[38;5;11mwarning[CA02][0m[1m: In template "PresenceTransfer(32,20)": Array of subcomponent input/output signals r2.out contains a total of 128 signals that do not appear in any constraint of the father component[0m
+ [0m[34m=[0m For example: r2.out[0], r2.out[100].
+[0m[1m[38;5;11mwarning[CA02][0m[1m: In template "PresenceTransfer(32,20)": Subcomponent input/output signal chC.nullifierHash does not appear in any constraint of the father component[0m
+[32mEverything went okay[0m

@@ -1,0 +1,8 @@
+[profile.default]
+src = "src"
+test = "test"
+libs = ["lib"]
+solc = "0.8.28"
+fs_permissions = [{ access = "read", path = "../golden.json" }]
+remappings = ["forge-std/=lib/forge-std/src/", "poseidon-solidity/=src/", "leanimt/=lib/leanimt/"]
+auto_detect_remappings = false

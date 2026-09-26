@@ -1,0 +1,7 @@
+[profile.default]
+src="src"
+test="test"
+libs=["lib_fs"]
+remappings=["forge-std/=lib_fs/src/"]
+solc_version="0.8.28"
+fs_permissions=[{access="read", path="./"}]

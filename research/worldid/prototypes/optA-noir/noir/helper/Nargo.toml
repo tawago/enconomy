@@ -1,0 +1,6 @@
+[package]
+name = "helper"
+type = "bin"
+authors = [""]
+[dependencies]
+oalib = { path = "../oalib" }

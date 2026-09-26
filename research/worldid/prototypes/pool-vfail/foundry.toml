@@ -1,0 +1,5 @@
+[profile.default]
+src="src"
+test="test"
+libs=["lib_fs"]
+remappings=["forge-std/=lib_fs/src/"]

@@ -1,0 +1,37 @@
+circomspect: analyzing template 'PresenceTransfer'
+note: Field element arithmetic could overflow, which may produce unexpected results.
+   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/presenceTransfer.circom:55:24
+   │
+55 │   signal remaining <== existingValue - transferValue;
+   │                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Field element arithmetic here.
+   │
+   = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
+
+note: Field element arithmetic could overflow, which may produce unexpected results.
+   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/presenceTransfer.circom:95:29
+   │
+95 │   signal contextSquared <== context * context;
+   │                             ^^^^^^^^^^^^^^^^^ Field element arithmetic here.
+   │
+   = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
+
+warning: Intermediate signals should typically occur in at least two separate constraints.
+   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/presenceTransfer.circom:95:3
+   │
+95 │   signal contextSquared <== context * context;
+   │   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   │   │
+   │   The intermediate signal `contextSquared` is declared here.
+   │   The intermediate signal `contextSquared` is constrained here.
+   │
+   = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#under-constrained-signal.
+
+warning: The output signal `nullifierHash` defined by the template `CommitmentHasher` is not constrained in `PresenceTransfer`.
+   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/presenceTransfer.circom:64:19
+   │
+64 │   component chC = CommitmentHasher();
+   │                   ^^^^^^^^^^^^^^^^^^ The template `CommitmentHasher` is instantiated here.
+   │
+   = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#unused-output-signal.
+
+circomspect: 4 issues found.

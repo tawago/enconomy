@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+evm_version = "osaka"
+via_ir = true
+optimizer = true
+
+[rpc_endpoints]
+wcsep = "https://worldchain-sepolia.g.alchemy.com/public"
+wc = "https://worldchain-mainnet.g.alchemy.com/public"
+sep = "https://ethereum-sepolia-rpc.publicnode.com"

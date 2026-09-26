@@ -68,3 +68,22 @@ Even at this size, A adds no security: the prover still supplies the recording. 
 2. **Spike: longfellow-zk.** Build a toy-credential circuit where an issuer P-256 key certifies pk_dev and pk_dev signs the App Attest-shaped digest. Time it on the M2, then on a phone.
 3. **Fix the round-index bug** and derive codes per role and per round.
 4. **Measure native OS output-timestamp accuracy** on iOS and Android. Both the anti-cheat check and the small option A depend on it.
+
+## Addendum: spike v2 measured (same day)
+
+Built and reviewed in `sound-bound/spikes/zk/` (see its README for the table). Short version:
+
+- **Real Secure Enclave keys work** from a plain Swift CLI on the M2. CryptoKit signs ECDSA over SHA-256 of the data. Half of the signatures came back high-S and were normalized.
+- **Option C with hardware keys and privacy is real:**
+  - OpenAC circom/secq256r1 + Spartan2: 481k constraints, 0.87 s prove on the M2, 60 KB proof.
+  - longfellow-zk: 0.71 s prove, 387 KB proof, 0.28 GB RAM.
+  - Both accept real NEAR sessions and reject NOT_NEAR ones and tampering.
+- **Option A is no longer absurd for JBL250:**
+  - Freivalds check of the full correlation curve: 137k constraints, 0.38 s.
+  - The exact "first" rule over the full window costs 2.35M and 8 s per arrival.
+  - Unsound as built: an unbound window start let a 200 cm session prove NEAR. It still adds no security over an attested app.
+- **New must-fixes:**
+  - enforce device A ≠ device B
+  - bind the nullifier to a holder commitment in the credential
+  - verifier pins the issuer key and the circuit id
+- **Accepted limit:** the public nonce stays linkable by our own server.
