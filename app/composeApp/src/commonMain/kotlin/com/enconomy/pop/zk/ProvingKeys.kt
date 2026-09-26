@@ -6,24 +6,32 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /**
- * Proving keys (docs/pop-prover.md): zstd-compressed, served by the server at
- * GET /v1/zk/keys/{circuit}.pk.zst, sha256 pinned here. The pk is public; a swapped one only makes proofs
- * fail (the server pins the vk). New trusted setup = new pins here and new vk pins on the server.
+ * Prover artifacts (zkmobile/APP_SERVER_CONTRACT.md), served by the server at GET /v1/zk/keys/{file},
+ * size + sha256 pinned here: the nargo artifact (ABI + ACIR), the BN254 CRS for 2^20 gates and the vk.
+ * All public; a swapped file only makes proofs fail (the server / chain pins the vk).
  */
-class KeySpec(val circuit: String, val sampleRate: Int, val sha256: String, val size: Long) {
-    val file: String get() = "$circuit.pk.zst"
+class KeySpec(val circuit: String, val sampleRate: Int, val sha256: String, val size: Long, val file: String = "$circuit.pk.zst") {
     val urlPath: String get() = "/v1/zk/keys/$file"
-    /** Rough peak while proving with this key (M2 measurement, port spec §5.5). */
-    val peakBytes: Long get() = 1_950_000_000L
+}
+
+/** One Noir circuit and the files its prover needs. */
+class CircuitSpec(val id: String, val sampleRate: Int, val artifact: KeySpec, val crs: KeySpec, val vk: KeySpec) {
+    val files: List<KeySpec> get() = listOf(artifact, crs, vk)
+    val bytes: Long get() = files.sumOf { it.size }
+    /** Peak while proving: Pixel 6 1.6 GB, iPhone X 1.3 GB (zkmobile spike). */
+    fun peakBytes(hardLimit: Boolean): Long = if (hardLimit) 1_350_000_000L else 1_700_000_000L
 }
 
 object ProvingKeys {
-    val s48 = KeySpec("oa2t_s48", 48000, "49b6ed65e25fb25018cbc87beba5061f36aa9b24ddf3c47fb0a72ad2243bd045", 11_690_873)
-    val s44 = KeySpec("oa2t_s44", 44100, "136ddb87868da3dea4aa3055ec18b634f54b3bf52fb25dda2a1273d93625f8d1", 11_273_564)
-    val all = listOf(s48, s44)
+    val phoneJson = KeySpec("oaN_s48.json", 48000, "5499f99eed7aecfd6615ab470cfed7a3345e28954385005d8080b810aaf04f3a", 14_620_501, "oaN_s48.json")
+    val crs = KeySpec("bn254_g1_2p20.dat", 0, "5d0ff516149e0c6644ab16567b914c9d02bf41f872c1129af8436b41d4d82c62", 67_108_864, "bn254_g1_2p20.dat")
+    val vk = KeySpec("oaN_s48.vk", 48000, "769ac93112de4ec2f970d33233108d19124612b9b2ae54b8b531a23ecaa23f06", 1_888, "oaN_s48.vk")
+    val s48 = CircuitSpec(WitnessInput.CIRCUIT_S48, 48000, phoneJson, crs, vk)
+    val all = listOf(phoneJson, crs, vk)
+    val circuits = listOf(s48)
 
-    fun forRate(sr: Int): KeySpec? = all.firstOrNull { it.sampleRate == sr }
-    fun forCircuit(c: String): KeySpec? = all.firstOrNull { it.circuit == c }
+    fun forRate(sr: Int): CircuitSpec? = circuits.firstOrNull { it.sampleRate == sr }
+    fun forCircuit(c: String): CircuitSpec? = circuits.firstOrNull { it.id == c }
 }
 
 class KeyException(val reason: String, msg: String) : Exception("$reason: $msg")
@@ -53,15 +61,15 @@ class KeyCache(
     fun partial(k: KeySpec): Long = maxOf(0L, ZkFiles.size(path(k) + ".part"))
 
     fun delete(k: KeySpec) {
-        ZkFiles.delete(path(k)); ZkFiles.delete(path(k) + ".part"); verified.remove(k.circuit)
+        ZkFiles.delete(path(k)); ZkFiles.delete(path(k) + ".part"); verified.remove(k.file)
     }
 
     /** Path of a verified key, downloading what is missing. [progress] (bytes, total). */
     suspend fun ensure(k: KeySpec, progress: (Long, Long) -> Unit = { _, _ -> }): String {
         val fin = path(k)
-        if (k.circuit in verified && present(k)) return fin
+        if (k.file in verified && present(k)) return fin
         if (ZkFiles.size(fin) >= 0) {
-            if (present(k) && hashOk(k, fin)) { verified += k.circuit; return fin }
+            if (present(k) && hashOk(k, fin)) { verified += k.file; return fin }
             ZkFiles.delete(fin)
         }
         val part = "$fin.part"
@@ -105,7 +113,7 @@ class KeyCache(
             }
             if (ZkFiles.size(part) == k.size && hashOk(k, part)) {
                 if (!ZkFiles.rename(part, fin)) throw KeyException("io", "cannot move key into place")
-                verified += k.circuit
+                verified += k.file
                 return fin
             }
             ZkFiles.delete(part)

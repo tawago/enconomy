@@ -1,5 +1,10 @@
 package com.enconomy.pop.zk
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+
 /**
  * Option-A (Noir) hashes, bit for bit as research/worldid/prototypes/optA-noir/noir/oalib/src/lib.nr:
  * the Sp sponge (rate 3, tag in s[3]), leaf_hash, node_hash, the depth-4 rec tree, code_commitment and the
@@ -119,6 +124,25 @@ object OaHash {
     }
 
     fun recRoot(x: ShortArray): Fr = recTree(x).root
+
+    /** [recTree] with the leaves hashed on [workers] coroutines of Dispatchers.Default. */
+    suspend fun recTreeParallel(x: ShortArray, workers: Int = 4): RecTree2 = coroutineScope {
+        require(x.size <= CAP) { "capture too long: ${x.size}" }
+        val parts = (0 until NLEAVES).chunked((NLEAVES + workers - 1) / workers).map { idx ->
+            async(Dispatchers.Default) {
+                val p = Poseidon2Bn()
+                idx.map { i -> if (i * LEAF >= x.size) null else leafHash(x, i * LEAF, p) }
+            }
+        }
+        val p = Poseidon2Bn()
+        val zero = leafHash(ShortArray(0), 0, p)
+        val levels = mutableListOf(parts.awaitAll().flatten().map { it ?: zero })
+        while (levels.last().size > 1) {
+            val c = levels.last()
+            levels.add(List(c.size / 4) { j -> nodeHash(c.subList(4 * j, 4 * j + 4), p) })
+        }
+        RecTree2(levels)
+    }
 
     /** code commitment over four u8 templates (u8 = v + 128, bytes read unsigned), L each; 31 B / element, BE. */
     fun codeCommitmentU8(a: ByteArray, b: ByteArray, c: ByteArray, d: ByteArray): Fr {

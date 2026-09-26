@@ -9,7 +9,7 @@ import com.enconomy.pop.dsp.Popt2Rate
 import com.enconomy.pop.dsp.pyRound
 import com.enconomy.pop.zk.CodeCommit
 import com.enconomy.pop.zk.Popt2Evidence
-import com.enconomy.pop.zk.RecTree
+import com.enconomy.pop.zk.OaHash
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.http.ContentType
@@ -72,7 +72,7 @@ object Reasons {
  *    attempt = the partner's /fail moved the session on; re-read the view and follow it.
  *
  * POPT v2 ([popt2] set and the phone's rate has a circuit): arm with "popt": 2 (own int8 code comes
- * back), the integer rule of [PopRound2] on the same int16 capture, POPC v2 commits the Poseidon7
+ * back), the integer rule of [PopRound2] on the same int16 capture, POPC v2 commits the Poseidon2/BN254
  * rec_root (built on 4 workers while the self check runs), partner_code after the commit, 311-byte
  * transcript with a_self, p_partner, delta and code_commit. v1 is untouched otherwise.
  */
@@ -249,7 +249,7 @@ class PopRun(
         val sr = plan.sr
         check(sr == rate.sr) { "rate ${rate.sr} != $sr" }
         val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
-        val tree = async(Dispatchers.Default) { RecTree.buildParallel(cap.pcm, 4) }
+        val tree = async(Dispatchers.Default) { OaHash.recTreeParallel(cap.pcm, 4) }
         status(RunPhase.SelfCheck, k)
         val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs, calUs = calUs)
         val expSelf = cap.expectedSelf()

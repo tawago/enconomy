@@ -780,6 +780,11 @@ private fun Result(s: UiState, c: PopController) {
         Reveal(250) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 s.proof?.let { ProofCard("Option A proof", it, onRetry = c::proveNow) }
+                if (s.proof != null) Panel {
+                    SecondaryButton("Delegate proof to server", c::delegateProof, Modifier.fillMaxWidth(), enabled = !s.proofBusy, compact = true)
+                    Text("Faster on older phones. The server sees your audio samples for this proof; the chain and the public do not.",
+                        style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                }
                 Panel {
                     Expandable("Details", subtitle = r.reason ?: r.session_id?.let { "session ${it.take(12)}…" }, icon = PopIcons.Info, initiallyOpen = !near) {
                         r.reason?.let { Field("reason", it) }
@@ -803,6 +808,7 @@ private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconTile(PopIcons.Shield, when (p) {
                 is ProofStatus.Done -> Tone.Good
+                is ProofStatus.Delegated -> if (p.ok) Tone.Good else Tone.Bad
                 is ProofStatus.Failed -> Tone.Bad
                 is ProofStatus.NeedKey -> Tone.Warn
                 else -> Tone.Accent
@@ -817,6 +823,7 @@ private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
                         is ProofStatus.Downloading -> "Downloading key"
                         is ProofStatus.Step -> "Working"
                         is ProofStatus.Done -> "Proved"
+                        is ProofStatus.Delegated -> "Proved by the server"
                         is ProofStatus.Failed -> "Failed"
                     },
                     style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted,
@@ -824,6 +831,7 @@ private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
             }
             when (p) {
                 is ProofStatus.Done -> Pill("Proved", Tone.Good, icon = PopIcons.Check)
+                is ProofStatus.Delegated -> if (p.ok) Pill("Proved", Tone.Good, icon = PopIcons.Check) else Pill("Failed", Tone.Bad)
                 is ProofStatus.Failed -> Pill("Failed", Tone.Bad)
                 is ProofStatus.Step, is ProofStatus.Downloading -> CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                 else -> {}
@@ -851,6 +859,7 @@ private fun ProofCard(title: String, p: ProofStatus, onRetry: (() -> Unit)?) {
                 p.upload?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 CodeBlock(p.stats.lines().joinToString("\n"))
             }
+            is ProofStatus.Delegated -> Text(p.note, style = MaterialTheme.typography.bodyMedium)
             is ProofStatus.Failed -> {
                 Text("Failed (${p.step}): ${p.why}", style = MaterialTheme.typography.bodyMedium, color = Pop.palette.bad)
                 if (onRetry != null) SecondaryButton("Retry", onRetry, Modifier.fillMaxWidth(), icon = PopIcons.Refresh, compact = true)
@@ -969,8 +978,8 @@ private fun pad(x: Double) = f1(x).padStart(7)
 private fun Bench(s: UiState, c: PopController) {
     PageTitle(
         "Prover bench",
-        "Proves a bundled field fixture on this phone: witness input, key load, constraint check, proof. " +
-            "Needs about 2 GB of RAM and the proving key (downloaded once, Wi-Fi recommended).",
+        "Proves a bundled field fixture on this phone: Noir input map, ACVM witness, UltraHonk proof (oaN_s48). " +
+            "Needs about 1.7 GB of RAM and the circuit + CRS (82 MB, downloaded once, Wi-Fi recommended).",
     )
     val running = s.benchStatus is ProofStatus.Step || s.benchStatus is ProofStatus.Downloading
     Panel {
@@ -992,7 +1001,7 @@ private fun Bench(s: UiState, c: PopController) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(k.circuit, style = Pop.mono.copy(fontWeight = FontWeight.SemiBold))
-                    Text("${k.sampleRate} Hz", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                    Text(ProofStats.mb(k.size), style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
                 }
                 Pill(st, when {
                     st == "present" -> Tone.Good
