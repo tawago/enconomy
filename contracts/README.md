@@ -18,7 +18,7 @@ Single key: admin == hot == attester, key file `~/.enconomy/ens-sepolia.key` (ov
 | `ENS_KEY_FILE` | `~/.enconomy/ens-sepolia.key` |
 | `ENS_PARENT` | `enconomy.eth` |
 | `ENS_EVENT_NAME` | `ETHGlobal Tokyo 2026` |
-| `ENS_SITE_URL` | `https://enconomy.pages.dev/` (changing it later = one `setSite` tx on rerun, same address) |
+| `ENS_SITE_URL` | `https://enconomy.dev/` (changing it later = one `setSite` tx on rerun, same address) |
 | `ENS_OUT` | `deployments/sepolia.json` |
 
 ## Real Sepolia
@@ -28,7 +28,7 @@ cd contracts
 ./script/ens.sh addr                 # fund this address (0.1+ Sepolia ETH is plenty)
 cast call 0xabe76f6c8dfced81aa5a2bb8034202a7136b94ca "isAvailable(string)(bool)" enconomy \
   --rpc-url https://ethereum-sepolia-rpc.publicnode.com       # must be true (or already ours)
-ENS_SITE_URL=https://<project>.pages.dev/ ./script/ens.sh bootstrap   # ~9 txs, waits ~60 s commit->reveal
+ENS_SITE_URL=https://enconomy.dev/ ./script/ens.sh bootstrap   # ~9 txs, waits ~60 s commit->reveal; rerun = setSite only
 ./script/ens.sh bootstrap            # rerun: "txs sent: 0"
 
 # demo pre-seed / Plan B (no server)

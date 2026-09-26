@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "enconomy",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "web"
+  },
+  "routes": [
+    { "pattern": "enconomy.dev", "custom_domain": true }
+  ],
+  "workers_dev": false
+}
