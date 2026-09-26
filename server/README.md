@@ -19,11 +19,12 @@ Configuration: copy `.env.example` to `.env` and fill it in (`python -m pop` rea
 The demo runs on the laptop on port 8001 and is published at **https://pop.enconomy.dev** through a Cloudflare named tunnel:
 
 ```sh
-cd server && POP_PORT=8001 uv run python -m pop          # .env: World ID ids, POP_TEST_KINDS=1, POP_ALLOW_UNATTESTED=1
+cd server && POP_PORT=8001 uv run python -m pop          # .env: World ID ids, POP_TEST_KINDS=1, POP_WORLDID_SANDBOX=1, POP_ALLOW_UNATTESTED=1
 cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   # pop.enconomy.dev -> localhost:8001
 ```
 
-- The World ID IDKit sidecar (`idkit-sidecar/`) must also be running (`POP_WORLDID_SIDECAR`).
+- The World ID IDKit sidecar must also be running: `cd server/idkit-sidecar && npm ci && node index.mjs` (listens on 127.0.0.1:8787, `POP_WORLDID_SIDECAR`). Without it World ID start answers 503 `worldid_unavailable`; check `/health` → `worldid.sidecar_ok`.
+- `POP_WORLDID_SANDBOX=1` lets a phone use the World ID Simulator in `test` sessions; without it that phone gets 403 `sandbox_not_allowed`.
 - `POP_TEST_KINDS=1` is required for the app's "Host with World ID (test)" button; without it session create answers 400 `bad_kind`.
 - The apps are built with `-Ppop.serverUrl=https://pop.enconomy.dev` (Android) / `POP_SERVER_URL` in `iosApp/Configuration/Local.xcconfig`. A server URL saved in the app wins over the built-in one: Server → Reset to default.
 
