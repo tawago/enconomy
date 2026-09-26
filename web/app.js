@@ -365,7 +365,7 @@ async function renderLatest(animate) {
   box.hidden = false
   const chip = (el, node) => {
     const mem = S.members.get(node)
-    el.innerHTML = mem ? nameHtml(mem.label) : esc(short(node))
+    el.innerHTML = `<span class="chip-t">${mem ? nameHtml(mem.label) : esc(short(node))}</span>`
     el.href = mem ? keepParams({ name: mem.name }) : '#'
     el.dataset.name = mem ? mem.name : ''
   }
