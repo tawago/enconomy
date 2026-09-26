@@ -39,7 +39,10 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_WORLDID_ALLOW_LEGACY` | `0` | Accept `identifier:"orb"` v3 proofs. Keep 0. |
 | `POP_WORLDID_FAKE` | `0` | Fake World ID (tests, live app tests). Refused (exit 2) unless `POP_TEST_KINDS=1`. Stores `environment:"fake"`. |
 | `POP_TEST_KINDS` | `0` | Enables `context.kind == "test"`. |
-| `POP_CHAIN_ID` | `4801` | The only accepted `context.chain_id`. |
+| `POP_CHAIN_ID` | `11155111` | The only accepted `context.chain_id` (Ethereum Sepolia). |
+| `POP_ATTEST_KEY_FILE` | `data/attest.pem` | Chain attester, P-256 PEM (not the issuer key). Loaded if present, else created 0600. A Safe pins its qx/qy (`/v1/config` `attest`): back it up, never regenerate. |
+| `POP_ATT_TTL_S` | `900` | Attestation `expiry = finished_s + TTL`. |
+| `POP_UNATTESTED_ALLOW` | empty | Comma list of device_ids that may be unattested and still get a chain attestation (the free-team iPhone). |
 
 `python -m pop` also reads `server/.env` (gitignored; real env vars win). Run **one** uvicorn worker: World ID state is read-modify-write on the session doc and relies on a single event loop.
 
@@ -84,6 +87,13 @@ cd server && POP_DATA_DIR=/tmp/pop-live POP_DB=/tmp/pop-live/pop.sqlite POP_ISSU
 In fake mode the RP key file is generated if missing, and the log says `*** FAKE WORLD ID: TEST IDENTITIES, NO REAL HUMANS ***`.
 
 Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call, ENS fixed actions.
+
+## SAFE: safe-tx consumer + chain attestation
+
+`context.kind == "safe-tx"` is always on (`pop/consumers/safe_tx.py`): the 10-key `safe_tx` object is parsed strictly, the allowlist refuses delegatecall, gas/refund fields, Safe self-calls, value+data and anything but a native transfer or an ERC-20 `transfer` of a listed token (Sepolia: USDC `0x1c7d…7238`), and `ctx_hash` must equal the recomputed `safeTxHash` on `POP_CHAIN_ID` for the Safe `consumer`. The session nonce is PopCtx over that `ctx_hash`.
+
+- `POST /v1/session/{sid}/safe/owner-sig` (member) `{"sig":"0x"+r||s}`: the phone's P256Owner signature over `"pop-safe-owner-v1" || safeTxHash`, checked against the caller's device key. 409 `not_safe_tx` / `too_late`, 400 `bad_owner_sig`.
+- `GET /v1/session/{sid}/attestation` (public, by sid): after NEAR, two verified **production** World ID humans (`fake`/`staging`/`sandbox` → `nonprod_humans`), attested or allow-listed devices and the right chain, signs `pop-safe-v2` once and caches it. `att.tail_hex` is the 172 B `POP2` tail `PopAttestationVerifier` reads; `safe.owner_sigs` is only filled when `att` is. The relayer (`../relayer`) frames it for `PopSafeGuard`: `ownerSigs || tail || 000000ac || "POPV"`.
 
 ## Tests
 

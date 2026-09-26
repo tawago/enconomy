@@ -10,6 +10,8 @@ POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, ov
 POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
 POP_ZK_VERIFIER (popprover binary, default ../app/prover/target/release/popprover), POP_ZK_KEYS (default data/zk/,
 <circuit>.pk.zst served at /v1/zk/keys), POP_ZK_VK_DIR (<circuit>.vk, default POP_ZK_KEYS), POP_ZK_WRAP (prefix).
+Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
+attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
 """
 from __future__ import annotations
 
@@ -41,7 +43,8 @@ from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub, verify_raw
 from pop import issuer as sbcred
-from pop import consumers, jbl250, popt2, zk
+from pop import attest, chainatt, consumers, jbl250, popt2, zk
+from pop.consumers import safe_tx
 from pop.errors import PopError
 from pop.human import WorldID
 from pop.sessions import Sessions
@@ -89,7 +92,12 @@ class Settings:
     zk_keys: str = field(default_factory=lambda: os.environ.get("POP_ZK_KEYS", str(SERVER_DIR / "data" / "zk")))
     zk_vk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VK_DIR") or None)
     zk_wrap: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_WRAP") or None)
-    chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "4801")))
+    chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "11155111")))
+    attest_key_file: str = field(default_factory=lambda: os.environ.get(
+        "POP_ATTEST_KEY_FILE", str(SERVER_DIR / "data" / "attest.pem")))
+    att_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_ATT_TTL_S", "900")))
+    unattested_allow: frozenset = field(default_factory=lambda: frozenset(
+        x.strip().lower() for x in os.environ.get("POP_UNATTESTED_ALLOW", "").split(",") if x.strip()))
     test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
     worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
     worldid_fake: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_FAKE", False))
@@ -219,6 +227,13 @@ class TranscriptIn(BaseModel):
     meta: dict[str, Any] | None = None
 
 
+class OwnerSigIn(BaseModel):
+    sig: str
+
+
+SIG64_RE = re.compile(r"^0x[0-9a-f]{128}$")
+
+
 class FailIn(BaseModel):
     attempt: Any = None
     reason: Any = None
@@ -240,10 +255,11 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
 
     zkv = verifier or zk.Verifier(cfg.zk_verifier, cfg.zk_vk_dir or cfg.zk_keys, cfg.zk_wrap)
     wid = WorldID(cfg, sessions, db, worldid_transport)
+    att_key = attest.load_key(cfg.attest_key_file)
 
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
-    app.state.zk, app.state.worldid = zkv, wid
+    app.state.zk, app.state.worldid, app.state.attest_key = zkv, wid, att_key
 
     @app.exception_handler(PopError)
     async def _pop_error(req: Request, e: PopError):
@@ -296,7 +312,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config(),
                 "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
                        "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}},
-                "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id}}
+                "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id}, "attest": attest.public(att_key),
+                "safe": {"owner_msg_tag": safe_tx.OWNER_MSG_TAG.decode(),
+                         "tokens": {a: {"symbol": t[0], "decimals": t[1]}
+                                    for a, t in safe_tx.TOKENS.get(cfg.chain_id, {}).items()}}}
 
     # -- option A proving keys: public, static, Range for resume (docs/pop-prover.md)
     @app.get("/v1/zk/keys")
@@ -561,6 +580,30 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                                            "half_commit": want[0], "salt": str(salt)}, data)
         log.info("proof %s %s verified (%s)", sid, role, circuit)
         return {"status": "verified", "role": role, "zk": sessions.zk_public(s)}
+
+    # -- SAFE (02 §7.3): owner signature at Confirm, public attestation after NEAR
+    @app.post("/v1/session/{sid}/safe/owner-sig")
+    async def safe_owner_sig(sid: str, req: OwnerSigIn, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        ctx = s.get("context") or {}
+        if ctx.get("kind") != safe_tx.KIND:
+            raise PopError(409, "not_safe_tx", "")
+        if s["state"] in ("done", "aborted"):
+            raise PopError(409, "too_late", s["state"])
+        if not isinstance(req.sig, str) or not SIG64_RE.match(req.sig):
+            raise PopError(400, "bad_request", "sig must be 0x + 128 lowercase hex (r||s)")
+        msg = safe_tx.owner_message(bytes.fromhex(ctx["ctx_hash"][2:]))
+        if not verify_raw(bytes.fromhex(dev["pubkey"]), msg, bytes.fromhex(req.sig[2:])):
+            raise PopError(400, "bad_owner_sig", "")
+        s.setdefault("safe", {}).setdefault("owner_sigs", {"A": None, "B": None})[role] = req.sig
+        sessions._save(s)
+        log.info("owner-sig %s %s", sid, role)
+        return {"ok": True}
+
+    @app.get("/v1/session/{sid}/attestation")
+    async def attestation(sid: str):
+        return chainatt.body(sessions, db, cfg, att_key, sid)
 
     @app.post("/v1/session/{sid}/abort")
     async def abort(sid: str, dev: dict = Depends(device)):
