@@ -2,7 +2,9 @@
 
 Static demo page. Reads Ethereum Sepolia (ENSv2) directly with viem 2.56.8 from jsDelivr. No build step, no backend; works with the PoP server off.
 
-Files: `index.html`, `app.js`, `style.css`, `config.json`, optional `snapshot.json`.
+Files: `index.html`, `app.js`, `style.css`, `config.json`, `assets/` (project art as webp), optional `snapshot.json`.
+
+Look: colours sampled from the project art. Lime = people and names, blue = sound and the live proof moment, pink = errors and voided meetings, orange = small accents. Dark mode is the navy of the bouncer scene.
 
 ## What it does
 

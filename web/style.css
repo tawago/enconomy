@@ -247,6 +247,7 @@ h2 { font: 400 24px/1.1 var(--hand); letter-spacing: .01em; }
   background: var(--lime); border: 2px solid var(--line); border-radius: 50% 50% 42% 42% / 62% 62% 38% 38%;
 }
 .nm .dim { color: var(--ink-3); font-weight: 400; font-size: .78em; letter-spacing: 0; }
+.grid.with-profile .nm .dim { display: none; }
 .v { text-align: right; font-variant-numeric: tabular-nums; position: relative; }
 .v.met { font: 900 32px/1 var(--body); letter-spacing: -.02em; }
 .v.mt, .v.zk { font: 700 18px var(--body); color: var(--ink-2); }
