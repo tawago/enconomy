@@ -169,7 +169,7 @@ Build by hand: `./gradlew :composeApp:wasmJsBrowserDistribution -Ppop.serverUrl=
 
 Dev: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun -Ppop.serverUrl=http://localhost:8000` (serves `localhost:8080`), server started with `POP_ALLOW_WEB=1 POP_CORS_ORIGINS=http://localhost:8080`. On localhost the build counts as debug (`isDebugBuild`, also `?debug`).
 
-Workers alternative (`enconomy.dev/app/`): `app/scripts/build_web.sh --workers` copies into `web/app/` (gitignored); set `appUrl` in `web/config.json` to `/app/` if the landing page should link it; server needs `POP_CORS_ORIGINS=https://enconomy.dev`; deploy is `npx wrangler deploy` (not run by the script).
+Workers alternative (`ens.enconomy.dev/app/`): `app/scripts/build_web.sh --workers` copies into `web/app/` (gitignored); set `appUrl` in `web/config.json` to `/app/` if the landing page should link it; server needs `POP_CORS_ORIGINS=https://ens.enconomy.dev`; deploy is `npx wrangler deploy` (not run by the script).
 
 Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`, index and `.js` sent `no-cache`), `POP_CORS_ORIGINS` (other origins only), `POP_ATTEST_ALLOW_WEB` (demo: web pairs may get chain attestations for the ENS / World ID flows). See `server/README.md`.
 

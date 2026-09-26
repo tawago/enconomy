@@ -6,7 +6,8 @@
     "directory": "web"
   },
   "routes": [
-    { "pattern": "enconomy.dev", "custom_domain": true }
+    { "pattern": "enconomy.dev", "custom_domain": true },
+    { "pattern": "ens.enconomy.dev", "custom_domain": true }
   ],
   "workers_dev": false
 }

@@ -39,13 +39,13 @@ Against a fork: `anvil --fork-url https://ethereum-sepolia-rpc.publicnode.com`, 
 
 ## Deploy (Cloudflare Workers)
 
-Live: https://enconomy.dev (Workers static-assets site `enconomy`, custom domain, workers.dev off). Config in `/wrangler.jsonc`; from the repo root:
+Live: https://ens.enconomy.dev (Workers static-assets site `enconomy`, custom domain, workers.dev off). The apex https://enconomy.dev still routes to the same worker but is reserved for a future landing page; link to `ens.enconomy.dev`. Config in `/wrangler.jsonc`; from the repo root:
 
 ```
 npx wrangler deploy
 ```
 
-No build step. The MeetResolver `siteUrl` is `https://enconomy.dev/`, so each name's `url` record is `https://enconomy.dev/?name=<label>.enconomy.eth`. To move it: `ENS_SITE_URL=<url> ./contracts/script/ens.sh bootstrap` (one `setSite` tx).
+No build step. The MeetResolver `siteUrl` is `https://ens.enconomy.dev/`, so each name's `url` record is `https://ens.enconomy.dev/?name=<label>.enconomy.eth`. To move it: `ENS_SITE_URL=<url> ./contracts/script/ens.sh bootstrap` (one `setSite` tx). Caveat (2026-09-27): a fresh `forge build` predicts a different MeetResolver address than the deployed `0xfc30…1346`, so bootstrap would deploy a new resolver and repoint the 2LD. Until that is fixed, move the site with a direct `cast send <meetResolver> 'setSite(string,string)' "ETHGlobal Tokyo 2026" <url>` (how the move to `ens.enconomy.dev` was done).
 
 ## snapshot.json (optional)
 
