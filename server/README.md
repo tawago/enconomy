@@ -21,6 +21,10 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_IOS_ROOT_PEM` | Apple root | Path to a PEM that replaces the embedded Apple App Attestation Root CA (tests pass their own root through `Settings`). |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |
+| `POP_ISSUER_KEY` | unset | SBcred3 issuer private key, P-256: PEM, or 64 hex (the scalar). Wins over the file. |
+| `POP_ISSUER_KEY_FILE` | `data/issuer.pem` | Issuer key file (PEM). Created (0600) on first run if missing. Gitignored; never commit it. |
+| `POP_ISSUER_AUTOGEN` | `1` | `0` refuses to start without an issuer key instead of generating one. |
+| `POP_CRED_TTL_S` | `2592000` | Credential lifetime (30 days, as the spike). |
 | `POP_HOST`, `POP_PORT` | `0.0.0.0`, `8000` | Only used by `python -m pop`. |
 
 ### How phones reach it
@@ -44,6 +48,7 @@ uv run pytest -q
 | `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
 | `test_enroll_ios.py` | embedded Apple root self-verifies; App Attest with a self-made root/intermediate (real Apple vectors need a paid team): good (dev and prod aaguid), wrong nonce, other pubkey, tampered credCert nonce, wrong appId, bad aaguid, counter != 0, fmt, credentialId, keyId, foreign intermediate, missing extension, garbage, fake chain vs the real Apple root, no `POP_IOS_APP_ID`; unattested SE key only with the flag; `platform` default and unknown; old sqlite migrates |
 | `test_auth.py` | good, missing headers, unknown device, stale (±61 s), replay, wrong key, tampered body, query covered by the signature |
+| `test_sbcred3.py` | SBcred3 bytes and signature vs every `fixtures/popt_v2` credential (read-only); enrolling a fixture key with the spike's dev issuer reproduces its 111 bytes; issue + store; v1 enroll without `holder_commit`; bad `holder_commit` (>= p, length, hex); expired and foreign-issuer credentials; key from env hex/PEM, autogen file; `popzk.verify_phone` (read-only import) accepts our issuer when pinned, `issuer_unknown` otherwise, `validAt` mismatch for an expired credential. `POP_ZK_CHECK=1` also runs the real `oa2t_s48` circuit (`oa2zk check` under `tools/heavy.sh`, ~15 s) on a spike witness with a credential this server issued: accepted, and refused when expired or under the dev issuer. |
 | `test_invite.py` | 49-byte layout, QR form, rejects |
 | `test_jbl250.py` | vendored generator vs goldens (`tests/golden/*.f32`) and vs `fieldprobes` itself (read-only import, skipped without `research/`); sample rates 36k..96k; peak limit; bed key per (session, role, attempt) |
 | `test_arm_commit.py` | `/v1/time` ping; arm material (own play + own bed only) and `t0 = now + 3 s` once both armed; bad sample rate / attempt / rtt; unauthenticated and non-member refused; partner bed absent before commit, released after (at the committer's rate); `too_early`; commit signature / role / attempt / nonce checks; attempt 1 gets new codes |
@@ -108,3 +113,16 @@ Choices the contract leaves open (see also the `pop/sessions.py` docstring):
 - `/recording` (multipart `wav` + `meta` JSON with `attempt`) needs the WAV's int16 frames to hash to that attempt's committed `rec_sha256`, else 400 `transcript_mismatch`.
 
 `dsp_ref.py` uses Python `round` (half to even) for every rate-derived count; the Kotlin port must use `kotlin.math.round`. Flat runs are the maximal runs of t with x[t+1] == x[t], returned as [first t, last t + 1).
+
+## SBcred3 credential (option A, ZK readiness)
+
+Optional at enroll. Send `holder_commit` (64 hex, a P-256 base-field element < p; the app keeps the 31-byte holder secret and sends `Poseidon7.sponge16(6, [secret])`). After the attestation checks pass the server signs
+
+```
+cred = "SBcred3" || X || Y || expiry u64 BE (unix s) || holder_commit (32 BE)      111 bytes, X||Y without 0x04
+sig  = ECDSA P-256 over SHA-256(cred), raw r||s
+```
+
+and adds `"credential": {"format": "SBcred3", "cred_b64", "sig_b64", "expiry", "issuer_pubkey"}` to the enroll response. The layout is the spike's (`research/sound-bound/spikes/zk/optionA-v2/build_fixtures_popt2.py` `cred3`, circuit `gen_popt2.py`). It is stored on the device row (`holder_commit`, `cred`, `cred_sig`, `cred_expiry`). Without `holder_commit` the enroll is plain pop-v1. `GET /v1/config` publishes the issuer under `issuer` (`pubkey` SEC1 hex, `pub_x`, `pub_y`, `cred_ttl_s`); the verifier pins it as the circuit's public `issuerX/issuerY`.
+
+What it proves: the circuit checks the issuer signature and `validAt <= expiry` (`pop/issuer.py` `check` is the same check in plain Python). The per-phone circuits don't open `holder_commit`; it is signed but only used by the `_nf` variant. A credential means "this key was enrolled here with a passing attestation", not "a distinct person".

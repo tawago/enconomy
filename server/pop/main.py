@@ -5,11 +5,13 @@ Run: uv run python -m pop            (0.0.0.0:8000)
 
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
 sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1),
-POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root).
+POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
+POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S.
 """
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -32,6 +34,7 @@ from pop.appattest import APPLE_ROOT_PEM, verify_app_attest
 from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
+from pop import issuer as sbcred
 from pop.errors import PopError
 from pop.sessions import Sessions
 from pop.store import SqliteStore, Store
@@ -67,6 +70,11 @@ class Settings:
     data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
     ios_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_IOS_APP_ID") or None)
     ios_root_pem: bytes = field(default_factory=lambda: _read_root(os.environ.get("POP_IOS_ROOT_PEM")))
+    issuer_key: str | None = field(default_factory=lambda: os.environ.get("POP_ISSUER_KEY") or None)
+    issuer_key_file: str = field(default_factory=lambda: os.environ.get(
+        "POP_ISSUER_KEY_FILE", str(SERVER_DIR / "data" / "issuer.pem")))
+    issuer_autogen: bool = field(default_factory=lambda: _env_bool("POP_ISSUER_AUTOGEN", True))
+    cred_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_CRED_TTL_S", str(sbcred.CRED_TTL_S))))
     now_ms: Callable[[], int] = wall_ms
 
 
@@ -101,6 +109,7 @@ class EnrollIn(BaseModel):
     platform: str = "android"
     key_kind: str | None = None
     app_attest: AppAttestIn | None = None
+    holder_commit: str | None = None
 
 
 class JoinIn(BaseModel):
@@ -134,9 +143,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir)
+    issuer = sbcred.Issuer(sbcred.load_key(cfg.issuer_key, cfg.issuer_key_file, cfg.issuer_autogen), cfg.cred_ttl_s)
 
     app = FastAPI(title="pop-v1")
-    app.state.cfg, app.state.store, app.state.sessions = cfg, db, sessions
+    app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
 
     @app.exception_handler(PopError)
     async def _pop_error(_req, e: PopError):
@@ -179,7 +189,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.get("/v1/config")
     async def config():
         return {**K.table(), "allow_unattested": cfg.allow_unattested, "gain_db": cfg.gain_db,
-                "upload_recordings": cfg.upload_recordings}
+                "upload_recordings": cfg.upload_recordings, "issuer": issuer.public()}
 
     # -- enrollment (§2.2)
     @app.get("/v1/enroll/nonce")
@@ -207,6 +217,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         name = req.display_name.strip()
         if not 1 <= len(name) <= 32:
             raise PopError(400, "bad_request", "display_name must be 1..32 chars")
+        hold = None
+        if req.holder_commit is not None:
+            try:
+                hold = sbcred.parse_holder_commit(req.holder_commit)
+            except sbcred.CredError as e:
+                raise PopError(400, e.code, e.detail) from None
         if req.platform == "ios":
             att, attested, key_kind = _enroll_ios(req, pub, nonce)
             reported = att["security_level"]
@@ -230,15 +246,23 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
                     log.warning("enroll %s: reported security_level=%s, attestation says %s", dev_id, reported,
                                 att["security_level"])
         now = cfg.now_ms()
+        cred = issuer.issue(pub, hold, now // 1000) if hold is not None else None
         db.put_device({"device_id": dev_id, "pubkey": pub.hex(), "display_name": name, "model": req.model[:64],
                        "security_level": att["security_level"], "security_level_reported": reported,
                        "attested": attested, "chain_pem": att["chain_pem"], "root_sha256": att["root_sha256"],
                        "enrolled_at": _iso(now), "platform": req.platform, "key_kind": key_kind,
-                       "attest_key_id": att.get("key_id")})
+                       "attest_key_id": att.get("key_id"),
+                       "holder_commit": hold.hex() if hold else None, "cred": cred["cred"].hex() if cred else None,
+                       "cred_sig": cred["sig"].hex() if cred else None, "cred_expiry": cred["expiry"] if cred else None})
         log.info("enrolled %s %r %s model=%r attested=%s level=%s", dev_id, name, req.platform, req.model, attested,
                  att["security_level"])
-        return {"device_id": dev_id, "attested": attested, "security_level": att["security_level"],
-                "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now)}
+        out = {"device_id": dev_id, "attested": attested, "security_level": att["security_level"],
+               "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now)}
+        if cred:
+            out["credential"] = {"format": "SBcred3", "cred_b64": base64.b64encode(cred["cred"]).decode(),
+                                 "sig_b64": base64.b64encode(cred["sig"]).decode(), "expiry": cred["expiry"],
+                                 "issuer_pubkey": issuer.pub.hex()}
+        return out
 
     def _enroll_ios(req: EnrollIn, pub: bytes, nonce: bytes) -> tuple[dict, bool, str]:
         """App Attest binds the signing key via clientDataHash; the key kind itself is only reported."""
