@@ -103,6 +103,8 @@ actual object DeviceMemory {
     actual fun peak(): Long? = vm()?.second
     actual fun resetPeak() {}
     actual fun nativeHeap(): Long? = null
+    @OptIn(kotlin.native.runtime.NativeRuntimeApi::class)
+    actual fun trim() { kotlin.native.runtime.GC.collect() }
 
     /** (phys_footprint, ledger_phys_footprint_peak) of this task. */
     private fun vm(): Pair<Long, Long>? = memScoped {

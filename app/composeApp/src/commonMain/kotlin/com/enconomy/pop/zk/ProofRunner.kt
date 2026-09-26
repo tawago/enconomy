@@ -153,6 +153,14 @@ class ProofRunner(val keys: KeyCache) {
         // one native prove at a time (~1.5 GB each): the bench and a live proof, or a cancelled prove still running
         if (nativeLock.isLocked) onStatus(ProofStatus.Step("waiting for the other proof to finish"))
         return nativeLock.withLock { coroutineScope {
+            DeviceMemory.trim()
+            val m = DeviceMemory.info()
+            val left = m.availBytes
+            if (!force && m.hardLimit && left != null && left < c.iosHeadroomBytes) {
+                onStatus(ProofStatus.Skipped("Only ${ProofStats.mb(left)} left for the prover (needs ${ProofStats.mb(c.iosHeadroomBytes)}); " +
+                    "proving here could crash the app. Delegate the proof to the server, or restart the app and retry."))
+                return@coroutineScope null
+            }
             var peak = DeviceMemory.footprint()
             var heapPeak = DeviceMemory.nativeHeap()
             DeviceMemory.resetPeak()

@@ -36,6 +36,7 @@ actual object DeviceMemory {
     actual fun peak(): Long? = status("VmHWM")
     actual fun resetPeak() { runCatching { File("/proc/self/clear_refs").writeText("5") } }
     actual fun nativeHeap(): Long? = Debug.getNativeHeapAllocatedSize()
+    actual fun trim() {}
 
     /** /proc/self/status "<key>:   123 kB" in bytes. */
     private fun status(key: String): Long? = runCatching {

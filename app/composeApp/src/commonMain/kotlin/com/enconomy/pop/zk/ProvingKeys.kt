@@ -18,8 +18,14 @@ class KeySpec(val circuit: String, val sampleRate: Int, val sha256: String, val 
 class CircuitSpec(val id: String, val sampleRate: Int, val artifact: KeySpec, val crs: KeySpec, val vk: KeySpec) {
     val files: List<KeySpec> get() = listOf(artifact, crs, vk)
     val bytes: Long get() = files.sumOf { it.size }
-    /** Peak while proving: Pixel 6 1.6 GB, iPhone X 1.3 GB (zkmobile spike). */
+    /** Peak while proving: Pixel 6 1.6 GB, iPhone X 1.3 GB (zkmobile spike), 1.64 GB in the iOS app bench. */
     fun peakBytes(hardLimit: Boolean): Long = if (hardLimit) 1_350_000_000L else 1_700_000_000L
+    /**
+     * iOS: headroom the native prove itself needs on top of the app (ZkBench 1.23 GB + ACVM witness + margin).
+     * bb does not survive running out: a failed allocation throws inside its thread pool, the caller unwinds and
+     * frees buffers the workers still use -> SIGSEGV (iPhone X, 2026-09-27 01:14). So check before, not after.
+     */
+    val iosHeadroomBytes: Long get() = 1_450_000_000L
 }
 
 object ProvingKeys {

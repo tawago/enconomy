@@ -30,6 +30,8 @@ expect object DeviceMemory {
     fun resetPeak()
     /** Android Debug.getNativeHeapAllocatedSize, null elsewhere. */
     fun nativeHeap(): Long?
+    /** Drop what we can before the native prove: iOS full Kotlin GC; Android no-op. */
+    fun trim()
 }
 
 /** true = cellular / metered, false = Wi-Fi / unmetered, null = unknown. */
