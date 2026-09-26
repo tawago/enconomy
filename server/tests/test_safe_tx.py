@@ -344,3 +344,16 @@ def test_full_flow_test_kind_fake_humans(make_client, clock):
         out[ctx["kind"]] = c.get(f"/v1/session/{sid}/attestation").json()
     assert out["test"]["att"]["v"] == "pop-test-v1" and out["test"]["att_refused"] is None
     assert out["safe-tx"]["att"] is None and out["safe-tx"]["att_refused"] == "nonprod_humans"
+
+
+def test_relay_status_route(two, tmp_path):
+    import json
+    out = tmp_path / "relayer-out"
+    out.mkdir()
+    c, a, b = two(relayer_out=str(out))
+    sid, _ = open_session(c, a, b)
+    assert c.get(f"/v1/session/{sid}/relay").json() == {"status": "none", "sid": sid}
+    (out / f"{sid}.result.json").write_text(json.dumps({"sid": sid, "status": "success", "tx_hash": "0xab"}))
+    r = c.get(f"/v1/session/{sid}/relay").json()
+    assert r["status"] == "success" and r["tx_hash"] == "0xab"
+    assert c.get("/v1/session/" + "00" * 16 + "/relay").status_code == 404
