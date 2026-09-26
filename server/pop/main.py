@@ -13,7 +13,8 @@ POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkpro
 oaN_s48.json, oaN_s48.vk, bn254_g1_2p20.dat; default: the team build + pinned dirs, see pop/zk.py),
 POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
-attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
+attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids),
+POP_RELAYER_OUT (relayer/out, read by GET /v1/session/{sid}/relay).
 Web app (app/composeApp wasmJs): POP_ALLOW_WEB=1 (enroll platform "web", software key, unattested), POP_WEB_DIR
 (serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin), POP_ATTEST_ALLOW_WEB (demo: web devices
 may get chain attestations).
@@ -113,6 +114,8 @@ class Settings:
     unattested_allow: frozenset = field(default_factory=lambda: frozenset(
         x.strip().lower() for x in os.environ.get("POP_UNATTESTED_ALLOW", "").split(",") if x.strip()))
     attest_allow_web: bool = field(default_factory=lambda: _env_bool("POP_ATTEST_ALLOW_WEB", False))  # demo: web devices get chain attestations
+    relayer_out: str = field(default_factory=lambda: os.environ.get(
+        "POP_RELAYER_OUT", str(SERVER_DIR.parent / "relayer" / "out")))
     attest_allow_sandbox: bool = field(default_factory=lambda: _env_bool("POP_ATTEST_ALLOW_SANDBOX", False))  # demo Safe: sandbox World ID ok
     test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
     worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
@@ -632,14 +635,31 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         log.info("pair proof %s verified (%d ms)", sid, ms)
 
     @app.get("/v1/session/{sid}/zk/bundle")
-    async def zk_bundle(sid: str, dev: dict = Depends(device)):
-        """Presence bundle for the onchain relayer (NoirPresenceVerifier): 404 until the pair proof is verified."""
+    async def zk_bundle(sid: str):
+        """Presence bundle for the onchain relayer (NoirPresenceVerifier): 404 until the pair proof is verified.
+        No auth: everything in it goes onchain with the Safe tx anyway (proofs, public inputs, POPCC1 sigs)."""
         s = sessions.load(sid)
-        sessions.member(s, dev)
         b = await asyncio.to_thread(sessions.zk_bundle, s)
         if b is None:
             raise PopError(404, "not_ready", f"pair proof {((s.get('zk') or {}).get('pair') or {}).get('status', 'none')}")
+        devs = (s.get("result") or {}).get("devices") or {}
+        b["devices"] = {r: {"device_id": d["device_id"], "device_hash": "0x" + chainatt.dev_hash(d["pubkey"]).hex()}
+                        for r, d in devs.items() if d and d.get("pubkey")}
+        if (s.get("context") or {}).get("kind") == safe_tx.KIND:   # pair verified => NEAR; the sigs go onchain too
+            sigs = (s.get("safe") or {}).get("owner_sigs") or {}
+            b["safe"] = {"owner_sigs": {r: sigs.get(r) for r in ("A", "B")}}
         return b
+
+    @app.get("/v1/session/{sid}/relay")
+    async def relay_status(sid: str):
+        """What the laptop relayer did with this session (relayer/out/<sid>.result.json, written by relay.mjs).
+        Public like /attestation: tx hash, status, revert reason text."""
+        sessions.load(sid)
+        f = Path(cfg.relayer_out) / f"{sid}.result.json"
+        try:
+            return {"status": "none", **json.loads(await asyncio.to_thread(f.read_text))}
+        except (OSError, ValueError):
+            return {"status": "none", "sid": sid}
 
     @app.post("/v1/session/{sid}/proof")
     async def proof(sid: str, request: Request, dev: dict = Depends(device)):
