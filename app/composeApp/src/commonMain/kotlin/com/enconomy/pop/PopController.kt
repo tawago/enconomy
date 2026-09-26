@@ -59,6 +59,8 @@ data class Enrollment(
     val securityLevel: String,
     /** SBcred3 expiry (unix s), null = no credential (v1 server, or it was rejected). */
     val credExpiry: Long? = null,
+    /** Enrollment calibration µs as last accepted by the server, null = none. */
+    val calUs: Long? = null,
 )
 
 data class UiState(
@@ -185,7 +187,7 @@ class PopController(
         if (id != key.deviceId) return null
         return Enrollment(
             id, Prefs.get("enroll.url") ?: "", Prefs.get("enroll.name") ?: "", Prefs.get("enroll.attested") == "1", key.securityLevel,
-            holder.credential(key.pubkey)?.expiry,
+            holder.credential(key.pubkey)?.expiry, Calibration.load()?.cal_us,
         )
     }
 
@@ -250,9 +252,20 @@ class PopController(
      * §2.2: nonce -> key with attestation challenge -> POST /v1/enroll.
      * Server with an issuer in /v1/config: also send holder_commit, check and keep the SBcred3.
      */
-    fun enroll() = run("enrolling") { api ->
+    fun enroll(calibrate: Boolean = true) = run("enrolling") { api ->
         val name = state.value.displayName.trim()
         require(name.length in 1..32) { "display name 1..32 chars" }
+        // Calibration first (no key yet); a rejected one enrolls without (cal 0 = the old self check) and says so.
+        var calErr: String? = null
+        val cal = if (!calibrate) null else try {
+            measureCalibration()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            calErr = "Calibration skipped (${e.message}); use Recalibrate"
+            null
+        }
+        _state.update { it.copy(status = "enrolling") }
         val issuer = issuerPubkeyOf(api.config())
         holder.clearCredential()
         val hold = if (issuer != null) withContext(Dispatchers.Default) { holder.commit().toBytes() } else null
@@ -274,6 +287,8 @@ class PopController(
                 key_kind = if (keystore.platform == "ios") k.securityLevel else null,
                 app_attest = gen.appAttest?.let { AppAttestReq(it.keyId, it.attestation.toB64()) },
                 holder_commit = hold?.toHex(),
+                calibration = cal,
+                cal_sig_b64 = cal?.let { c -> withContext(Dispatchers.Default) { k.sign(Calibration.message(nonce, c)) }.toB64() },
             ),
         )
         check(resp.device_id == k.deviceId) { "server device_id ${resp.device_id} != ${k.deviceId}" }
@@ -296,14 +311,19 @@ class PopController(
         Prefs.set("enroll.url", url)
         Prefs.set("enroll.name", name)
         Prefs.set("enroll.attested", if (resp.attested) "1" else "0")
-        val e = Enrollment(k.deviceId, url, name, resp.attested, k.securityLevel, holder.credential(k.pubkey)?.expiry)
-        _state.update { it.copy(enrollment = e, screen = Screen.Home, status = "enrolled", error = credErr) }
+        val calOk = cal != null && resp.calibration?.cal_us == cal.cal_us
+        Calibration.save(if (calOk) cal else null)
+        if (cal != null && !calOk) calErr = "server kept no calibration; use Recalibrate"
+        val e = Enrollment(k.deviceId, url, name, resp.attested, k.securityLevel, holder.credential(k.pubkey)?.expiry,
+            if (calOk) cal!!.cal_us else null)
+        _state.update { it.copy(enrollment = e, screen = Screen.Home, status = "enrolled", error = listOfNotNull(credErr, calErr).joinToString("; ").ifEmpty { null }) }
     }
 
     fun forgetKey() {
         job?.cancel()
         keystore.delete()
         holder.clearCredential()
+        Calibration.save(null)
         Prefs.set("enroll.deviceId", null)
         _state.update { it.copy(enrollment = null, screen = Screen.Enroll) }
     }
@@ -700,6 +720,7 @@ class PopController(
             onStatus = { p, k, note -> _state.update { it.copy(runPhase = p, runAttempt = k, runNote = note ?: if (p == RunPhase.Arming || p == RunPhase.WaitingResult) it.runNote else null, status = "${p.name.lowercase()} (attempt $k)") } },
             model = deviceModel(),
             popt2 = popt2.takeIf { state.value.popt2On },
+            calUs = v.self?.cal_us ?: Calibration.load()?.cal_us ?: 0,
         )
         try {
             val res = r.run()
@@ -847,38 +868,95 @@ class PopController(
      * Plays the local JBL250 stand-in through the run's own path (prepare + run with a role A plan,
      * sound at t0, 0.5 s quiet lead-in) and measures how loud the phone hears itself.
      */
+    /** One audio check through the run's own path; engine released after. Throws when the mic is refused. */
+    private suspend fun checkOnce(forceSpeaker: Boolean, tuneDb: Double): AudioCheckResult {
+        engine.setForceSpeaker(forceSpeaker)
+        val pre = engine.preflight()
+        _state.update { it.copy(preflight = pre) }
+        if (!pre.micPermission) error("Microphone permission needed.")
+        val sr = pre.sampleRate
+        val mix = withContext(Dispatchers.Default) { TestSound.generate(sr, tuneDb) }
+        engine.prepare(sr, mix.play)
+        val before = engine.route()
+        val plan = RunPlan('A', sr, 0L, monoNanos() + 1_400_000_000L)
+        val cap = engine.run(plan)
+        engine.release()
+        val lv = withContext(Dispatchers.Default) { cap.selfHear() }
+        val off = withContext(Dispatchers.Default) {
+            runCatching { SelfOffset.measure(cap, TestSound.parts(sr).first) }.getOrElse {
+                SelfOffset(sr, null, null, null, Popt2Config.DELTA_MS * sr / 1000, "error: ${it.message}")
+            }
+        }
+        val path = cap.pathFacts()
+        val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings,
+            mix.requestedDb, mix.appliedDb, mix.peak, off, path)
+        println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
+        println("POPCHECK preset=${cap.extraMeta["input_preset_requested"]?.toInt() ?: cap.micSource} " +
+            "granted=${cap.extraMeta["input_preset_granted"]?.toInt() ?: cap.micSource} sod=${off.frames} " +
+            "ms=${off.ms?.let { kotlin.math.round(it * 100) / 100 }} within2ms=${off.within} p=${off.pSelf} a=${off.aSelf} " +
+            "score=${kotlin.math.round(off.score * 1000) / 1000} reason=${off.reason} " +
+            path.joinToString(" ") { (k, v) -> "$k=[${v}]" } + " margin=${SelfHear.r1(lv.highMarginDb)}")
+        return res
+    }
+
+    /** Audio path the runs use: backend / session mode, plus the Android input preset when there is one. */
+    private fun backendName(): String {
+        val mode = Prefs.get(engine.modePrefKey) ?: engine.defaultMode
+        val input = runCatching { engine.inputPresets }.getOrDefault(emptyList())
+            .takeIf { it.isNotEmpty() }?.let { Prefs.get(INPUT_PRESET_PREF) ?: engine.defaultInputPreset }
+        return listOfNotNull(mode, input).joinToString("/").take(64)
+    }
+
+    /**
+     * Enrollment calibration: CAL_N audio checks on the speaker, each self offset (same self_os_delta math as a
+     * run) in µs, median by [Calibration.fromSamples]. Throws [CalibrationException] when a check misses its own
+     * sound or the rule rejects.
+     */
+    private suspend fun measureCalibration(): CalibrationReq {
+        val us = mutableListOf<Long>()
+        var sr = 0
+        var route = ""
+        try {
+            for (i in 1..PopConstants.CAL_N) {
+                _state.update { it.copy(status = "calibrating $i/${PopConstants.CAL_N}") }
+                val r = checkOnce(forceSpeaker = true, tuneDb = state.value.serverTuneDb ?: 0.0)
+                val off = r.offset
+                val f = off?.frames ?: throw CalibrationException("check $i: own sound not found (${off?.reason ?: "no offset"})")
+                if (sr != 0 && off.sr != sr) throw CalibrationException("sample rate changed ${sr} -> ${off.sr}")
+                sr = off.sr
+                route = r.route.output
+                us += Calibration.framesToUs(f, sr)
+            }
+        } finally {
+            runCatching { engine.release() }
+            engine.setForceSpeaker(true)
+        }
+        val cal = Calibration.fromSamples(us)
+        println("POPCAL cal_us=$cal samples=$us sr=$sr route=$route backend=${backendName()}")
+        return CalibrationReq(cal, sr, route.take(64), backendName(), us.toList())
+    }
+
+    /** Recalibrate: new calibration, sent signed (POST /v1/device/calibration), kept locally on success. */
+    fun recalibrate() = run("calibrating") { api ->
+        val c = try {
+            measureCalibration()
+        } catch (e: CalibrationException) {
+            _state.update { it.copy(error = "Calibration rejected: ${e.message}", status = "") }
+            return@run
+        }
+        val resp = api.recalibrate(c)
+        val got = resp.calibration?.cal_us ?: error("server kept no calibration")
+        check(got == c.cal_us) { "server cal_us $got != ${c.cal_us}" }
+        Calibration.save(c)
+        _state.update { it.copy(enrollment = it.enrollment?.copy(calUs = c.cal_us), status = "calibrated: ${Calibration.text(c.cal_us)}") }
+    }
+
     fun audioCheck() {
         if (state.value.busy || state.value.audioCheckRunning) return
         _state.update { it.copy(audioCheckRunning = true, audioCheck = null, error = null, status = "audio check") }
         job = scope.launch {
             try {
-                engine.setForceSpeaker(state.value.forceSpeaker)
-                val pre = engine.preflight()
-                _state.update { it.copy(preflight = pre) }
-                if (!pre.micPermission) error("Microphone permission needed.")
-                val sr = pre.sampleRate
-                val tuneDb = state.value.tuneDb
-                val mix = withContext(Dispatchers.Default) { TestSound.generate(sr, tuneDb) }
-                engine.prepare(sr, mix.play)
-                val before = engine.route()
-                val plan = RunPlan('A', sr, 0L, monoNanos() + 1_400_000_000L)
-                val cap = engine.run(plan)
-                engine.release()
-                val lv = withContext(Dispatchers.Default) { cap.selfHear() }
-                val off = withContext(Dispatchers.Default) {
-                    runCatching { SelfOffset.measure(cap, TestSound.parts(sr).first) }.getOrElse {
-                        SelfOffset(sr, null, null, null, Popt2Config.DELTA_MS * sr / 1000, "error: ${it.message}")
-                    }
-                }
-                val path = cap.pathFacts()
-                val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings,
-                    mix.requestedDb, mix.appliedDb, mix.peak, off, path)
-                println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
-                println("POPCHECK preset=${cap.extraMeta["input_preset_requested"]?.toInt() ?: cap.micSource} " +
-                    "granted=${cap.extraMeta["input_preset_granted"]?.toInt() ?: cap.micSource} sod=${off.frames} " +
-                    "ms=${off.ms?.let { kotlin.math.round(it * 100) / 100 }} within2ms=${off.within} p=${off.pSelf} a=${off.aSelf} " +
-                    "score=${kotlin.math.round(off.score * 1000) / 1000} reason=${off.reason} " +
-                    path.joinToString(" ") { (k, v) -> "$k=[${v}]" } + " margin=${SelfHear.r1(lv.highMarginDb)}")
+                val res = checkOnce(state.value.forceSpeaker, state.value.tuneDb)
                 _state.update {
                     it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}",
                         audioModeNote = runCatching { engine.modeNote() }.getOrDefault(""))

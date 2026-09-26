@@ -9,7 +9,8 @@ import kotlin.math.abs
  *
  *   p_self    = round(expected_self)       a_self    = earliest pass, own code, [p_self − WPRE, p_self + WPOST)
  *   p_partner = round(expected_partner)    a_partner = same with the partner code around p_partner
- *   self_os_delta = a_self − p_self, |·| ≤ selfOsTolMs (exact: |d|·1000 ≤ tol·sr, as the server)
+ *   self_os_delta = a_self − p_self, |· − cal_frames| ≤ selfOsTolMs (exact: |d·1e6 − calUs·sr| ≤ tol·1000·sr,
+ *   as the server; calUs = enrollment calibration, 0 = the old |d|·1000 ≤ tol·sr)
  *   half = A: a_partner − a_self, B: a_self − a_partner
  *
  * Glitch (flat runs) and capture-length checks are the v1 ones. The v1 null-bar rule is not run.
@@ -22,6 +23,8 @@ class PopRound2(
     val role: Char,
     val selfOsTolMs: Int = PopConstants.SELF_OS_TOL_MS,
     requireCaptureFrames: Boolean = true,
+    /** Enrollment calibration, µs (0 = none): the check is |self_os_delta − cal_frames| ≤ tol. */
+    val calUs: Long = 0,
 ) {
     sealed class Step {
         data class Failed(val reason: String, val arrival: Arrival2? = null) : Step()
@@ -76,7 +79,7 @@ class PopRound2(
         return Step.PartnerOk(f, p, if (role == 'A') f - s else s - f)
     }
 
-    fun selfOsOk(d: Int): Boolean = abs(d.toLong()) * 1000 <= selfOsTolMs.toLong() * rate.sr
+    fun selfOsOk(d: Int): Boolean = com.enconomy.pop.Calibration.selfOsOk(d, rate.sr, calUs, selfOsTolMs)
 
     /** Option A provability of the signed values (§3.7 of the port spec); null before both arrivals. */
     val provable: Boolean?
