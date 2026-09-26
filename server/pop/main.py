@@ -7,12 +7,15 @@ Run: uv run python -m pop            (0.0.0.0:8000)
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
 sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1),
 POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
-POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S.
+POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
+POP_ZK_VERIFIER (popprover binary, default ../app/prover/target/release/popprover), POP_ZK_KEYS (default data/zk/,
+<circuit>.pk.zst served at /v1/zk/keys), POP_ZK_VK_DIR (<circuit>.vk, default POP_ZK_KEYS), POP_ZK_WRAP (prefix).
 """
 from __future__ import annotations
 
 import asyncio
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -26,7 +29,7 @@ from typing import Any, Callable
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -36,9 +39,10 @@ from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
 from pop import issuer as sbcred
-from pop import popt2
+from pop import popt2, zk
 from pop.errors import PopError
 from pop.sessions import Sessions
+from pop.verdict import Reject
 from pop.store import SqliteStore, Store
 
 SERVER_DIR = Path(__file__).resolve().parents[1]
@@ -77,7 +81,16 @@ class Settings:
         "POP_ISSUER_KEY_FILE", str(SERVER_DIR / "data" / "issuer.pem")))
     issuer_autogen: bool = field(default_factory=lambda: _env_bool("POP_ISSUER_AUTOGEN", True))
     cred_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_CRED_TTL_S", str(sbcred.CRED_TTL_S))))
+    zk_verifier: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VERIFIER") or _default_prover())
+    zk_keys: str = field(default_factory=lambda: os.environ.get("POP_ZK_KEYS", str(SERVER_DIR / "data" / "zk")))
+    zk_vk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VK_DIR") or None)
+    zk_wrap: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_WRAP") or None)
     now_ms: Callable[[], int] = wall_ms
+
+
+def _default_prover() -> str | None:
+    p = SERVER_DIR.parent / "app" / "prover" / "target" / "release" / "popprover"
+    return str(p) if p.exists() else None
 
 
 def _read_root(path: str | None) -> bytes:
@@ -141,15 +154,19 @@ class FailIn(BaseModel):
     reason: Any = None
 
 
-def create_app(settings: Settings | None = None, store: Store | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None) -> FastAPI:
+    """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it)."""
     cfg = settings or Settings()
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir)
     issuer = sbcred.Issuer(sbcred.load_key(cfg.issuer_key, cfg.issuer_key_file, cfg.issuer_autogen), cfg.cred_ttl_s)
 
+    zkv = verifier or zk.Verifier(cfg.zk_verifier, cfg.zk_vk_dir or cfg.zk_keys, cfg.zk_wrap)
+
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
+    app.state.zk = zkv
 
     @app.exception_handler(PopError)
     async def _pop_error(_req, e: PopError):
@@ -192,7 +209,22 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
     @app.get("/v1/config")
     async def config():
         return {**K.table(), "allow_unattested": cfg.allow_unattested, "gain_db": cfg.gain_db,
-                "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config()}
+                "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config(),
+                "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
+                       "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}}}
+
+    # -- option A proving keys: public, static, Range for resume (docs/pop-prover.md)
+    @app.get("/v1/zk/keys")
+    async def zk_keys():
+        return {"keys": await asyncio.to_thread(zk.key_manifest, cfg.zk_keys)}
+
+    @app.get("/v1/zk/keys/{name}")
+    async def zk_key(name: str):
+        p = Path(cfg.zk_keys) / name
+        if not zk.KEY_FILE.match(name) or not p.is_file():
+            raise PopError(404, "not_found", "no such proving key")
+        sha = await asyncio.to_thread(zk.file_sha256, p)
+        return FileResponse(p, media_type="application/zstd", headers={"X-Pop-Sha256": sha})
 
     # -- enrollment (§2.2)
     @app.get("/v1/enroll/nonce")
@@ -356,6 +388,51 @@ def create_app(settings: Settings | None = None, store: Store | None = None) -> 
         attempt = meta.get("attempt", s["attempt"]) if isinstance(meta, dict) else s["attempt"]
         data = await wav.read()
         return await asyncio.to_thread(sessions.recording, s, role, attempt, data, meta)
+
+    # -- option A proof upload, per role, after NEAR (pop/zk.py)
+    @app.post("/v1/session/{sid}/proof")
+    async def proof(sid: str, request: Request, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        form = await request.form()
+        pf, meta_raw = form.get("proof"), form.get("meta")
+        if pf is None or isinstance(pf, str):
+            raise PopError(400, "bad_request", "multipart field 'proof' (file) required")
+        try:
+            meta = json.loads(meta_raw) if isinstance(meta_raw, str) else None
+        except ValueError:
+            meta = None
+        if not isinstance(meta, dict):
+            raise PopError(400, "bad_request", "meta must be a JSON object {attempt, circuit, salt}")
+        data = await pf.read()
+        if not 0 < len(data) <= zk.MAX_PROOF_BYTES:
+            raise PopError(400, "bad_request", f"proof must be 1..{zk.MAX_PROOF_BYTES} bytes")
+        try:
+            salt = zk.parse_salt(meta.get("salt"))
+        except ValueError as e:
+            raise PopError(400, "bad_request", str(e)) from None
+        attempt, circuit = meta.get("attempt", s["attempt"]), meta.get("circuit")
+        sha = hashlib.sha256(data).hexdigest()
+        prev = sessions.zk_entry(s, role)
+        if prev and prev["status"] == "verified":
+            if prev["proof_sha256"] == sha and prev["attempt"] == attempt:
+                return {"status": "verified", "role": role, "zk": sessions.zk_public(s)}
+            raise PopError(409, "already_submitted", "a proof for this role is already verified")
+        entry = {"attempt": attempt, "circuit": circuit, "proof_sha256": sha, "proof_bytes": len(data),
+                 "at_ms": cfg.now_ms()}
+        try:
+            want = sessions.zk_expected(s, role, dev, attempt, circuit, salt, issuer.pub)
+            await asyncio.to_thread(zkv.verify, circuit, data, want)
+        except Reject as e:
+            sessions.zk_record(sid, role, {**entry, "status": "rejected", "reason": e.reason, "detail": e.detail})
+            log.info("proof %s %s rejected: %s %s", sid, role, e.reason, e.detail)
+            raise PopError(400, e.reason, e.detail) from None
+        except zk.Unavailable as e:
+            raise PopError(503, "zk_unavailable", str(e)) from None
+        s = sessions.zk_record(sid, role, {**entry, "status": "verified", "reason": None, "detail": None,
+                                           "half_commit": want[0], "salt": str(salt)}, data)
+        log.info("proof %s %s verified (%s)", sid, role, circuit)
+        return {"status": "verified", "role": role, "zk": sessions.zk_public(s)}
 
     @app.post("/v1/session/{sid}/abort")
     async def abort(sid: str, dev: dict = Depends(device)):

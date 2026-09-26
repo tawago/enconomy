@@ -37,6 +37,14 @@ POPT v2 (docs/pop-transcript-v2.md), the version switch:
   - commit and transcript must carry the armed version; POPC v2 commits rec_root; the transcript's
     code_commit must equal sha256("pop-code-v2" | own code | partner code) of the codes sent.
   - v2 recording upload is checked against rec_root (Poseidon7 tree, ~2.5 s in Python; run off the event loop).
+
+Option A proofs (pop/zk.py), after the verdict:
+  - only once the session is done with NEAR, per role, for the final attempt, POPT v2 at 44.1 / 48 kHz, from a
+    device holding an SBcred3. validAt = t0_ms // 1000 of that attempt (view `zk_valid_at`, record `zk.valid_at`).
+  - the server derives the whole public vector itself (signed transcript, its own codes and issuer, the uploaded
+    salt); credential checks (issuer, validAt <= expiry) run before the SNARK verifier.
+  - s["zk"][role] keeps the last outcome; a verified proof is final (same bytes again = idempotent, other = 409),
+    a rejected one may be replaced. The record's `zk` block mirrors it (without the salt).
 """
 from __future__ import annotations
 
@@ -53,7 +61,8 @@ from typing import Callable
 import numpy as np
 
 from pop import constants as K
-from pop import invite, jbl250, popt2, poseidon7, verdict as V
+from pop import invite, jbl250, popt2, poseidon7, verdict as V, zk
+from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
 from pop.errors import PopError
@@ -329,6 +338,7 @@ class Sessions:
             "flight_cm": flight, "t0_ms": s["t0_ms"],
             "created_at": _iso(s["created_ms"]), "finished_at": _iso(s["finished_ms"]),
             "devices": devices, "transcripts": transcripts, "commits": commits,
+            "zk": self.zk_public(s),
             "attempts": [{k: a.get(k) for k in ("attempt", "outcome", "reason", "by")}
                          | ({"verdict": a["verdict"], "flight_cm": a["flight_cm"]} if a.get("outcome") == "verdict" else {})
                          for a in s["attempts"]],
@@ -453,6 +463,65 @@ class Sessions:
             self._write(s["session_id"], f"recording_{role}_{attempt}.json", json.dumps(meta, indent=1).encode())
         return {"ok": True, "stored": path is not None}
 
+    # -- option A proofs (pop/zk.py)
+    @staticmethod
+    def zk_valid_at(s: dict) -> int | None:
+        return None if s["t0_ms"] is None else s["t0_ms"] // 1000
+
+    @staticmethod
+    def zk_entry(s: dict, role: str) -> dict | None:
+        return (s.get("zk") or {}).get(role)
+
+    def zk_public(self, s: dict) -> dict:
+        ent = {r: None if e is None else {k: v for k, v in e.items() if k != "salt"}
+               for r in ROLES for e in [self.zk_entry(s, r)]}
+        st = [e["status"] for e in ent.values() if e]
+        status = ("rejected" if "rejected" in st else "verified" if st.count("verified") == 2
+                  else "partial" if st else "none")
+        return {"valid_at": self.zk_valid_at(s), "status": status, **ent}
+
+    def zk_expected(self, s: dict, role: str, dev: dict, attempt, circuit, salt: int, issuer_pub: bytes) -> list[str]:
+        """The public vector a proof by `role` must carry. PopError = wrong moment/request; V.Reject = the proof's
+        credential can't pass (recorded like a failed proof)."""
+        if s["state"] != "done" or (s["result"] or {}).get("verdict") != "NEAR":
+            raise PopError(409, "bad_state", "proofs are taken after a NEAR verdict")
+        if not _int(attempt) or attempt != s["attempt"]:
+            raise PopError(400, "bad_attempt", f"the verdict is from attempt {s['attempt']}")
+        pr = s["per_role"][role]
+        if pr.get("popt", 1) != 2 or "transcript_b64" not in pr:
+            raise PopError(409, "bad_state", "no POPT v2 transcript for this role")
+        sr = pr["sample_rate"]
+        if sr not in zk.CIRCUITS:
+            raise PopError(409, "bad_state", f"no circuit at {sr} Hz")
+        if circuit != zk.CIRCUITS[sr]:
+            raise V.Reject("circuit_unknown", f"{circuit!r}: the {sr} Hz circuit is {zk.CIRCUITS[sr]}")
+        d = self.store.get_device(dev["device_id"])
+        if not d or not d.get("cred"):
+            raise PopError(409, "no_credential", "enroll with holder_commit to get an SBcred3")
+        valid_at = self.zk_valid_at(s)
+        try:
+            c = sbcred.check(bytes.fromhex(d["cred"]), bytes.fromhex(d["cred_sig"]), issuer_pub, valid_at)
+        except sbcred.CredError as e:
+            raise V.Reject(e.code, e.detail) from None
+        t = decode_transcript(b64d(pr["transcript_b64"]))
+        if c["pub"] != t["pk_self"]:
+            raise V.Reject("transcript_mismatch", "credential key != transcript key")
+        other = OTHER[role]
+        return zk.public_vector(t, popt2.code(self._key(s, role), role, sr), popt2.code(self._key(s, other), other, sr),
+                                issuer_pub, valid_at, salt)
+
+    def zk_record(self, session_id: str, role: str, entry: dict, proof: bytes | None = None) -> dict:
+        """Store one proof outcome (reloads: verification ran off the event loop)."""
+        s = self.load(session_id)
+        s.setdefault("zk", {"A": None, "B": None})[role] = entry
+        if proof is not None:
+            self._write(s["session_id"], f"proof_{role}_{entry['attempt']}.bin", proof)
+        if s["result"] is not None:
+            s["result"]["zk"] = self.zk_public(s)
+            self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
+        self._save(s)
+        return s
+
     # -- view (§9)
     def view(self, s: dict, role: str) -> dict:
         me_id = s["host_device_id"] if role == "A" else s["guest_device_id"]
@@ -472,6 +541,7 @@ class Sessions:
             "committed": dict(s["committed"]), "submitted": dict(s["submitted"]),
             "popt": {r: s["per_role"][r].get("popt") for r in ROLES},
             "t0_ms": s["t0_ms"],
+            "zk_valid_at": self.zk_valid_at(s),
             "constants": {"a_play_s": K.A_PLAY_S, "b_play_s": K.B_PLAY_S, "lead_s": K.LEAD_S, "capture_s": K.CAPTURE_S},
             "result": s["result"],
             "error": s["error"],

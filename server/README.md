@@ -25,6 +25,10 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_ISSUER_KEY_FILE` | `data/issuer.pem` | Issuer key file (PEM). Created (0600) on first run if missing. Gitignored; never commit it. |
 | `POP_ISSUER_AUTOGEN` | `1` | `0` refuses to start without an issuer key instead of generating one. |
 | `POP_CRED_TTL_S` | `2592000` | Credential lifetime (30 days, as the spike). |
+| `POP_ZK_VERIFIER` | `../app/prover/target/release/popprover` if built | Host build of the option A prover; the server runs `popprover verify` on uploaded proofs. Unset/missing = proof upload answers 503 `zk_unavailable`. |
+| `POP_ZK_KEYS` | `data/zk/` | Proving keys served for download: `oa2t_s48.pk.zst`, `oa2t_s44.pk.zst` (zstd, never recompressed; the app pins their sha256). Gitignored. |
+| `POP_ZK_VK_DIR` | `POP_ZK_KEYS` | `oa2t_s48.vk`, `oa2t_s44.vk`; sha256-pinned in `pop/zk.py` (`VK_PINS`), else `circuit_unknown`. |
+| `POP_ZK_WRAP` | unset | Command prefix for the verifier, e.g. `research/sound-bound/spikes/zk/tools/heavy.sh zk-verify` on the 8 GB Mac. |
 | `POP_HOST`, `POP_PORT` | `0.0.0.0`, `8000` | Only used by `python -m pop`. |
 
 ### How phones reach it
@@ -53,6 +57,7 @@ uv run pytest -q
 | `test_jbl250.py` | vendored generator vs goldens (`tests/golden/*.f32`) and vs `fieldprobes` itself (read-only import, skipped without `research/`); sample rates 36k..96k; peak limit; bed key per (session, role, attempt) |
 | `test_arm_commit.py` | `/v1/time` ping; arm material (own play + own bed only) and `t0 = now + 3 s` once both armed; bad sample rate / attempt / rtt; unauthenticated and non-member refused; partner bed absent before commit, released after (at the committer's rate); `too_early`; commit signature / role / attempt / nonce checks; attempt 1 gets new codes |
 | `test_transcript_codec.py` | 269-byte transcript / 71-byte commit layout, offsets, pinned sha256 of a known vector (same literal goes in the Kotlin test) |
+| `test_zk.py` | option A proofs: public vector == the spike's `popt2_*.public.json` (4 fixtures); the real verifier (`popprover` host build, spike vk, a real `oa2t_s48` proof of fixture 180ca04b_48k A under `data/zk/test/`, skipped when missing) accepts it and refuses another salt (halfCommit), another validAt, another issuer, a corrupted proof, a wrong vk pin; upload endpoint with a fake verifier: before the verdict, both roles verified (48k + 44.1k), idempotent resend / 409, wrong salt then fixed, wrong issuer in the proof, credential from another issuer, expired credential, wrong circuit, bad meta/attempt, no credential, NOT_NEAR, v1 role, verifier missing (503); key download: manifest, sha256 header, Range resume, 416, names |
 | `test_popt2.py` | POPT v2 (311 B) / POPC v2 layout, pinned vector sha256, rejects (length/version mix, rec_root >= p); Poseidon7 perm/sponge/node/leaf/root vectors, lockstep = scalar; int8 codes and `code_commit`; exact `decide()` ties at -20 / 60 cm (68.6 kHz) and random parity with the pair-circuit inequality; `/v1/config` v2 keys. With `research/` (read-only): codec and Poseidon7 vs the spike, per-rate table vs `oa_rate.params`, every `fixtures/popt_v2` session (12 JBL250 x 48k/mix + sodfar/sodwide) through `check_commit`/`check_transcript`/`combine` with server-derived `code_commit`, rec_root from the dumped trees + sampled leaves (2 full captures; `POP_SLOW=1` all), the app's integer rule (`tests/twin2.py`) finding the signed arrivals |
 | `test_flow_v2.py` | fake phones on v2 (`tests/sim2.py`): NEAR with real rec_root, codes on the wire, too far, mixed v1 + v2 pair, bad code_commit / delta final, 50 ms tolerance edge, POPC version vs arm, v1-armed phone sending v2, `popt` validation, non-canonical rec_root, rec_root recording upload |
 | `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
@@ -143,3 +148,25 @@ sig  = ECDSA P-256 over SHA-256(cred), raw r||s
 and adds `"credential": {"format": "SBcred3", "cred_b64", "sig_b64", "expiry", "issuer_pubkey"}` to the enroll response. The layout is the spike's (`research/sound-bound/spikes/zk/optionA-v2/build_fixtures_popt2.py` `cred3`, circuit `gen_popt2.py`). It is stored on the device row (`holder_commit`, `cred`, `cred_sig`, `cred_expiry`). Without `holder_commit` the enroll is plain pop-v1. `GET /v1/config` publishes the issuer under `issuer` (`pubkey` SEC1 hex, `pub_x`, `pub_y`, `cred_ttl_s`); the verifier pins it as the circuit's public `issuerX/issuerY`.
 
 What it proves: the circuit checks the issuer signature and `validAt <= expiry` (`pop/issuer.py` `check` is the same check in plain Python). The per-phone circuits don't open `holder_commit`; it is signed but only used by the `_nf` variant. A credential means "this key was enrolled here with a passing attestation", not "a distinct person".
+
+## Option A proofs (after NEAR)
+
+Per role, once the session is `done` with NEAR, for the final attempt, POPT v2 at 48 / 44.1 kHz, from a device that holds an SBcred3:
+
+```
+POST /v1/session/{sid}/proof          signed like every device call; multipart
+  meta  = {"attempt": 0, "circuit": "oa2t_s48" | "oa2t_s44", "salt": "<decimal or 0x-hex, < 2^248>"}
+  proof = bincode R1CSSNARK (app/prover output, ~1.6 MB)
+-> 200 {"status": "verified", "role", "zk": <record zk block>}
+-> 400 transcript_mismatch | issuer_unknown | credential_expired | circuit_unknown | proof_invalid | bad_request | bad_attempt
+-> 409 bad_state (no NEAR yet, v1 role, no circuit at that rate) | no_credential | already_submitted
+-> 503 zk_unavailable (verifier binary or vk not configured; nothing recorded)
+```
+
+The server builds the whole public vector itself (`pop/zk.py`, same order and reason codes as the spike's `verifier/popzk.py` `verify_phone`): `halfCommit = Poseidon7.sponge16(8, [nonceHi, nonceLo, attempt, roleB, sr, half, salt, X_self, X_partner])` from the signed transcript and the uploaded salt, nonce/attempt/role, `code_commit` and the four int8 codes it sent, its issuer key, `sr`, and `validAt = t0_ms // 1000` of the attempt (view `zk_valid_at`, record `zk.valid_at`; the app proves with that value). Before the SNARK it checks the device's SBcred3 in plain Python (issuer signature, `validAt <= expiry`, key = transcript key). Then `popprover verify <vk> <proof> <expected.json>` must accept and match every value; the first mismatching index gives the reason (0 halfCommit, nonce/attempt/role/codes -> `transcript_mismatch`, issuer -> `issuer_unknown`, sr/validAt -> `transcript_mismatch`). The vk file must hash to the pin.
+
+A verified proof is final (same bytes again = 200, others = 409); a rejected one can be replaced. The result record gains `zk {valid_at, status: none|partial|verified|rejected, A, B}` (per role: status, reason, circuit, proof_sha256, half_commit; not the salt), `result.json` is rewritten, and the proof is kept as `sessions/<id>/proof_<role>_<attempt>.bin`. The pair proof (`oa2t_pair`) is not made here yet.
+
+Proving keys: `GET /v1/zk/keys` lists what is in `POP_ZK_KEYS` (`circuit, sample_rate, url, size, sha256, vk_sha256`); `GET /v1/zk/keys/<circuit>.pk.zst` serves the file with `Range` (206 / 416) and `X-Pop-Sha256`. Public, no auth (the pk is public; soundness rests on the vk pin). `GET /v1/config` adds `zk {circuits, vk_sha256, keys, verifier}`.
+
+Test proof (once, gitignored): `research/sound-bound/spikes/zk/tools/heavy.sh s7-prove ../app/prover/target/release/popprover prove <spike keys>/oa2t_s48.pk <spike inputs>/popt2_180ca04b_48k_A.input.json data/zk/test/popt2_180ca04b_48k_A.proof`.
