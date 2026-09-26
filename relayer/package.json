@@ -1,0 +1,11 @@
+{
+  "name": "pop-safe-relayer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "relay": "node relay.mjs"
+  },
+  "dependencies": {
+    "viem": "2.56.8"
+  }
+}
