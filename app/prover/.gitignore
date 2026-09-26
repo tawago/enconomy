@@ -1,0 +1,9 @@
+/target
+/cpp
+/dist
+/keys
+*.pk
+*.vk
+*.proof
+*.wtns
+*.zst

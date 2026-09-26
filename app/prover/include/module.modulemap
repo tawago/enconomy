@@ -1,0 +1,5 @@
+module PopProver {
+    header "pop_prover.h"
+    link "c++"
+    export *
+}
