@@ -61,9 +61,9 @@ class MainActivity : ComponentActivity() {
         if (WorldId.isReturnLink(intent.dataString)) (application as PopApplication).controller.onWorldIdReturn()
     }
 
-    /** Back from World App by hand: make sure the World ID poll is running. */
+    /** Back in front (e.g. from World App by hand): resync the server clock, restart the World ID poll. */
     override fun onResume() {
         super.onResume()
-        (application as PopApplication).controller.onWorldIdReturn()
+        (application as PopApplication).controller.onForeground()
     }
 }

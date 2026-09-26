@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Met on ENS</title>
+<meta name="description" content="Who met whom at ETHGlobal Tokyo 2026, measured by sound, readable through ENS. Live text records on ENSv2 Sepolia.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M2 26c0-9 2-15 6-15s6 6 6 15z' fill='%23d2fa3a' stroke='%2313120d' stroke-width='2'/%3E%3Cpath d='M18 26c0-9 2-15 6-15s6 6 6 15z' fill='%23d2fa3a' stroke='%2313120d' stroke-width='2'/%3E%3Cpath d='M12 6q4 2 8 0' fill='none' stroke='%231f46f5' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Nunito:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- Ink filters: roughen card edges and strokes, never text. -->
+<svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+  <filter id="ink" x="-5%" y="-5%" width="110%" height="110%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="3.2" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+  <filter id="brush" x="-5%" y="-30%" width="110%" height="160%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9 0.06" numOctaves="2" seed="3" result="n"/>
+    <feDisplacementMap in="SourceGraphic" in2="n" scale="2.6" xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+<div id="banner" class="banner" hidden></div>
+
+<header class="top">
+  <a class="brand" href="?" data-nav="home" aria-label="Leaderboard">
+    <svg class="brand-mark" viewBox="0 0 52 28" aria-hidden="true">
+      <path class="blob" d="M2 26c0-10 2.5-17 7-17s7 7 7 17z"/>
+      <path class="blob" d="M36 26c0-10 2.5-17 7-17s7 7 7 17z"/>
+      <path class="waves" d="M20 11q2.5 4 0 8M25 8q4 7 0 14M31 11q-2.5 4 0 8"/>
+    </svg>
+    <span class="brand-text">met<span class="brand-dim">.on.</span>ens</span>
+  </a>
+  <form class="search" id="searchForm" autocomplete="off" role="search">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+    <input id="searchInput" type="text" inputmode="text" spellcheck="false" autocapitalize="none" placeholder="alice.enconomy.eth" aria-label="Look up a name">
+    <button type="submit">Look up</button>
+  </form>
+  <div class="status" id="status" title="Latest Sepolia block seen by this page">
+    <span class="live-dot" id="liveDot"></span>
+    <span id="blockText">connecting…</span>
+  </div>
+  <button class="theme-btn" id="themeBtn" type="button" aria-label="Toggle theme">
+    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M10 2.75a7.25 7.25 0 0 1 0 14.5z"/></svg>
+  </button>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span id="eventName">ETHGlobal Tokyo 2026</span> · live on ENSv2 Sepolia</p>
+      <h1>Who <span class="hl">met</span> whom,<br><span class="h1-sound">measured by sound.</span></h1>
+      <p class="lede">Every attendee holds a name under <b id="parentName" class="mono">enconomy.eth</b>. When two phones
+        measure each other within about 60&nbsp;cm and both people agree, each name’s <code>eth.enconomy.met</code> text record goes up.</p>
+      <dl class="totals">
+        <div class="total"><dt>meetings</dt><dd class="v" id="totMeet"><span class="none loading">…</span></dd></div>
+        <div class="total"><dt>names</dt><dd class="v" id="totNames"><span class="none loading">…</span></dd></div>
+      </dl>
+    </div>
+    <img class="hero-art" src="assets/high-five.webp" width="760" height="673" alt="Two lime blobs holding phones jump into a high-five while blue sound waves meet above them">
+  </section>
+
+  <section class="just" id="justMet" hidden aria-live="polite">
+    <div class="just-head">
+      <span class="eyebrow"><span class="pulse" aria-hidden="true"></span>Latest meeting</span>
+      <span class="just-when" id="justWhen"></span>
+    </div>
+    <div class="just-pair">
+      <a class="chip" id="justA" href="#"></a>
+      <svg class="wave" viewBox="0 0 240 40" preserveAspectRatio="none" aria-hidden="true">
+        <path class="wave-base" d="M0 20 C 10 4, 20 4, 30 20 S 50 36, 60 20 S 80 4, 90 20 S 110 36, 120 20 S 140 4, 150 20 S 170 36, 180 20 S 200 4, 210 20 S 230 36, 240 20"/>
+        <path class="wave-ping" pathLength="100" d="M0 20 C 10 4, 20 4, 30 20 S 50 36, 60 20 S 80 4, 90 20 S 110 36, 120 20 S 140 4, 150 20 S 170 36, 180 20 S 200 4, 210 20 S 230 36, 240 20"/>
+      </svg>
+      <a class="chip" id="justB" href="#"></a>
+    </div>
+    <div class="just-foot" id="justFoot"></div>
+  </section>
+
+  <div class="errors" id="errors" hidden></div>
+
+  <div class="grid" id="grid">
+    <section class="profile card" id="profile" hidden></section>
+
+    <section class="board card" id="board">
+      <div class="card-head">
+        <h2>Leaderboard</h2>
+        <span class="card-note" id="boardNote"></span>
+      </div>
+      <div class="cols" aria-hidden="true">
+        <span>#</span><span>name</span><span class="c-met" title="eth.enconomy.met: distinct names met">met</span><span class="c-mt" title="eth.enconomy.meetings: every recorded meeting">meetings</span><span class="c-zk" title="eth.enconomy.zk: meetings whose proof our server checked offchain">zk</span>
+      </div>
+      <ol class="rows" id="rows"></ol>
+      <p class="empty" id="boardEmpty" hidden></p>
+    </section>
+
+    <section class="feed card" id="feedWrap" hidden>
+      <div class="card-head">
+        <h2>Meetings</h2>
+        <span class="card-note" id="feedNote">newest first</span>
+      </div>
+      <ol class="feed-list" id="feed"></ol>
+    </section>
+  </div>
+
+  <section class="snapshot" id="snapshot" hidden></section>
+</main>
+
+<footer class="foot">
+  <figure class="foot-art">
+    <img src="assets/bouncer.webp" width="1200" height="402" loading="lazy" alt="Pink robots in disguises wait in line while a blue sound-wave bouncer lets two lime blobs into the club">
+    <figcaption>A meeting counts only when two phones hear each other up close.</figcaption>
+  </figure>
+  <div class="foot-claim">
+    <p class="eyebrow muted">What a count means</p>
+    <blockquote class="claim">Our PoP server attests that two app-signed, enrolled app instances, each bound to that ENS name,
+      measured each other acoustically at under about 60&nbsp;cm during hour&nbsp;T, and both owners agreed to publish it.</blockquote>
+  </div>
+  <div class="foot-fine">
+    <p class="fine"><b>met</b> counts distinct names met, <b>meetings</b> every recorded meeting, <b>zk</b> meetings whose proof our
+      server checked offchain. No backend: this page reads Ethereum Sepolia (ENSv2 beta) through the Universal Resolver.
+      Published meetings are permanent and public: both names and the hour. ENS resets the v2 beta from time to time.</p>
+    <dl class="meta" id="metaList"></dl>
+  </div>
+</footer>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

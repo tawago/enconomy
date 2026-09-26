@@ -1,0 +1,7 @@
+{
+  "parent": "enconomy.eth",
+  "rootRegistry": "0x9703dbd26dab89504490994138cf2c575251a9ce",
+  "eventName": "ETHGlobal Tokyo 2026",
+  "pollMs": 8000,
+  "appUrl": ""
+}

@@ -513,3 +513,50 @@ def test_concurrent_verifies(prod, fw):
     d = doc(c, sid)
     assert d["human"]["A"]["status"] == d["human"]["B"]["status"] == "verified"
     assert d["human"]["pair_tag"] and d["confirmed"]["A"] is True
+
+
+# -- per-role sandbox (POP_WORLDID_SANDBOX): simulator request, nullifier taken without verification
+
+def test_sandbox_one_role_other_production(prod, fw):
+    c, a, b = prod()
+    c.app.state.worldid.cfg.worldid_sandbox = True
+    sid = paired(a, b)
+    r = b.post(f"/v1/session/{sid}/worldid/start", {"env": "sandbox"})
+    assert r.status_code == 200, r.text
+    assert r.json()["connector_uri"].startswith("https://simulator.worldcoin.org/?connect_url=https%3A%2F%2F")
+    rb = next(e for e in fw.reqs.values() if e["role"] == "B")
+    assert rb["b"]["environment"] == "staging"
+    assert a.post(f"/v1/session/{sid}/worldid/start").status_code == 200
+    ra = next(e for e in fw.reqs.values() if e["role"] == "A")
+    assert ra["b"]["environment"] == "production"
+    n_portal = len(fw.portal_bodies)
+    until(b, sid, "verified")
+    assert len(fw.portal_bodies) == n_portal, "sandbox role never reaches the Portal"
+    until(a, sid, "verified")
+    d = doc(c, sid)["human"]
+    assert d["B"]["environment"] == "sandbox" and d["A"]["environment"] == "production"
+    assert d["B"]["nullifier"] == fake_nullifier("B", popctx.action(sid))
+    assert d["pair_tag"] is not None
+    h = a.get(f"/v1/session/{sid}").json()["human"]
+    assert h["A"] == {"status": "verified"} and h["B"] == {"status": "verified", "env": "sandbox"}
+    envs = sorted(r["env"] for r in c.app.state.worldid.nullifiers.rows())
+    assert envs == ["production", "sandbox"]
+
+
+def test_sandbox_mock_nullifier_and_gate(wid, fw):
+    c, a, b = wid()
+    sid = paired(a, b)
+    r = a.post(f"/v1/session/{sid}/worldid/start", {"env": "sandbox"})
+    assert r.status_code == 403 and r.json()["error"] == "sandbox_not_allowed"
+    c.app.state.worldid.cfg.worldid_sandbox = True
+    fw.mutate = lambda res: {**res, "responses": [{"identifier": "proof_of_human"}]}   # no nullifier in the proof
+    assert a.post(f"/v1/session/{sid}/worldid/start", {"env": "sandbox"}).status_code == 200
+    until(a, sid, "verified")
+    want = "0x" + hashlib.sha256(b"pop-mock-v1" + a.device_id.encode() + sid.encode()).hexdigest()
+    assert doc(c, sid)["human"]["A"]["nullifier"] == want
+    sid2 = paired(a, b)
+    d = doc(c, sid2)
+    d["context"] = {**d["context"], "kind": "safe"}   # a real consumer kind
+    c.app.state.worldid.sessions._save(d)
+    r = a.post(f"/v1/session/{sid2}/worldid/start", {"env": "sandbox"})
+    assert r.status_code == 403 and r.json()["error"] == "sandbox_not_allowed"
