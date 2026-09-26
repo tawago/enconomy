@@ -6,8 +6,10 @@
   bridge.py run  [--backfill]                 poll every pollSeconds (default 3)
   bridge.py record <labelA> <labelB> [sessionId]
   bridge.py zk-verify <meetingId> <proof> <public_inputs>
+  bridge.py import-names <file.json>          {"<device_id>": "<label>"} -> ens_names as registered (no tx)
 
-Reads <dataDir>/sessions/<sid>/result.json written by server/pop/sessions.py. Never prints the key.
+Reads <dataDir>/sessions/<sid>/result.json written by server/pop/sessions.py, and registers the app's ENS claims
+(ens_names in <dataDir>/pop.sqlite, server/pop/ens.py; the only device -> label map). Never prints the key.
 See bridge/README.md.
 """
 from __future__ import annotations
@@ -17,6 +19,7 @@ import os
 import re
 import secrets
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -30,6 +33,7 @@ SID_RE = re.compile(r"^[0-9a-f]{32}$")
 TAG_HEX = "enconomy/meet/v1".encode().hex()
 TX_BASE = "https://sepolia.etherscan.io/tx/"
 ADDR_BASE = "https://sepolia.etherscan.io/address/"
+NAME_TTL = 90 * 86400   # app-claimed names, same as ens.sh claim
 
 DEFAULTS = {
     "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
@@ -37,7 +41,7 @@ DEFAULTS = {
     "deployments": str(REPO / "contracts/deployments/sepolia.json"),
     "zkDeployments": str(REPO / "contracts/deployments/zk-sepolia.json"),
     "dataDir": "~/dev/enconomy/server/data",
-    "names": str(HERE / "names.json"),
+    "popDb": None,             # server sqlite with ens_names; default <dataDir>/pop.sqlite
     "state": str(HERE / "state.json"),
     "log": str(HERE / "log.jsonl"),
     "pollSeconds": 3,
@@ -77,17 +81,20 @@ class Cfg:
         path = Path(os.environ.get("BRIDGE_CONFIG", HERE / "config.json"))
         c = {**DEFAULTS, **(load_json(path, {}) or {})}
         env = {"rpc": "ETH_RPC", "keyFile": "ENS_KEY_FILE", "dataDir": "POP_DATA_DIR", "state": "BRIDGE_STATE",
-               "log": "BRIDGE_LOG", "names": "BRIDGE_NAMES", "deployments": "ENS_OUT", "zkDeployments": "ZK_OUT"}
+               "log": "BRIDGE_LOG", "deployments": "ENS_OUT", "zkDeployments": "ZK_OUT",
+               "popDb": "POP_DB"}
         for k, e in env.items():
             if os.environ.get(e):
                 c[k] = os.environ[e]
-        for k in ("keyFile", "deployments", "zkDeployments", "dataDir", "names", "state", "log"):
+        for k in ("keyFile", "deployments", "zkDeployments", "dataDir", "state", "log"):
             c[k] = Path(os.path.expanduser(str(c[k])))
+        c["popDb"] = Path(os.path.expanduser(str(c["popDb"]))) if c["popDb"] else c["dataDir"] / "pop.sqlite"
         self.c = c
         dep = load_json(c["deployments"])
         if not dep:
             die(f"no {c['deployments']} (ENS bootstrap not done?)")
         self.resolver = dep["meetResolver"]
+        self.registry = dep["registry"]
         self.attester = dep["attester"]
         self.parent = dep["parent"]
         self.zkdep = load_json(c["zkDeployments"], {}) or {}
@@ -255,15 +262,70 @@ class State:
 
 # ------------------------------------------------------------------ names
 
+ENS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS ens_names (
+  device_id TEXT PRIMARY KEY, label TEXT NOT NULL UNIQUE, claimed_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', tx TEXT, error TEXT);
+"""  # = server/pop/ens.py _SCHEMA
+
+
 def load_names(cfg: Cfg) -> dict:
-    raw = load_json(cfg["names"], None)
-    if raw is None:
-        return {}
-    return {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, str)}
+    """device_id -> label of the registered rows in ens_names."""
+    return {r["device_id"]: r["label"] for r in app_claims(cfg, "registered")}
+
+
+def import_names(cfg: Cfg, path: Path) -> None:
+    """Hand-mapped devices (already registered onchain) into ens_names; existing device/label rows are kept."""
+    raw = load_json(path, None)
+    if not isinstance(raw, dict):
+        die(f"{path}: not a JSON object")
+    rows = [(k, v) for k, v in raw.items() if not k.startswith("_") and isinstance(v, str)]
+    for dev, label in rows:
+        if not LABEL_RE.fullmatch(label):
+            die(f"bad label {label!r}")
+    db = sqlite3.connect(str(cfg["popDb"]), timeout=5, isolation_level=None)
+    try:
+        db.executescript(ENS_SCHEMA)
+        for dev, label in rows:
+            n = db.execute("INSERT OR IGNORE INTO ens_names(device_id, label, claimed_at, status) VALUES (?, ?, ?, 'registered')",
+                           (dev, label, now_iso())).rowcount
+            print(f"{'added  ' if n else 'kept   '} {label:<14} <- {dev}")
+    finally:
+        db.close()
+
+
+def pop_db(cfg: Cfg) -> sqlite3.Connection | None:
+    p = cfg["popDb"]
+    if not p.is_file():
+        return None
+    db = sqlite3.connect(str(p), timeout=5, isolation_level=None)
+    db.row_factory = sqlite3.Row
+    return db
+
+
+def app_claims(cfg: Cfg, status: str) -> list[dict]:
+    db = pop_db(cfg)
+    if db is None:
+        return []
+    try:
+        return [dict(r) for r in db.execute("SELECT * FROM ens_names WHERE status = ?", (status,))]
+    except sqlite3.OperationalError:  # server older than ens_names
+        return []
+    finally:
+        db.close()
+
+
+def set_claim(cfg: Cfg, device_id: str, status: str, tx: str | None = None, error: str | None = None) -> None:
+    db = pop_db(cfg)
+    try:
+        db.execute("UPDATE ens_names SET status = ?, tx = COALESCE(?, tx), error = ? WHERE device_id = ?",
+                   (status, tx, error, device_id))
+    finally:
+        db.close()
 
 
 def label_for(names: dict, dev: dict) -> str | None:
-    return names.get(dev.get("device_id") or "") or names.get(dev.get("display_name") or "")
+    return names.get(dev.get("device_id") or "")
 
 
 # ------------------------------------------------------------------ bridge
@@ -311,6 +373,7 @@ class Bridge:
             if n:
                 self.log("baseline", f"{n} existing sessions marked preexisting (use --backfill to record them)")
         self.state.fresh = False
+        self.register_claims()
         names = load_names(self.cfg)
         for p in self.results():
             m = p.stat().st_mtime
@@ -411,6 +474,31 @@ class Bridge:
                  labels=[la, lb], firstTime=first == "true")
         return mid
 
+    # -- app ENS claims: register(label, admin, no subregistry, resolver, 0, now + 90 d) then touch (= ens.sh claim)
+    def register_claims(self) -> None:
+        for c in app_claims(self.cfg, "pending"):
+            label, dev = c["label"], c["device_id"]
+            try:
+                if not LABEL_RE.fullmatch(label):
+                    set_claim(self.cfg, dev, "failed", error="bad label")
+                    continue
+                if self.ch.counts(label)[0]:  # already ours onchain (a crash after the tx, or ens.sh claim)
+                    set_claim(self.cfg, dev, "registered")
+                    self.log("claim", f"{label}.{self.cfg.parent} already registered")
+                    continue
+                self.ch.load_key()
+                exp = int(self.ch.cast("block", "latest", "-f", "timestamp", "--rpc-url", self.ch.rpc)) + NAME_TTL
+                rc = self.ch.send(self.cfg.registry, "register(string,address,address,address,uint256,uint64)",
+                                  label, self.ch.me, "0x" + "0" * 40, self.cfg.resolver, "0", str(exp))
+                tx = rc["transactionHash"]
+                self.ch.send(self.cfg.resolver, "touch(string)", label)
+                set_claim(self.cfg, dev, "registered", tx=tx)
+                self.reg_cache.pop(label, None)
+                self.log("claim", f"{label}.{self.cfg.parent} registered", tx=tx, labels=[label])
+            except RuntimeError as e:
+                set_claim(self.cfg, dev, "failed", error=str(e)[:200])
+                self.log("error", f"claim {label}: {e}", pub=f"claim {label} failed")
+
     # -- zk
     def find_proof(self, sid: str, role: str, attempt) -> tuple[Path | None, Path | None]:
         d = self.sessions_dir / sid
@@ -497,7 +585,7 @@ class Bridge:
         print(f"phoneVerifier {cfg.phone_verifier or '-'}   verifyLog {cfg.verify_log or '-'}")
         print(f"data dir     {self.sessions_dir}  ({sum(1 for _ in self.results())} results)")
         names = load_names(cfg)
-        print(f"names        {cfg['names']}  ({len(names)} entries)")
+        print(f"names        {cfg['popDb']} ens_names registered  ({len(names)} entries)")
         for label in sorted(set(names.values())):
             keys = [k[:12] for k, v in names.items() if v == label]
             try:
@@ -520,6 +608,11 @@ class Bridge:
 def main(argv: list[str]) -> None:
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__.split("\n\n")[1] if __doc__ else "")
+        return
+    if argv[0] == "import-names":
+        if len(argv) != 2:
+            die("import-names <file.json>")
+        import_names(Cfg(), Path(argv[1]).expanduser())
         return
     if not shutil.which("cast"):
         die("foundry `cast` not on PATH")

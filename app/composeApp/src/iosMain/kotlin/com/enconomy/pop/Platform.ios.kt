@@ -76,4 +76,6 @@ actual fun openExternalUrl(url: String): Boolean {
     return true
 }
 
+actual fun isWeb(): Boolean = false
+
 actual fun platformDefaultBaseUrl(baked: String): String = baked

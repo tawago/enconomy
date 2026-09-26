@@ -54,7 +54,7 @@ usage() {
 PoP demo stack.
 
   ./demo up [flags]      preflight, then start everything in the foreground; Ctrl-C stops all
-  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, names.json, ports, tunnel config)
+  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, ens_names, ports, tunnel config)
   ./demo status          which pieces run (pid files + ports + /health) and \`bridge status\`
   ./demo help
 
@@ -220,14 +220,12 @@ preflight() {
     echo "ENS bridge"
     if [ -f "$ROOT/contracts/deployments/sepolia.json" ]; then ok "contracts/deployments/sepolia.json"
     else bad "contracts/deployments/sepolia.json missing (bridge exits)"; fi
-    names=${BRIDGE_NAMES:-$ROOT/bridge/names.json}
-    if [ -f "$names" ]; then
-      n=$(grep -c '"[^_"][^"]*"[[:space:]]*:' "$names" 2>/dev/null)
-      ok "bridge/names.json ($n entries)"
+    n=$(sqlite3 "$DB" "select count(*) from ens_names where status = 'registered'" 2>/dev/null)
+    if [ "${n:-0}" -gt 0 ] 2>/dev/null; then
+      ok "ens_names: $n registered"
     else
-      warn "no bridge/names.json: every NEAR is skipped as 'unmapped device', meetings won't reach ENS"
-      info "cp bridge/names.example.json bridge/names.json   # then map device_id -> ENS label"
-      info "device ids: sqlite3 $DB 'select device_id, display_name, platform from devices'"
+      warn "no registered ens_names: every NEAR is skipped as 'unmapped device', meetings won't reach ENS"
+      info "claim a name in the app (Tools > ENS name), or: cd bridge && POP_DB=$DB ./bridge import-names map.json"
     fi
   fi
 
@@ -378,7 +376,7 @@ cmd_up() {
     else say "${C_YEL}sidecar /health not answering (World ID start will 503)${C_OFF}"; fi
   fi
   if enabled bridge; then
-    start_piece bridge "$ROOT/bridge" env POP_DATA_DIR="$DATA_DIR" ./bridge run
+    start_piece bridge "$ROOT/bridge" env POP_DATA_DIR="$DATA_DIR" POP_DB="$DB" ./bridge run
   fi
   if enabled relayer; then
     start_piece relayer "$ROOT/relayer" env POP_DB="$DB" POP_SERVER_URL="http://127.0.0.1:$PORT" ./watch.sh
@@ -434,7 +432,7 @@ cmd_status() {
   echo
   say "bridge status"
   if command -v cast >/dev/null 2>&1; then
-    (cd "$ROOT/bridge" && POP_DATA_DIR="$DATA_DIR" ./bridge status 2>&1) | sed 's/^/  /'
+    (cd "$ROOT/bridge" && POP_DATA_DIR="$DATA_DIR" POP_DB="$DB" ./bridge status 2>&1) | sed 's/^/  /'
   else info "cast not on PATH"; fi
 }
 

@@ -117,13 +117,12 @@ First-time setup:
 (cd relayer && npm ci)
 cp server/.env.example server/.env
 echo 'POP_ATTEST_KEY_FILE=data/attest-demo.pem' >> server/.env   # key the demo Safe pins
-cp bridge/names.example.json bridge/names.json                    # device_id -> ENS label
 ```
 
 Set `POP_ATTEST_KEY_FILE`, or every Safe spend reverts with `BadAttestation`. The default `data/attest.pem` is a different key. `attest-demo.pem` is gitignored. [`contracts/README.md`](contracts/README.md) explains how to derive it.
 
 ```sh
-./demo check          # preflight: tools, node_modules, key + Sepolia balance, bridge/names.json, ports, tunnel
+./demo check          # preflight: tools, node_modules, key + Sepolia balance, registered ens_names, ports, tunnel
 ./demo up             # all five; Ctrl-C stops everything
 ./demo up --web       # also sets POP_ALLOW_WEB=1 and POP_CORS_ORIGINS for the web app
 ./demo up --no-tunnel --no-ens --no-safe --no-worldid   # skip pieces
