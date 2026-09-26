@@ -995,24 +995,18 @@ private fun Bench(s: UiState, c: PopController) {
     }
     SectionLabel("Proving keys")
     Panel {
-        for ((i, k) in ProvingKeys.all.withIndex()) {
-            if (i > 0) Hairline()
-            val st = s.keyState[k.circuit] ?: "?"
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(k.circuit, style = Pop.mono.copy(fontWeight = FontWeight.SemiBold))
-                    Text(ProofStats.mb(k.size), style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-                }
-                Pill(st, when {
-                    st == "present" -> Tone.Good
-                    st.startsWith("partial") -> Tone.Warn
-                    else -> Tone.Neutral
-                }, dot = true)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                SecondaryButton("Download", { c.benchDownload(k) }, enabled = !running, compact = true)
-                QuietButton("Delete", { c.benchDeleteKey(k) }, enabled = !running, tone = Tone.Bad)
-            }
+        val st = s.keyState
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Prover files · ${(ProvingKeys.all.sumOf { it.size } + 500_000) / 1_000_000} MB", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+            Pill(st, when (st) {
+                "downloaded" -> Tone.Good
+                "partly downloaded" -> Tone.Warn
+                else -> Tone.Neutral
+            }, dot = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SecondaryButton("Download", { c.benchDownload() }, enabled = !running, compact = true)
+            QuietButton("Delete", { c.benchDeleteKeys() }, enabled = !running, tone = Tone.Bad)
         }
     }
     SectionLabel("Fixtures")

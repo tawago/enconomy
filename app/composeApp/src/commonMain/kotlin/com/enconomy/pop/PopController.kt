@@ -114,7 +114,8 @@ data class UiState(
     val benchStatus: ProofStatus? = null,
     val benchLog: List<String> = emptyList(),
     /** Per circuit: "present" / "partial n bytes" / "missing". */
-    val keyState: Map<String, String> = emptyMap(),
+    /** Prover files (circuit, CRS, vk) together: downloaded / missing / partly downloaded. */
+    val keyState: String = "?",
     // ---- audio check ----
     val audioCheck: AudioCheckResult? = null,
     val audioCheckRunning: Boolean = false,
@@ -1037,14 +1038,13 @@ class PopController(
     }
 
     fun refreshKeys() {
-        val m = ProvingKeys.all.associate { k ->
-            k.circuit to when {
-                keyCache.present(k) -> "downloaded (${ProofStats.mb(k.size)})"
-                keyCache.partial(k) > 0 -> "partial ${ProofStats.mb(keyCache.partial(k))} of ${ProofStats.mb(k.size)}"
-                else -> "missing (${ProofStats.mb(k.size)} download)"
-            }
+        val ks = ProvingKeys.all
+        val st = when {
+            ks.all { keyCache.present(it) } -> "downloaded"
+            ks.none { keyCache.present(it) || keyCache.partial(it) > 0 } -> "missing"
+            else -> "partly downloaded"
         }
-        _state.update { it.copy(keyState = m) }
+        _state.update { it.copy(keyState = st) }
     }
 
     private fun benchLog(line: String) {
@@ -1053,28 +1053,29 @@ class PopController(
         runCatching { ZkFiles.append("${ZkFiles.dir()}/bench.log", "$line\n".encodeToByteArray()) }
     }
 
-    fun benchDownload(k: KeySpec) {
+    /** Fetches every missing prover file (circuit, CRS, vk). */
+    fun benchDownload() {
         if (benchJob?.isActive == true) return
         benchJob = scope.launch {
-            _state.update { it.copy(benchStatus = null, benchLog = listOf("key ${k.circuit}: ${if (networkIsMetered() == true) "on a metered network" else "downloading"}")) }
+            _state.update { it.copy(benchStatus = null, benchLog = listOf("prover files: ${if (networkIsMetered() == true) "on a metered network" else "downloading"}")) }
             try {
                 val t0 = monoNanos()
-                keyCache.ensure(k) { d, n -> _state.update { it.copy(benchStatus = ProofStatus.Downloading(d, n)) } }
-                benchLog("key ok in ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (sha256 pinned)")
+                for (k in ProvingKeys.all) keyCache.ensure(k) { d, n -> _state.update { it.copy(benchStatus = ProofStatus.Downloading(d, n)) } }
+                benchLog("prover files ok in ${ProofStats.ms((monoNanos() - t0) / 1_000_000)} (sha256 pinned)")
                 _state.update { it.copy(benchStatus = null) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                _state.update { it.copy(benchStatus = ProofStatus.Failed("proving key", e.message ?: "")) }
+                _state.update { it.copy(benchStatus = ProofStatus.Failed("prover files", e.message ?: "")) }
             } finally {
                 refreshKeys()
             }
         }
     }
 
-    fun benchDeleteKey(k: KeySpec) {
+    fun benchDeleteKeys() {
         if (benchJob?.isActive == true) return
-        keyCache.delete(k)
+        ProvingKeys.all.forEach(keyCache::delete)
         refreshKeys()
     }
 
