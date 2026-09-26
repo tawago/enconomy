@@ -1,5 +1,6 @@
 package com.enconomy.pop
 
+import com.enconomy.pop.chain.ContextGate
 import com.enconomy.pop.res.Res
 import com.enconomy.pop.zk.BenchFixture
 import com.enconomy.pop.zk.CredentialException
@@ -82,6 +83,8 @@ data class UiState(
     val runAttempt: Int = 0,
     /** Retry reason text or what we wait on. */
     val runNote: String? = null,
+    /** Context gate passed (docs/worldid/01 §7.1): the PopCtx nonce this session is bound to; null = no context. */
+    val ctxOk: ContextGate.Result.Ok? = null,
     /** Pre-flight / clock problem; user fixes it and taps Start. */
     val runBlocked: String? = null,
     val preflight: AudioPreflight? = null,
@@ -349,15 +352,24 @@ class PopController(
      * Host: POST /v1/session, publish the invite (QR + HCE), long-poll until a guest joins.
      * Token lives 120 s; an expired, unjoined session is replaced by a fresh one.
      */
-    fun host() {
+    fun host(context: JsonObject? = null) {
         go(Screen.Host)
-        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false) }
+        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, ctxOk = null) }
         run("creating session") { api ->
             requireConfig(api)
             val me = keystore.load() ?: error("not enrolled")
             try {
                 while (true) {
-                    val inv = api.createSession()
+                    val inv = api.createSession(SessionReq(context = context))
+                    // docs/worldid/01 §7.1: recompute the nonce before the invite goes out
+                    if (context != null || inv.context != null) {
+                        val g = gate(inv.session_id, context ?: inv.context, inv.not_before, inv.nonce)  // our own intent, the server's nonce
+                        if (g !is ContextGate.Result.Ok) {
+                            refuse(api, inv.session_id, g)
+                            return@run
+                        }
+                        _state.update { it.copy(ctxOk = g) }
+                    }
                     val bytes = inviteBytes(inv, me.pubkey)
                     InviteBeacon.publish(bytes)
                     _state.update { it.copy(invite = inv.copy(invite_b64url = bytes.toB64Url()), session = null, status = "waiting for guest") }
@@ -365,6 +377,11 @@ class PopController(
                     if (v?.partner != null) {
                         InviteBeacon.publish(null)
                         _state.update { it.copy(session = v, screen = Screen.Confirm, status = "guest joined") }
+                        return@run
+                    }
+                    // §7.3: with a context a new sid means a new action/nonce, so no auto-renew
+                    if (context != null) {
+                        _state.update { it.copy(status = "Invite expired. Start again.") }
                         return@run
                     }
                     _state.update { it.copy(status = "invite expired, new session") }
@@ -432,7 +449,7 @@ class PopController(
             _state.update { it.copy(error = e.code, status = e.message ?: "") }
             return
         }
-        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null) }
+        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, ctxOk = null) }
         run("joining ${inv.sessionId.take(8)}") { api ->
             var v = api.join(inv.sessionId, inv.joinToken)
             _state.update { it.copy(session = v) }
@@ -446,8 +463,26 @@ class PopController(
                 _state.update { it.copy(error = "partner_mismatch", status = "Invite does not match this partner.") }
                 return@run
             }
+            // docs/worldid/01 §7.1: context + PopCtx(nonce) check before World ID / Confirm / any signature
+            when (val g = gate(inv.sessionId, v.context, v.not_before, v.nonce)) {
+                is ContextGate.Result.Refused -> { refuse(api, inv.sessionId, g); return@run }
+                is ContextGate.Result.Ok -> _state.update { it.copy(ctxOk = g) }
+                ContextGate.Result.NoContext -> {}
+            }
             _state.update { it.copy(session = v, screen = Screen.Confirm, status = "joined") }
         }
+    }
+
+    // ---- context gate (docs/worldid/01 §7.1, §12) ----
+
+    /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the debug `test` kind passes. */
+    private fun gate(sid: String, context: JsonObject?, notBefore: Long?, nonce: String?): ContextGate.Result =
+        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = emptySet(), allowTestKind = isDebugBuild())
+
+    private suspend fun refuse(api: PopApi, sid: String, g: ContextGate.Result) {
+        val r = g as ContextGate.Result.Refused
+        runCatching { api.abort(sid) }
+        _state.update { it.copy(error = r.code, status = ContextGate.text(r.code), ctxOk = null) }
     }
 
     // ---- confirm (§3.3 step 3) ----

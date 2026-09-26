@@ -88,7 +88,23 @@ fun issuerPubkeyOf(cfg: JsonObject): ByteArray? {
 }
 
 @Serializable
-data class CreateSessionResp(val session_id: String, val join_token: String, val expires_at_ms: Long, val invite_b64url: String? = null)
+data class CreateSessionResp(
+    val session_id: String,
+    val join_token: String,
+    val expires_at_ms: Long,
+    val invite_b64url: String? = null,
+    // docs/worldid/01 §9 row 1: present when created with a context (PopCtx nonce)
+    val nonce: String? = null,
+    val not_before: Long? = null,
+    val context: JsonObject? = null,
+    val policy: JsonObject? = null,
+)
+
+/** docs/worldid/01 §9 row 1. Both null = the old `{}` body. */
+@Serializable data class SessionReq(val context: JsonObject? = null, val policy: JsonObject? = null) {
+    /** Absent fields are left out (not null), so no context still sends exactly `{}`. */
+    fun body(): String = JsonObject(listOfNotNull(context?.let { "context" to it }, policy?.let { "policy" to it }).toMap()).toString()
+}
 
 @Serializable data class JoinReq(val join_token: String)
 @Serializable data class DeviceRef(val device_id: String, val display_name: String? = null)
@@ -122,6 +138,11 @@ data class SessionView(
     val error: String? = null,
     /** Server extra: why the previous attempt failed (shown while re-arming). */
     val last_failure: Failure? = null,
+    // docs/worldid/01 §9 row 3
+    val context: JsonObject? = null,
+    val not_before: Long? = null,
+    val policy: JsonObject? = null,
+    val human: JsonObject? = null,
 )
 
 @Serializable data class Failure(val attempt: Int = 0, val reason: String? = null, val by: String? = null, val text: String? = null)
@@ -237,8 +258,8 @@ class PopApi(
         call(HttpMethod.Post, "/v1/enroll", enc(EnrollReq.serializer(), req), EnrollResp.serializer(), signed = false)
 
     // ---- signed ----
-    suspend fun createSession(): CreateSessionResp =
-        call(HttpMethod.Post, "/v1/session", "{}", CreateSessionResp.serializer())
+    suspend fun createSession(req: SessionReq = SessionReq()): CreateSessionResp =
+        call(HttpMethod.Post, "/v1/session", req.body(), CreateSessionResp.serializer())
 
     suspend fun join(id: String, joinToken: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/join", enc(JoinReq.serializer(), JoinReq(joinToken)), SessionView.serializer())

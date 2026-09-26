@@ -352,7 +352,7 @@ private fun Home(s: UiState, c: PopController) {
                 }
                 val ok = !s.busy && s.configOk != false
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    PrimaryButton("Host", c::host, Modifier.weight(1f), enabled = ok, icon = PopIcons.Qr)
+                    PrimaryButton("Host", { c.host() }, Modifier.weight(1f), enabled = ok, icon = PopIcons.Qr)
                     PrimaryButton("Join", c::join, Modifier.weight(1f), enabled = ok, icon = PopIcons.Scan)
                 }
             }

@@ -61,7 +61,7 @@ from typing import Callable
 import numpy as np
 
 from pop import constants as K
-from pop import invite, jbl250, popt2, poseidon7, verdict as V, zk
+from pop import invite, jbl250, popctx, popt2, poseidon7, verdict as V, zk
 from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
@@ -77,6 +77,10 @@ LIVE = ("created", "joined", "confirmed", "started")
 
 def _flags() -> dict:
     return {"A": False, "B": False}
+
+
+def _policy(s: dict) -> dict:
+    return s.get("policy") or {"human": "none"}
 
 
 def _iso(ms: int | None) -> str | None:
@@ -134,12 +138,18 @@ class Sessions:
         return role
 
     # -- pairing
-    def create(self, host: dict) -> dict:
+    def create(self, host: dict, context: dict | None = None, policy: dict | None = None) -> dict:
+        """context (already validated by the route) -> nonce = PopCtx (worldid 01 §5); else random."""
         now = self.now_ms()
+        sid = secrets.token_hex(16)
+        not_before = now // 1000
+        nonce_hex = secrets.token_hex(32) if context is None else popctx.nonce(
+            context["chain_id"], context["consumer"], context["ctx_hash"], not_before, sid).hex()
         s = {
-            "session_id": secrets.token_hex(16),
+            "session_id": sid,
             "seed_hex": secrets.token_hex(32),
-            "nonce_hex": secrets.token_hex(32),
+            "nonce_hex": nonce_hex,
+            "not_before": not_before, "context": context, "policy": policy or {"human": "none"},
             "join_token": secrets.token_hex(16),
             "token_expires_ms": now + K.JOIN_TOKEN_TTL_S * 1000,
             "state": "created", "attempt": 0, "seq": 0,
@@ -155,7 +165,8 @@ class Sessions:
         inv = invite.encode(s["session_id"], s["join_token"], exp_s, key_hint(bytes.fromhex(host["pubkey"])))
         return {"session_id": s["session_id"], "join_token": s["join_token"],
                 "expires_at_ms": s["token_expires_ms"], "invite_b64url": invite.b64url(inv),
-                "invite_qr": invite.to_qr(inv)}
+                "invite_qr": invite.to_qr(inv),
+                "nonce": s["nonce_hex"], "not_before": not_before, "context": context, "policy": s["policy"]}
 
     def join(self, session_id: str, guest: dict, token: str) -> dict:
         s = self.load(session_id)
@@ -336,6 +347,7 @@ class Sessions:
                 commits[r] = {"commit_b64": pr["commit_b64"], "sig_b64": pr["commit_sig_b64"]}
         return {
             "proto": K.PROTO, "session_id": s["session_id"], "session_nonce": s["nonce_hex"],
+            "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
             "attempt": s["attempt"], "verdict": verdict, "reason": reason,
             "user_text": V.USER_TEXT.get(reason) if reason else None,
             "flight_cm": flight, "t0_ms": s["t0_ms"],
@@ -531,11 +543,14 @@ class Sessions:
         other_id = s["guest_device_id"] if role == "A" else s["host_device_id"]
         me = self.store.get_device(me_id)
         other = self.store.get_device(other_id) if other_id else None
-        shown = all(s["confirmed"].values())
+        # World ID sessions show the nonce to members from create/join (01 §9 row 3); plain sessions keep
+        # the v1 rule (the app treats nonce != null as "both confirmed").
+        shown = all(s["confirmed"].values()) or _policy(s)["human"] == "worldid"
         return {
             "session_id": s["session_id"], "seq": s["seq"], "state": s["state"], "attempt": s["attempt"],
             "role": role,
             "nonce": s["nonce_hex"] if shown else None,
+            "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
             "self": {"device_id": me["device_id"], "display_name": me["display_name"], "pubkey": me["pubkey"]},
             "partner": None if other is None else {
                 "device_id": other["device_id"], "display_name": other["display_name"], "model": other["model"],

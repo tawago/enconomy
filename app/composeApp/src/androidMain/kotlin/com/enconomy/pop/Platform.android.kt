@@ -16,3 +16,7 @@ actual fun createDeviceKeystore(): DeviceKeystore = AndroidDeviceKeystore(PopApp
 actual fun deviceModel(): String = Build.MODEL ?: "unknown"
 
 actual fun unixMs(): Long = System.currentTimeMillis()
+
+actual fun isDebugBuild(): Boolean = runCatching {
+    (PopApplication.instance.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+}.getOrDefault(false)

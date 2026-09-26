@@ -39,7 +39,7 @@ from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
 from pop import issuer as sbcred
-from pop import jbl250, popt2, zk
+from pop import consumers, jbl250, popt2, zk
 from pop.errors import PopError
 from pop.sessions import Sessions
 from pop.verdict import Reject
@@ -86,6 +86,10 @@ class Settings:
     zk_keys: str = field(default_factory=lambda: os.environ.get("POP_ZK_KEYS", str(SERVER_DIR / "data" / "zk")))
     zk_vk_dir: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_VK_DIR") or None)
     zk_wrap: str | None = field(default_factory=lambda: os.environ.get("POP_ZK_WRAP") or None)
+    chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "4801")))
+    test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
+    worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
+    worldid_fake: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_FAKE", False))
     now_ms: Callable[[], int] = wall_ms
 
 
@@ -103,6 +107,54 @@ def _hex(s: str, nbytes: int) -> bytes | None:
     if len(s) != 2 * nbytes or not HEX.match(s):
         return None
     return bytes.fromhex(s)
+
+
+ADDR_RE = re.compile(r"^0x[0-9a-f]{40}$")
+B32_RE = re.compile(r"^0x[0-9a-f]{64}$")
+
+
+def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, dict]:
+    """POST /v1/session body (worldid 01 §9 row 1, §7.2 policy table) -> (context, policy)."""
+    try:
+        body = json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        raise PopError(400, "bad_request", "body must be JSON") from None
+    if not isinstance(body, dict):
+        raise PopError(400, "bad_request", "body must be an object")
+    ctx, pol = body.get("context"), body.get("policy")
+    if pol is not None and not (isinstance(pol, dict) and pol.get("human") in ("worldid", "none")):
+        raise PopError(400, "bad_policy", "policy.human must be worldid|none")
+    if ctx is None:
+        return None, {"human": pol["human"] if pol else "none"}
+    if pol is not None and pol["human"] != "worldid":
+        raise PopError(400, "bad_policy", "a context always requires World ID")
+    if not isinstance(ctx, dict):
+        raise PopError(400, "bad_request", "context must be an object")
+    kind = consumers.kinds(cfg.test_kinds).get(ctx.get("kind"))
+    if kind is None:
+        raise PopError(400, "bad_kind", str(ctx.get("kind"))[:40])
+    cid = ctx.get("chain_id")
+    if not _int_strict(cid) or cid != cfg.chain_id:
+        raise PopError(400, "bad_chain", f"chain_id must be {cfg.chain_id}")
+    if not isinstance(ctx.get("consumer"), str) or not ADDR_RE.match(ctx["consumer"]):
+        raise PopError(400, "bad_request", "consumer must be lowercase 0x + 40 hex")
+    if not isinstance(ctx.get("ctx_hash"), str) or not B32_RE.match(ctx["ctx_hash"]):
+        raise PopError(400, "bad_request", "ctx_hash must be lowercase 0x + 64 hex")
+    try:
+        want = kind.validate(ctx)
+    except PopError:
+        raise
+    except (KeyError, TypeError, ValueError) as e:
+        raise PopError(400, "context_mismatch", str(e)[:200]) from None
+    if want != bytes.fromhex(ctx["ctx_hash"][2:]):
+        raise PopError(400, "context_mismatch", "ctx_hash does not match the kind fields")
+    if not cfg.worldid_rp_id and not cfg.worldid_fake:
+        raise PopError(503, "worldid_unavailable", "POP_WORLDID_RP_ID is not set")
+    return ctx, {"human": "worldid"}
+
+
+def _int_strict(x) -> bool:
+    return isinstance(x, int) and not isinstance(x, bool)
 
 
 def _iso(ms: int) -> str:
@@ -158,6 +210,8 @@ class FailIn(BaseModel):
 def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None) -> FastAPI:
     """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it)."""
     cfg = settings or Settings()
+    if cfg.worldid_fake and not cfg.test_kinds:
+        raise RuntimeError("POP_WORLDID_FAKE=1 requires POP_TEST_KINDS=1")
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir, cfg.tune_db)
@@ -320,8 +374,9 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
 
     # -- pairing (§3)
     @app.post("/v1/session")
-    async def create_session(dev: dict = Depends(device)):
-        return sessions.create(dev)
+    async def create_session(request: Request, dev: dict = Depends(device)):
+        context, policy = parse_session_in(await request.body(), cfg)
+        return sessions.create(dev, context, policy)
 
     @app.post("/v1/session/{sid}/join")
     async def join(sid: str, req: JoinIn, dev: dict = Depends(device)):

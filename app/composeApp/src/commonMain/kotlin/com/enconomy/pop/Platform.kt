@@ -12,3 +12,6 @@ expect fun createDeviceKeystore(): DeviceKeystore
 expect fun deviceModel(): String
 
 expect fun unixMs(): Long
+
+/** Debuggable build (Android FLAG_DEBUGGABLE, iOS debug binary). Gates the `test` context kind (docs/worldid/01 §12). */
+expect fun isDebugBuild(): Boolean

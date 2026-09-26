@@ -66,3 +66,6 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
         }
     }
 }
+
+@OptIn(kotlin.experimental.ExperimentalNativeApi::class)
+actual fun isDebugBuild(): Boolean = kotlin.native.Platform.isDebugBinary
