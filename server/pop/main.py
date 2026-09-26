@@ -5,7 +5,7 @@ Run: uv run python -m pop            (0.0.0.0:8000)
  or: uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
-sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_UPLOAD_RECORDINGS (1),
+sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_TUNE_DB (0, tune-only boost, bed level fixed), POP_UPLOAD_RECORDINGS (1),
 POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
 POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
 POP_ZK_VERIFIER (popprover binary, default ../app/prover/target/release/popprover), POP_ZK_KEYS (default data/zk/,
@@ -39,7 +39,7 @@ from pop.attestation import AttestationError, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub
 from pop import issuer as sbcred
-from pop import popt2, zk
+from pop import jbl250, popt2, zk
 from pop.errors import PopError
 from pop.sessions import Sessions
 from pop.verdict import Reject
@@ -72,6 +72,7 @@ class Settings:
     db: str = field(default_factory=lambda: os.environ.get("POP_DB", str(SERVER_DIR / "data" / "pop.sqlite")))
     allow_unattested: bool = field(default_factory=lambda: _env_bool("POP_ALLOW_UNATTESTED", False))
     gain_db: float = field(default_factory=lambda: float(os.environ.get("POP_GAIN_DB", "0")))
+    tune_db: float = field(default_factory=lambda: float(os.environ.get("POP_TUNE_DB", "0")))
     upload_recordings: bool = field(default_factory=lambda: _env_bool("POP_UPLOAD_RECORDINGS", True))
     data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
     ios_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_IOS_APP_ID") or None)
@@ -159,7 +160,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     cfg = settings or Settings()
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
-    sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir)
+    sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir, cfg.tune_db)
     issuer = sbcred.Issuer(sbcred.load_key(cfg.issuer_key, cfg.issuer_key_file, cfg.issuer_autogen), cfg.cred_ttl_s)
 
     zkv = verifier or zk.Verifier(cfg.zk_verifier, cfg.zk_vk_dir or cfg.zk_keys, cfg.zk_wrap)
@@ -209,6 +210,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     @app.get("/v1/config")
     async def config():
         return {**K.table(), "allow_unattested": cfg.allow_unattested, "gain_db": cfg.gain_db,
+                "tune_db": cfg.tune_db, "tune_db_max": (mx := {str(sr): jbl250.max_safe_tune_db(sr) for sr in K.ZK_RATES}),
+                "tune_db_applied": {sr: {r: min(cfg.tune_db, v) for r, v in m.items()} for sr, m in mx.items()},
                 "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config(),
                 "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
                        "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}}}

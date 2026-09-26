@@ -90,3 +90,44 @@ def test_bed_key_derivation():
         jbl250.bed_key(seed, "A", 2)
     with pytest.raises(ValueError):
         jbl250.bed_key(seed, "C", 0)
+
+
+@pytest.mark.parametrize("role,sr", CASES)
+def test_tune_boost_fixed_bed(role, sr):
+    key = jbl250.bed_key("11" * 32, role, 0)
+    s, j, b = jbl250._parts(key, role, sr)
+    bed, tune = s * b, s * j
+    tm = jbl250.template(key, role, sr)
+    assert np.array_equal(tm, bed)
+    y0, i0 = jbl250.render(key, role, sr)
+    assert np.array_equal(y0, jbl250.generate(key, role, sr)) and "tune_db_applied" not in i0
+    for tdb in (0.0, 4.0, 8.0, 12.0, 30.0):
+        y, info = jbl250.render(key, role, sr, tune_db=tdb)
+        assert info["peak"] <= K.MAX_PEAK
+        g = 1.0 if tdb == 0 else 10 ** (info["tune_db_applied"] / 20)
+        assert g <= 10 ** (tdb / 20) + 1e-12
+        # bed part identical: play minus the (known) tune part is the tune_db=0 bed, to float32 rounding
+        assert np.max(np.abs(y.astype(np.float64) - g * tune - bed)) <= 1e-6
+        assert np.array_equal(jbl250.template(key, role, sr), tm)
+        if tdb:
+            assert info["tune_db_max"] >= info["tune_db_applied"]
+            if tdb < info["tune_db_max"]:
+                assert info["tune_db_applied"] == pytest.approx(tdb)
+            else:
+                assert info["tune_db_applied"] < tdb and info["peak"] > 0.9 * K.MAX_PEAK   # limited, not clipped
+    assert np.max(np.abs(y0 - jbl250.render(key, role, sr, tune_db=0)[0])) == 0
+
+
+def test_tune_boost_code_templates_unchanged():
+    from pop import popt2
+    key = jbl250.bed_key("22" * 32, "A", 0)
+    before = popt2.code_wire(key, "A", 48000)
+    for tdb in (0.0, 4.0, 8.0):
+        jbl250.render(key, "A", 48000, tune_db=tdb)
+        assert popt2.code_wire(key, "A", 48000) == before
+
+
+def test_max_safe_tune_db():
+    for sr in (44100, 48000):
+        m = jbl250.max_safe_tune_db(sr)
+        assert set(m) == {"A", "B"} and all(v > 0 for v in m.values())

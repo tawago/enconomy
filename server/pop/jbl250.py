@@ -9,6 +9,7 @@ role, part), so the key can carry the attempt (bed_key() below).
   tune     public two-note ding-dong, every partial < 1800 Hz (nothing inside BAND_HZ)
   bed      secret 0.25 s random-phase multisine on the 4 Hz grid over 2-18 kHz, -6 dB re tune
   template = scale * fade(bed)   (what the receiver correlates with)
+  render   = template + g*scale*fade(tune), g = 10**(tune_db/20) peak-limited on the tune only
 
 Golden: bed_key = sha256("fieldtest-v1|<seed>|JBL250|<role>|bed") reproduces
 fieldprobes.generate/template(seed, "JBL250", role, sr); see tests/golden/make_golden.py.
@@ -131,10 +132,41 @@ def generate(key: bytes, role: str, sr: int) -> np.ndarray:
     return (s * (j + b)).astype(np.float32)
 
 
-def render(key: bytes, role: str, sr: int, gain_db: float = 0.0):
+def tune_limit(bed: np.ndarray, tune: np.ndarray, tune_db: float = 0.0, max_peak: float = K.MAX_PEAK):
+    """Largest tune gain g <= 10**(tune_db/20) with max|bed + g*tune| <= max_peak; the bed is never touched.
+
+    Exact per sample: |b + g t| <= P  <=>  g <= (P - b*sign(t)) / |t|  (for g >= 0, |b| < P). If the
+    requested gain fits it is returned as is; otherwise the bound times 0.999 (same margin as gain_db).
+    Returns (g, g_max) with g_max the exact peak bound (inf if the tune is silent)."""
+    b = np.asarray(bed, dtype=np.float64)
+    t = np.asarray(tune, dtype=np.float64)
+    nz = t != 0
+    g_max = float(np.min((max_peak - b[nz] * np.sign(t[nz])) / np.abs(t[nz]))) if nz.any() else float("inf")
+    g = 10 ** (float(tune_db or 0.0) / 20)
+    return (g if g <= g_max else max(0.0, g_max * 0.999)), g_max
+
+
+def _db(g: float) -> float:
+    return float(20 * np.log10(g)) if g > 0 else float("-inf")
+
+
+def render(key: bytes, role: str, sr: int, gain_db: float = 0.0, tune_db: float = 0.0):
+    """play = gain * (bed + g_tune * tune), bed = template() exactly (same scale as the tune_db=0 sound).
+
+    tune_db boosts only the public tune; if that would push the peak over MAX_PEAK the tune gain is
+    reduced (never the bed, never a hard clip). gain_db is applied afterwards as before and scales both
+    parts; its own peak limit can therefore still pull the bed down when gain_db > 0 (leave it at 0 when
+    the bed level matters). tune_db = 0 gives the exact pre-tune_db output."""
     sr = _check(role, sr)
     s, j, b = _parts(key, role, sr)
-    x = s * (j + b)
+    t_req = float(tune_db or 0.0)
+    if t_req == 0.0:
+        x = s * (j + b)
+        gt, gt_max = 1.0, tune_limit(s * b, s * j)[1]
+    else:
+        bed = s * b
+        gt, gt_max = tune_limit(bed, s * j, t_req)
+        x = bed + gt * (s * j)
     req = float(gain_db or 0.0)
     g = 10 ** (req / 20)
     pk = float(np.max(np.abs(x)))
@@ -143,7 +175,23 @@ def render(key: bytes, role: str, sr: int, gain_db: float = 0.0):
     y = (x * g).astype(np.float32)
     info = {"gain_db_requested": req, "gain_db_applied": float(20 * np.log10(g)),
             "peak": float(np.max(np.abs(y))), "rms": _rms(y), "n": int(y.size), "sr": sr}
+    if t_req != 0.0:
+        info.update(tune_db_requested=t_req, tune_db_applied=_db(gt), tune_db_max=_db(gt_max))
     return y, info
+
+
+@functools.lru_cache(maxsize=4)
+def max_safe_tune_db(sr: int, n_keys: int = 32) -> dict:
+    """Peak-limited tune_db per role at `sr`: min over n_keys sample bed keys (the bed varies per key)."""
+    out = {}
+    for role in ROLES:
+        v = []
+        for i in range(n_keys):
+            key = hashlib.sha256(f"tune-max|{i}".encode()).digest()
+            s, j, b = _parts(key, role, _check(role, sr))
+            v.append(_db(tune_limit(s * b, s * j)[1]))
+        out[role] = round(min(v), 2)
+    return out
 
 
 def template(key: bytes, role: str, sr: int) -> np.ndarray:

@@ -89,8 +89,8 @@ def _int(x) -> bool:
 
 class Sessions:
     def __init__(self, store: Store, now_ms: Callable[[], int], gain_db: float = 0.0,
-                 data_dir: str | Path | None = None):
-        self.store, self.now_ms, self.gain_db = store, now_ms, gain_db
+                 data_dir: str | Path | None = None, tune_db: float = 0.0):
+        self.store, self.now_ms, self.gain_db, self.tune_db = store, now_ms, gain_db, tune_db
         self.data_dir = None if data_dir is None else Path(data_dir)
 
     # -- persistence
@@ -200,9 +200,12 @@ class Sessions:
     def _arm_material(self, s: dict, role: str) -> dict:
         sr = s["per_role"][role]["sample_rate"]
         key = self._key(s, role)
-        play, _ = jbl250.render(key, role, sr, self.gain_db)
+        play, info = jbl250.render(key, role, sr, self.gain_db, self.tune_db)
         out = {"attempt": s["attempt"], "sample_rate": sr, "play": pcm(play),
                "own_bed": pcm(jbl250.template(key, role, sr))}
+        if self.tune_db:   # only when set, so the default response stays exactly pop-v1
+            out["tune_db"] = {"requested": info["tune_db_requested"], "applied": round(info["tune_db_applied"], 3),
+                              "max": round(info["tune_db_max"], 3), "peak": round(info["peak"], 4)}
         if self._popt(s, role) == 2:   # v1 response stays exactly pop-v1
             out["popt"] = 2
             out["own_code"] = popt2.code_wire(key, role, sr)

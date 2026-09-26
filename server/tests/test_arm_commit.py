@@ -254,3 +254,27 @@ def test_attempt_codes_differ(phones, client, clock):
     with pytest.raises(Exception):
         sessions.next_attempt(sessions.load(sid), "glitch", "A")   # no attempt 2
     assert store_doc(client, sid)["attempts"][0]["reason"] == "glitch"
+
+
+@pytest.mark.parametrize("tune_db", [0.0, 4.0, 8.0])
+def test_arm_tune_boost_keeps_bed_and_codes(make_client, clock, tune_db):
+    client = make_client(tune_db=tune_db)
+    a, b = Phone(client, clock, "Alice", "Pixel 8"), Phone(client, clock, "Bob", "Galaxy S23")
+    assert a.enroll().status_code == 200 and b.enroll().status_code == 200
+    sid, _ = confirmed((a, b))
+    r = a.post(f"/v1/session/{sid}/arm", {"attempt": 0, "sample_rate": 48000, "rtt_min_ms": 10, "popt": 2}).json()
+    key = jbl250.bed_key(store_doc(client, sid)["seed_hex"], "A", 0)
+    from pop import popt2
+    assert np.array_equal(pcm_decode(r["own_bed"]), jbl250.template(key, "A", 48000).astype(np.float32))
+    assert r["own_code"] == popt2.code_wire(key, "A", 48000)
+    play = pcm_decode(r["play"])
+    assert np.max(np.abs(play)) <= K.MAX_PEAK
+    if tune_db:
+        assert r["tune_db"]["requested"] == tune_db and r["tune_db"]["applied"] <= tune_db
+        s, j, bb = jbl250._parts(key, "A", 48000)
+        g = 10 ** (r["tune_db"]["applied"] / 20)
+        assert np.max(np.abs(play - g * s * j - s * bb)) <= 1e-4   # applied is rounded to 1e-3 dB
+    else:
+        assert "tune_db" not in r
+    cfg = client.get("/v1/config").json()
+    assert cfg["tune_db"] == tune_db and set(cfg["tune_db_max"]) == {"44100", "48000"}
