@@ -54,6 +54,6 @@ Parameters (phone.json ABI order): `nonce_hi, nonce_lo, attempt, role_b, code_co
 
 Server: check the public part against the session exactly as for an upload (`inputs.nonce_*`, `attempt`, `role_b`, `code_commit`, `issuer`, `sr`, `valid_at` must equal what it would expect; `inputs.t` must equal the stored signed transcript), write `Prover.toml` (or feed JSON to the ACVM), `nargo execute` + `bb prove -t evm`, then record the result exactly like a phone-uploaded proof (same zk entry, plus `"delegated": true`).
 
-Reply: either synchronous `200 {"status": "verified", "role", "zk"}` / 4xx like the upload, or `202 {"status": "proving"}`. After 202 the app polls `GET /v1/session/{id}/result` every 2 s (up to 3 min) and reads `zk.<role>.status` (`verified` / `rejected` + `reason`). While proving, `zk.<role>` may be `{"status": "proving", ...}`.
+Reply: either synchronous `200 {"status": "verified", "role", "zk"}` / 4xx like the upload, or `202 {"status": "proving"}`. After 202 the app polls `GET /v1/session/{id}/result` every 2 s (up to 3 min) and reads `zk.<role>.status` (so `/result` must carry the `zk` block, `sessions.zk_public(s)`) (`verified` / `rejected` + `reason`). While proving, `zk.<role>` may be `{"status": "proving", ...}`.
 
 The server sees the audio samples of the two opened windows for this proof; the chain and the public never do.
