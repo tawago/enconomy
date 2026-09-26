@@ -20,7 +20,7 @@ from tests.sim2 import World2
 
 CANNED = json.loads((Path(__file__).parent / "fixtures" / "worldid-canned.json").read_text())
 SAFE = "0x5afe5afe5afe5afe5afe5afe5afe5afe5afe5afe"
-CTX = {"kind": "test", "chain_id": 4801, "consumer": SAFE, "ctx_hash": "0x" + bytes(range(0xa0, 0xc0)).hex()}
+CTX = {"kind": "test", "chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + bytes(range(0xa0, 0xc0)).hex()}
 RP = "rp_0123456789abcdef"
 
 
@@ -407,7 +407,7 @@ def test_config_and_health(wid):
     c, a, b = wid()
     cfg = c.get("/v1/config").json()
     assert cfg["worldid"] == {"app_id": "app_test", "rp_id": RP, "environment": "fake", "fake": True, "enabled": True}
-    assert cfg["chain"] == {"chain_id": 4801}
+    assert cfg["chain"] == {"chain_id": 11155111}
     assert c.get("/health").json()["worldid"]["sidecar_ok"] is True
 
 

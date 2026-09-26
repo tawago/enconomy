@@ -95,7 +95,7 @@ def test_bad_inputs():
 
 # -- POST /v1/session with a context (01 §9 row 1, §7.2 policy table)
 
-CTX_TEST = {"kind": "test", "chain_id": 4801, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
+CTX_TEST = {"kind": "test", "chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
 
 
 @pytest.fixture
@@ -117,7 +117,7 @@ def test_create_with_context(ctx_phones, clock):
     c = r.json()
     nb = clock() // 1000
     assert c["not_before"] == nb and c["context"] == CTX_TEST and c["policy"] == {"human": "worldid"}
-    assert c["nonce"] == popctx.nonce(4801, SAFE, CTX, nb, c["session_id"]).hex()
+    assert c["nonce"] == popctx.nonce(11155111, SAFE, CTX, nb, c["session_id"]).hex()
     # the guest sees the nonce + context from join on (World ID session)
     v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
     assert v["nonce"] == c["nonce"] and v["context"] == CTX_TEST and v["not_before"] == nb
@@ -154,10 +154,10 @@ def test_worldid_without_context(ctx_phones):
     ({"context": CTX_TEST, "policy": {"human": "none"}}, 400, "bad_policy"),
     ({"context": CTX_TEST, "policy": {"human": "maybe"}}, 400, "bad_policy"),
     ({"policy": "worldid"}, 400, "bad_policy"),
-    ({"context": {**CTX_TEST, "kind": "safe-tx"}}, 400, "bad_kind"),
+    ({"context": {**CTX_TEST, "kind": "safe-tx"}}, 400, "bad_context"),  # no safe_tx fields
     ({"context": {**CTX_TEST, "kind": "nope"}}, 400, "bad_kind"),
-    ({"context": {**CTX_TEST, "chain_id": 480}}, 400, "bad_chain"),
-    ({"context": {**CTX_TEST, "chain_id": "4801"}}, 400, "bad_chain"),
+    ({"context": {**CTX_TEST, "chain_id": 4801}}, 400, "bad_chain"),
+    ({"context": {**CTX_TEST, "chain_id": "11155111"}}, 400, "bad_chain"),
     ({"context": {**CTX_TEST, "consumer": SAFE.upper().replace("0X", "0x")}}, 400, "bad_request"),
     ({"context": {**CTX_TEST, "ctx_hash": "0x" + CTX.hex()[:-2]}}, 400, "bad_request"),
     ({"context": "x"}, 400, "bad_request"),

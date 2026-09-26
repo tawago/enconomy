@@ -1,0 +1,9 @@
+{
+  "P256OwnerFactory": "0x99565991Ec5414Ee2d3A2fA48Ab4d92efBd2466e",
+  "PopSafeGuard": "0x1e0AD6528e6769508A241b78b73A6F9b1342bb3B",
+  "PopSafeSetup": "0x3d4e549F13CCee540884481b35Fd1CA42A9E0707",
+  "PresenceVerifier": "0xD9E2F407424a7422E195d034ECc4fC932120d96F",
+  "block": 11787131,
+  "chainId": 11155111,
+  "verifierKind": "attestation"
+}

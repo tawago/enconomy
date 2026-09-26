@@ -1,0 +1,8 @@
+Noir option A fixtures (test only; the deployable verifiers come from the ZK lane).
+PhoneVerifier.sol  = ~/.enconomy/zk/pinned/PhoneVerifier.sol  (oaN_s48, vk sha256 769ac93112de4ec2f970d33233108d19124612b9b2ae54b8b531a23ecaa23f06)
+                     sha256 27d29a9cfb7e055e56d0bd28f8376640ef0db6bc2d4bdd1e58418e1adfd31d07
+PairVerifier.sol   = ~/.enconomy/zk/optA/noir/pair/PairVerifier.sol (noir/pair, contract HonkVerifier)
+                     sha256 a8ef65a193d37873473354ee7e3f7fdf441bd834907ee9c1794790baabc8c5e2
+A/, B/             = ~/.enconomy/zk/pinned/{A,B}/{proof,public_inputs} (iPhone fixtures, attempt 0, valid_at 1790000000)
+pair/              = ~/.enconomy/zk/optA/noir/pair/out/{proof,public_inputs} (links to A/B halfCommits)
+bb 5.0.0-nightly.20260522 -t evm, nargo 1.0.0-beta.22. Built with via_ir=false, optimizer_runs=1 (foundry.toml compilation_restrictions).
