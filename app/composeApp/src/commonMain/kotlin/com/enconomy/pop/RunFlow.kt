@@ -110,6 +110,8 @@ class PopRun(
                 "done" -> return resultOf(v)
                 "aborted" -> return aborted(v.error)
                 "confirmed" -> attempt(v)
+                // partner has not confirmed yet: wait for the state to move on, then arm
+                "created", "joined" -> poll(v.seq, nowNs() + 600_000_000_000L) { it.state != v.state } ?: api.session(sessionId)
                 else -> waitNext(v, v.attempt)
             }
         }

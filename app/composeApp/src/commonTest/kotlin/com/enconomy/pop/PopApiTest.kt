@@ -192,4 +192,86 @@ class PopApiTest {
         for (i in from..h.size - n.size) if ((n.indices).all { h[i + it] == n[it] }) return i
         return -1
     }
+
+    // ---- resume after suspension (iPhone back from World App) ----
+
+    /** Server with the §2.3 replay cache on (device, ts, sig). */
+    private class ReplayServer(var serverMs: () -> Long) {
+        val seen = mutableSetOf<Pair<String, String>>()
+        val paths = mutableListOf<String>()
+        val tss = mutableListOf<Long>()
+        val engine = MockEngine { req ->
+            paths += req.url.encodedPath
+            if (req.url.encodedPath == "/v1/time") return@MockEngine respond("""{"server_ms":${serverMs()}}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            val ts = req.headers["X-Pop-Ts"]!!
+            tss += ts.toLong()
+            val body = when {
+                kotlin.math.abs(ts.toLong() - serverMs()) > 60_000 -> """{"error":"auth_stale"}"""
+                !seen.add(ts to req.headers["X-Pop-Sig"]!!) -> """{"error":"auth_replay"}"""
+                else -> null
+            }
+            if (body != null) respond(body, HttpStatusCode.Unauthorized, headersOf(HttpHeaders.ContentType, "application/json"))
+            else if (req.url.encodedPath.endsWith("/worldid")) respond("""{"status":"verified"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+            else respond("""{"session_id":"s","seq":9,"state":"joined"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+    }
+
+    /** The OS re-sent our earlier bytes (same ts + sig) -> auth_replay -> resync, fresh signature, 200. */
+    @Test fun replayIsResignedAndRetried() = runTest {
+        val srv = ReplayServer { 1_005_000L }
+        val key = FakeKey()
+        val api = PopApi("http://h:8000", key = { key }, nowMs = { 1_000_000L }, engine = srv.engine)
+        api.worldidStatus("s", timeoutS = 25)
+        val ts0 = srv.tss.single()
+        assertEquals(1_005_000L, ts0)
+        // the bytes the next call will carry already reached the server (iOS resent them on resume)
+        val ts1 = ts0 + 1
+        srv.seen += ts1.toString() to signRequest(key, "GET", "/v1/session/s/worldid?timeout_s=25", ByteArray(0), ts1).sig
+        assertEquals("verified", api.worldidStatus("s", timeoutS = 25).status)
+        assertEquals(listOf(ts0, ts1, ts1 + 1), srv.tss)
+        assertEquals(listOf("/v1/time", "/v1/session/s/worldid", "/v1/session/s/worldid", "/v1/time", "/v1/session/s/worldid"), srv.paths)
+    }
+
+    /** Two parallel requests in the same wall ms never share X-Pop-Ts (deterministic signer = same sig otherwise). */
+    @Test fun sameMsRequestsGetDistinctTs() = runTest {
+        val srv = ReplayServer { 1_000L }
+        val api = PopApi("http://h:8000", key = { FakeKey() }, nowMs = { 1_000L }, engine = srv.engine)
+        repeat(3) { api.session("s", after = 8, timeoutS = 5) }
+        assertEquals(3, srv.tss.toSet().size)
+        assertEquals(listOf("/v1/time", "/v1/session/s", "/v1/session/s", "/v1/session/s"), srv.paths)
+    }
+
+    /** Suspended 10 min: X-Pop-Ts follows the wall clock, no resync needed; invalidateClock forces one. */
+    @Test fun tsFollowsWallAcrossSuspendAndResyncOnForeground() = runTest {
+        var wall = 1_000_000L
+        val srv = ReplayServer { wall + 42_000L }
+        val api = PopApi("http://h:8000", key = { FakeKey() }, nowMs = { wall }, engine = srv.engine)
+        api.session("s")
+        wall += 600_000L
+        api.session("s")
+        assertEquals(wall + 42_000L, srv.tss.last())
+        assertEquals(1, srv.paths.count { it == "/v1/time" })
+        api.invalidateClock()
+        api.session("s")
+        assertEquals(2, srv.paths.count { it == "/v1/time" })
+    }
+
+    @Test fun unknownDeviceIsNotRetried() = runTest {
+        var calls = 0
+        val engine = MockEngine { req ->
+            if (req.url.encodedPath == "/v1/time") return@MockEngine respond("""{"server_ms":5}""", HttpStatusCode.OK, jsonHdr)
+            calls++
+            respond("""{"error":"auth_unknown_device"}""", HttpStatusCode.Unauthorized, jsonHdr)
+        }
+        val api = PopApi("http://h:8000", key = { FakeKey() }, nowMs = { 5 }, engine = engine)
+        assertEquals("auth_unknown_device", assertFailsWith<PopHttpException> { api.session("s") }.code)
+        assertEquals(1, calls)
+    }
+
+    @Test fun onCloseCallback() {
+        var closed: PopApi? = null
+        val api = PopApi("http://h:8000", engine = MockEngine { respond("{}") }, onClose = { closed = it })
+        api.close()
+        assertEquals(api, closed)
+    }
 }

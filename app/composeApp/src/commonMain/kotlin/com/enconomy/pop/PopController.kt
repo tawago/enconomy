@@ -27,7 +27,11 @@ import com.enconomy.pop.zk.uploadSummary
 import io.ktor.client.network.sockets.SocketTimeoutException
 import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.plus
+import kotlin.concurrent.atomics.AtomicReference
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -104,6 +108,8 @@ data class UiState(
     val popt2Available: Boolean? = null,
     /** User switch (Prefs "popt"): v2 when available, else v1. */
     val popt2On: Boolean = true,
+    /** World ID through the World ID Simulator for this phone's role (Prefs "widSandbox"); default on for iOS, off for Android. */
+    val widSandbox: Boolean = false,
     /** Option A proof of our half after a NEAR verdict (null = none for this result). */
     val proof: ProofStatus? = null,
     /** The live proof job has not finished (a cancelled native prove runs to the end). */
@@ -143,12 +149,28 @@ data class UiState(
  * Pairing (§3): Host -> Inviting (QR + HCE), Join -> Scanning (NFC reader + camera),
  * both -> Confirm -> Run (PopRun: arm .. result, one server-driven retry) -> Result.
  */
+/** Session states before both confirms. */
+private val PRE_CONFIRM = setOf("created", "joined")
+
 class PopController(
     private val keystore: DeviceKeystore,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
     engineFactory: () -> AudioEngine = ::createAudioEngine,
     holderFactory: () -> HolderStore = { HolderStore(createSecretStore(), PrefsKeyValue) },
 ) {
+    /**
+     * An uncaught throw in a launch would end the process on Kotlin/Native: every coroutine of the
+     * controller lands here instead and shows up as an error on screen.
+     */
+    private val crashGuard = CoroutineExceptionHandler { _, e ->
+        if (e is CancellationException) return@CoroutineExceptionHandler
+        println("PopController: uncaught ${e::class.simpleName}: ${e.message}\n${e.stackTraceToString()}")
+        _state.update { it.copy(busy = false, error = "${e::class.simpleName}: ${e.message}") }
+    }
+    private val scope: CoroutineScope = scope + crashGuard
+    /** Open PopApi clients, so a return to the foreground can drop their clock offsets. */
+    @OptIn(ExperimentalAtomicApi::class)
+    private val liveApis = AtomicReference<Set<PopApi>>(emptySet())
     private val engine: AudioEngine by lazy(engineFactory)
     private val holder: HolderStore by lazy(holderFactory)
     private val _state = MutableStateFlow(initial())
@@ -178,7 +200,7 @@ class PopController(
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
         return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
-            popt2On = Prefs.get("popt") != "1", audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
+            popt2On = Prefs.get("popt") != "1", widSandbox = Prefs.get("widSandbox")?.let { it == "1" } ?: defaultWidSandbox(), audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
     }
 
     private fun storedEnrollment(): Enrollment? {
@@ -191,7 +213,28 @@ class PopController(
         )
     }
 
-    fun api(): PopApi = PopApi(state.value.baseUrl, key = { keystore.load() })
+    @OptIn(ExperimentalAtomicApi::class)
+    fun api(): PopApi = PopApi(state.value.baseUrl, key = { keystore.load() }, onClose = { a -> liveApis.update { it - a } })
+        .also { a -> liveApis.update { it + a } }
+
+    @OptIn(ExperimentalAtomicApi::class)
+    private inline fun <T> AtomicReference<T>.update(f: (T) -> T) {
+        while (true) {
+            val cur = load()
+            if (compareAndSet(cur, f(cur))) return
+        }
+    }
+
+    /**
+     * App back in the foreground (iOS scene active, Android onResume): the phone may have slept or sat
+     * suspended in World App. Drop every client's server offset (next signed call syncs /v1/time first)
+     * and restart the World ID polls, whose in-flight requests may be dead sockets.
+     */
+    @OptIn(ExperimentalAtomicApi::class)
+    fun onForeground() {
+        liveApis.load().forEach { it.invalidateClock() }
+        onWorldIdReturn(restart = true)
+    }
 
     fun setBaseUrl(url: String) {
         Prefs.set("baseUrl", url)
@@ -209,6 +252,20 @@ class PopController(
         Prefs.set("popt", if (on) "2" else "1")
         _state.update { it.copy(popt2On = on) }
     }
+
+    /** World ID step: World App (production) or the World ID Simulator (sandbox, test sessions only). */
+    fun setWidSandbox(on: Boolean) {
+        Prefs.set("widSandbox", if (on) "1" else "0")
+        _state.update { it.copy(widSandbox = on) }
+        val w = state.value.wid
+        if (w != null && w.sandbox != on && !w.verified && state.value.screen == Screen.Confirm) {
+            setWid { it.copy(mode = defaultWidMode(), connectorUri = null, expiresAtS = null) }
+            startWorldId()
+        }
+    }
+
+    /** iOS: World App aborts on approve on the iPhone X (iOS 16), so iOS uses the simulator by default. */
+    private fun defaultWidSandbox(): Boolean = keystore.platform == "ios"
 
     fun setDisplayName(n: String) {
         val v = n.take(32)
@@ -543,14 +600,15 @@ class PopController(
     fun startWorldId(create: Boolean = true) {
         val sid = state.value.session?.session_id ?: return
         widJob?.cancel()
+        val sandbox = if (create) state.value.widSandbox else state.value.wid?.sandbox ?: state.value.widSandbox
         val mode = state.value.wid?.mode ?: defaultWidMode()
-        _state.update { it.copy(wid = (it.wid ?: WidUi(mode = mode)).copy(status = if (create) "starting" else it.wid?.status ?: "starting", error = null)) }
+        _state.update { it.copy(wid = (it.wid ?: WidUi(mode = mode)).copy(status = if (create) "starting" else it.wid?.status ?: "starting", error = null, sandbox = sandbox)) }
         val api = api()
         widJob = scope.launch {
             try {
                 if (create) {
                     try {
-                        val r = api.worldidStart(sid)
+                        val r = api.worldidStart(sid, sandbox)
                         setWid { it.copy(status = "requested", connectorUri = r.connector_uri, expiresAtS = r.expires_at_s) }
                     } catch (e: PopHttpException) {
                         if (e.code != "already_verified") throw e
@@ -574,8 +632,8 @@ class PopController(
         }
     }
 
-    /** iOS default = QR (§6.7): the PoP phone stays in the foreground. */
-    private fun defaultWidMode(): String = if (keystore.platform == "ios") "qr" else "app"
+    /** iOS default = QR (§6.7): the PoP phone stays in the foreground. Sandbox: open the simulator on this phone. */
+    private fun defaultWidMode(): String = if (keystore.platform == "ios" && !state.value.widSandbox) "qr" else "app"
 
     fun setWidMode(m: String) = setWid { it.copy(mode = m) }
 
@@ -586,10 +644,11 @@ class PopController(
     }
 
     /** enconomy://worldid came back (or the app returned to the foreground): make sure the poll runs. */
-    fun onWorldIdReturn() {
+    fun onWorldIdReturn(restart: Boolean = false) {
         val w = state.value.wid ?: return
         if (state.value.screen != Screen.Confirm || w.verified || w.failed) return
-        if (widJob?.isActive != true) startWorldId(create = false)
+        // restart only once /worldid/start answered; before that the running job still owns the start call
+        if (widJob?.isActive != true || (restart && w.connectorUri != null)) startWorldId(create = false)
     }
 
     /** A failed World ID that this session can't fix (§7.3): abort, then host/join again. */
@@ -680,8 +739,10 @@ class PopController(
         run("confirming") { api ->
             val v0 = api.confirm(id)
             _state.update { it.copy(session = v0, confirmSent = true, status = "waiting for partner to confirm") }
-            val v = if (v0.state == "confirmed" || v0.nonce != null) v0
-            else pollUntil(api, id) { it.state == "confirmed" || it.nonce != null } ?: error("confirm timed out")
+            // wait for the partner's confirm by state: a World ID session shows the nonce before both confirmed,
+            // and PopRun started in "joined" would wait for a later attempt instead of arming
+            val v = if (v0.state !in PRE_CONFIRM) v0
+            else pollUntil(api, id) { it.state !in PRE_CONFIRM } ?: error("confirm timed out")
             if (v.state == "aborted") {
                 _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
                 return@run

@@ -71,6 +71,57 @@ class LiveWorldIdTest {
         } finally { apiA.close(); apiB.close() }
     }
 
+    /**
+     * B takes the sandbox path (World ID Simulator request, nullifier accepted unverified; server needs
+     * POP_WORLDID_SANDBOX=1), A the normal one. B starts its run right after its own confirm, while the session
+     * is still "joined" (what the app did when the confirm view already carried the nonce); A confirms later.
+     */
+    @Test fun sandboxRoleThenNear() = live { a, b ->
+        if (sameHumanSidecar) { println("same-human sidecar, skipping"); return@live }
+        val apiA = PopApi(url!!, key = { a }); val apiB = PopApi(url, key = { b })
+        try {
+            val sid = pairWithContext(apiA, apiB)
+            val rb0 = apiB.worldidStart(sid, sandbox = true)
+            assertTrue(rb0.connector_uri.startsWith("https://simulator.worldcoin.org/?connect_url="), rb0.connector_uri)
+            val (sa, sb) = coroutineScope {
+                val x = async(Dispatchers.Default) { worldId(apiA, sid) }
+                val y = async(Dispatchers.Default) { pollOwn(apiB, sid) }
+                x.await() to y.await()
+            }
+            assertEquals(WorldId.VERIFIED, sa.status, "$sa")
+            assertEquals(WorldId.VERIFIED, sb.status, "$sb")
+            val view = apiA.session(sid)
+            assertTrue(WorldId.role(view.human, "B").sandbox, "${view.human}")
+            assertTrue(!WorldId.role(view.human, "A").sandbox, "${view.human}")
+            assertNotNull(WorldId.pairTag(view.human))
+
+            val air = Air(30.0)
+            val (ra, rb) = coroutineScope {
+                val y = async(Dispatchers.Default) {
+                    val v0 = apiB.confirm(sid)
+                    println("B confirm -> state ${v0.state} nonce ${v0.nonce != null}")
+                    PopRun(apiB, FakeEngine(air, 'B'), b, sid, 'B').run()
+                }
+                val x = async(Dispatchers.Default) {
+                    kotlinx.coroutines.delay(1500)
+                    apiA.confirm(sid)
+                    PopRun(apiA, FakeEngine(air, 'A'), a, sid, 'A').run()
+                }
+                x.await() to y.await()
+            }
+            println("sandbox run: ${ra.verdict} ${ra.flight_cm} cm")
+            assertEquals("NEAR", ra.verdict, "$ra")
+            assertEquals(ra, rb)
+        } finally { apiA.close(); apiB.close() }
+    }
+
+    private suspend fun pollOwn(api: PopApi, sid: String): WorldIdStatusResp {
+        while (true) {
+            val st = api.worldidStatus(sid, timeoutS = 25)
+            if (st.status == WorldId.VERIFIED || st.status == WorldId.FAILED) return st
+        }
+    }
+
     @Test fun sameHumanRefused() = live { a, b ->
         if (!sameHumanSidecar) { println("POP_LIVE_SAME_HUMAN unset, skipping"); return@live }
         val apiA = PopApi(url!!, key = { a }); val apiB = PopApi(url, key = { b })

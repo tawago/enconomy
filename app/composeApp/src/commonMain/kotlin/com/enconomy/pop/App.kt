@@ -380,6 +380,11 @@ private fun Home(s: UiState, c: PopController) {
                 SwitchRow(
                     "Transcript v2", transcriptText(s), s.popt2On, { c.setPopt2(it) }, enabled = !s.busy, icon = PopIcons.Wave,
                 )
+                Hairline()
+                SwitchRow(
+                    "World ID: sandbox", if (s.widSandbox) "Test sessions: World ID Simulator for this phone" else "World App",
+                    s.widSandbox, { c.setWidSandbox(it) }, enabled = !s.busy, icon = PopIcons.Shield,
+                )
             }
         }
     }
@@ -581,8 +586,8 @@ private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController)
             "Each person proves they're a unique human with their own World ID. Confirm unlocks once yours is verified.",
             style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted,
         )
-        WidRow("You ($mine)", w.status)
-        WidRow("Partner ($other)", partner.status, partner.error)
+        WidRow("You ($mine)", w.status, sandbox = w.sandbox || WorldId.role(v.human, mine).sandbox)
+        WidRow("Partner ($other)", partner.status, partner.error, sandbox = partner.sandbox)
         if (!w.verified && !w.failed) {
             val uri = w.connectorUri
             if (uri == null) {
@@ -594,15 +599,16 @@ private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController)
             } else {
                 Segmented(listOf("app" to "This phone", "qr" to "Other phone"), w.mode, c::setWidMode)
                 if (w.mode == "app") {
-                    PrimaryButton("Open World ID", c::openWorldIdApp, Modifier.fillMaxWidth(), icon = PopIcons.Shield)
-                    Text("Approve in World ID, then come back here.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                    PrimaryButton(if (w.sandbox) "Sandbox World ID" else "Open World ID", c::openWorldIdApp, Modifier.fillMaxWidth(), icon = PopIcons.Shield)
+                    Text(if (w.sandbox) "Pick an identity and approve in the simulator, then come back here." else "Approve in World ID, then come back here.",
+                        style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
                 } else {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Surface(Modifier.size(240.dp), shape = RoundedCornerShape(20.dp), color = Color.White) {
                             Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) { QrCode(uri, Modifier.fillMaxSize()) }
                         }
                     }
-                    Text("Scan with the World ID app on the phone that holds your World ID.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                    Text(if (w.sandbox) "Open this link on another device to use the World ID Simulator." else "Scan with the World ID app on the phone that holds your World ID.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
                 }
             }
             if (w.error == "network") Text(WorldId.errorText("network"), style = MaterialTheme.typography.bodySmall, color = Pop.palette.warn)
@@ -620,9 +626,10 @@ private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController)
 }
 
 @Composable
-private fun WidRow(who: String, status: String, error: String? = null) {
+private fun WidRow(who: String, status: String, error: String? = null, sandbox: Boolean = false) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(who, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        if (sandbox) Text("sandbox", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted, modifier = Modifier.padding(end = 6.dp))
         when (status) {
             WorldId.VERIFIED -> Pill(WorldId.statusText(status), Tone.Good, icon = PopIcons.Check)
             WorldId.FAILED -> Pill(if (error != null) error else "Failed", Tone.Bad, icon = PopIcons.Alert)

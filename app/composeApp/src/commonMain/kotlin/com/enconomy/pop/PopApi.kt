@@ -22,6 +22,8 @@ import io.ktor.http.HttpMethod
 import io.ktor.http.Url
 import io.ktor.http.content.ByteArrayContent
 import io.ktor.http.isSuccess
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.EncodeDefault
@@ -226,6 +228,9 @@ data class ArmResp(
 class PopHttpException(val status: Int, val code: String?, val body: String, val hint: String? = null) :
     Exception(hint ?: "HTTP $status ${code ?: ""}: ${body.take(300)}")
 
+/** 401 codes a fresh signature can fix (after a clock resync). Not auth_unknown_device. */
+internal val RETRY_AUTH = setOf("auth_stale", "auth_replay", "auth_bad_signature")
+
 const val CLOCK_OFF_TEXT = "Phone clock is off; set automatic time."
 
 val popJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = true }
@@ -235,7 +240,9 @@ val popJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; explicitNu
  * Signed path = URL encoded path + query as sent (includes any prefix in [baseUrl]).
  *
  * X-Pop-Ts = [nowMs] + server offset. The offset comes from one GET /v1/time before the first
- * signed call (midpoint of the request rtt) and again on auth_stale, then the call is re-sent once.
+ * signed call (midpoint of the request rtt). On a 401 auth_stale / auth_replay / auth_bad_signature it
+ * resyncs and re-sends once with a fresh ts + signature (iOS resends the exact bytes of an idempotent GET
+ * whose connection died while the app was suspended: the server sees a replay).
  * Still stale after that = the phone clock is off by more than the server allows: [CLOCK_OFF_TEXT].
  * [clockSync] = false signs with the raw wall clock (no /v1/time).
  */
@@ -245,6 +252,7 @@ class PopApi(
     private val nowMs: () -> Long = ::unixMs,
     engine: HttpClientEngine? = null,
     private val clockSync: Boolean = true,
+    private val onClose: (PopApi) -> Unit = {},
 ) {
     val base = baseUrl.trim().trimEnd('/')
 
@@ -262,6 +270,13 @@ class PopApi(
     var clockOffsetMs: Long? = null
         private set
     private val clockLock = Mutex()
+    @OptIn(ExperimentalAtomicApi::class)
+    private val lastTs = AtomicLong(0L)
+
+    /** Forget the offset: the next signed call syncs first (app came back to the foreground). */
+    fun invalidateClock() {
+        clockOffsetMs = null
+    }
 
     /** GET /v1/time; offset = server_ms − midpoint(send, receive). */
     suspend fun syncClock(): Long {
@@ -312,8 +327,9 @@ class PopApi(
         call(HttpMethod.Post, "/v1/session/$id/fail", enc(FailReq.serializer(), FailReq(attempt, reason)), SessionView.serializer())
     suspend fun abort(id: String): SessionView = call(HttpMethod.Post, "/v1/session/$id/abort", "{}", SessionView.serializer())
     /** One request per role serves both buttons (§6.7); the server reuses a live one under 240 s. */
-    suspend fun worldidStart(id: String): WorldIdStartResp =
-        call(HttpMethod.Post, "/v1/session/$id/worldid/start", "{}", WorldIdStartResp.serializer())
+    /** [sandbox] = World ID Simulator request (server POP_WORLDID_SANDBOX=1, test sessions): connector_uri is the simulator link. */
+    suspend fun worldidStart(id: String, sandbox: Boolean = false): WorldIdStartResp =
+        call(HttpMethod.Post, "/v1/session/$id/worldid/start", if (sandbox) """{"env":"sandbox"}""" else "{}", WorldIdStartResp.serializer())
 
     /** Long-poll (server holds up to 25 s). */
     suspend fun worldidStatus(id: String, timeoutS: Int? = null): WorldIdStatusResp =
@@ -374,7 +390,10 @@ class PopApi(
     suspend fun signedRaw(method: HttpMethod, path: String, body: ByteArray, contentType: ContentType): String =
         send(method, path, body, contentType, signed = true).textOrThrow()
 
-    fun close() = client.close()
+    fun close() {
+        onClose(this)
+        client.close()
+    }
 
     // ---- plumbing ----
 
@@ -389,15 +408,29 @@ class PopApi(
     private suspend fun send(method: HttpMethod, path: String, body: ByteArray, ct: ContentType?, signed: Boolean): HttpResponse {
         if (!signed) return request(method, base + path, body, ct, null)
         val first = request(method, base + path, body, ct, offset())
-        if (!clockSync || first.status.value != 401 || errorCode(first.bodyAsText()) != "auth_stale") return first
-        clockLock.withLock { syncClock() }
+        if (first.status.value != 401) return first
+        val code = errorCode(first.bodyAsText())
+        if (code !in RETRY_AUTH) return first
+        // Fresh ts + sig. auth_replay = the OS re-sent our bytes (iOS resends an idempotent GET whose
+        // connection died while the app was suspended); auth_stale = clock moved.
+        if (clockSync) clockLock.withLock { syncClock() }
         val again = request(method, base + path, body, ct, offset())
         if (again.status.value == 401) {
             val text = again.bodyAsText()
-            val code = errorCode(text)
-            if (code == "auth_stale") throw PopHttpException(401, code, text, CLOCK_OFF_TEXT)
+            val c2 = errorCode(text)
+            if (c2 == "auth_stale" && clockSync) throw PopHttpException(401, c2, text, CLOCK_OFF_TEXT)
         }
         return again
+    }
+
+    /** Next X-Pop-Ts: wall + offset, strictly increasing so no two requests of this client share one. */
+    @OptIn(ExperimentalAtomicApi::class)
+    private fun nextTs(offsetMs: Long): Long {
+        while (true) {
+            val prev = lastTs.load()
+            val t = maxOf(nowMs() + offsetMs, prev + 1)
+            if (lastTs.compareAndSet(prev, t)) return t
+        }
     }
 
     /** [offsetMs] null = unsigned. */
@@ -406,7 +439,7 @@ class PopApi(
             val k = key() ?: error("not enrolled")
             val u = Url(url)
             val pq = u.encodedPath + (if (u.encodedQuery.isNotEmpty()) "?" + u.encodedQuery else "")
-            signRequest(k, method.value, pq, body, nowMs() + offsetMs)
+            signRequest(k, method.value, pq, body, nextTs(offsetMs))
         } else null
         return client.request(url) {
             this.method = method
