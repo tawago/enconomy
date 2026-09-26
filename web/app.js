@@ -6,6 +6,7 @@ import { normalize } from 'https://cdn.jsdelivr.net/npm/viem@2.56.8/ens/+esm'
 // ---------- constants
 const ZERO = '0x0000000000000000000000000000000000000000'
 const CHUNK = 45000n
+const FEED_MAX = 8
 const DEFAULT_RPCS = [
   'https://ethereum-sepolia-rpc.publicnode.com',
   'https://sepolia.gateway.tenderly.co',
@@ -54,11 +55,21 @@ const fmtInt = (n) => Number(n).toLocaleString('en-US')
 const qs = new URLSearchParams(location.search)
 const hourFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
 const hourOnly = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
-function hourLabel(tb) {
+const hourDay = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const dateFmt = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+function hourLabel(tb, fmt = hourFmt) {
   const a = new Date(Number(tb) * 3600000)
   const b = new Date((Number(tb) + 1) * 3600000)
-  return `${hourFmt.format(a)}–${hourOnly.format(b)}`
+  return `${fmt.format(a)}–${hourOnly.format(b)}`
 }
+// Compact hour for lists, full date in the tooltip.
+const hourHtml = (tb) => `<span class="when" title="${esc(hourLabel(tb))}">${esc(hourLabel(tb, hourDay))}</span>`
+const txLink = (tx, cls = 'tx') => `<a class="${cls}" href="${ETHERSCAN}/tx/${tx}" target="_blank" rel="noopener" title="${esc(tx)}">tx ${esc(short(tx, 6, 4))} ↗</a>`
+const meetMarks = (m) => [
+  m.firstTime ? '<span class="mark first">first meeting</span>' : '<span class="mark">met again</span>',
+  m.zk ? '<span class="pill zk">ZK verified</span>' : '',
+  m.void ? '<span class="pill void">voided</span>' : '',
+].join('')
 function ago(sec) {
   if (sec < 5) return 'just now'
   if (sec < 90) return `${Math.round(sec)} s ago`
@@ -228,23 +239,40 @@ function cellHtml(st) {
   return h
 }
 // Returns true when the value went up and an animation ran.
+// Going up: the old digit rolls out, the new one rolls in, a "+n" pill floats beside it,
+// then the number stays accent-coloured for a moment and fades back.
 function setCell(el, st, animate) {
   const html = cellHtml(st)
   if (el.dataset.k === html) return false
   const prev = el.dataset.v !== undefined ? Number(el.dataset.v) : null
   el.dataset.k = html
-  el.innerHTML = html
   if (st && st.v != null) el.dataset.v = st.v; else delete el.dataset.v
-  if (animate && prev != null && st && st.v != null && st.v > prev) {
-    el.querySelector('.num').classList.add('bump')
-    const p = document.createElement('span')
-    p.className = 'plus'
-    p.textContent = `+${st.v - prev}`
-    el.appendChild(p)
-    setTimeout(() => p.remove(), 2100)
-    return true
-  }
-  return false
+  const up = animate && prev != null && st && st.v != null && st.v > prev
+  if (!up) { el.innerHTML = html; return false }
+  // Every step is driven by animationend (no timers), so pausing the page's animations freezes the whole moment.
+  el.innerHTML = html.replace(/<span class="num">[^<]*<\/span>/, `<span class="num roll"><span class="out">${prev}</span><span class="in">${st.v}</span></span>`)
+  const roll = el.querySelector('.num.roll')
+  roll.querySelector('.in').addEventListener('animationend', () => {
+    const n = document.createElement('span')
+    n.className = 'num hot'
+    n.textContent = st.v
+    n.addEventListener('animationend', () => n.classList.remove('hot'), { once: true })
+    roll.replaceWith(n)
+  }, { once: true })
+  const p = document.createElement('span')
+  p.className = 'plus'
+  p.textContent = `+${st.v - prev}`
+  p.addEventListener('animationend', () => p.remove(), { once: true })
+  el.appendChild(p)
+  return true
+}
+// Restart a one-shot CSS animation class, and drop it when done so re-inserting the node cannot replay it.
+function flash(el, cls) {
+  el.classList.remove(cls)
+  void el.offsetWidth
+  el.classList.add(cls)
+  const done = (e) => { if (e.target !== el) return; el.classList.remove(cls); el.removeEventListener('animationend', done) }
+  el.addEventListener('animationend', done)
 }
 const nameHtml = (label) => `${esc(label)}<span class="dim">.${esc(S.parent)}</span>`
 const labelOf = (node) => S.members.get(node)?.label
@@ -281,8 +309,8 @@ function renderBoard(animate) {
     const up1 = setCell(li.querySelector('.met'), c?.met, animate)
     const up2 = setCell(li.querySelector('.mt'), c?.meetings, animate)
     setCell(li.querySelector('.zk'), c?.zk, animate)
-    if (up1 || up2) { li.classList.remove('flash'); void li.offsetWidth; li.classList.add('flash') }
-    ol.appendChild(li)
+    if (up1 || up2) flash(li, 'flash')
+    if (ol.children[i] !== li) ol.insertBefore(li, ol.children[i] || null)
   })
   // FLIP: slide rows that changed rank
   if (animate) for (const [n, top] of before) {
@@ -297,29 +325,35 @@ function renderBoard(animate) {
   else if (S.scannedTo == null) empty.textContent = 'Reading the chain…'
   else empty.textContent = 'No names yet. The first claimed name shows up here within a block.'
   if (S.scannedTo != null) {
-    $('boardNote').textContent = `${shown.length} name${shown.length === 1 ? '' : 's'}${hidden ? ` · ${hidden} revoked hidden` : ''} · via ENS text records`
+    $('boardNote').textContent = `live from ENS text records${hidden ? ` · ${hidden} revoked hidden` : ''}`
   }
+  renderTotals(animate, shown.length)
+}
+
+// Hero totals: meetings = live (not voided) Met logs, names = names on the board.
+function renderTotals(animate, names) {
+  if (S.scannedTo == null) return
+  const meets = [...S.meets.values()].filter((m) => !m.void).length
+  setCell($('totMeet'), { v: meets }, animate)
+  if (names != null) setCell($('totNames'), { v: names }, animate)
 }
 
 // ---------- meetings feed + latest card
-function meetItem(m, cls = '') {
-  const tags = [
-    m.firstTime ? '<span class="tag first">first meeting</span>' : '<span class="tag">met again</span>',
-    m.zk ? '<span class="tag zk">ZK verified</span>' : '',
-    m.void ? '<span class="tag void">voided</span>' : '',
-  ].join('')
+function meetItem(m, cls = '', pair) {
   return `<li class="fi ${m.void ? 'void' : ''} ${cls}">
-    <span class="pair">${nodeLink(m.nodeLo)}<span class="x">⇄</span>${nodeLink(m.nodeHi)}</span>
-    <span class="when">${esc(hourLabel(m.timeBucket))}</span>
-    <span class="sub">${tags}<a href="${ETHERSCAN}/tx/${m.tx}" target="_blank" rel="noopener">tx ${esc(short(m.tx, 8, 4))}</a><span class="mono" style="color:var(--ink-3)">block ${fmtInt(m.block)}</span></span>
+    <span class="pair">${pair || `${nodeLink(m.nodeLo)}<span class="x">⇄</span>${nodeLink(m.nodeHi)}`}</span>
+    ${hourHtml(m.timeBucket)}
+    <span class="sub">${meetMarks(m)}${txLink(m.tx)}</span>
   </li>`
 }
 const sortedMeets = () => [...S.meets.values()].sort((a, b) => (b.block > a.block ? 1 : b.block < a.block ? -1 : b.logIndex - a.logIndex))
 
 let feedIds = new Set()
 function renderFeed(animate) {
-  const list = sortedMeets().slice(0, 20)
+  const all = sortedMeets()
+  const list = all.slice(0, FEED_MAX)
   $('feedWrap').hidden = !!S.profile || list.length === 0
+  $('feedNote').textContent = all.length > list.length ? `latest ${list.length} of ${all.length}` : 'newest first'
   $('feed').innerHTML = list.map((m) => meetItem(m, animate && S.booted && !feedIds.has(m.id) ? 'newrow' : '')).join('')
   feedIds = new Set(list.map((m) => m.id))
 }
@@ -337,8 +371,8 @@ async function renderLatest(animate) {
   }
   chip($('justA'), m.nodeLo)
   chip($('justB'), m.nodeHi)
-  const tags = [m.firstTime ? '<span class="tag first">first meeting</span>' : '<span class="tag">met again · meetings +1, met unchanged</span>', m.zk ? '<span class="tag zk">ZK verified</span>' : '']
-  $('justFoot').innerHTML = `${tags.join('')}<span>${esc(hourLabel(m.timeBucket))}</span><a href="${ETHERSCAN}/tx/${m.tx}" target="_blank" rel="noopener" class="mono">tx ${esc(short(m.tx, 10, 6))}</a><span class="mono">block ${fmtInt(m.block)}</span>`
+  const effect = m.firstTime ? 'both names: met +1, meetings +1' : 'meetings +1, met unchanged'
+  $('justFoot').innerHTML = `${meetMarks(m)}<span class="effect">${effect}</span><span>${esc(hourLabel(m.timeBucket))}</span>${txLink(m.tx, 'mono')}`
   if (S.latestId !== m.id) {
     const fresh = animate && S.latestId !== null
     S.latestId = m.id
@@ -377,14 +411,14 @@ function setProfile(input) {
     <div class="p-name">${p.underParent ? nameHtml(p.label) : esc(p.name)}</div>
     ${p.underParent ? '' : `<div class="p-notice">This name is not under ${esc(S.parent)}. Showing whatever its resolver returns.</div>`}
     <div class="stats">
-      <div class="stat met"><div class="big" id="pMet"><span class="none">…</span></div><div class="lbl">people met</div><div class="k">${KEYS.met}</div></div>
-      <div class="stat"><div class="big" id="pMt"><span class="none">…</span></div><div class="lbl">meetings</div><div class="k">${KEYS.meetings}</div></div>
-      <div class="stat"><div class="big" id="pZk"><span class="none">…</span></div><div class="lbl">ZK verified</div><div class="k">${KEYS.zk}</div></div>
+      <div class="stat met"><div class="k">${KEYS.met}</div><div class="big v" id="pMet"><span class="none">…</span></div><div class="lbl">people met</div></div>
+      <div class="stat"><div class="k">${KEYS.meetings}</div><div class="big v" id="pMt"><span class="none">…</span></div><div class="lbl">meetings</div></div>
+      <div class="stat"><div class="k">${KEYS.zk}</div><div class="big v" id="pZk"><span class="none">…</span></div><div class="lbl">ZK verified</div></div>
     </div>
-    <p class="desc" id="pDesc">…</p>
+    <p class="desc" id="pDesc"><span class="k">description</span>…</p>
     <dl class="kv" id="pKv"></dl>
     <div class="links">
-      <a href="${EXPLORER}/${esc(p.name)}/records" target="_blank" rel="noopener">ENS explorer records ↗</a>
+      <a href="${EXPLORER}/${esc(p.name)}/records" target="_blank" rel="noopener">Records on the ENS explorer ↗</a>
       <a href="${ENSAPP}/${esc(p.name)}" target="_blank" rel="noopener">ENS app ↗</a>
       ${S.cfg.appUrl ? `<a href="${esc(S.cfg.appUrl)}" target="_blank" rel="noopener">Start a meeting ↗</a>` : ''}
     </div>
@@ -405,27 +439,30 @@ async function loadProfile(animate) {
   const [tMet, tMt, tZk, tDesc, tAddr, tState, tCounts] = await Promise.allSettled(reads)
   if (S.profile !== p) return
   const chain = tCounts.status === 'fulfilled' && tCounts.value ? { met: tCounts.value[1], meetings: tCounts.value[2], zk: tCounts.value[3] } : null
-  const bigCell = (id, st) => { const el = $(id); if (el && setCell(el, st, animate)) el.closest('.stat').animate([{ background: 'var(--accent-soft)' }, { background: 'var(--bg)' }], { duration: 2500 }) }
+  const bigCell = (id, st) => {
+    const el = $(id)
+    if (el && setCell(el, st, animate)) flash(el.closest('.stat'), 'flash')
+  }
   bigCell('pMet', pickCount(tMet, chain, 'met'))
   bigCell('pMt', pickCount(tMt, chain, 'meetings'))
   bigCell('pZk', pickCount(tZk, chain, 'zk'))
 
   const d = $('pDesc')
-  if (tDesc.status === 'rejected') { d.className = 'desc muted'; d.innerHTML = `<span style="color:var(--err)">description: read failed · ${esc(errMsg(tDesc.reason))}</span>` }
-  else if (!tDesc.value) { d.className = 'desc muted'; d.textContent = 'No description record. The name is not registered, expired, or was revoked.' }
-  else { d.className = 'desc'; d.textContent = tDesc.value }
+  const dk = '<span class="k">description</span>'
+  if (tDesc.status === 'rejected') { d.className = 'desc muted'; d.innerHTML = `${dk}<span style="color:var(--err)">read failed · ${esc(errMsg(tDesc.reason))}</span>` }
+  else if (!tDesc.value) { d.className = 'desc muted'; d.innerHTML = `${dk}No description record. The name is not registered, expired, or was revoked.` }
+  else { d.className = 'desc'; d.innerHTML = `${dk}<q>${esc(tDesc.value)}</q>` }
 
   const kv = []
   if (tState.status === 'fulfilled' && tState.value) {
     const s = tState.value
-    kv.push(['status', esc(STATUS[s.status] || s.status)])
-    if (Number(s.status) === 2 && Number(s.expiry)) kv.push(['expires', esc(new Date(Number(s.expiry) * 1000).toLocaleString())])
-    if (s.latestOwner && s.latestOwner !== ZERO) kv.push(['registry owner', `<a href="${ETHERSCAN}/address/${s.latestOwner}" target="_blank" rel="noopener">${esc(short(s.latestOwner, 8, 6))}</a>`])
+    const until = Number(s.status) === 2 && Number(s.expiry) ? ` · until ${esc(dateFmt.format(new Date(Number(s.expiry) * 1000)))}` : ''
+    kv.push(['status', `${esc(STATUS[s.status] || s.status)}${until}`])
+    if (s.latestOwner && s.latestOwner !== ZERO) kv.push(['owner', `<a href="${ETHERSCAN}/address/${s.latestOwner}" target="_blank" rel="noopener">${esc(short(s.latestOwner, 8, 6))}</a>`])
   } else if (tState.status === 'rejected') kv.push(['status', `<span class="err">read failed · ${esc(errMsg(tState.reason))}</span>`])
-  if (tAddr.status === 'fulfilled') kv.push(['addr()', tAddr.value ? `<a href="${ETHERSCAN}/address/${tAddr.value}" target="_blank" rel="noopener">${esc(tAddr.value)}</a>` : 'none (custodial: held by the PoP server key)'])
+  if (tAddr.status === 'fulfilled') kv.push(['addr()', tAddr.value ? `<a href="${ETHERSCAN}/address/${tAddr.value}" target="_blank" rel="noopener">${esc(short(tAddr.value, 8, 6))}</a>` : 'none · custodial, held by the PoP server key'])
   else kv.push(['addr()', `<span class="err">read failed · ${esc(errMsg(tAddr.reason))}</span>`])
   if (S.resolver) kv.push(['resolver', `<a href="${ETHERSCAN}/address/${S.resolver}" target="_blank" rel="noopener">MeetResolver ${esc(short(S.resolver, 8, 6))}</a>`])
-  kv.push(['node', `<span title="${esc(p.node)}">${esc(short(p.node, 10, 8))}</span>`])
   $('pKv').innerHTML = kv.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')
   renderProfileMeets(animate)
 }
@@ -436,15 +473,10 @@ function renderProfileMeets(animate) {
   const el = $('pMeets')
   if (!p || !el) return
   const list = sortedMeets().filter((m) => m.nodeLo === p.node || m.nodeHi === p.node)
-  if (!list.length) { el.innerHTML = `<li class="fi"><span class="pair" style="font-weight:400;color:var(--ink-3)">${S.scannedTo == null ? 'Reading logs…' : 'No meetings recorded yet.'}</span></li>`; return }
+  if (!list.length) { el.innerHTML = `<li class="fi muted"><span class="pair">${S.scannedTo == null ? 'Reading logs…' : 'No meetings recorded yet.'}</span></li>`; return }
   el.innerHTML = list.slice(0, 30).map((m) => {
     const other = m.nodeLo === p.node ? m.nodeHi : m.nodeLo
-    const tags = [m.firstTime ? '<span class="tag first">first meeting</span>' : '<span class="tag">met again</span>', m.zk ? '<span class="tag zk">ZK verified</span>' : '', m.void ? '<span class="tag void">voided</span>' : ''].join('')
-    const cls = animate && !pMeetIds.has(m.id) ? 'newrow' : ''
-    return `<li class="fi ${m.void ? 'void' : ''} ${cls}">
-      <span class="pair"><span class="x">⇄</span>${nodeLink(other)}</span>
-      <span class="when">${esc(hourLabel(m.timeBucket))}</span>
-      <span class="sub">${tags}<a href="${ETHERSCAN}/tx/${m.tx}" target="_blank" rel="noopener">tx ${esc(short(m.tx, 8, 4))}</a></span></li>`
+    return meetItem(m, animate && !pMeetIds.has(m.id) ? 'newrow' : '', `<span class="x">⇄</span>${nodeLink(other)}`)
   }).join('')
   pMeetIds = new Set(list.map((m) => m.id))
 }
@@ -488,14 +520,15 @@ function tickClock() {
   if (S.latestTs) $('justWhen').textContent = ago(Date.now() / 1000 - S.latestTs)
 }
 function renderMeta() {
+  const addr = (a) => `<a href="${ETHERSCAN}/address/${a}" target="_blank" rel="noopener">${esc(short(a, 8, 6))}</a>`
   const items = [
-    ['resolver', S.resolver ? `<a href="${ETHERSCAN}/address/${S.resolver}" target="_blank" rel="noopener">${esc(short(S.resolver, 8, 6))}</a> <span>(${esc(S.resolverVia)})</span>` : '—'],
-    ['since block', S.deployBlock != null ? fmtInt(S.deployBlock) : '—'],
-    ['registry', S.reg ? `<a href="${ETHERSCAN}/address/${S.reg}" target="_blank" rel="noopener">${esc(short(S.reg, 8, 6))}</a>` : '—'],
+    ['parent', `<a href="${EXPLORER}/${esc(S.parent)}" target="_blank" rel="noopener">${esc(S.parent)} ↗</a>`],
+    ['resolver', S.resolver ? `${addr(S.resolver)} <span class="via">MeetResolver · ${esc(S.resolverVia)}</span>` : '—'],
+    ['registry', S.reg ? `${addr(S.reg)}${S.deployBlock != null ? ` <span class="via">since block ${fmtInt(S.deployBlock)}</span>` : ''}` : '—'],
+    ['reads', `viem 2.56.8 → Universal Resolver ${addr(sepolia.contracts.ensUniversalResolver.address)}`],
     ['rpc', esc(S.rpcLabel)],
   ]
-  $('metaList').innerHTML = items.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')
-  $('footLinks').innerHTML = `Parent <a href="${EXPLORER}/${esc(S.parent)}" target="_blank" rel="noopener">${esc(S.parent)} on the ENS explorer</a>. Reads use viem 2.56.8 against the ENS Universal Resolver <span class="mono">${esc(short(sepolia.contracts.ensUniversalResolver.address, 8, 6))}</span>.`
+  $('metaList').innerHTML = items.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')
 }
 
 // ---------- navigation
@@ -611,7 +644,7 @@ async function boot() {
   S.parentNode = namehash(S.parent)
   $('parentName').textContent = S.parent
   if (S.cfg.eventName) $('eventName').textContent = S.cfg.eventName
-  $('searchInput').placeholder = `alice or alice.${S.parent}`
+  $('searchInput').placeholder = `alice.${S.parent}`
 
   const rpc = qs.get('rpc')
   const transport = rpc ? http(rpc, { batch: true }) : fallback([http(DEFAULT_RPCS[0], { batch: true }), http(DEFAULT_RPCS[1]), http(DEFAULT_RPCS[2])])
