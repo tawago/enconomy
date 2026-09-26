@@ -6,7 +6,7 @@ Every meeting proven by the PoP server becomes onchain ENS records on Ethereum S
 
 | | |
 |---|---|
-| Web page | https://enconomy.dev (profile: https://enconomy.dev/?name=alice.enconomy.eth) |
+| Web page | https://ens.enconomy.dev (profile: https://ens.enconomy.dev/?name=alice.enconomy.eth) |
 | ENS records | https://explorer.ens.dev/alice.enconomy.eth/records |
 | PoP server | https://pop.enconomy.dev (Cloudflare tunnel to the laptop server) |
 | MeetResolver | [`0xfc300a640ccdEFF0e61f7875D55A9Cd22eb51346`](https://sepolia.etherscan.io/address/0xfc300a640ccdEFF0e61f7875D55A9Cd22eb51346) (resolver for `enconomy.eth` + `*.enconomy.eth`) |
@@ -14,7 +14,7 @@ Every meeting proven by the PoP server becomes onchain ENS records on Ethereum S
 | PairVerifier | [`0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7`](https://sepolia.etherscan.io/address/0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7) |
 | VerifyLog | [`0x53D6DB2580466FeE5F07c4Bb7b4c07C41797B996`](https://sepolia.etherscan.io/address/0x53D6DB2580466FeE5F07c4Bb7b4c07C41797B996) |
 
-Each name's `url` text record is `https://enconomy.dev/?name=<label>.enconomy.eth` (site set in [this `setSite` tx](https://sepolia.etherscan.io/tx/0xec083cad994007bfd6ee3abd78f2ce81822d1d24224a10b825e8368d09948ba9)).
+Each name's `url` text record is `https://ens.enconomy.dev/?name=<label>.enconomy.eth` (site set in [this `setSite` tx](https://sepolia.etherscan.io/tx/0x4f7517486c22f0e2d456d67ccc6910f4bdb98efef9677dadad606b00c83ff466)).
 
 ## ZK fixture verified onchain
 

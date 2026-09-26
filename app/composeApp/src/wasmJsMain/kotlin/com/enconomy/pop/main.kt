@@ -18,7 +18,7 @@ private fun onVisible(f: () -> Unit): Unit =
 fun main() {
     ComposeViewport(document.body!!) { App(controller) }
     onVisible { controller.onForeground() }
-    // enconomy.dev/app/#pop1:...: a phone camera app opened an invite link
+    // ens.enconomy.dev/app/#pop1:...: a phone camera app opened an invite link
     val h = jsHash().removePrefix("#")
     if (h.startsWith(Invite.QR_PREFIX, ignoreCase = true)) {
         jsClearHash()
