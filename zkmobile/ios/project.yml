@@ -1,0 +1,34 @@
+name: ZkBench
+options:
+  bundleIdPrefix: com.enconomy
+  deploymentTarget:
+    iOS: "16.0"
+settings:
+  base:
+    DEVELOPMENT_TEAM: 5A5283JK26
+    CODE_SIGN_STYLE: Automatic
+targets:
+  ZkBench:
+    type: application
+    platform: iOS
+    sources:
+      - ZkBench
+      - path: ../../../../.enconomy/zk/ios/inputs
+        type: folder
+        buildPhase: resources
+        optional: true
+    info:
+      path: ZkBench/Info.plist
+      properties:
+        UILaunchStoryboardName: ""
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.enconomy.pop.zkbench
+        TARGETED_DEVICE_FAMILY: "1,2"
+        LIBRARY_SEARCH_PATHS: $(HOME)/.enconomy/zk/ios/lib
+        OTHER_LDFLAGS: -lbb-external -lc++
+        ENABLE_BITCODE: NO
+        DEAD_CODE_STRIPPING: YES
+        GCC_OPTIMIZATION_LEVEL: s
