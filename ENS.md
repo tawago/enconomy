@@ -1,6 +1,6 @@
 # ENS: Met on ENS (PR #1)
 
-Every meeting proven by the PoP server becomes onchain ENS records on Ethereum Sepolia (ENSv2). Design: `docs/ens-meetings-design.md`.
+Every meeting proven by the PoP server becomes onchain ENS records on Ethereum Sepolia (ENSv2).
 
 ## Live
 
