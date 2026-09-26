@@ -160,6 +160,27 @@ data class ResultRecord(
     val attempts: List<JsonObject> = emptyList(),
     /** Option A validAt (unix s) when the server pins one; the phone falls back to t0 of the attempt. */
     val valid_at: Long? = null,
+    // docs/worldid/01 §9 row 8
+    val context: JsonObject? = null,
+    val not_before: Long? = null,
+    val human: JsonObject? = null,
+    val pair_tag: String? = null,
+)
+
+/** POST /v1/session/{sid}/worldid/start (docs/worldid/01 §9 row 4). */
+@Serializable data class WorldIdStartResp(val request_id: String? = null, val connector_uri: String, val expires_at_s: Long? = null)
+
+/** GET /v1/session/{sid}/worldid (§9 row 5), the caller's role. */
+@Serializable
+data class WorldIdStatusResp(
+    val role: String? = null,
+    val status: String,
+    val error: String? = null,
+    /** Server extras: partner {status}, and the live request while pending. */
+    val partner: JsonObject? = null,
+    val pair_tag: String? = null,
+    val connector_uri: String? = null,
+    val expires_at_s: Long? = null,
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -280,6 +301,18 @@ class PopApi(
     suspend fun fail(id: String, attempt: Int, reason: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/fail", enc(FailReq.serializer(), FailReq(attempt, reason)), SessionView.serializer())
     suspend fun abort(id: String): SessionView = call(HttpMethod.Post, "/v1/session/$id/abort", "{}", SessionView.serializer())
+    /** One request per role serves both buttons (§6.7); the server reuses a live one under 240 s. */
+    suspend fun worldidStart(id: String): WorldIdStartResp =
+        call(HttpMethod.Post, "/v1/session/$id/worldid/start", "{}", WorldIdStartResp.serializer())
+
+    /** Long-poll (server holds up to 25 s). */
+    suspend fun worldidStatus(id: String, timeoutS: Int? = null): WorldIdStatusResp =
+        call(HttpMethod.Get, "/v1/session/$id/worldid" + (timeoutS?.let { "?timeout_s=$it" } ?: ""), null, WorldIdStatusResp.serializer())
+
+    /** Public attestation (docs/worldid/01 §8.4), unsigned. */
+    suspend fun attestation(id: String): JsonObject =
+        call(HttpMethod.Get, "/v1/session/$id/attestation", null, JsonObject.serializer(), signed = false)
+
     suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 
     /**

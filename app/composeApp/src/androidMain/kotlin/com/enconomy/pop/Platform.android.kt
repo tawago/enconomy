@@ -20,3 +20,12 @@ actual fun unixMs(): Long = System.currentTimeMillis()
 actual fun isDebugBuild(): Boolean = runCatching {
     (PopApplication.instance.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 }.getOrDefault(false)
+
+actual fun openExternalUrl(url: String): Boolean = try {
+    val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    PopApplication.instance.startActivity(i)
+    true
+} catch (_: android.content.ActivityNotFoundException) {
+    false
+}
