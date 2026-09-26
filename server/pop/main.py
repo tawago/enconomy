@@ -14,6 +14,8 @@ oaN_s48.json, oaN_s48.vk, bn254_g1_2p20.dat; default: the team build + pinned di
 POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
 attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids).
+Web app (app/composeApp wasmJs): POP_ALLOW_WEB=1 (enroll platform "web", software key, unattested), POP_WEB_DIR
+(serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin).
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ import binascii
 import hashlib
 import json
 import logging
+import mimetypes
 import os
 import re
 import secrets
@@ -33,6 +36,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from fastapi import Depends, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -80,6 +85,11 @@ def wall_ms() -> int:
 class Settings:
     db: str = field(default_factory=lambda: os.environ.get("POP_DB", str(SERVER_DIR / "data" / "pop.sqlite")))
     allow_unattested: bool = field(default_factory=lambda: _env_bool("POP_ALLOW_UNATTESTED", False))
+    # web app: platform "web" enrolls (software key, never attested) without opening unattested android / ios
+    allow_web: bool = field(default_factory=lambda: _env_bool("POP_ALLOW_WEB", False))
+    web_dir: str | None = field(default_factory=lambda: os.environ.get("POP_WEB_DIR") or None)
+    cors_origins: tuple[str, ...] = field(default_factory=lambda: tuple(
+        x.strip().rstrip("/") for x in os.environ.get("POP_CORS_ORIGINS", "").split(",") if x.strip()))
     gain_db: float = field(default_factory=lambda: float(os.environ.get("POP_GAIN_DB", "0")))
     tune_db: float = field(default_factory=lambda: float(os.environ.get("POP_TUNE_DB", "0")))
     upload_recordings: bool = field(default_factory=lambda: _env_bool("POP_UPLOAD_RECORDINGS", True))
@@ -268,7 +278,13 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     wid = WorldID(cfg, sessions, db, worldid_transport)
     att_key = attest.load_key(cfg.attest_key_file)
 
+    web_dir = _web_dir(cfg.web_dir)
+
     app = FastAPI(title="pop-v1")
+    if cfg.cors_origins:
+        app.add_middleware(CORSMiddleware, allow_origins=list(cfg.cors_origins), allow_methods=["GET", "POST", "OPTIONS"],
+                           allow_headers=["X-Pop-Device", "X-Pop-Ts", "X-Pop-Sig", "Content-Type", "Range"],
+                           expose_headers=["Content-Range", "Accept-Ranges"])
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
     app.state.zk, app.state.zk_prover, app.state.worldid, app.state.attest_key = zkv, zkp, wid, att_key
 
@@ -388,8 +404,16 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         if req.platform == "ios":
             att, attested, key_kind = _enroll_ios(req, pub, nonce)
             reported = att["security_level"]
+        elif req.platform == "web":
+            if not (cfg.allow_web or cfg.allow_unattested):
+                raise PopError(400, "enroll_bad_platform", "web enroll is off (POP_ALLOW_WEB)")
+            if req.chain is not None or req.app_attest is not None:
+                raise PopError(400, "bad_request", "web sends no chain / app_attest")
+            key_kind = reported = "software"
+            att = {"security_level": "software", "chain_pem": None, "root_sha256": None}
+            attested = False
         elif req.platform != "android":
-            raise PopError(400, "bad_request", "platform must be android or ios")
+            raise PopError(400, "bad_request", "platform must be android, ios or web")
         else:
             key_kind = "android_keystore"
             reported = req.security_level if req.security_level in SECURITY_LEVELS else "unknown"
@@ -750,4 +774,24 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         role = sessions.member(s, dev)
         return sessions.view(sessions.abort(s, role), role)
 
+    # web app build (app/scripts/build_web.sh), after every API route
+    if web_dir is not None:
+        mimetypes.add_type("application/wasm", ".wasm")
+        app.mount("/app", StaticFiles(directory=str(web_dir), html=True), name="webapp")
+        log.info("web app: %s at /app/", web_dir)
+
     return app
+
+
+def _web_dir(raw: str | None) -> Path | None:
+    """POP_WEB_DIR, relative to server/. Refuses anything inside server/data (keys, sqlite, recordings)."""
+    if not raw:
+        return None
+    p = Path(raw)
+    p = (p if p.is_absolute() else SERVER_DIR / p).resolve()
+    data = (SERVER_DIR / "data").resolve()
+    if p == data or data in p.parents:
+        raise RuntimeError(f"POP_WEB_DIR {p} is inside {data}; refusing to serve it")
+    if not p.is_dir():
+        raise RuntimeError(f"POP_WEB_DIR {p} is not a directory (run app/scripts/build_web.sh)")
+    return p

@@ -1,3 +1,4 @@
+import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -108,6 +109,14 @@ kotlin {
             extraOpts("-libraryPath", proverXcf.resolve(iosSlices.getValue(it.name)).absolutePath)
         }
     }
+    // Web build (Kotlin/Wasm): ./gradlew :composeApp:wasmJsBrowserDistribution -Ppop.serverUrl=https://pop.enconomy.dev
+    @OptIn(ExperimentalWasmDsl::class)
+    wasmJs {
+        outputModuleName.set("popweb")
+        compilerOptions { optIn.add("kotlin.js.ExperimentalWasmJsInterop") }
+        browser { commonWebpackConfig { outputFileName = "popweb.js" } }
+        binaries.executable()
+    }
     compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
 
     sourceSets {
@@ -140,6 +149,13 @@ kotlin {
             implementation("androidx.camera:camera-view:1.4.2")
             implementation("com.google.mlkit:barcode-scanning:17.3.0")
         }
+        wasmJsMain.dependencies {
+            implementation("io.ktor:ktor-client-js:3.2.3")
+            implementation(npm("@noble/curves", "1.9.7"))
+            implementation(npm("@noble/hashes", "1.8.0"))
+            implementation(npm("qrcode-generator", "1.4.4"))
+            implementation(npm("jsqr", "1.4.0"))
+        }
         iosMain.dependencies {
             implementation("io.ktor:ktor-client-darwin:3.2.3")
         }
@@ -151,6 +167,26 @@ kotlin {
         }
     }
 }
+
+// settings.gradle.kts has FAIL_ON_PROJECT_REPOS: node / yarn / binaryen come from the ivy repos declared there,
+// so the Kotlin/Wasm plugins must not add their own download repos.
+@OptIn(ExperimentalWasmDsl::class)
+fun noWasmDownloadRepos(p: Project) {
+    p.plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsRootPlugin> {
+        p.extensions.findByType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec>()?.downloadBaseUrl?.set(null as String?)
+    }
+    p.plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsPlugin> {
+        p.extensions.findByType<org.jetbrains.kotlin.gradle.targets.wasm.nodejs.WasmNodeJsEnvSpec>()?.downloadBaseUrl?.set(null as String?)
+    }
+    p.plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnPlugin> {
+        p.extensions.findByType<org.jetbrains.kotlin.gradle.targets.wasm.yarn.WasmYarnRootEnvSpec>()?.downloadBaseUrl?.set(null as String?)
+    }
+    p.plugins.withType<org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenPlugin> {
+        p.extensions.findByType<org.jetbrains.kotlin.gradle.targets.wasm.binaryen.BinaryenEnvSpec>()?.downloadBaseUrl?.set(null as String?)
+    }
+}
+noWasmDownloadRepos(rootProject)
+noWasmDownloadRepos(project)
 
 compose.resources {
     packageOfResClass = "com.enconomy.pop.res"

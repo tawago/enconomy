@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#0f1115">
+  <title>PoP</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #0f1115; color: #e8e8ea; }
+    #pop-start {
+      position: fixed; inset: 0; z-index: 900; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 14px; padding: 16px; box-sizing: border-box; background: #0f1115;
+      font: 16px system-ui, -apple-system, sans-serif; text-align: center; cursor: pointer; user-select: none;
+    }
+    #pop-start b { font-size: 28px; letter-spacing: .02em; }
+    #pop-start .btn { padding: 14px 28px; border-radius: 999px; background: #e8e8ea; color: #0f1115; font-weight: 600; }
+    #pop-start small { opacity: .65; max-width: 420px; line-height: 1.4; }
+    #pop-start .err { color: #ff8a80; }
+  </style>
+</head>
+<body>
+  <div id="pop-start" role="button" tabindex="0">
+    <b>PoP</b>
+    <div class="btn">Tap to start</div>
+    <small>Allows the microphone and starts audio for this tab. Use the built-in speaker, volume up, keep this tab in front.</small>
+    <small class="err" id="pop-start-err"></small>
+  </div>
+  <script src="pop-audio.js"></script>
+  <script src="pop-qr.js"></script>
+  <script>
+    // Wake Lock while the app asks for it (runs, audio check); re-requested when the tab comes back.
+    (function () {
+      let want = false, lock = null;
+      async function sync() {
+        try {
+          if (want && !lock && document.visibilityState === 'visible' && navigator.wakeLock) {
+            lock = await navigator.wakeLock.request('screen');
+            lock.addEventListener('release', () => { lock = null; });
+          } else if (!want && lock) { const l = lock; lock = null; await l.release(); }
+        } catch (e) { lock = null; }
+      }
+      document.addEventListener('visibilitychange', sync);
+      window.popWake = { set: (on) => { want = !!on; sync(); } };
+    })();
+    // First gesture: AudioContext + mic (user-gesture rule), then reveal the app.
+    (function () {
+      const el = document.getElementById('pop-start');
+      const err = document.getElementById('pop-start-err');
+      function start() {
+        window.popAudio.unlock()
+          .then(() => el.remove())
+          .catch((e) => { err.textContent = 'Microphone / audio failed: ' + (e && e.message || e) + '. Tap to retry, or continue without audio.'; el.onclick = retry; });
+      }
+      let tries = 0;
+      function retry() { if (++tries >= 2) el.remove(); else start(); }
+      el.onclick = start;
+    })();
+  </script>
+  <script src="popweb.js"></script>
+</body>
+</html>

@@ -838,6 +838,7 @@ class PopController(
      */
     private fun startProof(ev: Popt2Evidence, res: ResultRecord, allowMetered: Boolean) {
         pendingProof = ev to res
+        if (keystore.platform == "web" && !ProverLib.available) { delegateProof(); return } // web: no local prover
         proofJob?.cancel()
         val set: (ProofStatus) -> Unit = { st -> _state.update { it.copy(proof = st) } }
         _state.update { it.copy(proofBusy = true) }

@@ -4,3 +4,6 @@ __pycache__/
 data/
 logs/
 .env
+
+# web build (app/scripts/build_web.sh)
+/web-app/
