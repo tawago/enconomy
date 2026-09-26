@@ -12,6 +12,8 @@ use std::sync::Once;
 #[cfg(feature = "witness")]
 pub mod witness;
 pub mod ffi;
+#[cfg(target_os = "android")]
+pub mod jni_android;
 
 /// Canonical Aztec BN254 [x]_2 (srs/factories/bn254_crs_data.hpp, BN254_G2_ELEMENT_BYTES).
 pub const G2: [u8; 128] = [

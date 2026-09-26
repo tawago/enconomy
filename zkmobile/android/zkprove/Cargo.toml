@@ -27,6 +27,9 @@ bn254_blackbox_solver = { git = "https://github.com/noir-lang/noir", tag = "v1.0
 noirc_abi = { git = "https://github.com/noir-lang/noir", tag = "v1.0.0-beta.22", optional = true }
 noirc_artifacts = { git = "https://github.com/noir-lang/noir", tag = "v1.0.0-beta.22", optional = true }
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = { version = "0.21", default-features = false }
+
 [build-dependencies]
 cc = "1"
 
