@@ -1,8 +1,22 @@
 # enconomy
 
+![Enconomy: ZK proof of presence](assets/hero.jpg)
+
 Proof of presence: two phones use sound to prove they were physically close.
 
 Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. A NEAR result can unlock a 2-of-4 Safe spend, or it can be recorded as a meeting under `enconomy.eth` on ENS. Both run on Ethereum Sepolia.
+
+```mermaid
+flowchart LR
+    A["Phone A<br/>hardware key"] -- "sound" --- B["Phone B<br/>hardware key"]
+    A -- "signed transcript + ZK proof" --> S["PoP server"]
+    B -- "signed transcript + ZK proof" --> S
+    W["World ID"] -. "two distinct humans" .-> S
+    S -- "NEAR attestation" --> R["Relayer"]
+    R -- "execTransaction" --> G["Safe + PopSafeGuard<br/>Sepolia"]
+    S -- "NEAR result" --> E["Bridge"]
+    E --> M["MeetResolver<br/>*.enconomy.eth"]
+```
 
 This is a hackathon build. It runs on testnet only, it has not been audited, and the field data is limited. See [Limitations](#limitations).
 
@@ -137,6 +151,31 @@ The codes are derived per session, role and attempt. The server sends a phone it
 4. A plays at `t0`. B plays at `t0 + 0.95 s`.
 
 Each recording ends up with both sounds in it.
+
+```mermaid
+sequenceDiagram
+    participant A as Phone A
+    participant S as Server
+    participant B as Phone B
+    A->>S: clock sync (10 pings)
+    B->>S: clock sync (10 pings)
+    S->>A: arm, t0, own code
+    S->>B: arm, t0, own code
+    Note over A,B: both record t0-0.5 s .. t0+2 s
+    A-->>B: A plays at t0
+    B-->>A: B plays at t0+0.95 s
+    A->>S: signed commit to recording
+    B->>S: signed commit to recording
+    S->>A: partner code
+    S->>B: partner code
+    Note over A,B: matched filter finds both arrivals, each phone computes its half
+    A->>S: signed transcript (half_A)
+    B->>S: signed transcript (half_B)
+    Note over S: combine halves, NEAR if under 60 cm
+    A->>S: phone proof
+    B->>S: phone proof
+    Note over S: verify both, prove pair statement
+```
 
 ### The distance formula
 
