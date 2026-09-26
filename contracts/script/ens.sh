@@ -21,7 +21,7 @@ ENS_KEY_FILE="${ENS_KEY_FILE:-$HOME/.enconomy/ens-sepolia.key}"
 RPC="${ETH_RPC:-https://ethereum-sepolia-rpc.publicnode.com}"
 PARENT="${ENS_PARENT:-enconomy.eth}"
 EVENT_NAME="${ENS_EVENT_NAME:-ETHGlobal Tokyo 2026}"
-SITE_URL="${ENS_SITE_URL:-https://enconomy.pages.dev/}"
+SITE_URL="${ENS_SITE_URL:-https://enconomy.dev/}"
 OUT="${ENS_OUT:-$HERE/deployments/sepolia.json}"
 CHAIN_ID=11155111
 

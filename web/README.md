@@ -37,13 +37,15 @@ open "http://127.0.0.1:8787/?name=alice"
 
 Against a fork: `anvil --fork-url https://ethereum-sepolia-rpc.publicnode.com`, deploy + bootstrap there, then `?rpc=http://127.0.0.1:8545` (add `&resolver=0x…` if the parent's resolver is not set on the fork).
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers)
+
+Live: https://enconomy.dev (Workers static-assets site `enconomy`, custom domain, workers.dev off). Config in `/wrangler.jsonc`; from the repo root:
 
 ```
-npx wrangler pages deploy web --project-name <name>
+npx wrangler deploy
 ```
 
-Direct upload, no build command, output directory `web`. Then point `siteUrl` on the MeetResolver (`setSite`) at the Pages URL so the `url` text record links here.
+No build step. The MeetResolver `siteUrl` is `https://enconomy.dev/`, so each name's `url` record is `https://enconomy.dev/?name=<label>.enconomy.eth`. To move it: `ENS_SITE_URL=<url> ./contracts/script/ens.sh bootstrap` (one `setSite` tx).
 
 ## snapshot.json (optional)
 

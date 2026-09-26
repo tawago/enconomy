@@ -1,6 +1,6 @@
 # bridge
 
-Laptop watcher: PoP server results -> `MeetResolver` txs on Ethereum Sepolia. Python 3 stdlib + foundry `cast`. Same key as `contracts/script/ens.sh` (`~/.enconomy/ens-sepolia.key`, attester).
+Laptop watcher: PoP server results -> `MeetResolver` txs on Ethereum Sepolia. Python 3 stdlib + foundry `cast`. Same key as `contracts/script/ens.sh` (`~/.enconomy/ens-sepolia.key`, attester). Runs on the PoP server's laptop and reads its data dir directly (the public https://pop.enconomy.dev is only a tunnel to that same server on :8001).
 
 ```sh
 cd bridge
