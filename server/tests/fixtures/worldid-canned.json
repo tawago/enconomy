@@ -1,0 +1,73 @@
+{
+ "_note": "Canned IDKit results as fake-sidecar.mjs returns them for the G vector session (doc 01 \u00a75). rp nonce = hash_to_field(bytes 0..31). signal_hash is omitted on purpose: the server overwrites it (\u00a76.4 step 4); expected values listed below.",
+ "session_id": "00112233445566778899aabbccddeeff",
+ "session_nonce": "0x2b9a8528bf222c8cf60dd97fb416183376bd4bc5425b29c02583518590ef75c9",
+ "expected_signal_hash": {
+  "A": "0x002916db5141cfe5584c6de9cf6f45579e83422ecdf3260c31e30bc7f2b964c6",
+  "B": "0x0097c2b664c193be4b2699e4224cd1c6c3bb1f8de93919ebee7d7e346f25ff2b"
+ },
+ "A": {
+  "protocol_version": "4.0",
+  "nonce": "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd",
+  "action": "pop:00112233445566778899aabbccddeeff",
+  "environment": "fake",
+  "responses": [
+   {
+    "identifier": "proof_of_human",
+    "issuer_schema_id": 1,
+    "nullifier": "0x003fde38d290c6d3d2982ab36b50714074a159f7dfefe30b8948ea9f5e2187d5",
+    "expires_at_min": 1790000000,
+    "proof": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5"
+    ]
+   }
+  ]
+ },
+ "B": {
+  "protocol_version": "4.0",
+  "nonce": "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd",
+  "action": "pop:00112233445566778899aabbccddeeff",
+  "environment": "fake",
+  "responses": [
+   {
+    "identifier": "proof_of_human",
+    "issuer_schema_id": 1,
+    "nullifier": "0x00cbe3a6875eb72bfda174fd492d8786f8105aed8b5caa72f4e8201de5f80704",
+    "expires_at_min": 1790000000,
+    "proof": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5"
+    ]
+   }
+  ]
+ },
+ "same_human_B": {
+  "protocol_version": "4.0",
+  "nonce": "0x008ae1aa597fa146ebd3aa2ceddf360668dea5e526567e92b0321816a4e895bd",
+  "action": "pop:00112233445566778899aabbccddeeff",
+  "environment": "fake",
+  "responses": [
+   {
+    "identifier": "proof_of_human",
+    "issuer_schema_id": 1,
+    "nullifier": "0x003fde38d290c6d3d2982ab36b50714074a159f7dfefe30b8948ea9f5e2187d5",
+    "expires_at_min": 1790000000,
+    "proof": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5"
+    ]
+   }
+  ]
+ },
+ "expected_pair_tag": "0x19c8c50955be35f95720f1761b1b23b172d733e3d1c38c683105e4375dea89cc"
+}

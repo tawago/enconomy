@@ -15,8 +15,12 @@ def clock():
 def make_client(clock, tmp_path):
     def make(allow_unattested: bool = False, **kw):
         kw.setdefault("issuer_key_file", str(tmp_path / "issuer.pem"))
+        kw.setdefault("worldid_signing_key_file", str(tmp_path / "worldid-rp.key"))
+        kw.setdefault("worldid_bg_poll", False)
+        kw.setdefault("worldid_poll_s", 0.0)
+        transport = kw.pop("worldid_transport", None)
         cfg = Settings(db=":memory:", allow_unattested=allow_unattested, now_ms=clock, data_dir=str(tmp_path), **kw)
-        return TestClient(create_app(cfg, SqliteStore(":memory:")))
+        return TestClient(create_app(cfg, SqliteStore(":memory:"), worldid_transport=transport))
     return make
 
 

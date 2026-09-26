@@ -30,6 +30,18 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 | `POP_ZK_VK_DIR` | `POP_ZK_KEYS` | `oa2t_s48.vk`, `oa2t_s44.vk`; sha256-pinned in `pop/zk.py` (`VK_PINS`), else `circuit_unknown`. |
 | `POP_ZK_WRAP` | unset | Command prefix for the verifier, e.g. `research/sound-bound/spikes/zk/tools/heavy.sh zk-verify` on the 8 GB Mac. |
 | `POP_HOST`, `POP_PORT` | `0.0.0.0`, `8000` | Only used by `python -m pop`. |
+| `POP_WORLDID_APP_ID`, `POP_WORLDID_RP_ID` | unset | Portal app id and `rp_…`. RP unset = World ID off: a create with a `context` answers 503 `worldid_unavailable`. |
+| `POP_WORLDID_SIGNING_KEY_FILE` | `data/worldid-rp.key` | RP signer (secp256k1 hex, 0600, gitignored). `POP_WORLDID_SIGNING_KEY` (hex) wins over the file. |
+| `POP_WORLDID_SIDECAR` | `http://127.0.0.1:8787` | IDKit sidecar (`idkit-sidecar/`). |
+| `POP_WORLDID_RETURN_TO` | `enconomy://worldid` | `return_to` of every request. |
+| `POP_WORLDID_PORTAL` | `https://developer.world.org` | Portal base for `/api/v4/verify/{rp_id}` and `/api/v4/rp-status/{rp_id}`. |
+| `POP_WORLDID_POLL_S` | `1.5` | Sidecar poll interval. |
+| `POP_WORLDID_ALLOW_LEGACY` | `0` | Accept `identifier:"orb"` v3 proofs. Keep 0. |
+| `POP_WORLDID_FAKE` | `0` | Fake World ID (tests, live app tests). Refused (exit 2) unless `POP_TEST_KINDS=1`. Stores `environment:"fake"`. |
+| `POP_TEST_KINDS` | `0` | Enables `context.kind == "test"`. |
+| `POP_CHAIN_ID` | `4801` | The only accepted `context.chain_id`. |
+
+`python -m pop` also reads `server/.env` (gitignored; real env vars win). Run **one** uvicorn worker: World ID state is read-modify-write on the session doc and relies on a single event loop.
 
 ### How phones reach it
 
@@ -39,6 +51,39 @@ uv run uvicorn --factory pop.main:create_app --host 0.0.0.0 --port 8000
 Both phones must use the same base URL. The invite does not carry the server URL.
 
 Check it: `curl http://<ip>:8000/health`.
+
+## World ID gate
+
+Spec: `docs/worldid/01-shared-worldid-presence.md` §6, §7.2, §9, §10. Code: `pop/human.py` (verify pipeline, nullifier table `wid_nullifiers`, per-role state machine, sidecar polls), `pop/worldid_rp.py` (rp_context signer, pure Python port of the worldid-spike signer, pinned to the §6.3 vectors).
+
+A session created with a `context` (or `policy: {human: "worldid"}`) needs a verified Proof of Human from **two different humans** before `arm` (else 409 `human_missing`). Per role, after the guest joined:
+
+| route | what |
+|---|---|
+| `POST /v1/session/{sid}/worldid/start` (signed, member) | `{request_id, connector_uri, expires_at_s, status}`. One request per role (action `pop:<sid>`, signal `0x` + nonce + role byte). Reused if under 240 s old, else re-signed. 409 `not_joined`, `already_verified`, `bad_state` (no World ID policy, or the session is done/aborted: a failed run needs a new session); 503 `worldid_unavailable` (no RP/key, sidecar down) |
+| `GET /v1/session/{sid}/worldid?timeout_s=` (signed, member, ≤ 25 s) | `{role, status, error, partner:{status}, pair_tag}` (+ `connector_uri` while pending). Returns on the next status change |
+
+Status per role: `idle → requested → waiting → awaiting → verifying → verified`, or `failed` with `error` = `same_human` (409 in 01 §6.9), `human_invalid`, `human_level`, `human_expired` (300 s), `user_rejected` / other IDKit error, `worldid_unavailable` (sidecar lost the request). `start` again after `failed` gives a new request, same action. Verify pins `identifier == proof_of_human`, `issuer_schema_id == 1`, the action, a nonce we issued to that role, recomputes and overwrites `signal_hash`, reserves the nullifier (same role = idempotent, other role = `same_human`), persists the raw result, then calls the Portal (3 retries on 5xx/network; requires `success` and `environment == "production"`). A Portal reject releases the nullifier. The view shows `human: {A:{status,error?}, B:…, pair_tag}`; the result record carries full per-role results (proofs) and `pair_tag`. `/v1/config` has `worldid` and `chain`; `/health` has `worldid: {enabled, fake, sidecar_ok, rp_status}`.
+
+Real run (two terminals):
+
+```sh
+cd server/idkit-sidecar && npm ci && node index.mjs          # 127.0.0.1:8787, /health -> {"ok":true,"idkit":"4.2.4"}
+cd server && uv run python -m pop                             # with POP_WORLDID_APP_ID/RP_ID in server/.env, key in data/worldid-rp.key
+```
+
+Fake mode (no Portal, no bridge, no humans; never a production-tagged result):
+
+```sh
+node server/idkit-sidecar/fake.mjs            # FAKE_POLLS=2, FAKE_SAME_HUMAN=1 (both roles one nullifier), FAKE_REJECT=1 (user_rejected)
+cd server && POP_DATA_DIR=/tmp/pop-live POP_DB=/tmp/pop-live/pop.sqlite POP_ISSUER_KEY_FILE=/tmp/pop-live/issuer.pem \
+  POP_ALLOW_UNATTESTED=1 POP_TEST_KINDS=1 POP_WORLDID_FAKE=1 POP_WORLDID_APP_ID=app_test POP_WORLDID_RP_ID=rp_0000000000000001 \
+  POP_WORLDID_SIGNING_KEY_FILE=/tmp/pop-live/worldid-rp.key POP_PORT=8765 uv run python -m pop
+```
+
+In fake mode the RP key file is generated if missing, and the log says `*** FAKE WORLD ID: TEST IDENTITIES, NO REAL HUMANS ***`.
+
+Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call, ENS fixed actions.
 
 ## Tests
 
@@ -62,6 +107,7 @@ uv run pytest -q
 | `test_flow_v2.py` | fake phones on v2 (`tests/sim2.py`): NEAR with real rec_root, codes on the wire, too far, mixed v1 + v2 pair, bad code_commit / delta final, 50 ms tolerance edge, POPC version vs arm, v1-armed phone sending v2, `popt` validation, non-canonical rec_root, rec_root recording upload |
 | `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
 | `test_flow_fake_phones.py` | two fake phones (`tests/sim.py`, software keys, `dsp_ref` as DSP) over HTTP: NEAR at 0/30 cm, NOT_NEAR `too_far` at 100/200 cm with no retry, glitch (20 ms zero block) -> retry -> NEAR, two failures -> final, timeout -> retry, stale transcript/fail after a retry, swapped role (sign flip), relayed partner transcript, tampered bytes, every field check, replay from another session, transcript before commit, impossible flight and self-timestamp retries, `/fail` checks, result access, offline `verify_record` on swapped records, recording upload hash check, and a real field recording as room background (skipped without the wavs) |
+| `test_worldid.py` | rp_context vectors (§6.3), nonce is a field element, pairTag vectors; fake-mode happy path (sidecar request body, reuse < 240 s, `human_missing` arm gate, statuses, pair_tag, `already_verified`); sim2 fake phones with a context + World ID -> NEAR, record has humans + pair_tag; `same_human` then retry with another human; same proof again = idempotent, A's nullifier for B = `same_human`; proof replayed into another session; bad signal / action / nonce / two responses / schema 128 / `orb` -> `human_invalid` / `human_level`; `user_rejected`; expiry (240 s re-sign, 300 s `human_expired`, restart); `not_joined`, no-policy and aborted sessions refused, non-member 403; sidecar down 503; no key 503; fake needs `POP_TEST_KINDS`; Portal path: signal overwrite, 503×2 then ok, 400 releases the nullifier, wrong environment, staging result; concurrent verifies + confirm |
 | `test_pairing.py` | create + invite decode + host key hint; join; 404 / self_join / bad_token / token_expired / already_joined / not_member; confirm (nonce appears only after both confirm); long-poll wake-up and timeout; abort; 10-min expiry; seed never in a response |
 
 Tests use a fake clock and `SqliteStore(":memory:")`. The fake phones in `tests/phones.py` hold software P-256 keys and sign exactly like the app will.

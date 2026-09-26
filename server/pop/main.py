@@ -41,6 +41,7 @@ from pop.crypto import device_id as derive_device_id, load_pub
 from pop import issuer as sbcred
 from pop import consumers, jbl250, popt2, zk
 from pop.errors import PopError
+from pop.human import WorldID
 from pop.sessions import Sessions
 from pop.verdict import Reject
 from pop.store import SqliteStore, Store
@@ -90,6 +91,17 @@ class Settings:
     test_kinds: bool = field(default_factory=lambda: _env_bool("POP_TEST_KINDS", False))
     worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
     worldid_fake: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_FAKE", False))
+    worldid_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_APP_ID") or None)
+    worldid_signing_key: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_SIGNING_KEY") or None)
+    worldid_signing_key_file: str = field(default_factory=lambda: os.environ.get(
+        "POP_WORLDID_SIGNING_KEY_FILE", str(SERVER_DIR / "data" / "worldid-rp.key")))
+    worldid_env: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_ENV", "production"))
+    worldid_allow_legacy: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_ALLOW_LEGACY", False))
+    worldid_sidecar: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_SIDECAR", "http://127.0.0.1:8787"))
+    worldid_return_to: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_RETURN_TO", "enconomy://worldid"))
+    worldid_portal: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_PORTAL", "https://developer.world.org"))
+    worldid_poll_s: float = field(default_factory=lambda: float(os.environ.get("POP_WORLDID_POLL_S", "1.5")))
+    worldid_bg_poll: bool = True   # tests turn it off and drive polls through the status long-poll
     now_ms: Callable[[], int] = wall_ms
 
 
@@ -207,21 +219,26 @@ class FailIn(BaseModel):
     reason: Any = None
 
 
-def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None) -> FastAPI:
-    """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it)."""
+def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None,
+               worldid_transport=None) -> FastAPI:
+    """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it).
+    worldid_transport: an httpx transport for the IDKit sidecar + Portal calls (tests pass httpx.MockTransport)."""
     cfg = settings or Settings()
     if cfg.worldid_fake and not cfg.test_kinds:
-        raise RuntimeError("POP_WORLDID_FAKE=1 requires POP_TEST_KINDS=1")
+        raise RuntimeError("POP_WORLDID_FAKE requires POP_TEST_KINDS=1")
+    if cfg.worldid_env != "production" and not cfg.worldid_fake:
+        raise RuntimeError("POP_WORLDID_ENV must be production (the staging path is cut, worldid 01 §0.5)")
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir, cfg.tune_db)
     issuer = sbcred.Issuer(sbcred.load_key(cfg.issuer_key, cfg.issuer_key_file, cfg.issuer_autogen), cfg.cred_ttl_s)
 
     zkv = verifier or zk.Verifier(cfg.zk_verifier, cfg.zk_vk_dir or cfg.zk_keys, cfg.zk_wrap)
+    wid = WorldID(cfg, sessions, db, worldid_transport)
 
     app = FastAPI(title="pop-v1")
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
-    app.state.zk = zkv
+    app.state.zk, app.state.worldid = zkv, wid
 
     @app.exception_handler(PopError)
     async def _pop_error(_req, e: PopError):
@@ -255,7 +272,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     @app.get("/health")
     @app.get("/v1/health")
     async def health():
-        return {"ok": True, "proto": K.PROTO, "server_ms": cfg.now_ms(), "allow_unattested": cfg.allow_unattested}
+        return {"ok": True, "proto": K.PROTO, "server_ms": cfg.now_ms(), "allow_unattested": cfg.allow_unattested,
+                "worldid": await wid.health()}
 
     @app.get("/v1/time")
     async def server_time():
@@ -268,7 +286,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 "tune_db_applied": {sr: {r: min(cfg.tune_db, v) for r, v in m.items()} for sr, m in mx.items()},
                 "upload_recordings": cfg.upload_recordings, "issuer": issuer.public(), "popt2_rates": popt2.config(),
                 "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
-                       "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}}}
+                       "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR}},
+                "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id}}
 
     # -- option A proving keys: public, static, Range for resume (docs/pop-prover.md)
     @app.get("/v1/zk/keys")
@@ -398,6 +417,19 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         s = sessions.load(sid)
         role = sessions.member(s, dev)
         return sessions.view(sessions.confirm(s, role), role)
+
+    # -- World ID (worldid 01 §6, §7.2, §9 rows 4/5)
+    @app.post("/v1/session/{sid}/worldid/start")
+    async def worldid_start(sid: str, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return await wid.start(s, role)
+
+    @app.get("/v1/session/{sid}/worldid")
+    async def worldid_status(sid: str, timeout_s: float = 0, dev: dict = Depends(device)):
+        s = sessions.load(sid)
+        role = sessions.member(s, dev)
+        return await wid.status(s["session_id"], role, timeout_s)
 
     # -- setup + commit-then-reveal (§4.3, §4.4, §5.2)
     @app.post("/v1/session/{sid}/arm")
