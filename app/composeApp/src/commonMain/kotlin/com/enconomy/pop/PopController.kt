@@ -45,6 +45,9 @@ val DEFAULT_BASE_URL: String = PopBuildConfig.SERVER_URL
 /** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"). */
 const val AUDIO_MODE_PREF = "audio.mode"
 
+/** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
+const val DEFAULT_AUDIO_MODE = "videoRecording"
+
 enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
 
 data class Enrollment(
@@ -109,7 +112,13 @@ data class UiState(
     val audioMode: String = "",
     /** Audio check only; runs always force the speaker. */
     val forceSpeaker: Boolean = true,
-)
+    /** /v1/config "tune_db" (null = not seen). */
+    val serverTuneDb: Double? = null,
+    /** Audio check tune boost picked on screen (null = follow the server's tune_db, else 0). */
+    val audioTuneDb: Double? = null,
+) {
+    val tuneDb: Double get() = audioTuneDb ?: serverTuneDb ?: 0.0
+}
 
 /**
  * App shell state. Enrollment is keyed on the device key only; a server that does not
@@ -310,8 +319,9 @@ class PopController(
         val up = (cfg["upload_recordings"] as? kotlinx.serialization.json.JsonPrimitive)?.content != "false"
         val v2 = Popt2Config.from(cfg)
         popt2 = v2
+        val tune = (cfg["tune_db"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull()
         _state.update {
-            it.copy(uploadRecordings = up, configOk = bad.isEmpty(), popt2Available = v2 != null,
+            it.copy(uploadRecordings = up, serverTuneDb = tune ?: it.serverTuneDb, configOk = bad.isEmpty(), popt2Available = v2 != null,
                 error = if (bad.isEmpty()) it.error else "config_mismatch: ${bad.joinToString()}")
         }
         return bad.isEmpty()
@@ -583,8 +593,16 @@ class PopController(
     fun openAudioCheck() {
         go(Screen.AudioCheck)
         val modes = runCatching { engine.sessionModes }.getOrDefault(emptyList())
-        val mode = state.value.audioMode.takeIf { it in modes } ?: modes.firstOrNull() ?: ""
+        val mode = state.value.audioMode.takeIf { it in modes } ?: DEFAULT_AUDIO_MODE.takeIf { it in modes }
+            ?: modes.firstOrNull() ?: ""
         _state.update { it.copy(audioModes = modes, audioMode = mode, audioCheck = null, audioRoute = runCatching { engine.route() }.getOrNull()) }
+        if (state.value.serverTuneDb == null) checkConfig()
+    }
+
+    /** Audio check only: tune boost in dB (the server's POP_TUNE_DB sets the real play sound). */
+    fun setTuneDb(db: Double) {
+        if (state.value.audioCheckRunning) return
+        _state.update { it.copy(audioTuneDb = db, audioCheck = null) }
     }
 
     /** iOS session mode for the check and for real runs (Prefs "audio.mode"). */
@@ -615,14 +633,16 @@ class PopController(
                 _state.update { it.copy(preflight = pre) }
                 if (!pre.micPermission) error("Microphone permission needed.")
                 val sr = pre.sampleRate
-                val play = withContext(Dispatchers.Default) { TestSound.generate(sr) }
-                engine.prepare(sr, play)
+                val tuneDb = state.value.tuneDb
+                val mix = withContext(Dispatchers.Default) { TestSound.generate(sr, tuneDb) }
+                engine.prepare(sr, mix.play)
                 val before = engine.route()
                 val plan = RunPlan('A', sr, 0L, monoNanos() + 1_400_000_000L)
                 val cap = engine.run(plan)
                 engine.release()
                 val lv = withContext(Dispatchers.Default) { cap.selfHear() }
-                val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings)
+                val res = AudioCheckResult(cap.route ?: before, lv, cap.tsSource, cap.outputLatencyMs, pre.problems + pre.warnings,
+                    mix.requestedDb, mix.appliedDb, mix.peak)
                 println("PopAudio check ${res.verdict} route=${res.route} levels=$lv")
                 _state.update { it.copy(audioCheck = res, audioRoute = res.route, status = "audio check: ${res.verdict}") }
             } catch (e: CancellationException) {

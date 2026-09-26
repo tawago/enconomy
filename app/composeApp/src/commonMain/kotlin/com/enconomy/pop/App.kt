@@ -149,6 +149,14 @@ private fun AudioCheck(s: UiState, c: PopController) {
             Text(if (s.forceSpeaker) "Force speaker: ON (tap for OFF, check only)" else "Force speaker: OFF (tap for ON)", fontSize = 13.sp)
         }
     }
+    Text("Tune boost (check only; server tune_db ${s.serverTuneDb?.let { f1(it) } ?: "?"} dB)", fontSize = 12.sp, color = Color.Gray)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        for (d in TuneBoost.STEPS_DB) {
+            val label = if (d == 0.0) "0" else "+${d.toInt()}"
+            if (d == s.tuneDb) Button(onClick = {}, enabled = !busy) { Text(label, fontSize = 12.sp) }
+            else OutlinedButton(onClick = { c.setTuneDb(d) }, enabled = !busy) { Text(label, fontSize = 12.sp) }
+        }
+    }
     s.audioRoute?.let { r -> if (s.audioCheck == null) Label("route now", routeText(r)) }
     val askMic = rememberMicPermissionRequest { if (it) c.audioCheck() }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -171,6 +179,8 @@ private fun AudioCheck(s: UiState, c: PopController) {
                 Label("mode", r.route.mode)
                 Label("sample rate", "${r.route.sampleRate} Hz, latency ${r.latencyMs?.let { f1(it) } ?: "?"} ms, ts ${r.tsSource}")
                 if (r.route.detail.isNotEmpty()) Label("detail", r.route.detail)
+                Label("tune boost", "+${f1(r.tuneRequestedDb)} dB asked, +${f1(r.tuneAppliedDb)} dB applied, " +
+                    "play peak ${f1(r.playPeak * 100)}% (${f1(20 * kotlin.math.log10(r.playPeak))} dBFS)")
                 Mono(
                     "band          self    floor   margin\n" +
                         "200-1600 Hz ${pad(lv.lowDb)} ${pad(lv.floorLowDb)} ${pad(lv.lowMarginDb)}\n" +

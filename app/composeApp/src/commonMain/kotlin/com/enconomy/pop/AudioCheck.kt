@@ -47,10 +47,26 @@ data class AudioRoute(
  * Local stand-in for the server's JBL250 play sound (server/pop/jbl250.py): the public two-note
  * tune (partials < 1800 Hz) plus a 0.25 s random-phase multisine on the 4 Hz grid over 2-18 kHz at
  * −6 dB re tune, faded, scaled to RMS 0.15. Fixed seed; no session needed.
+ *
+ * Tune boost (server render(tune_db)): bed and tune at the tune_db = 0 scale, then
+ * play = bed + g·tune, g = 10^(tune_db/20) peak-limited on the tune only ([TuneBoost]).
  */
 object TestSound {
     private val NOTES = mapOf('A' to doubleArrayOf(329.628, 440.0), 'B' to doubleArrayOf(523.251, 391.995))
     private val HARM = doubleArrayOf(1.0, 0.25, 0.08)
+
+    /** Scaled (bed, tune) exactly as the tune_db = 0 sound: that sound is bed + tune. */
+    fun parts(sr: Int, role: Char = 'A', seed: Int = 250): Pair<DoubleArray, DoubleArray> {
+        val n = AudioTiming.codeFrames(sr)
+        val tune = fade(tune(n, sr, role), sr)
+        val bed = multisine(n, sr, Random(seed))
+        val g = rms(tune) * 10.0.pow(-6.0 / 20) / rms(bed)
+        for (i in bed.indices) bed[i] *= g
+        fade(bed, sr)
+        val s = PopConstants.TARGET_RMS / rms(DoubleArray(n) { tune[it] + bed[it] })
+        for (i in 0 until n) { bed[i] *= s; tune[i] *= s }
+        return bed to tune
+    }
 
     fun generate(sr: Int, role: Char = 'A', seed: Int = 250): FloatArray {
         val n = AudioTiming.codeFrames(sr)
@@ -62,6 +78,17 @@ object TestSound {
         val sum = DoubleArray(n) { tune[it] + bed[it] }
         val s = PopConstants.TARGET_RMS / rms(sum)
         return FloatArray(n) { (s * sum[it]).toFloat() }
+    }
+
+    /** Test sound with the tune boosted by [tuneDb] (0 = [generate] exactly). */
+    fun generate(sr: Int, tuneDb: Double, role: Char = 'A', seed: Int = 250): TuneBoost.Mix {
+        if (tuneDb == 0.0) {
+            val x = generate(sr, role, seed)
+            val (bed, tune) = parts(sr, role, seed)
+            return TuneBoost.Mix(x, 0.0, 0.0, TuneBoost.limit(bed, tune).second, x.maxOf { abs(it) }.toDouble())
+        }
+        val (bed, tune) = parts(sr, role, seed)
+        return TuneBoost.mix(bed, tune, tuneDb)
     }
 
     private fun raised(t: Double, T: Double) = 0.5 * (1 - cos(PI * (t / T).coerceIn(0.0, 1.0)))
@@ -115,6 +142,40 @@ object TestSound {
     }
 
     fun rms(x: DoubleArray): Double = sqrt(x.sumOf { it * it } / x.size)
+}
+
+/**
+ * Tune-only boost, same rule as server jbl250.tune_limit/render: the bed is never scaled; if
+ * max|bed + g·tune| would pass MAX_PEAK, g drops to the exact per-sample bound × 0.999. No clipping.
+ */
+object TuneBoost {
+    /** Selector steps on the audio check screen. */
+    val STEPS_DB = doubleArrayOf(0.0, 4.0, 8.0, 12.0)
+    const val MARGIN = 0.999
+
+    /** [play] = bed + g·tune; applied/max in dB (max = exact peak bound); peak = max|play|. */
+    class Mix(val play: FloatArray, val requestedDb: Double, val appliedDb: Double, val maxDb: Double, val peak: Double)
+
+    /** (g, gMax): gMax = min over samples of (P − b·sign t)/|t|; g = requested gain if ≤ gMax, else gMax·0.999. */
+    fun limit(bed: DoubleArray, tune: DoubleArray, tuneDb: Double = 0.0, maxPeak: Double = PopConstants.MAX_PEAK): Pair<Double, Double> {
+        var gMax = Double.POSITIVE_INFINITY
+        for (i in bed.indices) {
+            val t = tune[i]
+            if (t == 0.0) continue
+            val v = (maxPeak - bed[i] * (if (t > 0) 1.0 else -1.0)) / abs(t)
+            if (v < gMax) gMax = v
+        }
+        val g = 10.0.pow(tuneDb / 20)
+        return (if (g <= gMax) g else maxOf(0.0, gMax * MARGIN)) to gMax
+    }
+
+    fun mix(bed: DoubleArray, tune: DoubleArray, tuneDb: Double): Mix {
+        val (g, gMax) = limit(bed, tune, tuneDb)
+        val y = FloatArray(bed.size) { (bed[it] + g * tune[it]).toFloat() }
+        return Mix(y, tuneDb, db(g), db(gMax), y.maxOf { abs(it) }.toDouble())
+    }
+
+    fun db(g: Double): Double = if (g > 0) 20 * log10(g) else Double.NEGATIVE_INFINITY
 }
 
 /**
@@ -222,6 +283,10 @@ data class AudioCheckResult(
     val tsSource: String,
     val latencyMs: Double?,
     val warnings: List<String>,
+    /** Tune boost as played: requested / applied dB (after peak limiting) and play peak (full scale 1). */
+    val tuneRequestedDb: Double = 0.0,
+    val tuneAppliedDb: Double = 0.0,
+    val playPeak: Double = 0.0,
 ) {
     val verdict: String get() = when {
         !route.isSpeaker -> "Wrong output: ${route.output}"

@@ -119,8 +119,8 @@ internal fun sessionRate(hw: Double): Int? = round(hw).toInt().takeIf { it in Po
 /**
  * Contract §4.2-§4.4 on iOS (decision note §4).
  *
- * Session: .playAndRecord, mode from Prefs "audio.mode" (default .measurement; .default and
- * .videoRecording selectable on the audio check screen), .defaultToSpeaker, 48 kHz preferred, then
+ * Session: .playAndRecord, mode from Prefs "audio.mode" (default .videoRecording, DEFAULT_AUDIO_MODE; .measurement and
+ * .default selectable on the audio check screen), .defaultToSpeaker, 48 kHz preferred, then
  * overrideOutputAudioPort(.speaker) after every activation (a category set or route change clears
  * it). The route is re-checked right before the sound is scheduled; not on the built-in speaker =
  * capture_failed. Voice processing stays off (asserted on the input node).
@@ -158,7 +158,7 @@ class IosAudioEngine : AudioEngine {
 
     override fun setForceSpeaker(on: Boolean) { forceSpeaker = on }
 
-    private fun wantedMode(): String = IOS_MODES[Prefs.get(AUDIO_MODE_PREF)] ?: IOS_MODES.getValue("measurement")
+    private fun wantedMode(): String = IOS_MODES[Prefs.get(AUDIO_MODE_PREF)] ?: IOS_MODES.getValue(DEFAULT_AUDIO_MODE)
 
     private fun <T> nsCall(what: String, f: (kotlinx.cinterop.CPointer<ObjCObjectVar<NSError?>>) -> T): T = memScoped {
         val e = alloc<ObjCObjectVar<NSError?>>()
