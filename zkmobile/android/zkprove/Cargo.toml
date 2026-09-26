@@ -1,0 +1,30 @@
+[package]
+name = "zkprove"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "zkprove"
+path = "src/main.rs"
+
+[features]
+default = []
+witness = []
+
+[dependencies]
+# ffi backend links libbb-external.a from BB_LIB_DIR (see build_android.sh); same nightly as the team's bb CLI
+barretenberg-rs = { version = "=5.0.0-nightly.20260522", default-features = false, features = ["ffi"] }
+flate2 = "1"
+serde_json = "1"
+base64 = "0.22"
+
+[build-dependencies]
+cc = "1"
+
+[profile.release]
+debug = false
+strip = "debuginfo"
