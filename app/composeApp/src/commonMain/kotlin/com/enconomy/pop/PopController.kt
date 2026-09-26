@@ -601,9 +601,9 @@ class PopController(
 
     // ---- context gate (docs/worldid/01 §7.1, §12) ----
 
-    /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the debug `test` kind passes. */
+    /** Known consumers come from 02 ("My Safes") / 03 (popctx1); until then only the `test` kind passes (all builds, for the demo). */
     private fun gate(sid: String, context: JsonObject?, notBefore: Long?, nonce: String?): ContextGate.Result =
-        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = mySafes(), allowTestKind = isDebugBuild(),
+        ContextGate.check(sid, context, notBefore, nonce, knownConsumers = mySafes(), allowTestKind = true,
             expectCtxHash = { kind, ctx -> if (kind == SafeTx.KIND) SafeTx.expectCtxHash(ctx) else null })
 
     // ---- Safe spend (docs/worldid/02 §9) ----
