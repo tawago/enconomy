@@ -30,6 +30,8 @@ class PopRound(
     val attempt: Int,
     requireCaptureFrames: Boolean = true,
     val selfOsTolFrames: Double = PopConstants.SELF_OS_TOL_MS * sr / 1000.0,
+    /** Enrollment calibration, µs (0 = none): the check is |self_os_delta − cal_frames| ≤ tol. */
+    val calUs: Long = 0,
 ) {
     sealed class Step {
         data class Failed(val reason: String, val arrival: Arrival? = null) : Step()
@@ -62,7 +64,7 @@ class PopRound(
         self = a
         if (!a.found) return Step.Failed(DspReason.SELF_NOT_HEARD, a)
         val delta = pyRound(a.frame - expectedSelf)
-        if (abs(delta) > selfOsTolFrames) return Step.Failed(DspReason.SELF_TIMESTAMP_MISMATCH, a)
+        if (abs(delta - calUs * sr / 1e6) > selfOsTolFrames) return Step.Failed(DspReason.SELF_TIMESTAMP_MISMATCH, a)
         return Step.SelfOk(a, delta)
     }
 

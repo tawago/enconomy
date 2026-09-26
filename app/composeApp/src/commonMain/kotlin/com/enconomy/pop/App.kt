@@ -251,8 +251,11 @@ private fun Enroll(s: UiState, c: PopController) {
                 colors = popTextFieldColors(),
                 modifier = Modifier.fillMaxWidth(),
             )
+            // mic first: enrollment runs the calibration (5 audio checks); refused = enroll without it
+            val askMic = rememberMicPermissionRequest { granted -> c.enroll(calibrate = granted) }
             PrimaryButton(
-                if (s.busy) "Setting up…" else "Enroll this phone", c::enroll, Modifier.fillMaxWidth(),
+                if (s.busy) (s.status.takeIf { it.startsWith("calibrating") }?.let { "Calibrating ${it.removePrefix("calibrating ")}…" } ?: "Setting up…")
+                else "Enroll this phone", askMic, Modifier.fillMaxWidth(),
                 enabled = s.displayName.isNotBlank(), loading = s.busy, icon = PopIcons.Key,
             )
         }
@@ -326,6 +329,7 @@ private fun Home(s: UiState, c: PopController) {
                 Field("device", e.deviceId)
                 Field("key", "${e.securityLevel}, ${if (e.attested) "attested" else "unattested"}")
                 Field("credential", e.credExpiry?.let { "SBcred3, expires ${formatUnixDay(it)}" } ?: "none")
+                Field("calibration", e.calUs?.let { "self offset ${Calibration.text(it)}" } ?: "none (tap Recalibrate)")
                 Field("transcript", transcriptText(s))
             }
         }
@@ -365,6 +369,11 @@ private fun Home(s: UiState, c: PopController) {
             SectionLabel("Tools")
             Panel(spacing = 4.dp, padding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 8.dp)) {
                 NavRow(PopIcons.Speaker, "Audio check", "Test that this phone hears its own sound", c::openAudioCheck, enabled = !s.busy)
+                Hairline()
+                val askMic = rememberMicPermissionRequest { if (it) c.recalibrate() }
+                NavRow(PopIcons.Refresh, "Recalibrate",
+                    if (s.busy && s.status.startsWith("calibrating")) "Measuring… ${s.status.removePrefix("calibrating")}"
+                    else "Measure this phone's own audio delay (5 checks, keep it quiet)", askMic, enabled = !s.busy)
                 Hairline()
                 NavRow(PopIcons.Chip, "Prover bench", "Prove a bundled fixture on this phone", c::openBench, enabled = !s.busy)
                 Hairline()
@@ -918,6 +927,11 @@ private fun AudioCheck(s: UiState, c: PopController) {
                     Text(o.line(), style = Pop.mono.copy(fontWeight = FontWeight.SemiBold),
                         color = com.enconomy.pop.ui.toneColor(when (o.within) { true -> Tone.Good; false -> Tone.Bad; null -> Tone.Warn }))
                     FactRow("Self timestamp", "p_self ${o.pSelf ?: "?"}, a_self ${o.aSelf ?: "?"}, score ${o.score.let { kotlin.math.round(it * 1000) / 1000 }}")
+                    val cal = s.enrollment?.calUs
+                    if (cal != null && o.frames != null) {
+                        val ok = Calibration.selfOsOk(o.frames, o.sr, cal)
+                        FactRow("Calibrated", "${Calibration.text(Calibration.calibratedUs(o.frames, o.sr, cal))} after cal ${Calibration.text(cal)} — run self check ${if (ok) "passes" else "fails"}")
+                    }
                 }
                 MarginBar("2–18 kHz margin (needs ${SelfHear.OK_MARGIN_DB.toInt()} dB)", lv.highMarginDb, SelfHear.OK_MARGIN_DB, SelfHear.WEAK_MARGIN_DB)
                 Hairline()

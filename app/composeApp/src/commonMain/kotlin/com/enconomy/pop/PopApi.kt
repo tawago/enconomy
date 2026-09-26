@@ -57,6 +57,9 @@ data class EnrollReq(
     val app_attest: AppAttestReq? = null,
     /** SBcred3: Poseidon7(holder secret), 64 hex. Omitted for a server without an issuer (v1 enroll). */
     @EncodeDefault(EncodeDefault.Mode.NEVER) val holder_commit: String? = null,
+    /** Enrollment calibration ([Calibration]) + device-key signature over Calibration.message(nonce, it). */
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val calibration: CalibrationReq? = null,
+    @EncodeDefault(EncodeDefault.Mode.NEVER) val cal_sig_b64: String? = null,
 )
 
 /** base64 std both. */
@@ -68,6 +71,7 @@ data class EnrollResp(
     val attested: Boolean = false,
     val enrolled_at: JsonElement? = null,
     val credential: CredentialResp? = null,
+    val calibration: CalibrationResp? = null,
 )
 
 /** Issued when holder_commit was sent. cred/sig base64 std; sig raw r||s; issuer_pubkey 65 hex. */
@@ -107,7 +111,8 @@ data class CreateSessionResp(
 }
 
 @Serializable data class JoinReq(val join_token: String)
-@Serializable data class DeviceRef(val device_id: String, val display_name: String? = null)
+/** [cal_us] = this device's enrollment calibration as the server holds it (0 = none). */
+@Serializable data class DeviceRef(val device_id: String, val display_name: String? = null, val cal_us: Long? = null)
 
 @Serializable
 data class PartnerView(
@@ -116,6 +121,7 @@ data class PartnerView(
     val model: String? = null,
     val attested: Boolean = false,
     val pubkey: String? = null,
+    val cal_us: Long? = null,
 )
 
 @Serializable
@@ -279,6 +285,10 @@ class PopApi(
         call(HttpMethod.Post, "/v1/enroll", enc(EnrollReq.serializer(), req), EnrollResp.serializer(), signed = false)
 
     // ---- signed ----
+    /** Recalibrate: replace this device's calibration (signed request). */
+    suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
+        call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
+
     suspend fun createSession(req: SessionReq = SessionReq()): CreateSessionResp =
         call(HttpMethod.Post, "/v1/session", req.body(), CreateSessionResp.serializer())
 

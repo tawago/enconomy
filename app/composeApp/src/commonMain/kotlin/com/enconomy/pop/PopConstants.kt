@@ -38,6 +38,11 @@ object PopConstants {
     const val SELF_OS_TOL_MS = 50
     const val TRANSCRIPT_DEADLINE_S = 20
     const val MAX_ATTEMPTS = 2
+    /** Enrollment calibration ([Calibration], server pop/calibration.py). */
+    const val CAL_N = 5
+    const val CAL_SPREAD_MAX_US = 1000L
+    const val CAL_MAX_US = 50000L
+    const val CAL_NEG_CLAMP_US = 2000L
 
     /** Lowercase keys, as /v1/config sends them. */
     val table: Map<String, Any> = mapOf(
@@ -51,6 +56,8 @@ object PopConstants {
         "impossible_cm" to IMPOSSIBLE_CM, "near_cm" to NEAR_CM, "speed_of_sound_cm_s" to SPEED_OF_SOUND_CM_S,
         "self_os_tol_ms" to SELF_OS_TOL_MS, "transcript_deadline_s" to TRANSCRIPT_DEADLINE_S,
         "max_attempts" to MAX_ATTEMPTS,
+        "cal_n" to CAL_N, "cal_spread_max_us" to CAL_SPREAD_MAX_US, "cal_max_us" to CAL_MAX_US,
+        "cal_neg_clamp_us" to CAL_NEG_CLAMP_US,
     )
 
     /** Keys that differ from [cfg] (missing counts). Extra server keys are ignored. Empty = ok. */

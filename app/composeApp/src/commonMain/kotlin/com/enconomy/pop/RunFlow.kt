@@ -6,6 +6,7 @@ import com.enconomy.pop.dsp.PopRound
 import com.enconomy.pop.dsp.PopRound2
 import com.enconomy.pop.dsp.Popt2Code
 import com.enconomy.pop.dsp.Popt2Rate
+import com.enconomy.pop.dsp.pyRound
 import com.enconomy.pop.zk.CodeCommit
 import com.enconomy.pop.zk.Popt2Evidence
 import com.enconomy.pop.zk.RecTree
@@ -88,6 +89,8 @@ class PopRun(
     private val model: String = "",
     /** null = pop-v1 only. */
     private val popt2: Popt2Config? = null,
+    /** Enrollment calibration, µs (the server's self.cal_us; 0 = none). Local self check and meta only. */
+    private val calUs: Long = 0,
 ) {
     private val partnerRole = if (role == 'A') 'B' else 'A'
 
@@ -189,7 +192,7 @@ class PopRun(
         // Nulls only now: nothing CPU-heavy runs while the mic is open.
         val selfNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, role, k, sr) }
         status(RunPhase.SelfCheck, k)
-        val r = PopRound(cap.pcm, sr, role, sessionId, k)
+        val r = PopRound(cap.pcm, sr, role, sessionId, k, calUs = calUs)
         val expSelf = cap.expectedSelf()
         val self = selfNulls.await().let { n -> withContext(Dispatchers.Default) { r.selfCheck(ownBed, expSelf, n) } }
         if (self !is PopRound.Step.SelfOk) {
@@ -248,7 +251,7 @@ class PopRun(
         val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
         val tree = async(Dispatchers.Default) { RecTree.buildParallel(cap.pcm, 4) }
         status(RunPhase.SelfCheck, k)
-        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs)
+        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs, calUs = calUs)
         val expSelf = cap.expectedSelf()
         val self = withContext(Dispatchers.Default) { r.selfCheck(own, expSelf) }
         if (self !is PopRound2.Step.SelfOk) {
@@ -383,9 +386,17 @@ class PopRun(
         arrival("self", r.self)
         arrival("partner", r.partner)
         half?.let { put("half", it) }
+        r.self?.takeIf { it.found }?.let { calMeta(this, pyRound(it.frame - expSelf), cap.sr) }
         put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
         put("security_level", key.securityLevel)
         put("model", model)
+    }
+
+    /** Calibrated self offset: cal_us, raw self_os_delta, and what is left after calibration (µs). */
+    private fun calMeta(b: kotlinx.serialization.json.JsonObjectBuilder, delta: Int, sr: Int) {
+        b.put("cal_us", calUs)
+        b.put("self_os_delta", delta)
+        b.put("self_os_calibrated_us", Calibration.calibratedUs(delta, sr, calUs))
     }
 
     /** v2 meta: the integer rule's arrivals, predictions and scores (diagnostics, unsigned). */
@@ -404,6 +415,9 @@ class PopRun(
             r.partner?.let { a -> put("t_partner", a.frame); put("score_partner", a.score); put("search_partner", JsonArray(listOf(JsonPrimitive(a.lo), JsonPrimitive(a.hi)))) }
             half?.let { put("half", it) }
             r.provable?.let { put("zk_provable", it) }
+            val a = r.self?.frame
+            val p = r.pSelf
+            if (a != null && p != null) calMeta(this, a - p, cap.sr) else put("cal_us", calUs)
             recRoot?.let { put("rec_root", it.toHex()) }
             put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
             put("security_level", key.securityLevel)

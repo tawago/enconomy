@@ -117,6 +117,32 @@ class LiveServerRunTest {
         }
     }
 
+    /** Enrollment calibration signed by the JVM key, accepted by the server; recalibrate; cal_us in the view. */
+    @Test fun calibrationEnrollAndRecalibrate() {
+        if (url == null) { println("POP_LIVE_URL unset, skipping"); return }
+        runBlocking {
+            val k = JvmKey()
+            val api = PopApi(url, key = { k })
+            try {
+                val n = api.enrollNonce().nonce
+                val c = CalibrationReq(Calibration.fromSamples(listOf(12000, 11900, 12100, 12050, 11950)), 48000, "speaker", "aaudio",
+                    listOf(12000, 11900, 12100, 12050, 11950))
+                val r = api.enroll(EnrollReq(n, k.deviceId, k.pubkey.toHex(), "cal", "jvm", "software", null,
+                    calibration = c, cal_sig_b64 = k.sign(Calibration.message(n, c)).toB64()))
+                assertEquals(12000L, r.calibration?.cal_us)
+                val bad = runCatching {
+                    val n2 = api.enrollNonce().nonce
+                    api.enroll(EnrollReq(n2, k.deviceId, k.pubkey.toHex(), "cal", "jvm", "software", null,
+                        calibration = c, cal_sig_b64 = k.sign(Calibration.message(n, c)).toB64()))   // signed for another nonce
+                }.exceptionOrNull()
+                assertEquals("bad_calibration", (bad as PopHttpException).code)
+                assertEquals(30000L, api.recalibrate(c.copy(cal_us = 30000, samples_us = null)).calibration?.cal_us)
+                val s = api.createSession()
+                assertEquals(30000L, api.session(s.session_id).self?.cal_us)
+            } finally { api.close() }
+        }
+    }
+
     @Volatile private var lastPopt: Map<Char, Int> = emptyMap()
     @Volatile private var lastSession: String = ""
 

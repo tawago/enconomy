@@ -123,6 +123,11 @@ class Popt2RuleTest {
         val late = PopRound2(capture(30000 + 60 * sr / 1000 + 200), r48, 'A').selfCheck(own, 30000.0)
         assertIs<PopRound2.Step.Failed>(late)
         assertEquals(DspReason.SELF_TIMESTAMP_MISMATCH, late.reason)
+        // the same phone calibrated at 60 ms: |sod − cal| ≈ 4 ms, passes; at 10 ms it is still 54 ms off
+        val calOk = PopRound2(capture(30000 + 60 * sr / 1000 + 200), r48, 'A', calUs = 60_000).selfCheck(own, 30000.0)
+        assertIs<PopRound2.Step.SelfOk>(calOk)
+        assertEquals(DspReason.SELF_TIMESTAMP_MISMATCH,
+            (PopRound2(capture(30000 + 60 * sr / 1000 + 200), r48, 'A', calUs = 10_000).selfCheck(own, 30000.0) as PopRound2.Step.Failed).reason)
         // a tighter shared tolerance moves the bar
         assertEquals(DspReason.SELF_TIMESTAMP_MISMATCH,
             (PopRound2(capture(30000), r48, 'A', selfOsTolMs = 0).selfCheck(own, 30500.0) as PopRound2.Step.Failed).reason)
