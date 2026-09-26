@@ -297,6 +297,7 @@ h2 { font-size: 21px; font-weight: 700; }
 .snapshot th { font: 500 11px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3); }
 .snapshot td { font: 13px var(--mono); overflow-wrap: anywhere; }
 .snapshot .tw { overflow-x: auto; }
+.snapshot .fine { margin: 10px 0 4px; max-width: 880px; }
 
 /* footer */
 .foot {
