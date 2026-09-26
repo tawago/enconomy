@@ -1,0 +1,448 @@
+#!/usr/bin/env bash
+# PoP demo stack in one command. bash 3.2 (macOS default) compatible.
+#
+#   ./demo up [flags]     preflight, then run server, sidecar, bridge, relayer, tunnel (Ctrl-C stops all)
+#   ./demo check [flags]  preflight only
+#   ./demo status         what is running + `bridge status`
+#   ./demo help
+#
+# See `./demo help` and README.md "Demo stack".
+set -u
+
+ROOT=$(cd "$(dirname "$0")" && pwd)
+DEMO_DIR="$ROOT/.demo"
+LOGS="$DEMO_DIR/logs"
+RUN="$DEMO_DIR/run"
+SERVER_DIR="$ROOT/server"
+SIDECAR_DIR="$SERVER_DIR/idkit-sidecar"
+ENVFILE="$SERVER_DIR/.env"
+PIECES="server sidecar bridge relayer tunnel"
+
+SIDECAR_PORT=8787
+KEY_FILE=${ENS_KEY_FILE:-$HOME/.enconomy/ens-sepolia.key}
+ADDR_FILE=$HOME/.enconomy/ens-sepolia.addr
+ETH_RPC_EFF=${ETH_RPC:-https://ethereum-sepolia-rpc.publicnode.com}
+TUNNEL_CONFIG=${DEMO_TUNNEL_CONFIG:-$HOME/.cloudflared/enconomy-pop.yml}
+TUNNEL_NAME=${DEMO_TUNNEL_NAME:-enconomy-pop}
+MIN_ETH=0.05
+WEB_ORIGINS="https://webapp.enconomy.dev,https://pop-webapp.pages.dev"
+
+# ---------------------------------------------------------------- output
+
+if [ -t 1 ]; then
+  C_RED=$'\033[31m'; C_GRN=$'\033[32m'; C_YEL=$'\033[33m'; C_BLD=$'\033[1m'; C_OFF=$'\033[0m'
+else
+  C_RED=; C_GRN=; C_YEL=; C_BLD=; C_OFF=
+fi
+ok()   { printf '  %sok%s    %s\n' "$C_GRN" "$C_OFF" "$*"; }
+warn() { printf '  %swarn%s  %s\n' "$C_YEL" "$C_OFF" "$*"; WARNS=$((WARNS+1)); }
+bad()  { printf '  %sFAIL%s  %s\n' "$C_RED" "$C_OFF" "$*"; FAILS=$((FAILS+1)); }
+info() { printf '        %s\n' "$*"; }
+say()  { printf '%s[demo]%s %s\n' "$C_BLD" "$C_OFF" "$*"; }
+WARNS=0; FAILS=0
+
+tag_color() {
+  [ -t 1 ] || return 0
+  case $1 in
+    server) printf '\033[36m' ;; sidecar) printf '\033[35m' ;; bridge) printf '\033[34m' ;;
+    relayer) printf '\033[33m' ;; tunnel) printf '\033[32m' ;;
+  esac
+}
+
+usage() {
+  cat <<EOF
+PoP demo stack.
+
+  ./demo up [flags]      preflight, then start everything in the foreground; Ctrl-C stops all
+  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, names.json, ports, tunnel config)
+  ./demo status          which pieces run (pid files + ports + /health) and \`bridge status\`
+  ./demo help
+
+Pieces (start order; the rest start after the server answers /health):
+  server   server/        uv run python -m pop        0.0.0.0:\$POP_PORT (default 8001)
+  sidecar  server/idkit-sidecar   node index.mjs      127.0.0.1:8787  (World ID)
+  bridge   bridge/        ./bridge run                 NEAR results -> ENS MeetResolver (Sepolia)
+  relayer  relayer/       ./watch.sh                   safe-tx sessions -> Safe (Sepolia)
+  tunnel   cloudflared tunnel --config $TUNNEL_CONFIG run $TUNNEL_NAME
+                                                        https://pop.enconomy.dev -> localhost:8001
+
+Flags:
+  --no-tunnel    no cloudflared (LAN / local only)
+  --no-worldid   no IDKit sidecar (World ID start answers 503 worldid_unavailable)
+  --no-ens       no bridge (meetings never reach ENS)
+  --no-safe      no relayer (Safe spends never get sent)
+  --web          POP_ALLOW_WEB=1 and POP_CORS_ORIGINS=$WEB_ORIGINS
+                 (unless already set). Needed by the web app at https://webapp.enconomy.dev.
+  --port N       server port (default: \$POP_PORT, else server/.env POP_PORT, else 8001).
+                 The tunnel config points at 8001; another port only makes sense with --no-tunnel.
+
+Server env: the server reads server/.env itself (real env vars win), so put POP_* there or export
+them before ./demo up. Demo defaults applied only when neither env nor server/.env sets them:
+  POP_TEST_KINDS=1 POP_WORLDID_SANDBOX=1 POP_ALLOW_UNATTESTED=1
+Web app (https://webapp.enconomy.dev) needs POP_ALLOW_WEB=1 and
+  POP_CORS_ORIGINS=$WEB_ORIGINS  (or just --web).
+
+Other env: ETH_RPC (Sepolia RPC for balance/bridge), ENS_KEY_FILE (default ~/.enconomy/ens-sepolia.key,
+also the relayer gas key), DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
+
+If a piece dies, a banner names it and the rest keep running (a dead bridge should not take down
+the phones' server mid-demo). Fix it in another terminal, then Ctrl-C and ./demo up again.
+./demo up then exits nonzero. If the server dies before /health answers, nothing else starts.
+Logs: .demo/logs/<piece>.log (appended per run).
+EOF
+}
+
+# ---------------------------------------------------------------- env helpers
+
+# last KEY=VALUE for $1 in server/.env, quotes/export stripped; empty if unset
+envfile_get() {
+  [ -f "$ENVFILE" ] || return 0
+  sed -n "s/^[[:space:]]*\(export[[:space:]]\{1,\}\)\{0,1\}$1[[:space:]]*=[[:space:]]*//p" "$ENVFILE" | tail -1 |
+    sed -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\(.*\)'\$/\1/"
+}
+# effective value the server will see: env var, else server/.env, else $2
+eff() {
+  if eval "[ -n \"\${$1+x}\" ]"; then eval "printf '%s' \"\$$1\""; return; fi
+  local v; v=$(envfile_get "$1")
+  if [ -n "$v" ]; then printf '%s' "$v"; else printf '%s' "${2-}"; fi
+}
+# relative paths in server env are relative to server/
+abs_server() { case $1 in /*) printf '%s' "$1" ;; "~"*) printf '%s' "$HOME${1#\~}" ;; *) printf '%s' "$SERVER_DIR/$1" ;; esac; }
+is_set() { eval "[ -n \"\${$1+x}\" ]" || [ -n "$(envfile_get "$1")" ]; }
+
+port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
+
+# ---------------------------------------------------------------- flags
+
+EN_server=1; EN_sidecar=1; EN_bridge=1; EN_relayer=1; EN_tunnel=1; WEB=0; PORT_FLAG=
+parse_flags() {
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --no-tunnel) EN_tunnel=0 ;;
+      --no-worldid|--no-sidecar) EN_sidecar=0 ;;
+      --no-ens|--no-bridge) EN_bridge=0 ;;
+      --no-safe|--no-relayer) EN_relayer=0 ;;
+      --web) WEB=1 ;;
+      --port) shift; PORT_FLAG=${1-} ;;
+      --port=*) PORT_FLAG=${1#--port=} ;;
+      -h|--help) usage; exit 0 ;;
+      *) echo "unknown flag: $1 (./demo help)" >&2; exit 2 ;;
+    esac
+    shift
+  done
+  PORT=${PORT_FLAG:-$(eff POP_PORT 8001)}
+  case $PORT in ''|*[!0-9]*) echo "bad port: $PORT" >&2; exit 2 ;; esac
+  DATA_DIR=$(abs_server "$(eff POP_DATA_DIR data)")
+  DB=$(abs_server "$(eff POP_DB data/pop.sqlite)")
+}
+enabled() { eval "[ \"\$EN_$1\" = 1 ]"; }
+
+# ---------------------------------------------------------------- preflight
+
+need_tool() {  # need_tool <tool> <why> <required 1|0>
+  if command -v "$1" >/dev/null 2>&1; then ok "$1 ($(command -v "$1"))"
+  elif [ "$3" = 1 ]; then bad "$1 not on PATH ($2)"
+  else warn "$1 not on PATH ($2; piece disabled, so not required)"; fi
+}
+
+preflight() {
+  WARNS=0; FAILS=0
+  say "preflight  (server port $PORT, data $DATA_DIR)"
+  echo "tools"
+  need_tool uv "server" "$EN_server"
+  need_tool curl "health checks" 1
+  need_tool lsof "port checks" 1
+  need_tool node "sidecar, relayer" "$( { enabled sidecar || enabled relayer; } && echo 1 || echo 0)"
+  need_tool python3 "bridge" "$EN_bridge"
+  need_tool cast "bridge, balance check" "$EN_bridge"
+  need_tool sqlite3 "relayer" "$EN_relayer"
+  need_tool cloudflared "tunnel" "$EN_tunnel"
+
+  echo "deps"
+  if [ -d "$SERVER_DIR/.venv" ]; then ok "server/.venv"
+  else warn "server/.venv missing: first run syncs it (slow). Now: (cd server && uv sync)"; fi
+  if enabled sidecar; then
+    if [ -d "$SIDECAR_DIR/node_modules/@worldcoin/idkit-core" ]; then ok "sidecar node_modules"
+    else bad "sidecar node_modules missing. Run: (cd server/idkit-sidecar && npm ci)"; fi
+  fi
+  if enabled relayer; then
+    if [ -d "$ROOT/relayer/node_modules/viem" ]; then ok "relayer node_modules"
+    else bad "relayer node_modules missing. Run: (cd relayer && npm ci)"; fi
+  fi
+
+  echo "server config"
+  if [ -f "$ENVFILE" ]; then ok "server/.env"; else warn "no server/.env (World ID off unless POP_WORLDID_* exported)"; fi
+  for k in POP_TEST_KINDS POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED POP_ALLOW_WEB POP_ATTEST_ALLOW_WEB POP_CORS_ORIGINS POP_WEB_DIR; do
+    v=$(eff "$k" "")
+    [ -n "$v" ] && info "$k=$v"
+  done
+  d=
+  for k in POP_TEST_KINDS POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED; do is_set "$k" || d="$d $k=1"; done
+  [ -n "$d" ] && info "demo defaults (not in env or server/.env):$d"
+  if enabled sidecar; then
+    if [ -n "$(eff POP_WORLDID_RP_ID "")" ] && [ -n "$(eff POP_WORLDID_APP_ID "")" ]; then ok "World ID app/rp ids set"
+    else warn "POP_WORLDID_APP_ID / POP_WORLDID_RP_ID empty: World ID start will answer 503"; fi
+    kf=$(abs_server "$(eff POP_WORLDID_SIGNING_KEY_FILE data/worldid-rp.key)")
+    if [ -n "$(eff POP_WORLDID_SIGNING_KEY "")" ] || [ -f "$kf" ]; then ok "World ID RP signing key"
+    else warn "no World ID RP signing key ($kf)"; fi
+  fi
+  if [ "$WEB" = 1 ]; then
+    info "--web: POP_ALLOW_WEB=$(eff POP_ALLOW_WEB 1) POP_CORS_ORIGINS=$(eff POP_CORS_ORIGINS "$WEB_ORIGINS")"
+  elif [ "$(eff POP_ALLOW_WEB 0)" != 1 ]; then
+    info "web app off (POP_ALLOW_WEB!=1). For https://webapp.enconomy.dev use --web"
+  fi
+  bb=$(eff POP_ZK_VERIFIER "$HOME/.enconomy/zk/pinned/bin/bb")
+  if [ -x "$(abs_server "$bb")" ]; then ok "zk verifier bb"; else warn "zk verifier missing ($bb): proof routes answer 503 zk_unavailable"; fi
+
+  if enabled bridge || enabled relayer; then
+    echo "Sepolia key"
+    if [ -f "$KEY_FILE" ]; then
+      ok "key file $KEY_FILE"
+      addr=
+      [ -f "$ADDR_FILE" ] && [ -z "${ENS_KEY_FILE-}" ] && addr=$(tr -d '[:space:]' <"$ADDR_FILE")
+      if [ -z "$addr" ] && command -v cast >/dev/null 2>&1; then
+        pk=$(tr -d '[:space:]' <"$KEY_FILE"); case $pk in 0x*) ;; *) pk=0x$pk ;; esac
+        addr=$(cast wallet address --private-key "$pk" 2>/dev/null); pk=
+      fi
+      if [ -n "$addr" ] && command -v cast >/dev/null 2>&1; then
+        bal=$(cast balance --ether --rpc-url "$ETH_RPC_EFF" "$addr" 2>/dev/null)
+        if [ -z "$bal" ]; then warn "balance of $addr: RPC $ETH_RPC_EFF did not answer"
+        elif awk -v b="$bal" -v m="$MIN_ETH" 'BEGIN{exit !(b+0 < m+0)}'; then
+          warn "$addr has $bal ETH (< $MIN_ETH). ZK verify is ~4.3M gas; top up from a Sepolia faucet"
+        else ok "$addr has $bal Sepolia ETH"; fi
+      else warn "could not derive the key's address (need cast)"; fi
+    else
+      bad "no $KEY_FILE (attester + relayer gas key; see contracts/script/ens.sh)"
+    fi
+  fi
+
+  if enabled bridge; then
+    echo "ENS bridge"
+    if [ -f "$ROOT/contracts/deployments/sepolia.json" ]; then ok "contracts/deployments/sepolia.json"
+    else bad "contracts/deployments/sepolia.json missing (bridge exits)"; fi
+    names=${BRIDGE_NAMES:-$ROOT/bridge/names.json}
+    if [ -f "$names" ]; then
+      n=$(grep -c '"[^_"][^"]*"[[:space:]]*:' "$names" 2>/dev/null)
+      ok "bridge/names.json ($n entries)"
+    else
+      warn "no bridge/names.json: every NEAR is skipped as 'unmapped device', meetings won't reach ENS"
+      info "cp bridge/names.example.json bridge/names.json   # then map device_id -> ENS label"
+      info "device ids: sqlite3 $DB 'select device_id, display_name, platform from devices'"
+    fi
+  fi
+
+  echo "ports"
+  p=$(port_pid "$PORT")
+  if [ -n "$p" ]; then bad "port $PORT taken by pid $p ($(ps -o comm= -p "$p" 2>/dev/null)). Already running? ./demo status"
+  else ok "port $PORT free"; fi
+  if enabled sidecar; then
+    p=$(port_pid "$SIDECAR_PORT")
+    if [ -n "$p" ]; then bad "port $SIDECAR_PORT taken by pid $p ($(ps -o comm= -p "$p" 2>/dev/null))"
+    else ok "port $SIDECAR_PORT free"; fi
+  fi
+
+  if enabled tunnel; then
+    echo "tunnel"
+    if [ -f "$TUNNEL_CONFIG" ]; then
+      ok "$TUNNEL_CONFIG"
+      tid=$(sed -n 's/^tunnel:[[:space:]]*//p' "$TUNNEL_CONFIG" | tr -d '[:space:]')
+      cred=$(sed -n 's/^credentials-file:[[:space:]]*//p' "$TUNNEL_CONFIG" | tr -d '[:space:]')
+      [ -z "$cred" ] && cred=$(dirname "$TUNNEL_CONFIG")/$tid.json
+      cred=$(abs_server "$cred")
+      if [ -f "$cred" ]; then ok "tunnel credentials ($tid)"; else bad "tunnel credentials $cred missing"; fi
+      svc=$(sed -n 's/^[[:space:]]*service:[[:space:]]*http:\/\/localhost:\([0-9]*\).*/\1/p' "$TUNNEL_CONFIG" | head -1)
+      if [ -n "$svc" ] && [ "$svc" != "$PORT" ]; then
+        bad "tunnel ingress points at :$svc but the server runs on :$PORT (use --port $svc or --no-tunnel)"
+      else ok "ingress -> localhost:${svc:-?}"; fi
+    else
+      bad "no $TUNNEL_CONFIG (DEMO_TUNNEL_CONFIG to override)"
+    fi
+    if pgrep -f "cloudflared.*$TUNNEL_NAME" >/dev/null 2>&1; then
+      warn "a cloudflared for $TUNNEL_NAME already runs (pid $(pgrep -f "cloudflared.*$TUNNEL_NAME" | tr '\n' ' '))"
+    fi
+  fi
+
+  echo
+  if [ "$FAILS" -gt 0 ]; then say "${C_RED}preflight: $FAILS failed, $WARNS warnings${C_OFF}"; return 1; fi
+  say "preflight: ok, $WARNS warnings"
+  return 0
+}
+
+# ---------------------------------------------------------------- run
+
+STARTED=""; DEAD=""; STOPPING=0
+
+start_piece() {  # start_piece <name> <dir> <cmd...>
+  local name=$1 dir=$2; shift 2
+  local tag col log
+  col=$(tag_color "$name")
+  tag=$(printf '%s[%s]%s' "$col" "$name" "${col:+$C_OFF}")
+  log="$LOGS/$name.log"
+  rm -f "$RUN/$name.rc"
+  printf '\n===== %s start: %s (in %s)\n' "$(date '+%F %T')" "$*" "$dir" >>"$log"
+  set -m   # own process group per piece, so Ctrl-C only reaches us and we can kill each tree
+  (
+    trap - INT TERM
+    { ( cd "$dir" && exec "$@" ) </dev/null 2>&1; echo $? >"$RUN/$name.rc"; } |
+      ( trap '' TERM; exec tee -a "$log" ) | ( trap '' TERM; exec sed -l "s/^/$tag /" )  # drain last lines on stop
+  ) &
+  local pid=$!
+  set +m
+  echo "$pid" >"$RUN/$name.pid"
+  STARTED="$STARTED $name"
+  eval "PID_$name=$pid"
+}
+
+piece_alive() { local p; eval "p=\${PID_$1-}"; [ -n "$p" ] && kill -0 "$p" 2>/dev/null; }
+
+banner() {  # banner <name>
+  local rc="?"
+  [ -f "$RUN/$1.rc" ] && rc=$(cat "$RUN/$1.rc")
+  printf '\n%s%s' "$C_RED" "$C_BLD"
+  printf '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+  printf '!!!  %s DIED (exit %s). The rest keeps running.\n' "$(echo "$1" | tr '[:lower:]' '[:upper:]')" "$rc"
+  printf '!!!  log: .demo/logs/%s.log   Ctrl-C and ./demo up to restart.\n' "$1"
+  printf '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n'
+  printf '%s\n' "$C_OFF"
+}
+
+stop_all() {
+  [ "$STOPPING" = 1 ] && return
+  STOPPING=1
+  echo
+  say "stopping:$STARTED"
+  local n p
+  for n in $STARTED; do
+    eval "p=\${PID_$n-}"
+    [ -n "$p" ] && kill -TERM -- "-$p" 2>/dev/null
+  done
+  local i=0
+  while [ $i -lt 20 ]; do
+    local any=0
+    for n in $STARTED; do piece_alive "$n" && any=1; done
+    [ $any = 0 ] && break
+    sleep 0.25; i=$((i+1))
+  done
+  for n in $STARTED; do
+    eval "p=\${PID_$n-}"
+    if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then
+      say "$n did not stop, SIGKILL"; kill -KILL -- "-$p" 2>/dev/null
+    fi
+    rm -f "$RUN/$n.pid"
+  done
+}
+
+on_signal() {
+  stop_all
+  if [ -n "$DEAD" ]; then say "${C_RED}died during the run:$DEAD${C_OFF}"; exit 1; fi
+  exit 0
+}
+
+wait_http() {  # wait_http <url> <seconds> <piece>; 0 when it answers 2xx
+  local i=0
+  while [ $i -lt $(($2 * 2)) ]; do
+    curl -fsS -m 2 "$1" >/dev/null 2>&1 && return 0
+    [ -n "${3-}" ] && ! piece_alive "$3" && return 2
+    sleep 0.5; i=$((i+1))
+  done
+  return 1
+}
+
+cmd_up() {
+  preflight || { say "fix the FAIL lines above, or skip a piece (./demo help)"; exit 1; }
+  mkdir -p "$LOGS" "$RUN"
+  trap on_signal INT TERM HUP
+
+  # server env: demo defaults only where neither env nor server/.env sets a value
+  is_set POP_TEST_KINDS || export POP_TEST_KINDS=1
+  is_set POP_WORLDID_SANDBOX || export POP_WORLDID_SANDBOX=1
+  is_set POP_ALLOW_UNATTESTED || export POP_ALLOW_UNATTESTED=1
+  if [ "$WEB" = 1 ]; then
+    is_set POP_ALLOW_WEB || export POP_ALLOW_WEB=1
+    is_set POP_CORS_ORIGINS || export POP_CORS_ORIGINS=$WEB_ORIGINS
+  fi
+  export PYTHONUNBUFFERED=1
+
+  say "starting server on :$PORT"
+  start_piece server "$SERVER_DIR" env POP_PORT="$PORT" uv run python -m pop
+  wait_http "http://127.0.0.1:$PORT/health" 120 server
+  case $? in
+    0) say "server /health ok" ;;
+    2) banner server; DEAD=" server"; say "server never came up; not starting the rest"; stop_all; exit 1 ;;
+    *) say "server /health not answering after 120 s; not starting the rest"; stop_all; exit 1 ;;
+  esac
+
+  if enabled sidecar; then
+    start_piece sidecar "$SIDECAR_DIR" env PORT="$SIDECAR_PORT" node index.mjs
+    if wait_http "http://127.0.0.1:$SIDECAR_PORT/health" 20 sidecar; then say "sidecar /health ok"
+    else say "${C_YEL}sidecar /health not answering (World ID start will 503)${C_OFF}"; fi
+  fi
+  if enabled bridge; then
+    start_piece bridge "$ROOT/bridge" env POP_DATA_DIR="$DATA_DIR" ./bridge run
+  fi
+  if enabled relayer; then
+    start_piece relayer "$ROOT/relayer" env POP_DB="$DB" POP_SERVER_URL="http://127.0.0.1:$PORT" ./watch.sh
+  fi
+  if enabled tunnel; then
+    start_piece tunnel "$HOME" cloudflared tunnel --config "$TUNNEL_CONFIG" run "$TUNNEL_NAME"
+  fi
+
+  if enabled sidecar; then
+    sleep 2
+    h=$(curl -fsS -m 3 "http://127.0.0.1:$PORT/health" 2>/dev/null)
+    case $h in
+      *'"sidecar_ok":true'*|*'"sidecar_ok": true'*) say "server sees the sidecar (worldid.sidecar_ok)" ;;
+      *) say "${C_YEL}server /health: worldid.sidecar_ok is not true: $h${C_OFF}" ;;
+    esac
+  fi
+  say "up:$STARTED   logs .demo/logs/   Ctrl-C stops everything"
+
+  while :; do
+    for n in $STARTED; do
+      case " $DEAD " in *" $n "*) continue ;; esac
+      if ! piece_alive "$n"; then DEAD="$DEAD $n"; rm -f "$RUN/$n.pid"; banner "$n"; fi
+    done
+    local alive=0
+    for n in $STARTED; do piece_alive "$n" && alive=1; done
+    if [ $alive = 0 ]; then say "${C_RED}everything died:$DEAD${C_OFF}"; exit 1; fi
+    sleep 1
+  done
+}
+
+cmd_status() {
+  say "pieces"
+  local n p st
+  for n in $PIECES; do
+    p=
+    [ -f "$RUN/$n.pid" ] && p=$(cat "$RUN/$n.pid")
+    if [ -n "$p" ] && kill -0 "$p" 2>/dev/null; then st="${C_GRN}running${C_OFF} (pid $p, ./demo)"
+    else
+      case $n in
+        server)  p=$(port_pid "$PORT") ;;
+        sidecar) p=$(port_pid "$SIDECAR_PORT") ;;
+        bridge)  p=$(pgrep -f 'bridge.py run' | head -1) ;;
+        relayer) p=$(pgrep -f 'relayer/watch.sh|[.]/watch.sh' | head -1) ;;
+        tunnel)  p=$(pgrep -f "cloudflared.*$TUNNEL_NAME" | head -1) ;;
+      esac
+      if [ -n "$p" ]; then st="${C_YEL}running outside ./demo${C_OFF} (pid $p)"; else st="${C_RED}not running${C_OFF}"; fi
+    fi
+    printf '  %-8s %s\n' "$n" "$st"
+  done
+  h=$(curl -fsS -m 3 "http://127.0.0.1:$PORT/health" 2>/dev/null) && info "server :$PORT /health $h" || info "server :$PORT /health: no answer"
+  curl -fsS -m 3 "http://127.0.0.1:$SIDECAR_PORT/health" >/dev/null 2>&1 && info "sidecar :$SIDECAR_PORT /health ok" || info "sidecar :$SIDECAR_PORT /health: no answer"
+  h=$(curl -fsS -m 5 -o /dev/null -w '%{http_code}' https://pop.enconomy.dev/health 2>/dev/null); info "https://pop.enconomy.dev/health: ${h:-no answer}"
+  echo
+  say "bridge status"
+  if command -v cast >/dev/null 2>&1; then
+    (cd "$ROOT/bridge" && POP_DATA_DIR="$DATA_DIR" ./bridge status 2>&1) | sed 's/^/  /'
+  else info "cast not on PATH"; fi
+}
+
+cmd=${1:-help}; [ $# -gt 0 ] && shift
+case $cmd in
+  up)     parse_flags "$@"; cmd_up ;;
+  check)  parse_flags "$@"; preflight ;;
+  status) parse_flags "$@"; cmd_status ;;
+  help|-h|--help) usage ;;
+  *) echo "unknown command: $cmd (./demo help)" >&2; exit 2 ;;
+esac

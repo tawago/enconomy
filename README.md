@@ -12,3 +12,17 @@ Each phone signs its result with a hardware-bound key. A zero-knowledge proof ti
 - `research/*.md`: decisions and threat model.
 - `research/proximity-echo/`, `research/fuzzy-commitment/`: earlier approaches, retired.
 - `circuits/`: early co-presence circuit.
+
+## Demo stack
+
+One command runs the whole PoP demo: server (:8001), World ID sidecar (:8787), ENS bridge, Safe relayer and the `pop.enconomy.dev` tunnel. Output is prefixed `[server]`, `[sidecar]`, … and also kept in `.demo/logs/`.
+
+```sh
+./demo check          # preflight: tools, node_modules, key + Sepolia balance, bridge/names.json, ports, tunnel
+./demo up             # all five; Ctrl-C stops everything
+./demo up --web       # + POP_ALLOW_WEB=1, POP_CORS_ORIGINS for https://webapp.enconomy.dev
+./demo up --no-tunnel --no-ens --no-safe --no-worldid   # skip pieces
+./demo status         # what runs + bridge status
+```
+
+Server config stays in `server/.env`. If a piece dies, a banner names it, the rest keeps running, and `./demo up` exits nonzero at the end. `./demo help` has the details.
