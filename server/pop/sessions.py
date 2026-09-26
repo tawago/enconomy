@@ -61,7 +61,7 @@ from typing import Callable
 import numpy as np
 
 from pop import constants as K
-from pop import invite, jbl250, popctx, popt2, poseidon7, verdict as V, zk
+from pop import human as H, invite, jbl250, popctx, popt2, poseidon7, verdict as V, zk
 from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
@@ -150,6 +150,7 @@ class Sessions:
             "seed_hex": secrets.token_hex(32),
             "nonce_hex": nonce_hex,
             "not_before": not_before, "context": context, "policy": policy or {"human": "none"},
+            "human": H.empty_human() if (policy or {}).get("human") == "worldid" else None,
             "join_token": secrets.token_hex(16),
             "token_expires_ms": now + K.JOIN_TOKEN_TTL_S * 1000,
             "state": "created", "attempt": 0, "seq": 0,
@@ -226,6 +227,8 @@ class Sessions:
     def arm(self, s: dict, role: str, attempt, sample_rate, rtt_min_ms, popt=None) -> dict:
         if s["state"] not in ("confirmed", "started"):
             raise PopError(409, "bad_state", s["state"])
+        if _policy(s)["human"] == "worldid" and not H.both_verified(s.get("human")):
+            raise PopError(409, "human_missing", "both roles need a verified World ID (two different humans)")
         if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt != s["attempt"]:
             raise PopError(400, "bad_attempt", f"current attempt is {s['attempt']}")
         if not isinstance(sample_rate, int) or isinstance(sample_rate, bool) or not K.SR_MIN <= sample_rate <= K.SR_MAX:
@@ -348,6 +351,7 @@ class Sessions:
         return {
             "proto": K.PROTO, "session_id": s["session_id"], "session_nonce": s["nonce_hex"],
             "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
+            "human": self._human_record(s), "pair_tag": (s.get("human") or {}).get("pair_tag"),
             "attempt": s["attempt"], "verdict": verdict, "reason": reason,
             "user_text": V.USER_TEXT.get(reason) if reason else None,
             "flight_cm": flight, "t0_ms": s["t0_ms"],
@@ -358,6 +362,16 @@ class Sessions:
                          | ({"verdict": a["verdict"], "flight_cm": a["flight_cm"]} if a.get("outcome") == "verdict" else {})
                          for a in s["attempts"]],
         }
+
+    @staticmethod
+    def _human_record(s: dict) -> dict | None:
+        """Full per-role World ID results (proofs included; no raw bodies, no connector_uri)."""
+        h = s.get("human")
+        if not h:
+            return None
+        drop = ("raw", "connector_uri", "detail")
+        return {**{r: {k: v for k, v in (h.get(r) or {}).items() if k not in drop} for r in ROLES},
+                "pair_tag": h.get("pair_tag")}
 
     def _write(self, sid: str, name: str, data: bytes) -> Path | None:
         if self.data_dir is None:
@@ -551,6 +565,7 @@ class Sessions:
             "role": role,
             "nonce": s["nonce_hex"] if shown else None,
             "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
+            "human": H.public_status(s.get("human")),
             "self": {"device_id": me["device_id"], "display_name": me["display_name"], "pubkey": me["pubkey"]},
             "partner": None if other is None else {
                 "device_id": other["device_id"], "display_name": other["display_name"], "model": other["model"],

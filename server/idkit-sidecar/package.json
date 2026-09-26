@@ -1,0 +1,9 @@
+{
+  "name": "pop-idkit-sidecar",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@worldcoin/idkit-core": "4.2.4"
+  }
+}
