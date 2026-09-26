@@ -82,10 +82,39 @@ class LiveWorldIdTest {
             assertEquals(WorldId.FAILED, sb.status, "$sb")
             assertEquals("same_human", sb.error)
             assertTrue(WorldId.needsNewSession(sb.error))
+            // retry with the same human: the nullifier is still taken by A -> same_human again, A stays verified
+            val sb2 = worldId(apiB, sid)
+            assertEquals("same_human", sb2.error, "$sb2")
+            assertEquals(WorldId.VERIFIED, WorldId.role(apiA.session(sid).human, "A").status)
             // even with both confirms in, the arm gate holds (§7.2)
             apiA.confirm(sid); apiB.confirm(sid)
             assertEquals("human_missing", assertFailsWith<PopHttpException> { apiA.arm(sid, ArmReq(0, 48000, 5.0)) }.code)
         } finally { apiA.close(); apiB.close() }
+    }
+
+    /** A tampered context (other ctx_hash, other consumer, other nonce) fails the phone gate; a wrong chain fails create. */
+    @Test fun contextMismatchRefused() = live { a, _ ->
+        val apiA = PopApi(url!!, key = { a })
+        try {
+            val ctx = buildJsonObject {
+                put("kind", JsonPrimitive("test")); put("chain_id", JsonPrimitive(4801L))
+                put("consumer", JsonPrimitive("0x" + "5afe".repeat(10)))
+                put("ctx_hash", JsonPrimitive("0x" + "ab".repeat(32)))
+            }
+            val inv = apiA.createSession(SessionReq(context = ctx))
+            assertTrue(ContextGate.check(inv.session_id, ctx, inv.not_before, inv.nonce, allowTestKind = true) is ContextGate.Result.Ok)
+            val other = JsonObject(ctx + ("ctx_hash" to JsonPrimitive("0x" + "cd".repeat(32))))
+            val r1 = ContextGate.check(inv.session_id, other, inv.not_before, inv.nonce, allowTestKind = true)
+            assertEquals(ContextGate.CONTEXT_MISMATCH, (r1 as ContextGate.Result.Refused).code)
+            val r2 = ContextGate.check(inv.session_id, ctx, inv.not_before!! + 1, inv.nonce, allowTestKind = true)
+            assertEquals(ContextGate.CONTEXT_MISMATCH, (r2 as ContextGate.Result.Refused).code)
+            val r3 = ContextGate.check(inv.session_id, ctx, inv.not_before, inv.nonce, allowTestKind = false)
+            assertTrue(r3 is ContextGate.Result.Refused, "test kind refused in a release build")
+            val bad = JsonObject(ctx + ("chain_id" to JsonPrimitive(1L)))
+            val e = assertFailsWith<PopHttpException> { apiA.createSession(SessionReq(context = bad)) }
+            println("wrong chain -> ${e.status} ${e.code}")
+            assertTrue(e.status in 400..499, "${e.status} ${e.code}")
+        } finally { apiA.close() }
     }
 
     /** Host creates with a test context, guest joins; both phones run the context gate like the app. */
@@ -133,7 +162,11 @@ class LiveWorldIdTest {
         val api = PopApi(url!!)
         try {
             val n = api.enrollNonce().nonce
-            api.enroll(EnrollReq(n, k.deviceId, k.pubkey.toHex(), name, "jvm", "software", null))
+            val samples = listOf(12000L, 11900L, 12100L, 12050L, 11950L)
+            val c = CalibrationReq(Calibration.fromSamples(samples), 48000, "speaker", "aaudio", samples)
+            val r = api.enroll(EnrollReq(n, k.deviceId, k.pubkey.toHex(), name, "jvm", "software", null,
+                calibration = c, cal_sig_b64 = k.sign(Calibration.message(n, c)).toB64()))
+            assertEquals(12000L, r.calibration?.cal_us)
         } finally { api.close() }
     }
 
