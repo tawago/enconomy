@@ -1,0 +1,7 @@
+RESULT prove oa2_d2_sig pk_load_ms=1121 witness_ms=352 prove_ms=4703 proof_bytes=1648319
+          1945854144  peak memory footprint
+[heavy] rebench-oa2_d2_sig: 8.0s rc=0
+RESULT bench oa2_d2_sig rep=0 witness_ms=386 prove_ms=4961 verify_ms=1520 proof_bytes=1648319
+RESULT bench oa2_d2_sig rep=1 witness_ms=375 prove_ms=4928 verify_ms=301 proof_bytes=1648319
+RESULT bench oa2_d2_sig rep=2 witness_ms=433 prove_ms=5151 verify_ms=282 proof_bytes=1648319
+[heavy] rebench2-oa2_d2_sig: 26.9s rc=0

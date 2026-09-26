@@ -1,0 +1,57 @@
+PASS 180ca04b d1 A audio none           -> ACCEPT  {'honest_half': 45042}  | 
+PASS 180ca04b d1 A audio late_self      -> REJECT  {'honest_half': 45042, 'claimed_half': 45005}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 A audio echo_self      -> REJECT  {'honest_half': 45042, 'echo_lag_after_arrival': 6, 'echo_score': 0.3843140340484434, 'claimed_half': 45036}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 A audio early_partner  -> REJECT  {'honest_half': 45042, 'claimed_half': 44942}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 A audio score          -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template OA2_37 line: 107
+PASS 180ca04b d1 A audio sample         -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d1 A audio path           -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d1 B audio none           -> ACCEPT  {'honest_half': 44947}  | 
+PASS 180ca04b d1 B audio late_self      -> REJECT  {'honest_half': 44947, 'claimed_half': 44985}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 B audio echo_self      -> REJECT  {'honest_half': 44947, 'echo_lag_after_arrival': 8, 'echo_score': 0.4822496913306442, 'claimed_half': 44955}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 B audio early_partner  -> REJECT  {'honest_half': 44947, 'claimed_half': 45047}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 180ca04b d1 B audio score          -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template OA2_37 line: 107
+PASS 180ca04b d1 B audio sample         -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d1 B audio path           -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d1 A audio none           -> ACCEPT  {'honest_half': 45617}  | 
+PASS 9afb91c6 d1 A audio late_self      -> REJECT  {'honest_half': 45617, 'claimed_half': 45568}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 A audio echo_self      -> REJECT  {'honest_half': 45617, 'echo_lag_after_arrival': 6, 'echo_score': 0.39289273196643787, 'claimed_half': 45611}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 A audio early_partner  -> REJECT  {'honest_half': 45617, 'claimed_half': 45517}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 A audio score          -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template OA2_37 line: 107
+PASS 9afb91c6 d1 A audio sample         -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d1 A audio path           -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d1 B audio none           -> ACCEPT  {'honest_half': 45028}  | 
+PASS 9afb91c6 d1 B audio late_self      -> REJECT  {'honest_half': 45028, 'claimed_half': 45087}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 B audio echo_self      -> REJECT  {'honest_half': 45028, 'echo_lag_after_arrival': 15, 'echo_score': 0.44231226699611936, 'claimed_half': 45043}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 B audio early_partner  -> REJECT  {'honest_half': 45028, 'claimed_half': 45128}  | REJECT wasm witness: Error in template Num2Bits_33 line: 38
+PASS 9afb91c6 d1 B audio score          -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template OA2_37 line: 107
+PASS 9afb91c6 d1 B audio sample         -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d1 B audio path           -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d5 A audio none           -> ACCEPT  {'honest_half': 45042}  | 
+PASS 180ca04b d5 A audio late_self      -> REJECT  {'honest_half': 45042, 'claimed_half': 44720}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 A audio echo_self      -> REJECT  {'honest_half': 45042, 'echo_lag_after_arrival': 6, 'echo_score': 0.3843140340484434, 'claimed_half': 45036}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 A audio early_partner  -> REJECT  {'honest_half': 45042, 'claimed_half': 44942}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 A audio score          -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template OA2_38 line: 107
+PASS 180ca04b d5 A audio sample         -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d5 A audio path           -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d5 B audio none           -> ACCEPT  {'honest_half': 44947}  | 
+PASS 180ca04b d5 B audio late_self      -> REJECT  {'honest_half': 44947, 'claimed_half': 45407}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 B audio echo_self      -> REJECT  {'honest_half': 44947, 'echo_lag_after_arrival': 8, 'echo_score': 0.4822496913306442, 'claimed_half': 44955}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 B audio early_partner  -> REJECT  {'honest_half': 44947, 'claimed_half': 45047}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 180ca04b d5 B audio score          -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template OA2_38 line: 107
+PASS 180ca04b d5 B audio sample         -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 180ca04b d5 B audio path           -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d5 A audio none           -> ACCEPT  {'honest_half': 45617}  | 
+PASS 9afb91c6 d5 A audio late_self      -> REJECT  {'honest_half': 45617, 'claimed_half': 45161}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 A audio echo_self      -> REJECT  {'honest_half': 45617, 'echo_lag_after_arrival': 6, 'echo_score': 0.39289273196643787, 'claimed_half': 45611}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 A audio early_partner  -> REJECT  {'honest_half': 45617, 'claimed_half': 45517}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 A audio score          -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template OA2_38 line: 107
+PASS 9afb91c6 d5 A audio sample         -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d5 A audio path           -> REJECT  {'honest_half': 45617}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d5 B audio none           -> ACCEPT  {'honest_half': 45028}  | 
+PASS 9afb91c6 d5 B audio late_self      -> REJECT  {'honest_half': 45028, 'claimed_half': 45109}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 B audio echo_self      -> REJECT  {'honest_half': 45028, 'echo_lag_after_arrival': 15, 'echo_score': 0.44231226699611936, 'claimed_half': 45043}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 B audio early_partner  -> REJECT  {'honest_half': 45028, 'claimed_half': 45128}  | REJECT wasm witness: Error in template Num2Bits_34 line: 38
+PASS 9afb91c6 d5 B audio score          -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template OA2_38 line: 107
+PASS 9afb91c6 d5 B audio sample         -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+PASS 9afb91c6 d5 B audio path           -> REJECT  {'honest_half': 45028}  | REJECT wasm witness: Error in template MerklePath_8 line: 54
+d1/d5 audio: 56/56 as expected

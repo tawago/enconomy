@@ -1,0 +1,4 @@
+RESULT setup mode=Exact L=12000 K=19200 setup_ms=9159 sizes=[2350102, 0, 69661, 2292483, 4194304, 0, 71680, 4122624, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=545 prove_ms=11013 verify_ms=819 verify=ACCEPT proof_bytes=912444
+[heavy] vega-exact19200-1thread: 21.7s rc=0
+          1934360576  maximum resident set size

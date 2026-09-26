@@ -1,0 +1,5 @@
+RESULT setup mode=Exact L=12000 K=512 setup_ms=674 sizes=[144918, 0, 13597, 143363, 262144, 0, 14336, 247808, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=61 prove_ms=1206 verify_ms=93 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=1 tamper=false prep_ms=60 prove_ms=1211 verify_ms=84 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=2 tamper=false prep_ms=52 prove_ms=1175 verify_ms=93 verify=ACCEPT proof_bytes=847916
+[heavy] vega-exact512-1thread: 4.8s rc=0

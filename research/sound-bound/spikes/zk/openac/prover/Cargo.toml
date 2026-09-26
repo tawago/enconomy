@@ -1,0 +1,22 @@
+[package]
+name = "sbzk"
+version = "0.1.0"
+edition = "2021"
+
+# Same pins as vendor/zkID/wallet-unit-poc/ecdsa-spartan2/Cargo.lock (zkID b395e09c).
+[dependencies]
+spartan2 = { git = "https://github.com/0xVikasRushi/Spartan2.git", rev = "d687dbb639eccbdd21e62fecec97c5826bc4dbbf", default-features = false }
+circom-scotia = { git = "https://github.com/0xVikasRushi/circom-scotia", rev = "bd39c019dba20d32ce5727e2408632dbca269e82", default-features = false }
+witnesscalc-adapter = { git = "https://github.com/zkmopro/witnesscalc_adapter.git", rev = "e5a82bcb7d54a4694fc0662c51b01d99134e686c" }
+bellpepper-core = "0.4.0"
+ff = { version = "0.13.0", features = ["derive"] }
+serde_json = "1.0.140"
+bincode = "1.3.3"
+memmap2 = "0.9.8"
+num-bigint = "0.4.6"
+
+[build-dependencies]
+witnesscalc-adapter = { git = "https://github.com/zkmopro/witnesscalc_adapter.git", rev = "e5a82bcb7d54a4694fc0662c51b01d99134e686c" }
+
+[profile.release]
+debug = false

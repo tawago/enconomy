@@ -1,0 +1,15 @@
+RESULT setup oa2_d1_sig setup_ms=4514 pk_bytes=476727714 vk_bytes=476727682
+          1896153088  maximum resident set size
+[heavy] setup-oa2_d1_sig: 9.1s rc=0
+RESULT prove oa2_d1_sig pk_load_ms=1080 witness_ms=325 prove_ms=3486 proof_bytes=1648319
+          1592606720  maximum resident set size
+          1932321024  peak memory footprint
+[heavy] prove-oa2_d1_sig: 6.4s rc=0
+RESULT verify oa2_d1_sig ACCEPT vk_load_ms=1436 verify_ms=1150
+           751681536  maximum resident set size
+[heavy] verify-oa2_d1_sig: 2.7s rc=0
+RESULT bench oa2_d1_sig rep=0 witness_ms=326 prove_ms=3683 verify_ms=1249 proof_bytes=1648319
+RESULT bench oa2_d1_sig rep=1 witness_ms=329 prove_ms=3750 verify_ms=188 proof_bytes=1648319
+RESULT bench oa2_d1_sig rep=2 witness_ms=324 prove_ms=3537 verify_ms=206 proof_bytes=1648319
+[heavy] bench-oa2_d1_sig: 20.3s rc=0
+proof_file_bytes 1648319

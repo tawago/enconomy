@@ -1,0 +1,25 @@
+RESULT prove oa2_d2_sig pk_load_ms=1846 witness_ms=364 prove_ms=4219 proof_bytes=1648319
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1464 verify_ms=1342
+RESULT prove oa2_d2_sig pk_load_ms=1683 witness_ms=371 prove_ms=4207 proof_bytes=1648319
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1549 verify_ms=1825
+Generating witness for circuit oa2_pair
+Witness requires 48780 bytes, allocating and retrying...
+Failed assert in template/function Pair line 33. Followed trace of components: main
+RESULT prove oa2_pair pk_load_ms=16 witness_ms=2 prove_ms=49 proof_bytes=39649
+RESULT prove oa2_d2_sig pk_load_ms=1715 witness_ms=362 prove_ms=3849 proof_bytes=1648319
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1518 verify_ms=1548
+RESULT prove oa2_d2_sig pk_load_ms=1722 witness_ms=338 prove_ms=3854 proof_bytes=1648319
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1486 verify_ms=1395
+Generating witness for circuit oa2_pair
+Witness requires 48780 bytes, allocating and retrying...
+Failed assert in template/function Pair line 33. Followed trace of components: main
+RESULT prove oa2_pair pk_load_ms=16 witness_ms=2 prove_ms=52 proof_bytes=39649
+RESULT verify oa2_pair REJECT spartan verify failed: InvalidSumcheckProof
+RESULT check oa2_pair REJECT r1cs constraint 1453 unsatisfied
+RESULT verify oa2_pair REJECT spartan verify failed: InvalidSumcheckProof
+RESULT check oa2_pair REJECT r1cs constraint 1453 unsatisfied
+{"session": "9afb91c6", "label_cm": 200.0, "delta_ms": 2, "role": "A", "variant": "sig", "tamper": "resign_late", "honest_half": 45617, "claimed_half": 45575}
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rk[150].b
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rk[151].b
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rk[152].b
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof

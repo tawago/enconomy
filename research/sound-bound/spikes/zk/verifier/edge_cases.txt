@@ -1,0 +1,28 @@
+644 cases, 18 exact ties, 8 exact-vs-server mismatches
+  tie {'srA': 68600, 'srB': 68600, 'hA': -80, 'hB': 0, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.0}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 240, 'hB': 0, 'exact': 'too_far', 'server': 'too_far', 'tie': True, 'flight_float': 60.0}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 44920, 'hB': 45000, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.000000000001055}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 45240, 'hB': 45000, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 41220, 'hB': 41300, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999999999915}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 41540, 'hB': 41300, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  tie {'srA': 68600, 'srB': 68600, 'hA': -12425, 'hB': -12345, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.000000000000103}
+  tie {'srA': 68600, 'srB': 68600, 'hA': -12105, 'hB': -12345, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999984}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 2147283567, 'hB': 2147283647, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999994495738}
+  tie {'srA': 68600, 'srB': 68600, 'hA': 2147283887, 'hB': 2147283647, 'exact': 'too_far', 'server': 'too_far', 'tie': True, 'flight_float': 60.00000002204615}
+  tie {'srA': 68600, 'srB': 72030, 'hA': -80, 'hB': 0, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.0}
+  tie {'srA': 68600, 'srB': 72030, 'hA': 240, 'hB': 0, 'exact': 'too_far', 'server': 'too_far', 'tie': True, 'flight_float': 60.0}
+  tie {'srA': 72030, 'srB': 68600, 'hA': -84, 'hB': 0, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.0}
+  tie {'srA': 72030, 'srB': 68600, 'hA': 252, 'hB': 0, 'exact': 'too_far', 'server': 'too_far', 'tie': True, 'flight_float': 60.0}
+  tie {'srA': 72030, 'srB': 68600, 'hA': 47166, 'hB': 45000, 'exact': 'impossible_flight', 'server': 'impossible_flight', 'tie': True, 'flight_float': -20.000000000001055}
+  tie {'srA': 72030, 'srB': 68600, 'hA': 47502, 'hB': 45000, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  tie {'srA': 72030, 'srB': 68600, 'hA': 43281, 'hB': 41300, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999999999915}
+  tie {'srA': 72030, 'srB': 68600, 'hA': 43617, 'hB': 41300, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  MISMATCH {'srA': 68600, 'srB': 68600, 'hA': 45240, 'hB': 45000, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  MISMATCH {'srA': 68600, 'srB': 68600, 'hA': 41220, 'hB': 41300, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999999999915}
+  MISMATCH {'srA': 68600, 'srB': 68600, 'hA': 41540, 'hB': 41300, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  MISMATCH {'srA': 68600, 'srB': 68600, 'hA': -12105, 'hB': -12345, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999984}
+  MISMATCH {'srA': 68600, 'srB': 68600, 'hA': 2147283567, 'hB': 2147283647, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999994495738}
+  MISMATCH {'srA': 72030, 'srB': 68600, 'hA': 47502, 'hB': 45000, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+  MISMATCH {'srA': 72030, 'srB': 68600, 'hA': 43281, 'hB': 41300, 'exact': 'impossible_flight', 'server': 'NEAR', 'tie': True, 'flight_float': -19.99999999999915}
+  MISMATCH {'srA': 72030, 'srB': 68600, 'hA': 43617, 'hB': 41300, 'exact': 'too_far', 'server': 'NEAR', 'tie': True, 'flight_float': 59.99999999999936}
+every mismatch is an exact tie where the server's float flight rounds across the bound; the integer rule is exact

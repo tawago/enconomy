@@ -1,0 +1,14 @@
+PASS pair 180ca04b label    30 flight   33.94 NEAR     d=95 bounds (-56,168) -> ACCEPT
+PASS pair 2940913c label    60 flight   76.82 NOT_NEAR d=215 bounds (-56,168) -> REJECT
+PASS pair 2dc2eb59 label     0 flight    5.00 NEAR     d=14 bounds (-56,168) -> ACCEPT
+PASS pair 7711d899 label   100 flight   98.26 NOT_NEAR d=275 bounds (-56,168) -> REJECT
+PASS pair 9afb91c6 label   200 flight  210.44 NOT_NEAR d=589 bounds (-56,168) -> REJECT
+PASS pair b2a5f86d label    60 flight   60.38 NOT_NEAR d=169 bounds (-56,168) -> REJECT
+PASS pair b550cf12 label    30 flight   32.51 NEAR     d=91 bounds (-56,168) -> ACCEPT
+PASS pair b9e4dd4b label    30 flight   26.80 NEAR     d=75 bounds (-56,168) -> ACCEPT
+PASS pair d1ee4fb0 label   100 flight   96.47 NOT_NEAR d=270 bounds (-56,168) -> REJECT
+PASS pair d283370f label   200 flight  225.09 NOT_NEAR d=630 bounds (-56,168) -> REJECT
+PASS pair ef0b6e11 label   100 flight  110.76 NOT_NEAR d=310 bounds (-56,168) -> REJECT
+PASS pair f3ff0ee8 label   200 flight  219.38 NOT_NEAR d=614 bounds (-56,168) -> REJECT
+
+pairs d2: 12/12 as expected

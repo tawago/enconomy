@@ -1,0 +1,44 @@
+PASS 7711d899 d2 A sig   none           -> ACCEPT  {'honest_half': 46467}  | 
+PASS 7711d899 d2 A sig   resign_late    -> REJECT  {'honest_half': 46467, 'claimed_half': 46323}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 7711d899 d2 A sig   resign_early   -> REJECT  {'honest_half': 46467, 'claimed_half': 46367}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 7711d899 d2 B sig   none           -> ACCEPT  {'honest_half': 46192}  | 
+PASS 7711d899 d2 B sig   resign_late    -> REJECT  {'honest_half': 46192, 'claimed_half': 46206}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 7711d899 d2 B sig   resign_early   -> REJECT  {'honest_half': 46192, 'claimed_half': 46292}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair 7711d899 label   100 flight   98.26 NOT_NEAR d=275 bounds (-56,168) -> REJECT
+PASS 9afb91c6 d2 A sig   none           -> ACCEPT  {'honest_half': 45617}  | 
+PASS 9afb91c6 d2 A sig   resign_late    -> REJECT  {'honest_half': 45617, 'claimed_half': 45575}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 9afb91c6 d2 A sig   resign_early   -> REJECT  {'honest_half': 45617, 'claimed_half': 45517}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 9afb91c6 d2 B sig   none           -> ACCEPT  {'honest_half': 45028}  | 
+PASS 9afb91c6 d2 B sig   resign_late    -> REJECT  {'honest_half': 45028, 'claimed_half': 45152}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 9afb91c6 d2 B sig   resign_early   -> REJECT  {'honest_half': 45028, 'claimed_half': 45128}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair 9afb91c6 label   200 flight  210.44 NOT_NEAR d=589 bounds (-56,168) -> REJECT
+PASS d1ee4fb0 d2 A sig   none           -> ACCEPT  {'honest_half': 46533}  | 
+PASS d1ee4fb0 d2 A sig   resign_late    -> REJECT  {'honest_half': 46533, 'claimed_half': 46530}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d1ee4fb0 d2 A sig   resign_early   -> REJECT  {'honest_half': 46533, 'claimed_half': 46433}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d1ee4fb0 d2 B sig   none           -> ACCEPT  {'honest_half': 46263}  | 
+PASS d1ee4fb0 d2 B sig   resign_late    -> REJECT  {'honest_half': 46263, 'claimed_half': 46405}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d1ee4fb0 d2 B sig   resign_early   -> REJECT  {'honest_half': 46263, 'claimed_half': 46363}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair d1ee4fb0 label   100 flight   96.47 NOT_NEAR d=270 bounds (-56,168) -> REJECT
+PASS d283370f d2 A sig   none           -> ACCEPT  {'honest_half': 46196}  | 
+PASS d283370f d2 A sig   resign_late    -> REJECT  {'honest_half': 46196, 'claimed_half': 46119}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d283370f d2 A sig   resign_early   -> REJECT  {'honest_half': 46196, 'claimed_half': 46096}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d283370f d2 B sig   none           -> ACCEPT  {'honest_half': 45566}  | 
+PASS d283370f d2 B sig   resign_late    -> REJECT  {'honest_half': 45566, 'claimed_half': 45693}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS d283370f d2 B sig   resign_early   -> REJECT  {'honest_half': 45566, 'claimed_half': 45666}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair d283370f label   200 flight  225.09 NOT_NEAR d=630 bounds (-56,168) -> REJECT
+PASS ef0b6e11 d2 A sig   none           -> ACCEPT  {'honest_half': 45610}  | 
+PASS ef0b6e11 d2 A sig   resign_late    -> REJECT  {'honest_half': 45610, 'claimed_half': 45450}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS ef0b6e11 d2 A sig   resign_early   -> REJECT  {'honest_half': 45610, 'claimed_half': 45510}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS ef0b6e11 d2 B sig   none           -> ACCEPT  {'honest_half': 45300}  | 
+PASS ef0b6e11 d2 B sig   resign_late    -> REJECT  {'honest_half': 45300, 'claimed_half': 45440}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS ef0b6e11 d2 B sig   resign_early   -> REJECT  {'honest_half': 45300, 'claimed_half': 45400}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair ef0b6e11 label   100 flight  110.76 NOT_NEAR d=310 bounds (-56,168) -> REJECT
+PASS f3ff0ee8 d2 A sig   none           -> ACCEPT  {'honest_half': 46751}  | 
+PASS f3ff0ee8 d2 A sig   resign_late    -> REJECT  {'honest_half': 46751, 'claimed_half': 46583}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS f3ff0ee8 d2 A sig   resign_early   -> REJECT  {'honest_half': 46751, 'claimed_half': 46651}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS f3ff0ee8 d2 B sig   none           -> ACCEPT  {'honest_half': 46137}  | 
+PASS f3ff0ee8 d2 B sig   resign_late    -> REJECT  {'honest_half': 46137, 'claimed_half': 46165}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS f3ff0ee8 d2 B sig   resign_early   -> REJECT  {'honest_half': 46137, 'claimed_half': 46237}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS pair f3ff0ee8 label   200 flight  219.38 NOT_NEAR d=614 bounds (-56,168) -> REJECT
+
+notnear d2: 42/42 as expected

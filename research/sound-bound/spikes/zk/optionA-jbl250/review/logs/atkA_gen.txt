@@ -1,0 +1,12 @@
+{"B": 4474747, "cn2": 9541321, "Kp": 512, "arr": 256, "score_at_arr": 0.09158157176308596, "attack": "self window starts after the true self arrival", "session": "9afb91c69ecc41bcb4ed73cba97b4cac", "key": "A_at_A", "true_arr_abs": 1093000, "fake_arr_abs": 1093546, "shift_samples": 546, "flight_honest_cm": 210.80208333333334, "flight_claimed_cm": 15.720833333333331}
+Traceback (most recent call last):
+  File "/Users/takahiro_ogawa/dev/enconomy/research/sound-bound/spikes/zk/optionA-jbl250/review/attacks.py", line 236, in <module>
+    self_attack(sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5])
+  File "/Users/takahiro_ogawa/dev/enconomy/research/sound-bound/spikes/zk/optionA-jbl250/review/attacks.py", line 126, in self_attack
+    inp, meta = make_input(xs, cI, cQ, KP, "exact", j - s0, h, g)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/takahiro_ogawa/dev/enconomy/research/sound-bound/spikes/zk/optionA-jbl250/review/attacks.py", line 53, in make_input
+    assert sub["arr"] == arr, ("not the first candidate of the sub-window", sub["arr"], arr)
+           ^^^^^^^^^^^^^^^^^
+AssertionError: ('not the first candidate of the sub-window', 5, 106)
+{"B": 4474747, "cn2": 10233109, "Kp": 512, "arr": 28, "score_at_arr": 0.09458828367179355, "attack": "self window starts after the true self arrival", "session": "d1ee4fb071a4423ca3ca54c595f7e35f", "key": "A_at_A", "true_arr_abs": 1093847, "fake_arr_abs": 1093954, "shift_samples": 107, "flight_honest_cm": 95.396875, "flight_claimed_cm": 57.16666666666666}

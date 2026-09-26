@@ -1,0 +1,35 @@
+# 18 sessions, 6 variants, 33 s wall
+variant   probe  agree lab ok/wrong/und  |dfl| med/max cm lost/base gain  dMarg med/p10 dB marg med/min NEARmax/FARmin core R1CS full R1CS
+lean_e    JB    14/18      9/0/6          0.73/2.2        10/144     0    -6.58/-7.20     12.0/2.1      34.3/101.8    2.14e+07  2.14e+07
+lean_e    N1s   18/18     15/0/0          0.73/3.2         0/144     0    -6.33/-6.97     13.3/1.7      33.9/101.8    2.14e+07  2.14e+07
+lean_f    JB    14/18      9/0/6          0.73/3.9        10/144     0   -10.65/-11.42     8.0/0.2      34.3/101.8    8.70e+06  8.70e+06
+lean_f    N1s   18/18     15/0/0          0.73/7.5         0/144     0   -10.53/-11.32     9.1/0.5      33.6/102.0    8.70e+06  8.70e+06
+lean_g    JB    14/18      9/0/6          0.73/2.5        10/144     0    -7.62/-8.26     10.6/0.3      34.1/101.8    1.97e+07  1.97e+07
+lean_g    N1s   18/18     15/0/0          0.74/2.8         0/144     0    -7.74/-8.46     11.8/1.2      33.4/102.0    1.97e+07  1.97e+07
+lean_h    JB    14/18      9/0/6          0.73/3.6        10/144     0    -8.27/-8.93      9.8/0.3      34.3/101.6    1.89e+07  1.89e+07
+lean_h    N1s   18/18     15/0/0          0.73/2.2         0/144     0    -8.56/-9.31     11.0/1.1      33.4/102.4    1.89e+07  1.89e+07
+lean_i    JB    14/18      9/0/6          0.73/8.2        10/144     0   -11.70/-12.73     6.5/0.8      34.1/102.4    8.03e+06  8.03e+06
+lean_i    N1s   18/18     15/0/0          1.09/8.2         0/144     0   -11.67/-12.47     7.8/0.3      33.2/102.2    8.03e+06  8.03e+06
+lean_j    JB    15/18     10/0/5          0.73/1.8         9/144     0    -7.52/-8.16     10.6/0.3      33.9/101.8    4.77e+07  4.77e+07
+lean_j    N1s   18/18     15/0/0          0.73/2.2         0/144     0    -7.51/-8.19     12.0/1.4      33.2/102.0    4.77e+07  4.77e+07
+fixed T lean_e: JB min/med/max 8.48/8.67/8.69 %, N1s min/med/max 7.91/8.00/8.02 %
+fixed T lean_f: JB min/med/max 13.07/13.44/13.51 %, N1s min/med/max 12.86/13.03/13.07 %
+fixed T lean_g: JB min/med/max 7.67/7.81/7.83 %, N1s min/med/max 7.34/7.45/7.46 %
+fixed T lean_h: JB min/med/max 6.89/6.93/6.95 %, N1s min/med/max 6.70/6.72/6.73 %
+fixed T lean_i: JB min/med/max 11.93/12.10/12.13 %, N1s min/med/max 11.61/11.74/11.77 %
+fixed T lean_j: JB min/med/max 7.60/7.73/7.75 %, N1s min/med/max 7.22/7.26/7.28 %
+expected-centred +-5 ms: 288/288 baseline arrivals outside; arrival - expected min/med/max 71.7/106.8/141.3 ms
+expected-centred +-2 ms: 288/288 baseline arrivals outside; arrival - expected min/med/max 71.7/106.8/141.3 ms
+labels lean_e    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_e    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_f    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_f    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_g    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_g    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_h    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_h    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_i    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_i    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_j    JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100F f667:30U
+labels lean_j    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+runtime per session (s): [7, 7, 7, 7, 6, 5, 5, 5, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5]

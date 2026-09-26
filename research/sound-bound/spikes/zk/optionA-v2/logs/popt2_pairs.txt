@@ -1,0 +1,31 @@
+PASS  pair 180ca04b_48k sr 48000/48000 label 30 flight 33.94 NEAR want=accept got=ACCEPT  
+PASS  pair 180ca04b_mix sr 48000/44100 label 30 flight 33.96 NEAR want=accept got=ACCEPT  
+PASS  pair 2940913c_48k sr 48000/48000 label 60 flight 76.82 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 2940913c_mix sr 48000/44100 label 60 flight 76.94 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 2dc2eb59_48k sr 48000/48000 label 0 flight 5.0 NEAR   want=accept got=ACCEPT  
+PASS  pair 2dc2eb59_mix sr 48000/44100 label 0 flight 4.93 NEAR  want=accept got=ACCEPT  
+PASS  pair 7711d899_48k sr 48000/48000 label 100 flight 98.26 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 7711d899_mix sr 48000/44100 label 100 flight 98.22 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 9afb91c6_48k sr 48000/48000 label 200 flight 210.44 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 9afb91c6_mix sr 48000/44100 label 200 flight 210.63 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair b2a5f86d_48k sr 48000/48000 label 60 flight 60.38 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair b2a5f86d_mix sr 48000/44100 label 60 flight 60.63 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair b550cf12_48k sr 48000/48000 label 30 flight 32.51 NEAR want=accept got=ACCEPT  
+PASS  pair b550cf12_mix sr 48000/44100 label 30 flight 32.52 NEAR want=accept got=ACCEPT  
+PASS  pair b9e4dd4b_48k sr 48000/48000 label 30 flight 26.8 NEAR want=accept got=ACCEPT  
+PASS  pair b9e4dd4b_mix sr 48000/44100 label 30 flight 27.06 NEAR want=accept got=ACCEPT  
+PASS  pair d1ee4fb0_48k sr 48000/48000 label 100 flight 96.47 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair d1ee4fb0_mix sr 48000/44100 label 100 flight 96.52 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair d283370f_48k sr 48000/48000 label 200 flight 225.09 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair d283370f_mix sr 48000/44100 label 200 flight 225.39 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair ef0b6e11_48k sr 48000/48000 label 100 flight 110.76 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair ef0b6e11_mix sr 48000/44100 label 100 flight 110.91 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair f3ff0ee8_48k sr 48000/48000 label 200 flight 219.38 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair f3ff0ee8_mix sr 48000/44100 label 200 flight 219.52 NOT_NEAR want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  pair 180ca04b_mix tamper sr                                want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1278 unsatisfied
+PASS  pair 180ca04b_48k tamper samekey                           want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 610 unsatisfied
+PASS  pair 9afb91c6_48k tamper madeup (circuit accepts; session verifier must reject) want=accept got=ACCEPT  
+PASS  pair splice A=180ca04b_48k B=b550cf12_48k                  want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1278 unsatisfied
+
+pairs: 28/28 as expected
+[heavy] popt2-pairs: 3.7s rc=0

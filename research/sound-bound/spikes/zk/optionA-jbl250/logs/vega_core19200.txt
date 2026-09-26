@@ -1,0 +1,5 @@
+RESULT setup mode=Core L=12000 K=19200 setup_ms=230 sizes=[136798, 0, 69661, 136797, 262144, 0, 71680, 190464, 24000, 2]
+RESULT prove rep=0 tamper=false prep_ms=40 prove_ms=387 verify_ms=43 verify=ACCEPT proof_bytes=847884
+RESULT prove rep=1 tamper=false prep_ms=37 prove_ms=379 verify_ms=40 verify=ACCEPT proof_bytes=847884
+[heavy] vega-core19200: 1.2s rc=0
+           519028736  maximum resident set size

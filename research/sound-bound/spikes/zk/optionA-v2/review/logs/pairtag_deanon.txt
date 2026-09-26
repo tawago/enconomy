@@ -1,0 +1,2 @@
+9900 candidate pairs of 100 enrolled keys in 36.3 s (pure Python, 272 Poseidon/s)
+match: [('0xa3add80f0b30', '0xf567fcdaa2cb')]  fixture A/B x: a3add80f0b30 f567fcdaa2cb

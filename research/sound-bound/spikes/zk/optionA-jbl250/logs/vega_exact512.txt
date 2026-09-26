@@ -1,0 +1,6 @@
+RESULT setup mode=Exact L=12000 K=512 setup_ms=516 sizes=[144918, 0, 13597, 143363, 262144, 0, 14336, 247808, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=28 prove_ms=403 verify_ms=48 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=1 tamper=false prep_ms=15 prove_ms=372 verify_ms=46 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=2 tamper=false prep_ms=16 prove_ms=365 verify_ms=47 verify=ACCEPT proof_bytes=847916
+[heavy] vega-exact512: 2.2s rc=0
+           584007680  maximum resident set size

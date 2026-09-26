@@ -1,0 +1,3 @@
+baseline (true template B, 180ca04b): [INFO]  snarkJS: OK!
+role-A template, same session: [ERROR] snarkJS: Invalid proof
+role-B template of session 7711d899: [ERROR] snarkJS: Invalid proof

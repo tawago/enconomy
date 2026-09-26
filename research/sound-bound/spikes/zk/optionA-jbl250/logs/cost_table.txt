@@ -1,0 +1,26 @@
+unit costs: Poseidon(16) 609, Poseidon(2) 240, SHA-256 block 30328; hash per score 81.2, per sample 18.7
+fit core :  104.41 per lag +    286288
+fit cand :  203.41 per lag +    310543
+fit exact:  216.86 per lag +    311321
+
+per arrival (one window of the phone's own file):
+  core  K=19,200 (Freivalds+FS only)                          2,281,108  measured                    no in-circuit hash:    137,278
+  exact K=19,200 (web window, rule exact)                     4,475,021  extrapolated (216.9/lag)    no in-circuit hash:  2,331,191
+  cand  K=512    (one-sided: claimed lag is a candidate)        414,689  measured                    no in-circuit hash:    137,915
+  exact K=512    (native OS-timestamp window, ~+-5 ms)          422,071  measured                    no in-circuit hash:    145,297
+
+per phone (self + cross arrival in its own file), R1CS constraints:
+  P1 web windows, both arrivals exact                           8,962,522   commit-and-prove:    4,662,382
+  P2 web windows, self exact + cross one-sided                  4,902,190   commit-and-prove:    2,469,106
+  P3 native timestamps, self exact +-5 ms + cross one-sided       849,240   commit-and-prove:      283,212
+
+add-ons (modeled):
+  rec binding, Poseidon-Merkle path per window                 6,240
+  rec binding, SHA-256 over one web window (int16)        29,660,784
+  rec binding, SHA-256 over one 512-lag sub-window         11,949,232
+  rec binding, SHA-256 over the whole 27 s float32 WAV   2,456,598,328
+  live 64-code bar, cross window, hashed                  216,360,960
+  live 64-code bar, cross window, commit-and-prove        116,582,400
+  template hashed instead of public (2 x 12k 8-bit)           224,480
+  20 ms glitch check over 1.4 s span, hashed                1,593,088
+  20 ms glitch check over 1.4 s span, commit-and-prove        336,000

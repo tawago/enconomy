@@ -1,0 +1,33 @@
+load: { 4.17 6.92 9.77 }
+prove: OK load=0.16s witness=0.002s prove=0.713s proof=387436 bytes peakRSS=271MB
+           283852800  maximum resident set size
+prove: OK load=0.15s witness=0.002s prove=0.703s proof=387788 bytes peakRSS=264MB
+           276987904  maximum resident set size
+prove: OK load=0.16s witness=0.003s prove=0.713s proof=386988 bytes peakRSS=263MB
+           276267008  maximum resident set size
+prove: OK load=0.16s witness=0.003s prove=0.711s proof=387532 bytes peakRSS=264MB
+           276463616  maximum resident set size
+prove: OK load=0.16s witness=0.003s prove=0.724s proof=386892 bytes peakRSS=272MB
+           285392896  maximum resident set size
+verify: ACCEPT load=0.15s verify=0.400s peakRSS=191MB
+           200638464  maximum resident set size
+verify: ACCEPT load=0.14s verify=0.405s peakRSS=185MB
+           194428928  maximum resident set size
+verify: ACCEPT load=0.16s verify=0.458s peakRSS=194MB
+           202964992  maximum resident set size
+verify: ACCEPT load=0.16s verify=0.449s peakRSS=191MB
+           200146944  maximum resident set size
+verify: ACCEPT load=0.16s verify=0.458s peakRSS=196MB
+           206045184  maximum resident set size
+load: { 4.06 6.81 9.70 }
+--- vendor, same session
+[INFO][+ 2811.583 ms] Compiled circuit: mdocsmall
+[INFO][+    0.005 ms]  depth: 12 wires: 592555 in: 20171 out:4 use:494325 ovh:98230 t:1799704 cse:481591 notn:1361477
+BM_AnonCred  389292342 ns    387674600 ns            5
+           571539456  maximum resident set size
+BM_ECDSAZKProver/1     33587608 ns     33152600 ns            5
+BM_ECDSAZKVerifier/1   23192175 ns     22985800 ns            5
+[INFO][+   83.790 ms] Compiled circuit: ecdsa verify3
+[INFO][+    0.004 ms]  depth: 12 wires: 24477 in: 1038 out:2 use:17232 ovh:7245 t:49646 cse:11090 notn:37213
+load: { 3.90 6.73 9.65 }
+[heavy] lf-bench: 14.3s rc=0

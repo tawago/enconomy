@@ -1,0 +1,100 @@
+== honest per-phone d2 sig, fresh processes
+RESULT prove oa2_d2_sig pk_load_ms=2048 witness_ms=415 prove_ms=3964 proof_bytes=1648319
+          1333444608  maximum resident set size
+          1963745344  peak memory footprint
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1461 verify_ms=1242
+           701267968  maximum resident set size
+RESULT prove oa2_d2_sig pk_load_ms=1375 witness_ms=382 prove_ms=3876 proof_bytes=1648319
+          1330397184  maximum resident set size
+          1998446912  peak memory footprint
+RESULT verify oa2_d2_sig ACCEPT vk_load_ms=1407 verify_ms=1169
+           808124416  maximum resident set size
+== honest pair
+RESULT prove oa2_pair pk_load_ms=16 witness_ms=2 prove_ms=48 proof_bytes=39649
+RESULT verify oa2_pair ACCEPT vk_load_ms=18 verify_ms=20
+== per-phone attacks: check, then forced prove + verify
+-- X1_path_other_position
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[1]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[2]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[1]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[2]
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof
+-- X1b_children_reordered
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+RESULT check oa2_d2_sig REJECT r1cs constraint 791190 unsatisfied
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+Failed assert in template/function MerklePath line 54. Followed trace of components: main.opS.mp[0]
+RESULT prove oa2_d2_sig pk_load_ms=1294 witness_ms=348 prove_ms=3810 proof_bytes=1648319
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof
+-- X2_leaf_minus1_offset_plus1024
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.oSb
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+RESULT check oa2_d2_sig REJECT r1cs constraint 60768 unsatisfied
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.oSb
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+RESULT prove oa2_d2_sig pk_load_ms=1390 witness_ms=318 prove_ms=3856 proof_bytes=1648319
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof
+-- X6_templates_partner_order
+Failed assert in template/function ECDSA line 100. Followed trace of components: main.dsig.e
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rp.b
+Failed assert in template/function ECDSA line 100. Followed trace of components: main.dsig.e
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rp.b
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof
+-- X7_curve_shifted_one_lag
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rk[5].b
+RESULT check oa2_d2_sig REJECT r1cs constraint 60768 unsatisfied
+Failed assert in template/function OA2 line 227. Followed trace of components: main
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.rk[5].b
+RESULT prove oa2_d2_sig pk_load_ms=1581 witness_ms=337 prove_ms=4029 proof_bytes=1648319
+RESULT verify oa2_d2_sig REJECT spartan verify failed: InvalidSumcheckProof
+== pair attacks
+-- X3_cross_session_splice
+Failed assert in template/function Pair line 25. Followed trace of components: main
+RESULT check oa2_pair REJECT r1cs constraint 1251 unsatisfied
+Failed assert in template/function Pair line 25. Followed trace of components: main
+RESULT prove oa2_pair pk_load_ms=16 witness_ms=1 prove_ms=52 proof_bytes=39649
+RESULT verify oa2_pair REJECT spartan verify failed: InvalidSumcheckProof
+-- X4_fabricated_pair_9afb91c6
+RESULT check oa2_pair ACCEPT witness_ms=1 n_witness=1522 public=[237667741305872783574326933824891896195,8343580548192192505530211498287272437,0,108859477827348630448236042252214129550710084461712715738141450675141027687285,58583179134095101085533517904620901158052098037910886489939164493571262786652,115792089210356248762697446949407573530086143415290314195533631308867097853895,168]
+RESULT prove oa2_pair pk_load_ms=14 witness_ms=1 prove_ms=53 proof_bytes=39649
+RESULT verify oa2_pair ACCEPT vk_load_ms=17 verify_ms=18
+-- X5_role_doubling
+Failed assert in template/function Pair line 25. Followed trace of components: main
+RESULT check oa2_pair REJECT r1cs constraint 1251 unsatisfied
+Failed assert in template/function Pair line 25. Followed trace of components: main
+RESULT prove oa2_pair pk_load_ms=14 witness_ms=1 prove_ms=52 proof_bytes=39649
+RESULT verify oa2_pair REJECT spartan verify failed: InvalidSumcheckProof
+-- X8_half_wrap_2p32
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.ra
+Failed assert in template/function Pair line 32. Followed trace of components: main
+RESULT check oa2_pair REJECT r1cs constraint 1347 unsatisfied
+Failed assert in template/function Num2Bits line 38. Followed trace of components: main.ra
+Failed assert in template/function Pair line 32. Followed trace of components: main
+RESULT prove oa2_pair pk_load_ms=14 witness_ms=1 prove_ms=53 proof_bytes=39649
+RESULT verify oa2_pair REJECT spartan verify failed: InvalidSumcheckProof
+== end-to-end verifier sketch
+-- 180ca04b honest (A, B, pair)
+per-phone A: ACCEPT  halfCommit=108943122894.. nullifier=721608703400.. pairTag=112581716381..
+per-phone B: ACCEPT  halfCommit=694927186696.. nullifier=989285346933.. pairTag=112581716381..
+pair (bound to the per-phone halfCommits): RESULT verify oa2_pair ACCEPT vk_load_ms=16 verify_ms=16
+SESSION VERDICT: NEAR (accepted)
+-- 9afb91c6 (200 cm): builder's honest per-phone proofs + X4 fabricated pair proof
+per-phone A: ACCEPT  halfCommit=110245147458.. nullifier=436209498947.. pairTag=768717358363..
+per-phone B: ACCEPT  halfCommit=766033266899.. nullifier=462831790042.. pairTag=768717358363..
+pair (bound to the per-phone halfCommits): RESULT verify oa2_pair REJECT public IO mismatch: proof has [237667741305872783574326933824891896195, 8343580548192192505530211498287272437, 0, 10885947782734863044823604
+SESSION VERDICT: REJECT
+-- 9afb91c6 per-phone A + 180ca04b per-phone B + 180ca04b pair (cross-session)
+per-phone A: ACCEPT  halfCommit=110245147458.. nullifier=436209498947.. pairTag=768717358363..
+per-phone B: SNARK ok, public inputs differ from the derived ones at [0, 1, 4, 5, 6] -> REJECT
+SESSION VERDICT: REJECT
+-- 180ca04b A used in both roles
+per-phone A: ACCEPT  halfCommit=108943122894.. nullifier=721608703400.. pairTag=112581716381..
+per-phone B: SNARK ok, public inputs differ from the derived ones at [3, 4, 5, 6, 8] -> REJECT
+SESSION VERDICT: REJECT
+[heavy] review-oa2: 105.1s rc=0

@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from scipy.signal import hilbert
 
-FIELD = Path(__file__).resolve().parents[1] / "melody" / "fieldtest"
+FIELD = Path(__file__).resolve().parents[2] / "melody" / "fieldtest"
 sys.path.insert(0, str(FIELD))
 import fieldprobes as fp          # noqa: E402
 from fieldanalysis import _read_wav  # noqa: E402

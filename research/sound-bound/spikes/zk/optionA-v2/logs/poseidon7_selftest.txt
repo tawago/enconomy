@@ -1,0 +1,5 @@
+circomlib R_P                 [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68]
+ours, old script, rounded up  [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68] match
+ours, 2023 script, rounded up [56, 57, 56, 60, 60, 63, 64, 63, 60, 66, 60, 65, 70, 60, 64, 68] match
+t=2: round constants match (128), MDS match; our irreducibility check on it: (True, None)
+t=3: round constants match (195), MDS match; our irreducibility check on it: (True, None)

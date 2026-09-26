@@ -1,0 +1,14 @@
+PASS  witness=ok        honest   
+PASS  witness=rejected  I[100] += 1 (one score, before arrival)   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+PASS  witness=rejected  Q[400] -= 1 (one score, after arrival)   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+PASS  witness=rejected  I[K-1] += 1 (last lag, no rule check there)   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+PASS  witness=rejected  I[arr] += 1 (score at the arrival)   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+PASS  witness=rejected  x[6000] += 1, scores unchanged   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+PASS  witness=rejected  x[0] = 40000 (out of int16)   Error: Error: Assert Failed. | Error in template Num2Bits_0 line: 38
+PASS  witness=rejected  claim arrival 1 lag late (reason a at the true one)   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  claim arrival 2 lags late   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  claim 1 late, reason b (rising) at the true one   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  claim 1 late, reason c (falling) at the true one   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  claim arrival 3 lags early (rising edge)   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  forge: plant a peak at lag 100 and claim it   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+ALL PASS

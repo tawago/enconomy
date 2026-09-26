@@ -1,0 +1,4 @@
+build/
+out/
+# repo root ignores *.log; these run logs are small and are the evidence for README numbers
+!logs/*.log

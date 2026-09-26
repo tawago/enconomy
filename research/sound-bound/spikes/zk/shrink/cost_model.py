@@ -1,11 +1,11 @@
 """Constraint / row estimates per ranging round (4 arrivals) for receiver variants.
 
-R1CS unit costs (circom-style, from ../README.md fit and standard gadgets):
+R1CS unit costs (circom-style, from ../v1-bn254/README.md fit and standard gadgets):
   mult (witness x witness)          1
   linear combination (const coeffs) 0      (circom --O2 folds it; nnz grows instead)
   b-bit range check / bit decomp    b
   compare two b-bit values          b + 1
-  Poseidon(16) absorbing 15 elems   610    (README fit: 610 per 225 int16 samples)
+  Poseidon(16) absorbing 15 elems   610    (v1-bn254 fit: 610 per 225 int16 samples)
 Plonkish-with-lookups unit costs (halo2 / plonky3 style, order of magnitude):
   mult-add gate                     1 row
   range check via 16-bit table      1 lookup per 16-bit limb

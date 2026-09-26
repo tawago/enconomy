@@ -1,0 +1,35 @@
+Unable to determine clock rate from sysctl: hw.cpufrequency: No such file or directory
+This does not affect benchmark measurements, only the metadata output.
+***WARNING*** Failed to set thread affinity. Estimated CPU frequency may be incorrect.
+2026-09-26T04:15:38+09:00
+Running ../vendor/longfellow-zk/clang-build-release/circuits/mdoc/mdoc_zk_test
+Run on (8 X 24 MHz CPU s)
+CPU Caches:
+  L1 Data 64 KiB
+  L1 Instruction 128 KiB
+  L2 Unified 4096 KiB (x8)
+Load Average: 10.48, 6.35, 6.35
+----------------------------------------------------------
+Benchmark                Time             CPU   Iterations
+----------------------------------------------------------
+BM_MdocProver    503576222 ns    497178333 ns            3
+BM_MdocVerifier  273327347 ns    271125333 ns            3
+       24.65 real        21.41 user         2.38 sys
+          1279442944  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             1025474  page reclaims
+                 140  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  14  voluntary context switches
+               37621  involuntary context switches
+        198825835922  instructions retired
+         68049326641  cycles elapsed
+          1722855424  peak memory footprint
+[heavy] lf-vendor-mdoc: 24.7s rc=2

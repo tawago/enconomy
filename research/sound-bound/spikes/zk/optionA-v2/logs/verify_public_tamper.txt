@@ -1,0 +1,5 @@
+roleB_flipped: RESULT verify oa2_d2_audio REJECT public IO mismatch: proof has [108943122894013636236589031618600534758544149
+pSelf_plus200: RESULT verify oa2_d2_audio REJECT public IO mismatch: proof has [108943122894013636236589031618600534758544149
+template_other_session: RESULT verify oa2_d2_audio REJECT public IO mismatch: proof has [108943122894013636236589031618600534758544149
+halfCommit_changed: RESULT verify oa2_d2_audio REJECT public IO mismatch: proof has [108943122894013636236589031618600534758544149
+proof_byte_flipped: RESULT verify oa2_d2_audio REJECT proof decode: deserialized bytes don't encode a valid field element

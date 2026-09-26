@@ -1,0 +1,66 @@
+{
+ "session_id": "f3ff0ee8be044a1cac985e4d0165d49b",
+ "label_cm": 200.0,
+ "sr": 48000,
+ "probe": "JBL250",
+ "round": 0,
+ "nonce_hex": "7892d58dabcb6c7eb6be0c6b3a2090ba68c45c26ac9683a8ae773597cb315e0b",
+ "nonce_note": "dev: sha256('SBnonce1'||session_id)",
+ "attempt": 0,
+ "issuer": {
+  "pub_x": "9178141b72e5cae00db063dbd38fda4f82a11e1dc8442d2735604719630d99b6",
+  "pub_y": "4b75c24fb3128f0646642e3828848d23348f1e08023f5378425a28cffd1885e3"
+ },
+ "roles": {
+  "A": {
+   "device_pub_x": "a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c",
+   "device_pub_y": "5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43",
+   "key_kind": "secure-enclave",
+   "half_samples": 46751,
+   "rec_hash_hex": "ec872fb05d54a93a8e5ef5b303f1e15b3f9afbe21d8b79237dbdbe58cfc7540b",
+   "os_ts": [
+    1790356637236111872
+   ],
+   "os_ts_note": "placeholder: start_server_ms + scheduled play offset, not a real OS timestamp",
+   "transcript_hex": "534276317892d58dabcb6c7eb6be0c6b3a2090ba68c45c26ac9683a8ae773597cb315e0b0041a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c0000bb800000b69fec872fb05d54a93a8e5ef5b303f1e15b3f9afbe21d8b79237dbdbe58cfc7540b0118d89fe037b8aa00",
+   "digest_hex": "f6bedd5d5ffcbd6c07e0fb20a234318eb8dd7bc3b015407f3ca2aad3038ec2e8",
+   "sig_r_hex": "e9b8408a059cf412d249ef1dc98ef4f8531753f7223f83a0a413e1ea03759016",
+   "sig_s_hex": "64d9aebb9d99058b7e94296d64e6ee1d102dec7a186dc7d7d18e77f78b384169",
+   "sig_low_s_normalized": false,
+   "cred_hex": "53426372656431a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43000000006ade397b",
+   "cred_expiry_unix": 1792948603,
+   "cred_digest_hex": "eef169f8520981c5f3872746504fd9e893784722994bfe2aed4375432a47b52b",
+   "cred_sig_r_hex": "ce737903f265a53cfd4d064404f903292efcfd5d83247eab08bf58e8cb4b0784",
+   "cred_sig_s_hex": "46e0072b15797ec0cd10c2c010611806aee91f46dc66c825d3a15720acf0eae9",
+   "cred_sig_low_s_normalized": true
+  },
+  "B": {
+   "device_pub_x": "f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b59",
+   "device_pub_y": "01c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c",
+   "key_kind": "secure-enclave",
+   "half_samples": 46139,
+   "rec_hash_hex": "c331774f7ba54021df55240d86fa8b8e5c8cb42806c6cea13a4111a039679e80",
+   "os_ts": [
+    1790356638186111872
+   ],
+   "os_ts_note": "placeholder: start_server_ms + scheduled play offset, not a real OS timestamp",
+   "transcript_hex": "534276317892d58dabcb6c7eb6be0c6b3a2090ba68c45c26ac9683a8ae773597cb315e0b0042f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1ca3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f430000bb800000b43bc331774f7ba54021df55240d86fa8b8e5c8cb42806c6cea13a4111a039679e800118d89fe070588380",
+   "digest_hex": "97c3165b8a986b3da189e687efe1a0ef7dab29c18874c996e3d316d13b49ef54",
+   "sig_r_hex": "db8870aba35ebaf966ac20c4ea880d95b9a07a0c7475097819d484a59a6a9930",
+   "sig_s_hex": "7f81a0593178aee205abf06c3ea5ce09ce31dead45d6c5ba94435784a7c07911",
+   "sig_low_s_normalized": true,
+   "cred_hex": "53426372656431f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c000000006ade397b",
+   "cred_expiry_unix": 1792948603,
+   "cred_digest_hex": "6e7834f367a26f24a1b3e3d647bf2ff67191c224ba32b9ffeb1481dccc583865",
+   "cred_sig_r_hex": "8784edc5ec7e7b8a8af495f60f5a6708e4949a2307a528e1746e4b8c10bc4874",
+   "cred_sig_s_hex": "61ebdbcc65de82d59b5a193ec424781cdee82e20412fb7f79e4b802fb459ace6",
+   "cred_sig_low_s_normalized": false
+  }
+ },
+ "flight_cm": 218.6625,
+ "verdict": "NOT_NEAR",
+ "result_json_flight_cm": 218.6625000000692,
+ "result_json_flight_raw_cm": 218.6625000000692,
+ "result_json_drift_cm": 0.0,
+ "result_json_usable": true
+}

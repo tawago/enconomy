@@ -1,0 +1,18 @@
+PASS 180ca04b d2 A sig   late_self      -> REJECT  {'honest_half': 45042, 'claimed_half': 44856}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 A sig   early_partner  -> REJECT  {'honest_half': 45042, 'claimed_half': 44942}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 A sig   swap_role      -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 A sig   template       -> REJECT  {'honest_half': 45042, 'other_session': '2940913c'}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 A sig   pself          -> REJECT  {'honest_half': 45042, 'claimed_half': 44656}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 A sig   sample         -> REJECT  {'honest_half': 45042}  | REJECT wasm witness: Error in template MerklePath_151 line: 54
+PASS 180ca04b d2 A sig   resign_late    -> REJECT  {'honest_half': 45042, 'claimed_half': 44856}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 180ca04b d2 A sig   resign_early   -> REJECT  {'honest_half': 45042, 'claimed_half': 44942}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 180ca04b d2 B sig   late_self      -> REJECT  {'honest_half': 44947, 'claimed_half': 45037}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 B sig   early_partner  -> REJECT  {'honest_half': 44947, 'claimed_half': 45047}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 B sig   swap_role      -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 B sig   template       -> REJECT  {'honest_half': 44947, 'other_session': '2940913c'}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 B sig   pself          -> REJECT  {'honest_half': 44947, 'claimed_half': 45237}  | REJECT wasm witness: Error in template ECDSA_130 line: 100
+PASS 180ca04b d2 B sig   sample         -> REJECT  {'honest_half': 44947}  | REJECT wasm witness: Error in template MerklePath_151 line: 54
+PASS 180ca04b d2 B sig   resign_late    -> REJECT  {'honest_half': 44947, 'claimed_half': 45037}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+PASS 180ca04b d2 B sig   resign_early   -> REJECT  {'honest_half': 44947, 'claimed_half': 45047}  | REJECT wasm witness: Error in template Num2Bits_176 line: 38
+
+tamper_sig d2: 16/16 as expected

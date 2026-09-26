@@ -1,0 +1,96 @@
+prep 180ca04b label=30.0 flight=33.23cm verdict=NEAR tamper=None prover=A
+PASS 180ca04b prove [ok] prove: OK load=0.15s witness=0.002s prove=0.675s proof=387148 bytes peakRSS=256MB
+PASS 180ca04b verify [accept] verify: ACCEPT load=0.15s verify=0.423s peakRSS=177MB
+prep 2940913c label=60.0 flight=75.39cm verdict=NOT_NEAR tamper=None prover=A
+PASS 2940913c prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.177s rss=142MB
+PASS 2940913c prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.657s proof=387116 bytes peakRSS=256MB
+PASS 2940913c verify forged(NOT_NEAR) [reject] verify: REJECT load=0.15s verify=0.418s peakRSS=182MB
+prep 2dc2eb59 label=0.0 flight=7.86cm verdict=NEAR tamper=None prover=A
+PASS 2dc2eb59 prove [ok] prove: OK load=0.15s witness=0.003s prove=0.727s proof=386988 bytes peakRSS=261MB
+PASS 2dc2eb59 verify [accept] verify: ACCEPT load=0.16s verify=0.461s peakRSS=179MB
+prep 7711d899 label=100.0 flight=97.90cm verdict=NOT_NEAR tamper=None prover=A
+PASS 7711d899 prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.194s rss=140MB
+PASS 7711d899 prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.713s proof=387148 bytes peakRSS=262MB
+PASS 7711d899 verify forged(NOT_NEAR) [reject] verify: REJECT load=0.15s verify=0.420s peakRSS=192MB
+prep 9afb91c6 label=200.0 flight=210.80cm verdict=NOT_NEAR tamper=None prover=A
+PASS 9afb91c6 prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.179s rss=146MB
+PASS 9afb91c6 prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.682s proof=387564 bytes peakRSS=261MB
+PASS 9afb91c6 verify forged(NOT_NEAR) [reject] verify: REJECT load=0.16s verify=0.442s peakRSS=198MB
+prep b2a5f86d label=60.0 flight=62.88cm verdict=NOT_NEAR tamper=None prover=A
+PASS b2a5f86d prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.003s prove=0.193s rss=146MB
+PASS b2a5f86d prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.704s proof=387468 bytes peakRSS=252MB
+PASS b2a5f86d verify forged(NOT_NEAR) [reject] verify: REJECT load=0.16s verify=0.451s peakRSS=199MB
+prep b550cf12 label=30.0 flight=31.80cm verdict=NEAR tamper=None prover=A
+PASS b550cf12 prove [ok] prove: OK load=0.16s witness=0.002s prove=0.665s proof=387340 bytes peakRSS=264MB
+PASS b550cf12 verify [accept] verify: ACCEPT load=0.15s verify=0.457s peakRSS=192MB
+prep b9e4dd4b label=30.0 flight=26.08cm verdict=NEAR tamper=None prover=A
+PASS b9e4dd4b prove [ok] prove: OK load=0.15s witness=0.002s prove=0.663s proof=387020 bytes peakRSS=264MB
+PASS b9e4dd4b verify [accept] verify: ACCEPT load=0.14s verify=0.420s peakRSS=179MB
+prep d1ee4fb0 label=100.0 flight=95.40cm verdict=NOT_NEAR tamper=None prover=A
+PASS d1ee4fb0 prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.176s rss=141MB
+PASS d1ee4fb0 prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.675s proof=387532 bytes peakRSS=250MB
+PASS d1ee4fb0 verify forged(NOT_NEAR) [reject] verify: REJECT load=0.15s verify=0.420s peakRSS=191MB
+prep d283370f label=200.0 flight=224.74cm verdict=NOT_NEAR tamper=None prover=A
+PASS d283370f prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.177s rss=141MB
+PASS d283370f prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.664s proof=387372 bytes peakRSS=259MB
+PASS d283370f verify forged(NOT_NEAR) [reject] verify: REJECT load=0.16s verify=0.414s peakRSS=181MB
+prep ef0b6e11 label=100.0 flight=110.05cm verdict=NOT_NEAR tamper=None prover=A
+PASS ef0b6e11 prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.177s rss=142MB
+PASS ef0b6e11 prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.656s proof=387660 bytes peakRSS=275MB
+PASS ef0b6e11 verify forged(NOT_NEAR) [reject] verify: REJECT load=0.15s verify=0.418s peakRSS=204MB
+prep f3ff0ee8 label=200.0 flight=218.66cm verdict=NOT_NEAR tamper=None prover=A
+PASS f3ff0ee8 prove(NOT_NEAR) [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.002s prove=0.189s rss=147MB
+PASS f3ff0ee8 prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.662s proof=387212 bytes peakRSS=258MB
+PASS f3ff0ee8 verify forged(NOT_NEAR) [reject] verify: REJECT load=0.15s verify=0.417s peakRSS=185MB
+prep 180ca04b label=30.0 flight=33.23cm verdict=NEAR tamper=None prover=B
+PASS 180ca04b proverB prove [ok] prove: OK load=0.15s witness=0.002s prove=0.685s proof=387084 bytes peakRSS=252MB
+PASS 180ca04b proverB verify [accept] verify: ACCEPT load=0.16s verify=0.457s peakRSS=196MB
+PASS 180ca04b honest --force [ok] prove: OK load=0.14s witness=0.002s prove=0.698s proof=387180 bytes peakRSS=265MB
+PASS 180ca04b verify honest forced [accept] verify: ACCEPT load=0.16s verify=0.490s peakRSS=185MB
+PASS 180ca04b tamper=half prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.002s prove=0.198s rss=141MB
+PASS 180ca04b tamper=half prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.709s proof=387692 bytes peakRSS=228MB
+PASS 180ca04b tamper=half verify forged [reject] verify: REJECT load=0.16s verify=0.445s peakRSS=178MB
+PASS 180ca04b tamper=role prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.195s rss=145MB
+PASS 180ca04b tamper=role prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.715s proof=386636 bytes peakRSS=265MB
+PASS 180ca04b tamper=role verify forged [reject] verify: REJECT load=0.16s verify=0.456s peakRSS=198MB
+PASS 180ca04b tamper=nonce_w prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.002s prove=0.198s rss=153MB
+PASS 180ca04b tamper=nonce_w prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.715s proof=387628 bytes peakRSS=270MB
+PASS 180ca04b tamper=nonce_w verify forged [reject] verify: REJECT load=0.16s verify=0.288s peakRSS=190MB
+PASS 180ca04b tamper=sig prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.002s prove=0.200s rss=140MB
+PASS 180ca04b tamper=sig prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.713s proof=387372 bytes peakRSS=265MB
+PASS 180ca04b tamper=sig verify forged [reject] verify: REJECT load=0.16s verify=0.454s peakRSS=210MB
+PASS 180ca04b tamper=credsig prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.201s rss=139MB
+PASS 180ca04b tamper=credsig prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.715s proof=387404 bytes peakRSS=263MB
+PASS 180ca04b tamper=credsig verify forged [reject] verify: REJECT load=0.16s verify=0.452s peakRSS=192MB
+PASS 180ca04b tamper=expired prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.266s rss=166MB
+PASS 180ca04b tamper=expired prove --force [ok] prove: OK load=0.15s witness=0.002s prove=0.711s proof=388204 bytes peakRSS=263MB
+PASS 180ca04b tamper=expired verify forged [reject] verify: REJECT load=0.15s verify=0.453s peakRSS=202MB
+PASS 2dc2eb59 tamper=half prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.201s rss=156MB
+PASS 2dc2eb59 tamper=half prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.717s proof=387212 bytes peakRSS=259MB
+PASS 2dc2eb59 tamper=half verify forged [reject] verify: REJECT load=0.16s verify=0.453s peakRSS=196MB
+PASS 2dc2eb59 tamper=role prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.201s rss=148MB
+PASS 2dc2eb59 tamper=role prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.717s proof=386956 bytes peakRSS=266MB
+PASS 2dc2eb59 tamper=role verify forged [reject] verify: REJECT load=0.16s verify=0.454s peakRSS=192MB
+PASS 2dc2eb59 tamper=nonce_w prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.201s rss=148MB
+PASS 2dc2eb59 tamper=nonce_w prove --force [ok] prove: OK load=0.16s witness=0.002s prove=0.713s proof=387532 bytes peakRSS=265MB
+PASS 2dc2eb59 tamper=nonce_w verify forged [reject] verify: REJECT load=0.16s verify=0.291s peakRSS=208MB
+PASS 2dc2eb59 tamper=sig prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.200s rss=147MB
+PASS 2dc2eb59 tamper=sig prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.714s proof=387116 bytes peakRSS=260MB
+PASS 2dc2eb59 tamper=sig verify forged [reject] verify: REJECT load=0.16s verify=0.454s peakRSS=202MB
+PASS 2dc2eb59 tamper=credsig prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.201s rss=150MB
+PASS 2dc2eb59 tamper=credsig prove --force [ok] prove: OK load=0.16s witness=0.003s prove=0.718s proof=387916 bytes peakRSS=266MB
+PASS 2dc2eb59 tamper=credsig verify forged [reject] verify: REJECT load=0.16s verify=0.451s peakRSS=198MB
+PASS 2dc2eb59 tamper=expired prove [refuse] prove: REFUSED (witness does not satisfy the circuit) load=0.16s witness=0.003s prove=0.238s rss=158MB
+PASS 2dc2eb59 tamper=expired prove --force [ok] prove: OK load=0.14s witness=0.002s prove=0.699s proof=388236 bytes peakRSS=255MB
+PASS 2dc2eb59 tamper=expired verify forged [reject] verify: REJECT load=0.16s verify=0.454s peakRSS=197MB
+PASS 180ca04b highS prove (malleable sig accepted) [ok] prove: OK load=0.16s witness=0.002s prove=0.725s proof=387052 bytes peakRSS=262MB
+PASS 180ca04b highS verify [accept] verify: ACCEPT load=0.16s verify=0.457s peakRSS=205MB
+PASS 180ca04b public nonce changed [reject] verify: REJECT load=0.16s verify=0.292s peakRSS=198MB
+PASS 180ca04b public attempt changed [reject] verify: REJECT load=0.16s verify=0.292s peakRSS=192MB
+PASS 180ca04b public issuer_x changed [reject] verify: REJECT load=0.16s verify=0.294s peakRSS=196MB
+PASS 180ca04b public now changed [reject] verify: REJECT load=0.16s verify=0.291s peakRSS=184MB
+PASS 180ca04b public nullifier changed [reject] verify: REJECT load=0.16s verify=0.294s peakRSS=217MB
+PASS proof(180ca04b) vs public(2dc2eb59) [reject] verify: REJECT load=0.16s verify=0.288s peakRSS=206MB
+PASS truncated proof [reject] verify: REJECT load=0.15s verify=0.000s peakRSS=125MB
+RESULT pass=81 fail=0
+[heavy] lf-sbzk-tests: 52.0s rc=0

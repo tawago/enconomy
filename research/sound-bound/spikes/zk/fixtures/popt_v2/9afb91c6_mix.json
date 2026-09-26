@@ -1,0 +1,102 @@
+{
+ "proto": "pop-v1+popt2",
+ "session_id": "77616d7beeda205271297210ad8f4e69",
+ "field_session_id": "9afb91c69ecc41bcb4ed73cba97b4cac",
+ "seed_hex": "13c63a42fc74eea126a08c47cd8e78ac204710172251a9f9893d225bd96a7157",
+ "label_cm": 200.0,
+ "mode": "mix",
+ "session_nonce": "c49f85ae3076587d9d801e751912135d085ee4e1c7646a087a3c93ba60579929",
+ "attempt": 0,
+ "issuer": {
+  "pub_x": "9178141b72e5cae00db063dbd38fda4f82a11e1dc8442d2735604719630d99b6",
+  "pub_y": "4b75c24fb3128f0646642e3828848d23348f1e08023f5378425a28cffd1885e3"
+ },
+ "roles": {
+  "A": {
+   "sample_rate": 48000,
+   "pubkey": "04a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43",
+   "key_kind": "secure-enclave",
+   "transcript_b64": "UE9QVAJBAMSfha4wdlh9nYAedRkSE10IXuThx2RqCHo8k7pgV5kpBKOt2A8LMIuH+RmQqtILG6CerCMpzEyoCUCinFsnvs0MXHDKbLEoBd3gIfldqz4qApLIZC2YzezfZff7bTlpD0ME9Wf82qLLAC17kXY7UxQAhxYyj7jZQ8Cm9ZK63OriW1kBx9I294WxCSpkDYblvqDpb7k2a6MHgTUf3HsPIAscHAAAu4AAALIxfx87MJNsj/6brPLMeWVbkO9L9giF7g+kHrVr6c5ON7UAAAAAAABnIAAARGxf+bOCAABEbC8E1Mv////hm6bB2apNNbNFA56D8SXmxLqh9lBwlKT1wmqAKTD0jNQAAGsCAAEP4ABgEoU6HlRwFGhTRKvQv/35laDQ6R8GOhxj+YJ/kvyZPxA=",
+   "sig_b64": "UwhEBsWUOwd51X7wEV8U1yqVdubsFPOWzvf4Ze98XbWqczKoEkxNFCAFIs2zlU6NvKneK65DVpFFU56ULDDFWA==",
+   "commit_b64": "UE9QQwJBAMSfha4wdlh9nYAedRkSE10IXuThx2RqCHo8k7pgV5kpfx87MJNsj/6brPLMeWVbkO9L9giF7g+kHrVr6c5ON7U=",
+   "commit_sig_b64": "OxUUIR57Ur2+auZ6tv9I071a9sW2GoSHl4QYHKwnmPOA7ISAgduHaMkTDn7kAlF0WkZ/9/htf34ib2qtxNgxVQ==",
+   "half": 45617,
+   "a_self": 27394,
+   "a_partner": 73011,
+   "p_self": 27425,
+   "p_partner": 69600,
+   "self_os_delta": -31,
+   "delta": 96,
+   "rec_root": "0x7f1f3b30936c8ffe9bacf2cc79655b90ef4bf60885ee0fa41eb56be9ce4e37b5",
+   "code_commit": "12853a1e547014685344abd0bffdf995a0d0e91f063a1c63f9827f92fc993f10",
+   "score_self": 0.10204286319980171,
+   "score_partner": 0.12739073178597124,
+   "search_self": [
+    16800,
+    36000
+   ],
+   "search_partner": [
+    62400,
+    81600
+   ],
+   "capture_frames": 120000,
+   "capture_start_s_in_file": 22.2,
+   "cred_hex": "53426372656433a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43000000006ade389084259fe09b7679fc7447e086f4953da2b91538f4292191f0d4d613ae9ca09a2b",
+   "cred_expiry_unix": 1792948368,
+   "cred_sig_r_hex": "0bc07a685833baf573838196224ddaad58f5dd6fedd06daff68cdddd4cc37cf6",
+   "cred_sig_s_hex": "a592dde28be93443861af7d532ecc61ddd6f166a6022c73916ae7dcce847e2bf",
+   "holder_secret_dev": "0x62e14389108cf65701c26d0e81fcf04f35551ce7edfac3693b9a9b3515491f",
+   "holder_commit": "0x84259fe09b7679fc7447e086f4953da2b91538f4292191f0d4d613ae9ca09a2b",
+   "salt_dev": "0xfd1be0e15dad06135007346f1f4309fa7fe1c60546024802a5d0a7aac52fdf",
+   "capture_npy": "optionA-v2/build/popt2/9afb91c6_mix_A.npy",
+   "tree_json": "optionA-v2/build/popt2/9afb91c6_mix_A.tree.json"
+  },
+  "B": {
+   "sample_rate": 44100,
+   "pubkey": "04f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c",
+   "key_kind": "secure-enclave",
+   "transcript_b64": "UE9QVAJCAMSfha4wdlh9nYAedRkSE10IXuThx2RqCHo8k7pgV5kpBPVn/NqiywAte5F2O1MUAIcWMo+42UPApvWSutzq4ltZAcfSNveFsQkqZA2G5b6g6W+5NmujB4E1H9x7DyALHBwEo63YDwswi4f5GZCq0gsboJ6sIynMTKgJQKKcWye+zQxccMpssSgF3eAh+V2rPioCkshkLZjN7N9l9/ttOWkPQwAArEQAAKGZ6kNVZZMD9PlZK2y6d4Gmmd61WWpTXBGzn4BD8sOMyB8AAAAAAABevwAAFY2WqFhlAAAVjSogjAsAAAAoJkLxLWyptUfZ8CLsvnemJh5Dk8FyU+W92LxtFP0oKPMAAQ7CAABWIgBYB3FUiEYH0kZsrfu+01NAKjMO3JTE9NudMK/GpH05lBc=",
+   "sig_b64": "smHq8FwXrqCusA9d5LV/m7tRwhiQMdrZNSp/HbPcxdTbq9TiR+mUsvVsI9aVZuDMUwcFgOCK7awYJ94nWWa85g==",
+   "commit_b64": "UE9QQwJCAMSfha4wdlh9nYAedRkSE10IXuThx2RqCHo8k7pgV5kp6kNVZZMD9PlZK2y6d4Gmmd61WWpTXBGzn4BD8sOMyB8=",
+   "commit_sig_b64": "wkJU/8dcmdRPpNdz/cI494AnDhZ65VO+jJ0fZBRas8o6ZK50C1vh3REomD9N+5GIIPubqmd6uMIJ/wDbjSeUhw==",
+   "half": 41369,
+   "a_self": 69314,
+   "a_partner": 27945,
+   "p_self": 69274,
+   "p_partner": 22050,
+   "self_os_delta": 40,
+   "delta": 88,
+   "rec_root": "0xea4355659303f4f9592b6cba7781a699deb5596a535c11b39f8043f2c38cc81f",
+   "code_commit": "077154884607d2466cadfbbed353402a330edc94c4f4db9d30afc6a47d399417",
+   "score_self": 0.09406805551643539,
+   "score_partner": 0.11543775367637456,
+   "search_self": [
+    57330,
+    74970
+   ],
+   "search_partner": [
+    15435,
+    33075
+   ],
+   "capture_frames": 110250,
+   "capture_start_s_in_file": 22.2,
+   "cred_hex": "53426372656433f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c000000006ade38909296f4a8636e89ab0a8167c6603e5348736746a7edde7d7722998113065ac203",
+   "cred_expiry_unix": 1792948368,
+   "cred_sig_r_hex": "86ccedeb50645eaf81e6b8c9d3470556e49e73f5a70db79a7d884bd3352d52fc",
+   "cred_sig_s_hex": "f894ba2e7ce0adfb9587d7474d0ce4cc12480743f99284eb5c383f8f5cba33ce",
+   "holder_secret_dev": "0x44ea5bc7fd932fb054533d47c0ab09fc4bcefff1a65adf351a8dce63308a9e",
+   "holder_commit": "0x9296f4a8636e89ab0a8167c6603e5348736746a7edde7d7722998113065ac203",
+   "salt_dev": "0x72b22eedd1d97080e6d1339ae1fcb57edfb074e1b26e08998b85f295114c99",
+   "capture_npy": "optionA-v2/build/popt2/9afb91c6_mix_B.npy",
+   "tree_json": "optionA-v2/build/popt2/9afb91c6_mix_B.tree.json"
+  }
+ },
+ "expect": {
+  "flight_cm": 210.63,
+  "verdict": "NOT_NEAR",
+  "reason": "too_far",
+  "zk_provable_pair": false
+ },
+ "name": "9afb91c6_mix",
+ "notes": "dev fixture: real audio (48 kHz field file; B resampled to 44.1 kHz in 'mix'), twin arrivals, real Secure Enclave signatures; nonce/attempt/timestamps emulated (enclave/emulate.py)"
+}

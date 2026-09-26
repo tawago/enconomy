@@ -1,0 +1,59 @@
+== A1 role swap on 2dc2eb59 (7.86 cm; swapped = -7.86 cm, inside the window, so only role binding stops it)
+prep 2dc2eb59 label=0.0 flight=-7.86cm verdict=NEAR tamper=role prover=A
+PASS A1 role swap prove [refuse] witness: halfA=45394 halfB=45416 d=-22 flight=-7.860 cm lo=58269 hi=325729 prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.172s rss=141MB 
+PASS A1 role swap prove --force [ok] witness: halfA=45394 halfB=45416 d=-22 flight=-7.860 cm lo=58269 hi=325729 prove --force: proof emitted without checking the witness prove: OK load=0.14s witness=0.002s prove=0.633s proof=387788 bytes peakRSS=245MB 
+PASS A1 role swap verify forged [reject] verify: REJECT load=0.14s verify=0.392s peakRSS=198MB 
+== A2 cross-session splice: A from 9afb91c6 (211 cm), B from d283370f (225 cm) -> would read 17.5 cm
+PASS A2 splice (nonce of X) prove [refuse] witness: halfA=45618 halfB=45569 d=49 flight=17.507 cm lo=180034 hi=203964 prove: REFUSED (witness does not satisfy the circuit) load=0.14s witness=0.002s prove=0.174s rss=144MB 
+PASS A2 splice (nonce of X) prove --force [ok] witness: halfA=45618 halfB=45569 d=49 flight=17.507 cm lo=180034 hi=203964 prove --force: proof emitted without checking the witness prove: OK load=0.14s witness=0.002s prove=0.626s proof=387948 bytes peakRSS=254MB 
+PASS A2 splice (nonce of X) verify forged [reject] verify: REJECT load=0.14s verify=0.389s peakRSS=182MB 
+PASS A2 splice (nonce of Y) prove [refuse] witness: halfA=45618 halfB=45569 d=49 flight=17.507 cm lo=180034 hi=203964 prove: REFUSED (witness does not satisfy the circuit) load=0.14s witness=0.002s prove=0.172s rss=143MB 
+PASS A2 splice (nonce of Y) prove --force [ok] witness: halfA=45618 halfB=45569 d=49 flight=17.507 cm lo=180034 hi=203964 prove --force: proof emitted without checking the witness prove: OK load=0.14s witness=0.002s prove=0.656s proof=387148 bytes peakRSS=257MB 
+PASS A2 splice (nonce of Y) verify forged [reject] verify: REJECT load=0.15s verify=0.410s peakRSS=197MB 
+== A3 expiry byte order: exp=0x6ade34e1
+prep 180ca04b label=30.0 flight=33.23cm verdict=NEAR tamper=None prover=A
+PASS A3 now=0x6ade3500 (> exp, LE-order bug would accept) prove [refuse] witness: halfA=45042 halfB=44949 d=93 flight=33.228 cm lo=255494 hi=128504 prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.244s rss=169MB 
+PASS A3 now=0x6ade3500 (> exp, LE-order bug would accept) prove --force [ok] witness: halfA=45042 halfB=44949 d=93 flight=33.228 cm lo=255494 hi=128504 prove --force: proof emitted without checking the witness prove: OK load=0.15s witness=0.003s prove=0.666s proof=388044 bytes peakRSS=222MB 
+PASS A3 now=0x6ade3500 (> exp, LE-order bug would accept) verify forged [reject] verify: REJECT load=0.14s verify=0.406s peakRSS=175MB 
+prep 180ca04b label=30.0 flight=33.23cm verdict=NEAR tamper=None prover=A
+PASS A3 now=0x6ade33ff (< exp, LE-order bug would refuse) prove [ok] witness: halfA=45042 halfB=44949 d=93 flight=33.228 cm lo=255494 hi=128504 prove: OK load=0.15s witness=0.002s prove=0.627s proof=387596 bytes peakRSS=263MB 
+PASS A3 now=0x6ade33ff (< exp, LE-order bug would refuse) verify [accept] verify: ACCEPT load=0.14s verify=0.392s peakRSS=182MB 
+prep 180ca04b label=30.0 flight=33.23cm verdict=NEAR tamper=None prover=A
+PASS A3 now=exp (<= is inclusive) prove [ok] witness: halfA=45042 halfB=44949 d=93 flight=33.228 cm lo=255494 hi=128504 prove: OK load=0.14s witness=0.002s prove=0.659s proof=387052 bytes peakRSS=262MB 
+PASS A3 now=exp (<= is inclusive) verify [accept] verify: ACCEPT load=0.15s verify=0.421s peakRSS=214MB 
+== A4 nullifier re-roll (known gap): same session 180ca04b, fresh holder secret
+PASS A4 reroll (ACCEPTED = double-count possible) prove [ok] witness: halfA=45042 halfB=44949 d=93 flight=33.228 cm lo=255494 hi=128504 prove: OK load=0.14s witness=0.002s prove=0.664s proof=387980 bytes peakRSS=265MB 
+PASS A4 reroll (ACCEPTED = double-count possible) verify [accept] verify: ACCEPT load=0.15s verify=0.414s peakRSS=181MB 
+   nullifiers: honest=f25848f49ce66e53… reroll=47529b436d5e47bc…
+== A5 proof bytes: trailing junk / one flipped byte
+PASS A5 proof + 8 junk bytes (parser ignores trailer; malleable encoding, not a soundness bug) [accept] verify: ACCEPT load=0.14s verify=0.416s peakRSS=197MB 
+PASS A5 one byte flipped at offset 300000 [reject] verify: REJECT load=0.14s verify=0.264s peakRSS=190MB 
+== S synthetic (software throwaway keys + own issuer): threshold edges, i32 extremes, same key both roles
+synth b167: d=167 flight=59.668 cm verdict=NEAR same_key=False
+PASS S1 d=167 (59.67 cm) prove [ok] witness: halfA=1167 halfB=1000 d=167 flight=59.668 cm lo=382404 hi=1594 prove: OK load=0.15s witness=0.002s prove=0.661s proof=387692 bytes peakRSS=259MB 
+PASS S1 d=167 (59.67 cm) verify [accept] verify: ACCEPT load=0.14s verify=0.418s peakRSS=209MB 
+synth b168: d=168 flight=60.025 cm verdict=NOT_NEAR same_key=False
+PASS S2 d=168 (60.03 cm) prove [refuse] witness: halfA=1168 halfB=1000 d=168 flight=60.025 cm lo=384119 hi=-121 prove: REFUSED (witness does not satisfy the circuit) load=0.15s witness=0.002s prove=0.179s rss=150MB 
+PASS S2 d=168 (60.03 cm) prove --force [ok] witness: halfA=1168 halfB=1000 d=168 flight=60.025 cm lo=384119 hi=-121 prove --force: proof emitted without checking the witness prove: OK load=0.15s witness=0.002s prove=0.654s proof=386604 bytes peakRSS=265MB 
+PASS S2 d=168 (60.03 cm) verify forged [reject] verify: REJECT load=0.14s verify=0.411s peakRSS=196MB 
+synth bm55: d=-55 flight=-19.651 cm verdict=NEAR same_key=False
+PASS S3 d=-55 (-19.65 cm) prove [ok] witness: halfA=1000 halfB=1055 d=-55 flight=-19.651 cm lo=1674 hi=382324 prove: OK load=0.15s witness=0.002s prove=0.659s proof=387820 bytes peakRSS=258MB 
+PASS S3 d=-55 (-19.65 cm) verify [accept] verify: ACCEPT load=0.14s verify=0.414s peakRSS=173MB 
+synth bm56: d=-56 flight=-20.008 cm verdict=NOT_NEAR same_key=False
+PASS S4 d=-56 (-20.01 cm) prove [refuse] witness: halfA=1000 halfB=1056 d=-56 flight=-20.008 cm lo=-41 hi=384039 prove: REFUSED (witness does not satisfy the circuit) load=0.14s witness=0.002s prove=0.175s rss=142MB 
+PASS S4 d=-56 (-20.01 cm) prove --force [ok] witness: halfA=1000 halfB=1056 d=-56 flight=-20.008 cm lo=-41 hi=384039 prove --force: proof emitted without checking the witness prove: OK load=0.15s witness=0.002s prove=0.655s proof=386636 bytes peakRSS=263MB 
+PASS S4 d=-56 (-20.01 cm) verify forged [reject] verify: REJECT load=0.15s verify=0.410s peakRSS=191MB 
+synth ext1: d=4294967295 flight=1534556023.109 cm verdict=NOT_NEAR same_key=False
+PASS S5 d=2^32-1 prove [refuse] witness: halfA=2147483647 halfB=-2147483648 d=4294967295 flight=1534556023.109 cm lo=7365869006924 hi=-7365868622926 prove: REFUSED (witness does not satisfy the circuit) load=0.14s witness=0.002s prove=0.176s rss=142MB 
+PASS S5 d=2^32-1 prove --force [ok] witness: halfA=2147483647 halfB=-2147483648 d=4294967295 flight=1534556023.109 cm lo=7365869006924 hi=-7365868622926 prove --force: proof emitted without checking the witness prove: OK load=0.15s witness=0.002s prove=0.654s proof=387564 bytes peakRSS=259MB 
+PASS S5 d=2^32-1 verify forged [reject] verify: REJECT load=0.15s verify=0.413s peakRSS=198MB 
+synth ext2: d=-4294967295 flight=-1534556023.109 cm verdict=NOT_NEAR same_key=False
+PASS S6 d=-(2^32-1) prove [refuse] witness: halfA=-2147483648 halfB=2147483647 d=-4294967295 flight=-1534556023.109 cm lo=-7365868814926 hi=7365869198924 prove: REFUSED (witness does not satisfy the circuit) load=0.14s witness=0.002s prove=0.176s rss=141MB 
+PASS S6 d=-(2^32-1) prove --force [ok] witness: halfA=-2147483648 halfB=2147483647 d=-4294967295 flight=-1534556023.109 cm lo=-7365868814926 hi=7365869198924 prove --force: proof emitted without checking the witness prove: OK load=0.15s witness=0.002s prove=0.658s proof=387628 bytes peakRSS=274MB 
+PASS S6 d=-(2^32-1) verify forged [reject] verify: REJECT load=0.15s verify=0.412s peakRSS=215MB 
+synth same: d=10 flight=3.573 cm verdict=NEAR same_key=True
+PASS S8 same device key in both roles (ACCEPTED; no dpk_A != dpk_B check) prove [ok] witness: halfA=1010 halfB=1000 d=10 flight=3.573 cm lo=113149 hi=270849 prove: OK load=0.14s witness=0.002s prove=0.663s proof=387372 bytes peakRSS=264MB 
+PASS S8 same device key in both roles (ACCEPTED; no dpk_A != dpk_B check) verify [accept] verify: ACCEPT load=0.15s verify=0.418s peakRSS=204MB 
+   S1/S3/S8 verify under a self-made issuer key: the verifier tool trusts issuer_x/y from public.txt (must be pinned by policy)
+RESULT pass=38 fail=0
+[heavy] review-lf-attacks: 24.9s rc=0

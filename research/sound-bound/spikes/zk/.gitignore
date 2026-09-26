@@ -1,2 +1,13 @@
 node_modules/
 build/
+vendor/
+__pycache__/
+*.ptau
+*.zkey
+*.wtns
+*.pkl
+# shrink/out/: rescore caches (*.pkl, ~65 MB) and the big summary.log are local only;
+# the small rescore_*.json / ref_*.json results stay tracked.
+shrink/out/*.log
+# repo root ignores *.log; these run summaries are small (<=15 KB) and unique, keep them
+!shrink/logs/*.log

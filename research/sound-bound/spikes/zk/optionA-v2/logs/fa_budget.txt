@@ -1,0 +1,29 @@
+180ca04b B_at_A: null max 5.84%  median 4.90%  P(max over 19,200 lags > 9%) = 3.09e-08
+180ca04b A_at_B: null max 6.56%  median 5.11%  P(max over 19,200 lags > 9%) = 2.02e-06
+2940913c B_at_A: null max 5.96%  median 4.95%  P(max over 19,200 lags > 9%) = 4.17e-07
+2940913c A_at_B: null max 7.10%  median 5.18%  P(max over 19,200 lags > 9%) = 1.22e-06
+2dc2eb59 B_at_A: null max 6.74%  median 5.23%  P(max over 19,200 lags > 9%) = 1.20e-05
+2dc2eb59 A_at_B: null max 6.49%  median 5.00%  P(max over 19,200 lags > 9%) = 3.06e-07
+7711d899 B_at_A: null max 6.40%  median 5.05%  P(max over 19,200 lags > 9%) = 1.55e-06
+7711d899 A_at_B: null max 5.56%  median 4.98%  P(max over 19,200 lags > 9%) = 4.11e-08
+9afb91c6 B_at_A: null max 6.82%  median 5.05%  P(max over 19,200 lags > 9%) = 2.01e-06
+9afb91c6 A_at_B: null max 6.27%  median 5.14%  P(max over 19,200 lags > 9%) = 3.27e-07
+b2a5f86d B_at_A: null max 5.97%  median 4.85%  P(max over 19,200 lags > 9%) = 3.85e-07
+b2a5f86d A_at_B: null max 6.75%  median 5.21%  P(max over 19,200 lags > 9%) = 1.20e-06
+b550cf12 B_at_A: null max 6.08%  median 4.93%  P(max over 19,200 lags > 9%) = 1.80e-07
+b550cf12 A_at_B: null max 6.45%  median 5.13%  P(max over 19,200 lags > 9%) = 3.20e-06
+b9e4dd4b B_at_A: null max 5.78%  median 5.06%  P(max over 19,200 lags > 9%) = 6.68e-07
+b9e4dd4b A_at_B: null max 5.87%  median 4.89%  P(max over 19,200 lags > 9%) = 6.76e-08
+d1ee4fb0 B_at_A: null max 5.49%  median 5.01%  P(max over 19,200 lags > 9%) = 1.53e-08
+d1ee4fb0 A_at_B: null max 6.24%  median 5.26%  P(max over 19,200 lags > 9%) = 3.69e-06
+d283370f B_at_A: null max 6.48%  median 5.15%  P(max over 19,200 lags > 9%) = 6.76e-07
+d283370f A_at_B: null max 6.35%  median 5.31%  P(max over 19,200 lags > 9%) = 3.56e-06
+ef0b6e11 B_at_A: null max 5.92%  median 4.97%  P(max over 19,200 lags > 9%) = 1.13e-07
+ef0b6e11 A_at_B: null max 6.27%  median 5.05%  P(max over 19,200 lags > 9%) = 8.94e-07
+f3ff0ee8 B_at_A: null max 6.23%  median 5.20%  P(max over 19,200 lags > 9%) = 1.36e-06
+f3ff0ee8 A_at_B: null max 6.09%  median 4.98%  P(max over 19,200 lags > 9%) = 2.57e-07
+
+windows 24; all null maxima 7.10% max; P per 19,200 lags: median 6.72e-07, max 1.20e-05
+window w400 [-150, +250] ms = 19200 lags: per-attempt false-accept (chance lag >= 9% anywhere in the window, upper bound) median 6.7e-07, worst window 1.2e-05; with one retry x2: worst 2.4e-05
+window w150 [-50, +100] ms = 7200 lags: per-attempt false-accept (chance lag >= 9% anywhere in the window, upper bound) median 2.5e-07, worst window 4.5e-06; with one retry x2: worst 9.0e-06
+window w60 [-20, +40] ms = 2880 lags: per-attempt false-accept (chance lag >= 9% anywhere in the window, upper bound) median 1.0e-07, worst window 1.8e-06; with one retry x2: worst 3.6e-06

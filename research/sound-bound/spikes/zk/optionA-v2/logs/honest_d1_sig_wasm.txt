@@ -1,0 +1,26 @@
+PASS 180ca04b d1 A sig   none           -> ACCEPT  {'honest_half': 45042}  | 
+PASS 180ca04b d1 B sig   none           -> ACCEPT  {'honest_half': 44947}  | 
+PASS 2940913c d1 A sig   none           -> ACCEPT  {'honest_half': 46008}  | 
+PASS 2940913c d1 B sig   none           -> ACCEPT  {'honest_half': 45793}  | 
+PASS 2dc2eb59 d1 A sig   none           -> ACCEPT  {'honest_half': 45407}  | 
+PASS 2dc2eb59 d1 B sig   none           -> ACCEPT  {'honest_half': 45393}  | 
+PASS 7711d899 d1 A sig   none           -> ACCEPT  {'honest_half': 46467}  | 
+PASS 7711d899 d1 B sig   none           -> ACCEPT  {'honest_half': 46192}  | 
+PASS 9afb91c6 d1 A sig   none           -> ACCEPT  {'honest_half': 45617}  | 
+PASS 9afb91c6 d1 B sig   none           -> ACCEPT  {'honest_half': 45028}  | 
+PASS b2a5f86d d1 A sig   none           -> ACCEPT  {'honest_half': 45909}  | 
+PASS b2a5f86d d1 B sig   none           -> ACCEPT  {'honest_half': 45740}  | 
+PASS b550cf12 d1 A sig   none           -> ACCEPT  {'honest_half': 46860}  | 
+PASS b550cf12 d1 B sig   none           -> ACCEPT  {'honest_half': 46769}  | 
+PASS b9e4dd4b d1 A sig   none           -> ACCEPT  {'honest_half': 45519}  | 
+PASS b9e4dd4b d1 B sig   none           -> ACCEPT  {'honest_half': 45444}  | 
+PASS d1ee4fb0 d1 A sig   none           -> ACCEPT  {'honest_half': 46533}  | 
+PASS d1ee4fb0 d1 B sig   none           -> ACCEPT  {'honest_half': 46263}  | 
+PASS d283370f d1 A sig   none           -> ACCEPT  {'honest_half': 46196}  | 
+PASS d283370f d1 B sig   none           -> ACCEPT  {'honest_half': 45566}  | 
+PASS ef0b6e11 d1 A sig   none           -> ACCEPT  {'honest_half': 45610}  | 
+PASS ef0b6e11 d1 B sig   none           -> ACCEPT  {'honest_half': 45300}  | 
+PASS f3ff0ee8 d1 A sig   none           -> ACCEPT  {'honest_half': 46751}  | 
+PASS f3ff0ee8 d1 B sig   none           -> ACCEPT  {'honest_half': 46137}  | 
+
+honest d1: 24/24 as expected

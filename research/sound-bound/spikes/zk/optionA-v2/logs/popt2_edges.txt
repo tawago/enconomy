@@ -1,0 +1,217 @@
+PASS  edge sr 48000/44100 hA -58 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -57 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -56 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -55 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -54 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -53 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -52 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 164 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 165 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 166 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 167 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 168 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 169 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 170 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 48920 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 48921 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 48922 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 48923 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 48924 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 48925 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 48926 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 49144 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 49145 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 49146 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 49147 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 49148 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 49149 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 49150 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 44893 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 44894 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 44895 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 44896 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA 44897 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 44898 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 44899 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 45117 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 45118 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 45119 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 45120 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA 45121 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 45122 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA 45123 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA -13495 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -13494 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -13493 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 48000/44100 hA -13492 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13491 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13490 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13489 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13271 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13270 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13269 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 48000/44100 hA -13268 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA -13267 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA -13266 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 48000/44100 hA -13265 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA -54 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -53 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -52 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -51 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -50 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -49 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -48 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 151 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 152 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 153 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 154 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 155 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 156 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 157 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 41289 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 41290 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 41291 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 41292 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 41293 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41294 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41295 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41495 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41496 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41497 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41498 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 41499 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 41500 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 41501 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 37889 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 37890 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 37891 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 37892 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 37893 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 37894 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 37895 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 38095 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 38096 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 38097 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 38098 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 38099 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 38100 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 38101 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA -11396 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -11395 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -11394 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA -11393 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11392 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11391 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11390 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11190 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11189 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11188 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA -11187 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA -11186 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA -11185 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA -11184 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 1972816796 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 1972816797 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 1972816798 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 1972816799 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 44100/48000 hA 1972816800 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972816801 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972816802 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972817001 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972817002 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972817003 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972817004 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 44100/48000 hA 1972817005 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 1972817006 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 44100/48000 hA 1972817007 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA -44 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -43 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -42 hB 0 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -41 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -40 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -39 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -38 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 122 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 123 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 124 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 125 hB 0 exact=NEAR server=NEAR     want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 126 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 127 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 128 hB 0 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 16830 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 16831 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 16832 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 16833 hB 45000 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 16834 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 16835 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 16836 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 16997 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 16998 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 16999 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 17000 hB 45000 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 17001 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 17002 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 17003 hB 45000 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 15442 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 15443 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 15444 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 15445 hB 41300 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 15446 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15447 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15448 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15610 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15611 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15612 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15613 hB 41300 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 15614 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 15615 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 15616 hB 41300 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA -4674 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -4673 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -4672 hB -12345 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA -4671 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4670 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4669 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4668 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4506 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4505 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4504 hB -12345 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA -4503 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA -4502 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA -4501 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA -4500 hB -12345 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 805231322 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 805231323 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 805231324 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 805231325 hB 2147283647 exact=impossible_flight server=impossible_flight want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 36000/96000 hA 805231326 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231327 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231328 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231490 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231491 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231492 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231493 hB 2147283647 exact=NEAR server=NEAR want=accept got=ACCEPT  
+PASS  edge sr 36000/96000 hA 805231494 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 805231495 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 36000/96000 hA 805231496 hB 2147283647 exact=too_far server=too_far want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/68600 hA -80 hB 0 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/68600 hA 240 hB 0 exact=too_far server=too_far TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/68600 hA 44920 hB 45000 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/68600 hA 45240 hB 45000 exact=too_far server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/68600 hA 41220 hB 41300 exact=impossible_flight server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/68600 hA 41540 hB 41300 exact=too_far server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/68600 hA -12425 hB -12345 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/68600 hA -12105 hB -12345 exact=too_far server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/68600 hA 2147283567 hB 2147283647 exact=impossible_flight server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/68600 hA 2147283887 hB 2147283647 exact=too_far server=too_far TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 68600/72030 hA -80 hB 0 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 68600/72030 hA 240 hB 0 exact=too_far server=too_far TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 72030/68600 hA -84 hB 0 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 72030/68600 hA 252 hB 0 exact=too_far server=too_far TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 72030/68600 hA 47166 hB 45000 exact=impossible_flight server=impossible_flight TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 72030/68600 hA 47502 hB 45000 exact=too_far server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+PASS  edge sr 72030/68600 hA 43281 hB 41300 exact=impossible_flight server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1408 unsatisfied
+PASS  edge sr 72030/68600 hA 43617 hB 41300 exact=too_far server=NEAR TIE want=reject got=REJECT  RESULT check oa2t_pair REJECT r1cs constraint 1478 unsatisfied
+
+edges: 214/214 as expected
+[heavy] popt2-edges: 6.4s rc=0

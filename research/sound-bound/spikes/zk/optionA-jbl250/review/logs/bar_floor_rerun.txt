@@ -1,0 +1,4 @@
+windows 48  live T 0.0706..0.0827  null median 0.0465..0.0517  arrival score min 0.1694
+T0=0.080: windows with T0 < live T: 2; P(chance max > T0) per window: max 7.89e-05, median 7.59e-06; arrivals below T0: 0
+T0=0.090: windows with T0 < live T: 0; P(chance max > T0) per window: max 3.20e-06, median 1.74e-07; arrivals below T0: 0
+T0=0.100: windows with T0 < live T: 0; P(chance max > T0) per window: max 1.30e-07, median 3.97e-09; arrivals below T0: 0

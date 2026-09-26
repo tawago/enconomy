@@ -1,0 +1,3 @@
+P-256 alpha=7 t=3: R_F=8 R_P=46 (old script: 8/46); S-boxes 70; R1CS ~280; MDS candidate #1
+P-256 alpha=7 t=5: R_F=8 R_P=46 (old script: 8/46); S-boxes 86; R1CS ~344; MDS candidate #4
+P-256 alpha=7 t=16: R_F=8 R_P=47 (old script: 8/47); S-boxes 175; R1CS ~700; MDS candidate #2

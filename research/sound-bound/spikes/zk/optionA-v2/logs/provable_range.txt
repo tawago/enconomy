@@ -1,0 +1,12 @@
+180ca04b label    30  provable flight    33.9 ..     78.2 cm  (lags >= bar: A file 41, B file 57)  smallest -> NEAR
+2940913c label    60  provable flight    76.8 ..    113.3 cm  (lags >= bar: A file 21, B file 58)  smallest -> NOT_NEAR
+2dc2eb59 label     0  provable flight     5.0 ..    217.9 cm  (lags >= bar: A file 40, B file 71)  smallest -> NEAR
+7711d899 label   100  provable flight    98.3 ..    401.6 cm  (lags >= bar: A file 35, B file 58)  smallest -> NOT_NEAR
+9afb91c6 label   200  provable flight   210.4 ..    707.4 cm  (lags >= bar: A file 32, B file 92)  smallest -> NOT_NEAR
+b2a5f86d label    60  provable flight    60.4 ..    279.0 cm  (lags >= bar: A file 28, B file 58)  smallest -> NOT_NEAR
+b550cf12 label    30  provable flight    32.5 ..     70.0 cm  (lags >= bar: A file 37, B file 54)  smallest -> NEAR
+b9e4dd4b label    30  provable flight    26.8 ..    251.9 cm  (lags >= bar: A file 61, B file 64)  smallest -> NEAR
+d1ee4fb0 label   100  provable flight    96.5 ..    566.3 cm  (lags >= bar: A file 60, B file 74)  smallest -> NOT_NEAR
+d283370f label   200  provable flight   225.1 ..    691.7 cm  (lags >= bar: A file 54, B file 54)  smallest -> NOT_NEAR
+ef0b6e11 label   100  provable flight   110.8 ..    407.3 cm  (lags >= bar: A file 30, B file 47)  smallest -> NOT_NEAR
+f3ff0ee8 label   200  provable flight   219.4 ..    680.3 cm  (lags >= bar: A file 46, B file 47)  smallest -> NOT_NEAR

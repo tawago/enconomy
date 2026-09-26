@@ -1,0 +1,15 @@
+# circom 2.1.8 --O2, snarkjs groth16, BN254, Apple M2 8 GB, all under tools/heavy.sh ([heavy] wall times)
+compile arrival_exact_K512   422,071 constraints  30.3 s  1.21 GB peak RSS
+compile arrival_core_K512    339,746              18.1 s  0.97 GB
+compile arrival_core_K1024   393,204              30.7 s  0.92 GB
+compile arrival_cand_K512    414,689              30.9 s  1.03 GB
+compile arrival_cand_K1024   518,835              35.9 s  1.31 GB
+compile arrival_exact_K1024  533,385              37.8 s  1.17 GB
+compile arrival_exact_K2048  755,449              63.1 s  1.50 GB
+compile arrival_core_K19200  2,281,108           390.2 s  2.66 GB
+compile arrival_exact_K19200 ABORTED after ~12 min: 7.6 GB footprint, machine swapping (5.7 GB swap). Count extrapolated.
+witness exact_K512 (180ca04b B_at_A sub-window, node wasm)  1.2 s
+setup  exact_K512  pot19 (PSE ppot_0080_19)  486.5 s  2.09 GB  zkey 366 MB  vk.json 4.4 MB (24,002 public signals)
+prove  exact_K512  19.3 s / 19.3 s / 19.3 s   1.84-1.92 GB
+verify exact_K512  0.60 s  OK;  proof.json 807 bytes
+verify with public arr+1 / hx+1 / cI[0]+1: Invalid proof (all three)

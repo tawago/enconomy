@@ -1,0 +1,98 @@
+# 18 sessions, 22 variants, 1131 s wall
+variant   probe  agree lab ok/wrong/und  |dfl| med/max cm lost/base gain  dMarg med/p10 dB core R1CS full R1CS
+base      JB    17/18     10/1/4          0.00/127.2       0/144     0    +0.01/-0.11     7.41e+09  1.92e+12
+base      N1s   18/18     15/0/0          0.00/0.0         0/144     0    +0.00/-0.01     7.41e+09  1.92e+12
+rq8pre    JB    15/18     11/2/2          0.00/127.2       0/144     0    -0.06/-2.19     7.40e+09  1.92e+12
+rq8pre    N1s   18/18     15/0/0          0.00/0.4         0/144     0    +0.00/-0.10     7.40e+09  1.92e+12
+rq4pre    JB    13/18     13/1/1          0.01/186.5       0/144     0    -2.46/-7.21     7.40e+09  1.92e+12
+rq4pre    N1s   18/18     15/0/0          0.00/0.4         0/144     0    -0.22/-0.66     7.40e+09  1.92e+12
+rq2pre    JB    13/18     15/0/0          0.36/186.5       0/144     0    -4.93/-13.21    7.40e+09  1.92e+12
+rq2pre    N1s   18/18     15/0/0          0.00/1.8         0/144     0    -0.93/-2.99     7.40e+09  1.92e+12
+rq1pre    JB     9/18      4/0/11         0.36/135.1      24/144     0    -5.67/-12.14    7.40e+09  1.92e+12
+rq1pre    N1s   18/18     15/0/0          0.00/1.4         0/144     0    -1.85/-4.92     7.40e+09  1.92e+12
+rq8post   JB    16/18     10/1/4          0.00/127.2       0/144     0    +0.01/-0.12     7.40e+09  1.92e+12
+rq8post   N1s   18/18     15/0/0          0.00/0.4         0/144     0    +0.00/-0.06     7.40e+09  1.92e+12
+rq4post   JB    12/18     11/2/2          0.00/186.1       0/144     0    -0.13/-0.74     7.40e+09  1.92e+12
+rq4post   N1s   18/18     15/0/0          0.00/0.4         0/144     0    -0.21/-0.58     7.40e+09  1.92e+12
+rq2post   JB    14/18     14/1/0          0.00/186.1       0/144     0    -0.45/-1.21     7.40e+09  1.92e+12
+rq2post   N1s   18/18     15/0/0          0.00/1.8         0/144     0    -0.73/-1.46     7.40e+09  1.92e+12
+rq1post   JB    13/18     15/0/0          0.00/186.1       0/144     0    -0.97/-1.42     7.40e+09  1.92e+12
+rq1post   N1s   18/18     15/0/0          0.00/1.8         0/144     0    -1.42/-1.90     7.40e+09  1.92e+12
+tq1       JB    14/18     11/1/3          0.36/186.1       0/144     0    -1.20/-1.77     7.40e+09  1.92e+12
+tq1       N1s   18/18     15/0/0          0.00/0.4         0/144     0    -1.51/-1.94     7.40e+09  1.92e+12
+tl250     JB    13/18     15/0/0          0.73/186.9       0/144     0    -5.98/-6.85     1.87e+09  4.80e+11
+tl250     N1s   18/18     15/0/0          0.36/3.9         0/144     0    -5.97/-6.76     1.87e+09  4.80e+11
+tl100     JB    12/18     14/0/1          1.09/186.9       1/144     0   -10.80/-15.23    7.62e+08  1.92e+11
+tl100     N1s   17/18     14/0/1          1.09/9.3         1/144     0    -9.91/-11.54    7.62e+08  1.92e+11
+win5      JB    17/18     11/1/3          0.00/5.0         4/144     0    +0.17/-0.45     1.96e+08  4.98e+10
+win5      N1s   18/18     15/0/0          0.00/0.0         0/144     0    -0.06/-0.66     1.96e+08  4.98e+10
+win2      JB    17/18     11/1/3          0.00/5.0         4/144     0    +0.07/-0.74     8.49e+07  2.10e+10
+win2      N1s   18/18     15/0/0          0.00/0.0         0/144     0    -0.13/-0.92     8.49e+07  2.10e+10
+win5exp   JB     5/18      0/0/15            -/-         144/144     0        -/-         1.96e+08  4.98e+10
+win5exp   N1s    3/18      0/0/15            -/-         144/144     0        -/-         1.96e+08  4.98e+10
+fixT      JB    13/18     15/0/0          0.00/186.1       0/144     0    -0.57/-0.96     7.41e+09  2.95e+10
+fixT      N1s   18/18     15/0/0          0.00/0.0         0/144     0    -0.85/-1.23     7.41e+09  2.95e+10
+ppm0      JB    17/18     10/1/4          0.73/127.6       0/144     0    -0.00/-0.41     7.41e+09  4.80e+11
+ppm0      N1s   18/18     15/0/0          0.73/1.8         0/144     0    -0.00/-0.62     7.41e+09  4.80e+11
+realonly  JB    11/18     10/3/2          2.68/191.2       0/144     0    -2.86/-5.49     3.72e+09  9.59e+11
+realonly  N1s   18/18     15/0/0          1.07/4.3         0/144     0    -3.04/-5.07     3.72e+09  9.59e+11
+lean_a    JB     5/18      0/0/15            -/-          82/144     0   -15.12/-17.75    4.68e+07  4.68e+07
+lean_a    N1s   11/18      8/0/7          0.73/15.7       18/144     0   -13.21/-16.32    4.68e+07  4.68e+07
+lean_b    JB     5/18      0/0/15            -/-         104/144     0   -18.03/-19.66    7.66e+06  7.66e+06
+lean_b    N1s    7/18      4/0/11         1.79/11.5       30/144     0   -16.34/-17.94    7.66e+06  7.66e+06
+lean_c    JB     5/18      0/0/15            -/-         101/144     0   -18.53/-20.20    3.95e+06  3.95e+06
+lean_c    N1s    7/18      4/0/11         1.09/11.5       30/144     0   -17.80/-20.57    3.95e+06  3.95e+06
+lean_d    JB     8/18      3/0/12         1.44/13.6       35/144     0   -12.04/-16.19    1.89e+07  1.89e+07
+lean_d    N1s   18/18     15/0/0          1.09/3.2         0/144     0    -8.37/-10.47    1.89e+07  1.89e+07
+fixed T fixT: JB min/med/max 4.42/4.44/4.45 %, N1s min/med/max 4.16/4.23/4.24 %
+fixed T lean_a: JB min/med/max 5.96/6.15/6.20 %, N1s min/med/max 10.12/10.55/10.64 %
+fixed T lean_b: JB min/med/max 8.63/8.74/8.81 %, N1s min/med/max 15.00/15.32/15.50 %
+fixed T lean_c: JB min/med/max 7.72/7.82/7.88 %, N1s min/med/max 13.36/13.63/13.79 %
+fixed T lean_d: JB min/med/max 7.48/7.51/7.53 %, N1s min/med/max 7.16/7.21/7.23 %
+expected-centred +-5 ms: 288/288 baseline arrivals outside; arrival - expected min/med/max 71.7/106.8/141.3 ms
+expected-centred +-2 ms: 288/288 baseline arrivals outside; arrival - expected min/med/max 71.7/106.8/141.3 ms
+labels base      JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60F 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100U d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels base      N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq8pre    JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30F c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels rq8pre    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq4pre    JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100F f667:30N
+labels rq4pre    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq2pre    JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq2pre    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq1pre    JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30N c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100U f667:30U
+labels rq1pre    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq8post   JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100U d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels rq8post   N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq4post   JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30F 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100U f667:30N
+labels rq4post   N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq2post   JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100F f667:30N
+labels rq2post   N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq1post   JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels rq1post   N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels tq1       JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60F 64d2:60U 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels tq1       N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels tl250     JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels tl250     N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels tl100     JB   0417:200F 245b:60U 25a7:0U 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels tl100     N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30U e8a9:100F f667:30N
+labels win5      JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels win5      N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels win2      JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100U d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels win2      N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels win5exp   JB   0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30U c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30U e8a9:100U f667:30U
+labels win5exp   N1s  0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30U c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30U e8a9:100U f667:30U
+labels fixT      JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels fixT      N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels ppm0      JB   0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30U 5a95:60U 64d2:60F 74c2:0N 7ec2:0N 835b:30U c72c:30N cfb7:100U d592:100F d83c:30F dbfa:30N e8a9:100F f667:30U
+labels ppm0      N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels realonly  JB   0417:200U 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30F 5a95:60F 64d2:60F 74c2:0N 7ec2:0N 835b:30F c72c:30N cfb7:100F d592:100F d83c:30F dbfa:30N e8a9:100U f667:30N
+labels realonly  N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+labels lean_a    JB   0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30U c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30U e8a9:100U f667:30U
+labels lean_a    N1s  0417:200F 245b:60U 25a7:0N 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0U 835b:30N c72c:30N cfb7:100U d592:100U d83c:30N dbfa:30N e8a9:100U f667:30N
+labels lean_b    JB   0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30U c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30U e8a9:100U f667:30U
+labels lean_b    N1s  0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0U 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100U f667:30U
+labels lean_c    JB   0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30U c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30U e8a9:100U f667:30U
+labels lean_c    N1s  0417:200U 245b:60U 25a7:0U 4896:0U 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0N 7ec2:0U 835b:30N c72c:30N cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100U f667:30U
+labels lean_d    JB   0417:200U 245b:60U 25a7:0U 4896:0N 4c0a:200U 5682:30U 5a95:60U 64d2:60U 74c2:0U 7ec2:0U 835b:30N c72c:30U cfb7:100U d592:100U d83c:30U dbfa:30N e8a9:100U f667:30U
+labels lean_d    N1s  0417:200F 245b:60U 25a7:0N 4896:0N 4c0a:200F 5682:30N 5a95:60U 64d2:60U 74c2:0N 7ec2:0N 835b:30N c72c:30N cfb7:100F d592:100F d83c:30N dbfa:30N e8a9:100F f667:30N
+runtime per session (s): [127, 126, 125, 126, 330, 330, 329, 328, 235, 235, 236, 236, 251, 251, 250, 249, 186, 187]

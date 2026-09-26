@@ -1,0 +1,35 @@
+PASS  180ca04b_48k A tamper half                                 want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k A tamper sr                                   want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k A tamper nonce                                want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k A tamper swap_role                            want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k A tamper sample                               want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 60767 unsatisfied
+PASS  180ca04b_48k A tamper resign_late                          want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 811736 unsatisfied
+PASS  180ca04b_48k A tamper resign_early                         want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 817880 unsatisfied
+PASS  180ca04b_48k B tamper half                                 want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k B tamper sr                                   want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k B tamper nonce                                want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k B tamper swap_role                            want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_48k B tamper sample                               want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 60767 unsatisfied
+PASS  180ca04b_48k B tamper resign_late                          want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 807992 unsatisfied
+PASS  180ca04b_48k B tamper resign_early                         want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 817880 unsatisfied
+PASS  180ca04b_mix A tamper half                                 want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_mix A tamper sr                                   want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_mix A tamper nonce                                want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_mix A tamper swap_role                            want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 196643 unsatisfied
+PASS  180ca04b_mix A tamper sample                               want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 60767 unsatisfied
+PASS  180ca04b_mix A tamper resign_late                          want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 808952 unsatisfied
+PASS  180ca04b_mix A tamper resign_early                         want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 817880 unsatisfied
+PASS  180ca04b_mix B tamper half                                 want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 185726 unsatisfied
+PASS  180ca04b_mix B tamper sr                                   want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 185726 unsatisfied
+PASS  180ca04b_mix B tamper nonce                                want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 185726 unsatisfied
+PASS  180ca04b_mix B tamper swap_role                            want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 185726 unsatisfied
+PASS  180ca04b_mix B tamper sample                               want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 55828 unsatisfied
+PASS  180ca04b_mix B tamper resign_late                          want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 753056 unsatisfied
+PASS  180ca04b_mix B tamper resign_early                         want=reject got=REJECT  RESULT check oa2t_s44 REJECT r1cs constraint 761321 unsatisfied
+PASS  180ca04b_48k_sodfar B signed (sod 2401 > 50 ms tolerance)  want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 84960 unsatisfied
+PASS  180ca04b_48k_sodfar A honest                               want=accept got=ACCEPT  
+PASS  180ca04b_48k_sodwide B signed (sod 97 > delta 96 (completeness gap)) want=reject got=REJECT  RESULT check oa2t_s48 REJECT r1cs constraint 84960 unsatisfied
+PASS  180ca04b_48k_sodwide A honest                              want=accept got=ACCEPT  
+
+tampers: 32/32 as expected
+[heavy] popt2-tampers: 103.9s rc=0

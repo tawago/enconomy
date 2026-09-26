@@ -1,0 +1,5 @@
+RESULT setup mode=Exact L=12000 K=512 setup_ms=476 sizes=[144918, 0, 13597, 143363, 262144, 0, 14336, 247808, 24001, 2]
+RESULT prove rep=0 tamper=true prep_ms=19 prove_ms=388 verify_ms=30 verify=REJECT proof_bytes=847916
+  verify error: ProofVerifyError { reason: "Relaxed Spartan verify failed: InvalidSumcheckProof" }
+[heavy] vega-exact512-tamper: 1.0s rc=0
+           654835712  maximum resident set size

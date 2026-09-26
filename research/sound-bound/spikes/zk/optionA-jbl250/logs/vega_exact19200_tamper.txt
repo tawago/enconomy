@@ -1,0 +1,4 @@
+RESULT setup mode=Exact L=12000 K=19200 setup_ms=9031 sizes=[2350102, 0, 69661, 2292483, 4194304, 0, 71680, 4122624, 24001, 2]
+RESULT prove rep=0 tamper=true prep_ms=259 prove_ms=8618 verify_ms=183 verify=REJECT proof_bytes=912444
+  verify error: ProofVerifyError { reason: "Relaxed Spartan verify failed: InvalidSumcheckProof" }
+[heavy] vega-exact19200-tamper: 18.3s rc=0

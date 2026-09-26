@@ -1,7 +1,7 @@
 pragma circom 2.1.0;
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/bitify.circom";
+include "../../node_modules/circomlib/circuits/poseidon.circom";
+include "../../node_modules/circomlib/circuits/bitify.circom";
 
 // Commit to N signed 16-bit samples: range-check each, pack 15 per field
 // element, absorb 15 elements per Poseidon(16) in a chain.

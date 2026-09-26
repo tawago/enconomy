@@ -1,0 +1,6 @@
+RESULT setup mode=Cand L=12000 K=512 setup_ms=458 sizes=[137526, 0, 13597, 136493, 262144, 0, 14336, 247808, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=17 prove_ms=372 verify_ms=49 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=1 tamper=false prep_ms=15 prove_ms=367 verify_ms=48 verify=ACCEPT proof_bytes=847916
+RESULT prove rep=2 tamper=false prep_ms=18 prove_ms=359 verify_ms=50 verify=ACCEPT proof_bytes=847916
+           619642880  maximum resident set size
+[heavy] rv-vega-cand512: 1.8s rc=0

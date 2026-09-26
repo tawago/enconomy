@@ -1,0 +1,12 @@
+180ca04b label    30 flight    33.2 NEAR     swapped   -33.2 -> rejected
+2940913c label    60 flight    75.4 NOT_NEAR swapped   -75.4 -> rejected
+2dc2eb59 label     0 flight     7.9 NEAR     swapped    -7.9 -> NEAR (passes)
+7711d899 label   100 flight    97.9 NOT_NEAR swapped   -97.9 -> rejected
+9afb91c6 label   200 flight   210.8 NOT_NEAR swapped  -210.8 -> rejected
+b2a5f86d label    60 flight    62.9 NOT_NEAR swapped   -62.9 -> rejected
+b550cf12 label    30 flight    31.8 NEAR     swapped   -31.8 -> rejected
+b9e4dd4b label    30 flight    26.1 NEAR     swapped   -26.1 -> rejected
+d1ee4fb0 label   100 flight    95.4 NOT_NEAR swapped   -95.4 -> rejected
+d283370f label   200 flight   224.7 NOT_NEAR swapped  -224.7 -> rejected
+ef0b6e11 label   100 flight   110.0 NOT_NEAR swapped  -110.0 -> rejected
+f3ff0ee8 label   200 flight   218.7 NOT_NEAR swapped  -218.7 -> rejected

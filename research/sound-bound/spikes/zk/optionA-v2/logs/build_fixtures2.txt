@@ -1,0 +1,12 @@
+180ca04b label    30 halfA 45042 halfB 44947 flight   33.94 NEAR  rootA 0x924166d3af..
+2940913c label    60 halfA 46008 halfB 45793 flight   76.82 NOT_NEAR  rootA 0xad989ab251..
+2dc2eb59 label     0 halfA 45407 halfB 45393 flight    5.00 NEAR  rootA 0x7998e192c6..
+7711d899 label   100 halfA 46467 halfB 46192 flight   98.26 NOT_NEAR  rootA 0x4619b90691..
+9afb91c6 label   200 halfA 45617 halfB 45028 flight  210.44 NOT_NEAR  rootA 0x97879f0433..
+b2a5f86d label    60 halfA 45909 halfB 45740 flight   60.38 NOT_NEAR  rootA 0x61fcb56e85..
+b550cf12 label    30 halfA 46860 halfB 46769 flight   32.51 NEAR  rootA 0x1423d264d5..
+b9e4dd4b label    30 halfA 45519 halfB 45444 flight   26.80 NEAR  rootA 0x522af4d56c..
+d1ee4fb0 label   100 halfA 46533 halfB 46263 flight   96.47 NOT_NEAR  rootA 0xf8aca828fe..
+d283370f label   200 halfA 46196 halfB 45566 flight  225.09 NOT_NEAR  rootA 0x4006c291f2..
+ef0b6e11 label   100 halfA 45610 halfB 45300 flight  110.76 NOT_NEAR  rootA 0xf2a6faaf31..
+f3ff0ee8 label   200 halfA 46751 halfB 46137 flight  219.38 NOT_NEAR  rootA 0xaf3471099e..

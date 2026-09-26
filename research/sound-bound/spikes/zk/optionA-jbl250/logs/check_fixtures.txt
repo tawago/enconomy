@@ -1,0 +1,13 @@
+180ca04b label    30  halfA 45042 twin 45042 (+0)  halfB 44949 twin 44949 (+0)  flight   33.2 twin   33.2  NEAR     twin NEAR     ok
+2940913c label    60  halfA 46010 twin 46011 (+1)  halfB 45799 twin 45799 (+0)  flight   75.4 twin   75.7  NOT_NEAR twin NOT_NEAR ok
+2dc2eb59 label     0  halfA 45416 twin 45416 (+0)  halfB 45394 twin 45394 (+0)  flight    7.9 twin    7.9  NEAR     twin NEAR     ok
+7711d899 label   100  halfA 46467 twin 46467 (+0)  halfB 46193 twin 46193 (+0)  flight   97.9 twin   97.9  NOT_NEAR twin NOT_NEAR ok
+9afb91c6 label   200  halfA 45618 twin 45618 (+0)  halfB 45028 twin 45028 (+0)  flight  210.8 twin  210.8  NOT_NEAR twin NOT_NEAR ok
+b2a5f86d label    60  halfA 45911 twin 45911 (+0)  halfB 45735 twin 45735 (+0)  flight   62.9 twin   62.9  NOT_NEAR twin NOT_NEAR ok
+b550cf12 label    30  halfA 46860 twin 46859 (-1)  halfB 46771 twin 46771 (+0)  flight   31.8 twin   31.4  NEAR     twin NEAR     ok
+b9e4dd4b label    30  halfA 45519 twin 45519 (+0)  halfB 45446 twin 45446 (+0)  flight   26.1 twin   26.1  NEAR     twin NEAR     ok
+d1ee4fb0 label   100  halfA 46533 twin 46533 (+0)  halfB 46266 twin 46266 (+0)  flight   95.4 twin   95.4  NOT_NEAR twin NOT_NEAR ok
+d283370f label   200  halfA 46198 twin 46198 (+0)  halfB 45569 twin 45569 (+0)  flight  224.7 twin  224.7  NOT_NEAR twin NOT_NEAR ok
+ef0b6e11 label   100  halfA 45609 twin 45609 (+0)  halfB 45301 twin 45301 (+0)  flight  110.0 twin  110.0  NOT_NEAR twin NOT_NEAR ok
+f3ff0ee8 label   200  halfA 46751 twin 46751 (+0)  halfB 46139 twin 46139 (+0)  flight  218.7 twin  218.7  NOT_NEAR twin NOT_NEAR ok
+12/12 fixtures: halves within 1 sample and same verdict

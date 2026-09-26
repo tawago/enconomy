@@ -1,0 +1,99 @@
+{
+ "proto": "pop-v1",
+ "session_id": "0a564f5d64149ba0e3cf1716634042c4",
+ "field_session_id": "b2a5f86deacc41d1bb90ed48de981912",
+ "label_cm": 60.0,
+ "mode": "48k",
+ "session_nonce": "ac6c8d930f6207ab95a0da87e139081c901c1bcf241b33b5e1e169656af3f639",
+ "attempt": 0,
+ "devices": {
+  "A": {
+   "device_id": "963587f09daf8139125b5e87e2588afc",
+   "pubkey": "04a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43",
+   "key_kind": "secure-enclave",
+   "sample_rate": 48000,
+   "half": 45911
+  },
+  "B": {
+   "device_id": "11d98e9d2dc860098134bc766e3f2e03",
+   "pubkey": "04f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c",
+   "key_kind": "secure-enclave",
+   "sample_rate": 48000,
+   "half": 45735
+  }
+ },
+ "transcripts": {
+  "A": {
+   "transcript_b64": "UE9QVAFBAKxsjZMPYgerlaDah+E5CByQHBvPJBszteHhaWVq8/Y5BKOt2A8LMIuH+RmQqtILG6CerCMpzEyoCUCinFsnvs0MXHDKbLEoBd3gIfldqz4qApLIZC2YzezfZff7bTlpD0ME9Wf82qLLAC17kXY7UxQAhxYyj7jZQ8Cm9ZK63OriW1kBx9I294WxCSpkDYblvqDpb7k2a6MHgTUf3HsPIAscHAAAu4AAALNXyWIVybbFQr7UGCEQlrza9Y20TAW1OkoAJJZEebVRXOMAAAAAAABnIAAABlDxNR+JAAAGUL9e3kH////mxXZilc/UC6XErPEqEiH59zXAbrUmsrrPd6Bb7009nYs=",
+   "sig_b64": "XYshZptqGf0ERwmAuWOrdXM7ZR7nglKzn1BpQ4gp2b4UhfFSyX2Z6cWsB67EOZ2QoznRV6fivZqUiPED3+D1gQ==",
+   "sha256": "5e3a1ff17a92d3df39725c616b5f4103df9155d127fda85c1c1763a68799531f"
+  },
+  "B": {
+   "transcript_b64": "UE9QVAFCAKxsjZMPYgerlaDah+E5CByQHBvPJBszteHhaWVq8/Y5BPVn/NqiywAte5F2O1MUAIcWMo+42UPApvWSutzq4ltZAcfSNveFsQkqZA2G5b6g6W+5NmujB4E1H9x7DyALHBwEo63YDwswi4f5GZCq0gsboJ6sIynMTKgJQKKcWye+zQxccMpssSgF3eAh+V2rPioCkshkLZjN7N9l9/ttOWkPQwAAu4AAALKn41LdJSSUuYycSLHpVdWIE+fbmw8fnNhr1WnuhcAr9kMAAAAAAABnIAAAITqZCLZHAAAhOizZX8T////b8d1s5qLQQPsIF2R/+O0X1+RyjrttPrNoxv2g9BlIAMQ=",
+   "sig_b64": "jmWqiTVtMvGTnPJs0tZ/ilBUyWDovXAFRjDeNl61LGuGZNQLcqIbAkWS/hCi2/8ECsT8cSqWv0/O9pRCsdi/Jg==",
+   "sha256": "dc3d13490ec2d43c4f886e86c2cf474832a460961b86e809f88ba2c780bebcd8"
+  }
+ },
+ "commits": {
+  "A": {
+   "commit_b64": "UE9QQwFBAKxsjZMPYgerlaDah+E5CByQHBvPJBszteHhaWVq8/Y5yWIVybbFQr7UGCEQlrza9Y20TAW1OkoAJJZEebVRXOM=",
+   "sig_b64": "ID3j7UjEPgtnyAjCOE0XxSBDbl4ypTf+PXsL74gCzy2P8VMYpJzvo35qXyty+WkGui/BiQXAHOyGXxLXmCmCxw=="
+  },
+  "B": {
+   "commit_b64": "UE9QQwFCAKxsjZMPYgerlaDah+E5CByQHBvPJBszteHhaWVq8/Y541LdJSSUuYycSLHpVdWIE+fbmw8fnNhr1WnuhcAr9kM=",
+   "sig_b64": "Cst/srLH1B7PoTsQ0Dzv0MR8J1Ven7KDQdbu+cPGe82091VUEd2Pditi+vnaJM4urLBinlFjLJmTsCVZZRbTJA=="
+  }
+ },
+ "credentials": {
+  "A": {
+   "cred_hex": "53426372656431a3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c5c70ca6cb12805dde021f95dab3e2a0292c8642d98cdecdf65f7fb6d39690f43000000006ade36d9",
+   "expiry": 1792947929,
+   "sig_r_hex": "83c089e9baa535c6bf8c7cc7ff30b0b1f33d3ab5500e929aa025b51a84919b47",
+   "sig_s_hex": "781e78ba49162b9b4ef41950fbc4d5eddea2d04e8c1a1aba0aa16c39a3e0c03d"
+  },
+  "B": {
+   "cred_hex": "53426372656431f567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b5901c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c000000006ade36d9",
+   "expiry": 1792947929,
+   "sig_r_hex": "324d6f0d387e5340c5368bb56e93a363786403d928b5dd2334c80be8839bc4ab",
+   "sig_s_hex": "2d9dd35a5181da1af9adb99d15b214879f1aa70f18d6183a96e17b6163f065bd"
+  }
+ },
+ "issuer": {
+  "pub_x": "9178141b72e5cae00db063dbd38fda4f82a11e1dc8442d2735604719630d99b6",
+  "pub_y": "4b75c24fb3128f0646642e3828848d23348f1e08023f5378425a28cffd1885e3"
+ },
+ "emulation": {
+  "A": {
+   "sr": 48000,
+   "capture_start_s_in_file": 22.2,
+   "capture_start_frame48": 1065600,
+   "capture_frames": 120000,
+   "t_self": 28108,
+   "t_partner": 74019,
+   "expected_self": 28134.0,
+   "self_os_delta": -26,
+   "clock_base_ns": 6921677815873,
+   "sig_low_s": true
+  },
+  "B": {
+   "sr": 48000,
+   "capture_start_s_in_file": 22.2,
+   "capture_start_frame48": 1065600,
+   "capture_frames": 120000,
+   "t_self": 75085,
+   "t_partner": 29350,
+   "expected_self": 75122.000016,
+   "self_os_delta": -37,
+   "clock_base_ns": 36511544263108,
+   "sig_low_s": false
+  }
+ },
+ "expect": {
+  "flight_cm": 62.88,
+  "verdict": "NOT_NEAR",
+  "reason": "too_far",
+  "near": false
+ },
+ "name": "b2a5f86d_48k",
+ "notes": "dev fixture: real audio + real Secure Enclave signatures; nonce = sha256('POPnonce-dev|' session|mode), attempt 0, timestamps emulated (enclave/emulate.py)"
+}

@@ -1,0 +1,18 @@
+== builder oa-vega cand
+RESULT setup mode=Cand L=12000 K=512 setup_ms=472 sizes=[137526, 0, 13597, 136493, 262144, 0, 14336, 247808, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=17 prove_ms=382 verify_ms=61 verify=ACCEPT proof_bytes=847916
+[heavy] atkE-vega: 1.0s rc=0
+== review oa-vega-rx cand + OA_LOOK_FIX
+RESULT setup mode=Cand L=12000 K=512 setup_ms=761 sizes=[351268, 0, 13597, 337661, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=34 prove_ms=527 verify_ms=45 verify=REJECT proof_bytes=852432
+  verify error: ProofVerifyError { reason: "Relaxed Spartan verify failed: InvalidSumcheckProof" }
+[heavy] atkE-vega-fix: 1.7s rc=0
+== review oa-vega-rx cand + OA_LOOK_FIX, honest cand K512 (completeness)
+RESULT setup mode=Cand L=12000 K=512 setup_ms=701 sizes=[351268, 0, 13597, 337661, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=30 prove_ms=514 verify_ms=63 verify=ACCEPT proof_bytes=852432
+[heavy] honest-fix: 1.4s rc=0
+== honest exact K512 + OA_LOOK_FIX
+RESULT setup mode=Exact L=12000 K=512 setup_ms=733 sizes=[358660, 0, 13597, 344531, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=32 prove_ms=543 verify_ms=68 verify=ACCEPT proof_bytes=852432
+[heavy] honest-fix2: 1.4s rc=0
+RESULT prove rep=0 tamper=false prep_ms=32 prove_ms=520 verify_ms=64 verify=ACCEPT proof_bytes=852432

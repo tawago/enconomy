@@ -1,0 +1,15 @@
+RESULT setup oa2_d1_audio setup_ms=3582 pk_bytes=384401330 vk_bytes=384401298
+          1814822912  maximum resident set size
+[heavy] setup-oa2_d1_audio: 9.2s rc=0
+RESULT prove oa2_d1_audio pk_load_ms=5241 witness_ms=355 prove_ms=3020 proof_bytes=1613935
+          1159495680  maximum resident set size
+           999725184  peak memory footprint
+[heavy] prove-oa2_d1_audio: 10.1s rc=0
+RESULT verify oa2_d1_audio ACCEPT vk_load_ms=1225 verify_ms=953
+           593608704  maximum resident set size
+[heavy] verify-oa2_d1_audio: 2.3s rc=0
+RESULT bench oa2_d1_audio rep=0 witness_ms=284 prove_ms=3159 verify_ms=1039 proof_bytes=1613935
+RESULT bench oa2_d1_audio rep=1 witness_ms=263 prove_ms=3049 verify_ms=105 proof_bytes=1613935
+RESULT bench oa2_d1_audio rep=2 witness_ms=242 prove_ms=2921 verify_ms=110 proof_bytes=1613935
+[heavy] bench-oa2_d1_audio: 19.4s rc=0
+proof_file_bytes 1613935

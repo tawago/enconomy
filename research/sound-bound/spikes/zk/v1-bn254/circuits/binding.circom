@@ -1,8 +1,8 @@
 pragma circom 2.1.0;
 
-include "../node_modules/circomlib/circuits/poseidon.circom";
-include "../node_modules/circomlib/circuits/eddsaposeidon.circom";
-include "../node_modules/circomlib/circuits/comparators.circom";
+include "../../node_modules/circomlib/circuits/poseidon.circom";
+include "../../node_modules/circomlib/circuits/eddsaposeidon.circom";
+include "../../node_modules/circomlib/circuits/comparators.circom";
 
 // Option C: the audio analysis runs outside (attested app or server) and signs
 // its result. The circuit binds that result to both identities and hides them.

@@ -1,0 +1,53 @@
+{"session": "180ca04b", "label": 30.0, "round": 0, "twin_half": {"A": 45042, "B": 44947}, "twin_flight": 33.942708333333336, "float_flight": 34.3, "result_flight": 33.22812500000634}
+{"session": "180ca04b", "label": 30.0, "round": 1, "twin_half": {"A": 45040, "B": 44945}, "twin_flight": 33.942708333333336, "float_flight": 33.942708333333336, "result_flight": 33.22812499994541}
+{"session": "2940913c", "label": 60.0, "round": 0, "twin_half": {"A": 46008, "B": 45793}, "twin_flight": 76.81770833333333, "float_flight": 76.81770833333333, "result_flight": 75.38854166667122}
+{"session": "2940913c", "label": 60.0, "round": 1, "twin_half": {"A": 46006, "B": 45788}, "twin_flight": 77.88958333333333, "float_flight": 77.88958333333333, "result_flight": 75.74583333334974}
+{"session": "2dc2eb59", "label": 0.0, "round": 0, "twin_half": {"A": 45407, "B": 45393}, "twin_flight": 5.002083333333333, "float_flight": 5.002083333333333, "result_flight": 7.860416666683889}
+{"session": "2dc2eb59", "label": 0.0, "round": 1, "twin_half": {"A": 45405, "B": 45392}, "twin_flight": 4.644791666666666, "float_flight": 5.002083333333333, "result_flight": 8.217708333362417}
+{"session": "7711d899", "label": 100.0, "round": 0, "twin_half": {"A": 46467, "B": 46192}, "twin_flight": 98.25520833333333, "float_flight": 98.25520833333333, "result_flight": 97.89791666662637}
+{"session": "7711d899", "label": 100.0, "round": 1, "twin_half": {"A": 46462, "B": 46190}, "twin_flight": 97.18333333333334, "float_flight": 97.18333333333334, "result_flight": 98.25520833330489}
+{"session": "9afb91c6", "label": 200.0, "round": 0, "twin_half": {"A": 45617, "B": 45028}, "twin_flight": 210.44479166666667, "float_flight": 210.44479166666667, "result_flight": 210.80208333338533}
+{"session": "9afb91c6", "label": 200.0, "round": 1, "twin_half": {"A": 45615, "B": 45025}, "twin_flight": 210.80208333333334, "float_flight": 210.80208333333334, "result_flight": 211.1593750000029}
+{"session": "b2a5f86d", "label": 60.0, "round": 0, "twin_half": {"A": 45909, "B": 45740}, "twin_flight": 60.38229166666667, "float_flight": 61.454166666666666, "result_flight": 62.88333333328833}
+{"session": "b2a5f86d", "label": 60.0, "round": 1, "twin_half": {"A": 45907, "B": 45737}, "twin_flight": 60.739583333333336, "float_flight": 60.38229166666667, "result_flight": 60.024999999981965}
+{"session": "b550cf12", "label": 30.0, "round": 0, "twin_half": {"A": 46860, "B": 46769}, "twin_flight": 32.51354166666667, "float_flight": 32.51354166666667, "result_flight": 31.798958333353156}
+{"session": "b550cf12", "label": 30.0, "round": 1, "twin_half": {"A": 46850, "B": 46767}, "twin_flight": 29.655208333333334, "float_flight": 29.297916666666666, "result_flight": 35.014583333338045}
+{"session": "b9e4dd4b", "label": 30.0, "round": 0, "twin_half": {"A": 45519, "B": 45444}, "twin_flight": 26.796875, "float_flight": 26.439583333333335, "result_flight": 26.082291666679502}
+{"session": "b9e4dd4b", "label": 30.0, "round": 1, "twin_half": {"A": 45517, "B": 45442}, "twin_flight": 26.796875, "float_flight": 26.796875, "result_flight": 26.796875000036557}
+{"session": "d1ee4fb0", "label": 100.0, "round": 0, "twin_half": {"A": 46533, "B": 46263}, "twin_flight": 96.46875, "float_flight": 96.46875, "result_flight": 95.39687499999854}
+{"session": "d1ee4fb0", "label": 100.0, "round": 1, "twin_half": {"A": 46534, "B": 46258}, "twin_flight": 98.6125, "float_flight": 98.25520833333333, "result_flight": 97.54062500000877}
+{"session": "d283370f", "label": 200.0, "round": 0, "twin_half": {"A": 46196, "B": 45566}, "twin_flight": 225.09375, "float_flight": 225.09375, "result_flight": 224.73645833336047}
+{"session": "d283370f", "label": 200.0, "round": 1, "twin_half": {"A": 46194, "B": 45563}, "twin_flight": 225.45104166666667, "float_flight": 225.45104166666667, "result_flight": 225.45104166665658}
+{"session": "ef0b6e11", "label": 100.0, "round": 0, "twin_half": {"A": 45610, "B": 45300}, "twin_flight": 110.76041666666667, "float_flight": 110.403125, "result_flight": 110.0458333332698}
+{"session": "ef0b6e11", "label": 100.0, "round": 1, "twin_half": {"A": 45609, "B": 45298}, "twin_flight": 111.11770833333334, "float_flight": 110.76041666666667, "result_flight": 110.04583333333073}
+{"session": "f3ff0ee8", "label": 200.0, "round": 0, "twin_half": {"A": 46751, "B": 46137}, "twin_flight": 219.37708333333333, "float_flight": 218.6625, "result_flight": 218.6625000000692}
+{"session": "f3ff0ee8", "label": 200.0, "round": 1, "twin_half": {"A": 46749, "B": 46137}, "twin_flight": 218.6625, "float_flight": 218.30520833333333, "result_flight": 218.30520833326884}
+
+arrivals: 96; twin found 96
+twin - float(earliest>=9%): identical 81/96, |diff|<=1: 95, max |diff| 4
+twin - result.json('first'): min -19 max -4 samples (-0.40 .. -0.08 ms)
+arrival score min 9.0%, highest score >1 ms before an arrival 5.5%
+180ca04b r0 label    30  twin    33.9  float    34.3  result(first)    33.2  NEAR == NEAR  d=+0.7 cm
+180ca04b r1 label    30  twin    33.9  float    33.9  result(first)    33.2  NEAR == NEAR  d=+0.7 cm
+2940913c r0 label    60  twin    76.8  float    76.8  result(first)    75.4  NOT_NEAR == NOT_NEAR  d=+1.4 cm
+2940913c r1 label    60  twin    77.9  float    77.9  result(first)    75.7  NOT_NEAR == NOT_NEAR  d=+2.1 cm
+2dc2eb59 r0 label     0  twin     5.0  float     5.0  result(first)     7.9  NEAR == NEAR  d=-2.9 cm
+2dc2eb59 r1 label     0  twin     4.6  float     5.0  result(first)     8.2  NEAR == NEAR  d=-3.6 cm
+7711d899 r0 label   100  twin    98.3  float    98.3  result(first)    97.9  NOT_NEAR == NOT_NEAR  d=+0.4 cm
+7711d899 r1 label   100  twin    97.2  float    97.2  result(first)    98.3  NOT_NEAR == NOT_NEAR  d=-1.1 cm
+9afb91c6 r0 label   200  twin   210.4  float   210.4  result(first)   210.8  NOT_NEAR == NOT_NEAR  d=-0.4 cm
+9afb91c6 r1 label   200  twin   210.8  float   210.8  result(first)   211.2  NOT_NEAR == NOT_NEAR  d=-0.4 cm
+b2a5f86d r0 label    60  twin    60.4  float    61.5  result(first)    62.9  NOT_NEAR == NOT_NEAR  d=-2.5 cm
+b2a5f86d r1 label    60  twin    60.7  float    60.4  result(first)    60.0  NOT_NEAR == NOT_NEAR  d=+0.7 cm
+b550cf12 r0 label    30  twin    32.5  float    32.5  result(first)    31.8  NEAR == NEAR  d=+0.7 cm
+b550cf12 r1 label    30  twin    29.7  float    29.3  result(first)    35.0  NEAR == NEAR  d=-5.4 cm
+b9e4dd4b r0 label    30  twin    26.8  float    26.4  result(first)    26.1  NEAR == NEAR  d=+0.7 cm
+b9e4dd4b r1 label    30  twin    26.8  float    26.8  result(first)    26.8  NEAR == NEAR  d=-0.0 cm
+d1ee4fb0 r0 label   100  twin    96.5  float    96.5  result(first)    95.4  NOT_NEAR == NOT_NEAR  d=+1.1 cm
+d1ee4fb0 r1 label   100  twin    98.6  float    98.3  result(first)    97.5  NOT_NEAR == NOT_NEAR  d=+1.1 cm
+d283370f r0 label   200  twin   225.1  float   225.1  result(first)   224.7  NOT_NEAR == NOT_NEAR  d=+0.4 cm
+d283370f r1 label   200  twin   225.5  float   225.5  result(first)   225.5  NOT_NEAR == NOT_NEAR  d=+0.0 cm
+ef0b6e11 r0 label   100  twin   110.8  float   110.4  result(first)   110.0  NOT_NEAR == NOT_NEAR  d=+0.7 cm
+ef0b6e11 r1 label   100  twin   111.1  float   110.8  result(first)   110.0  NOT_NEAR == NOT_NEAR  d=+1.1 cm
+f3ff0ee8 r0 label   200  twin   219.4  float   218.7  result(first)   218.7  NOT_NEAR == NOT_NEAR  d=+0.7 cm
+f3ff0ee8 r1 label   200  twin   218.7  float   218.3  result(first)   218.3  NOT_NEAR == NOT_NEAR  d=+0.4 cm

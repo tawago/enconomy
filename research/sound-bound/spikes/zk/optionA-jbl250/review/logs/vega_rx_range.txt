@@ -1,0 +1,26 @@
+== rx exact512 honest
+RESULT setup mode=Exact L=12000 K=512 setup_ms=813 sizes=[358659, 0, 13597, 344531, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=39 prove_ms=568 verify_ms=70 verify=ACCEPT proof_bytes=852432
+RESULT prove rep=1 tamper=false prep_ms=25 prove_ms=504 verify_ms=64 verify=ACCEPT proof_bytes=852432
+RESULT prove rep=2 tamper=false prep_ms=24 prove_ms=467 verify_ms=65 verify=ACCEPT proof_bytes=852432
+           783777792  maximum resident set size
+[heavy] rx-exact512: 3.1s rc=0
+== rx cand512 honest
+RESULT setup mode=Cand L=12000 K=512 setup_ms=719 sizes=[351267, 0, 13597, 337661, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=32 prove_ms=503 verify_ms=66 verify=ACCEPT proof_bytes=852432
+RESULT prove rep=1 tamper=false prep_ms=23 prove_ms=454 verify_ms=64 verify=ACCEPT proof_bytes=852432
+RESULT prove rep=2 tamper=false prep_ms=25 prove_ms=473 verify_ms=59 verify=ACCEPT proof_bytes=852432
+           764182528  maximum resident set size
+[heavy] rx-cand512: 2.5s rc=0
+== rx exact512 x out of int16 (attack C)
+RESULT setup mode=Exact L=12000 K=512 setup_ms=722 sizes=[358659, 0, 13597, 344531, 524288, 0, 14336, 509952, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=28 prove_ms=605 verify_ms=58 verify=REJECT proof_bytes=852432
+  verify error: ProofVerifyError { reason: "Relaxed Spartan verify failed: InvalidSumcheckProof" }
+           735723520  maximum resident set size
+[heavy] rx-atkC: 1.5s rc=0
+== rx exact19200 B_at_A
+RESULT setup mode=Exact L=12000 K=19200 setup_ms=10607 sizes=[2881539, 0, 69661, 2792659, 4194304, 0, 71680, 4122624, 24001, 2]
+RESULT prove rep=0 tamper=false prep_ms=286 prove_ms=8115 verify_ms=228 verify=ACCEPT proof_bytes=912444
+RESULT prove rep=1 tamper=false prep_ms=178 prove_ms=8095 verify_ms=355 verify=ACCEPT proof_bytes=912444
+          1932754944  maximum resident set size
+[heavy] rx-exact19200: 28.1s rc=0

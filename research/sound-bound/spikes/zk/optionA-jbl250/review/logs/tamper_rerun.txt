@@ -1,0 +1,3 @@
+PASS  witness=rejected  claim arrival 3 lags early (rising edge)   Error: Error: Assert Failed. | Error in template Num2Bits_227 line: 38
+PASS  witness=rejected  forge: plant a peak at lag 100 and claim it   Error: Error: Assert Failed. | Error in template Arrival_231 line: 64
+ALL PASS
