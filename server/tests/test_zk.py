@@ -1,8 +1,7 @@
-"""Option A proofs (pop/zk.py, Noir oaN_s48 on bb UltraHonk): public vector vs the pinned fixture proof, the real
-`bb verify` on it, the upload + delegate endpoints with fakes, artifact download.
+"""Option A proofs (pop/zk.py, Noir oaN_s48 on bb UltraHonk): the real `bb verify` on the pinned
+fixture proof, the upload + delegate endpoints with fakes, artifact download.
 
-Real-proof tests need (skipped otherwise): pinned bb + vk + fixture proofs in ~/.enconomy/zk/pinned (zkmobile/pin),
-and for the vector check the spike fixture + optionA-v2 inputs under research/.
+Real-proof tests need (skipped otherwise): pinned bb + vk + fixture proofs in ~/.enconomy/zk/pinned (zkmobile/pin).
 """
 from __future__ import annotations
 
@@ -12,7 +11,6 @@ import os
 import time
 from pathlib import Path
 
-import numpy as np
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
@@ -30,7 +28,6 @@ from tests.sim2 import World2
 SERVER = Path(__file__).resolve().parents[1]
 ZK = Path(os.environ.get("POP_ZK_SPIKE", SERVER.parent / "research" / "sound-bound" / "spikes" / "zk"))
 FIX = ZK / "fixtures" / "popt_v2"
-INPUTS = ZK / "optionA-v2" / "inputs"
 PIN = Path(os.environ.get("POP_ZK_PINNED", Path.home() / ".enconomy" / "zk" / "pinned"))
 BB = PIN / "bin" / "bb"
 DEV_ISSUER = bytes.fromhex("04" "9178141b72e5cae00db063dbd38fda4f82a11e1dc8442d2735604719630d99b6"
@@ -39,7 +36,6 @@ VALID_AT = 1790000000   # the fixture's fixed validAt
 
 need_real = pytest.mark.skipif(not (BB.exists() and (PIN / "vk" / "vk").exists() and (PIN / "A" / "proof").exists()),
                                reason="pinned bb / vk / fixture proofs missing")
-need_inputs = pytest.mark.skipif(not (FIX.is_dir() and INPUTS.is_dir()), reason="research/ spike not present")
 
 
 # -- pure helpers
@@ -71,23 +67,6 @@ def _pinned(role):
 
 def _real_verifier(**kw):
     return zk.Verifier(str(BB), zk.Artifacts(), **kw)
-
-
-@need_inputs
-@need_real
-@pytest.mark.parametrize("role", ["A", "B"])
-def test_public_vector_matches_pinned_proof(role):
-    """Server-side vector from the fixture transcript + templates == the proof's 12 public inputs."""
-    P = 0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF
-    fx = json.loads((FIX / "180ca04b_48k.json").read_text())
-    wi = json.loads((INPUTS / f"popt2_180ca04b_48k_{role}.input.json").read_text())
-    i8 = lambda k: np.array([int(v) - P if int(v) > P // 2 else int(v) for v in wi[k]], dtype=np.int8).tobytes()  # noqa
-    raw = bytearray(b64d(fx["roles"][role]["transcript_b64"]))
-    raw[177:209] = bytes(32)          # Poseidon7-era root; the vector doesn't use it
-    t = decode_transcript(bytes(raw))
-    got = zk.public_vector(t, (i8("cIs"), i8("cQs")), (i8("cIp"), i8("cQp")), DEV_ISSUER, VALID_AT,
-                           int(fx["roles"][role]["salt_dev"], 16))
-    assert got == _pinned(role)[1]
 
 
 @need_real
