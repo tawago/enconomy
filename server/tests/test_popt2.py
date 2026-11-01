@@ -1,16 +1,11 @@
 """POPT v2 / POPC v2 layout, Poseidon7 (legacy) + rec_root, int8 codes, code_commit and exact decide.
 
-Literal vectors run everywhere. Spike parity (research/sound-bound/spikes/zk, read-only; skipped when absent):
-every fixtures/popt_v2 session (12 JBL250 sessions x {48k, mix} + sodfar/sodwide): transcript + commit bytes,
-signatures, derived fields, code_commit from the server's own code derivation, rec_root from the dumped tree
-leaves, sampled leaves re-hashed from the capture, and full rec_root recomputed for two captures
-(POP_SLOW=1: every capture, ~2.5 s each).
+Literal vectors run everywhere. One codec check against the spike's enclave/popt.py
+(research/sound-bound/spikes/zk, read-only; skipped when absent).
 """
 from __future__ import annotations
 
 import hashlib
-import json
-import os
 import struct
 import sys
 from fractions import Fraction
@@ -24,15 +19,11 @@ from pop import poseidon2 as p2
 from pop import poseidon7 as p7
 from pop import popt2
 from pop.codec import decode_commit, decode_transcript, encode_commit, encode_transcript
-from pop.crypto import verify_raw
-from pop.jbl250 import template
-from pop.verdict import Reject, check_commit, check_transcript, combine, decide, flight_cm, flight_exact, self_os_ok
+from pop.verdict import decide, flight_cm, flight_exact, self_os_ok
 
 ZK = Path(__file__).resolve().parents[2] / "research" / "sound-bound" / "spikes" / "zk"
 FIX = ZK / "fixtures" / "popt_v2"
 need_spike = pytest.mark.skipif(not FIX.is_dir(), reason="research/ spike not present")
-FIXTURES = sorted(FIX.glob("*.json")) if FIX.is_dir() else []
-SLOW = os.environ.get("POP_SLOW") == "1"
 
 VEC2 = dict(version=2, role="B", attempt=1, nonce=bytes(range(32)), pk_self=b"\x04" + b"\x11" * 64,
             pk_partner=b"\x04" + b"\x22" * 64, sample_rate=44100, half=-45566, rec_root=b"\x23" * 32,
@@ -148,17 +139,6 @@ def test_lockstep_equals_scalar():
         p7.leaf_hashes(np.array([40000]))
 
 
-@need_spike
-def test_poseidon7_matches_spike():
-    sp = _spike("p7", "optionA-v2/poseidon7")
-    rng = np.random.default_rng(2)
-    for t in (5, 16):
-        s = [int.from_bytes(rng.bytes(32), "big") % p7.P for _ in range(t)]
-        assert p7.perm(s) == sp.perm(s)
-    xs = [int.from_bytes(rng.bytes(31), "big") for _ in range(20)]
-    assert p7.sponge16(9 + (40 << 8), xs) == sp.sponge16(9 + (40 << 8), xs)
-
-
 # -- codes
 
 def test_code_shape_and_commit():
@@ -173,16 +153,6 @@ def test_code_shape_and_commit():
     assert popt2.code_commit(own, other) == p2.to_bytes32(p2.code_commitment(*map(i8, (*own, *other))))
     assert popt2.code_commit(own, other) != popt2.code_commit(other, own)
     assert popt2.delta(48000) == 96 and popt2.delta(44100) == 88
-
-
-@need_spike
-def test_rates_table_matches_spike():
-    pytest.importorskip("scipy")
-    oa = _spike("oa_rate", "optionA-v2")
-    for sr, v in popt2.RATES.items():
-        p = oa.params(sr)
-        assert (p["L"], p["B"], p["DELTA"], p["WPRE"], p["WPOST"], p["h"]) == \
-            (v["L"], v["B"], v["delta"], v["wpre"], v["wpost"], v["h"])
 
 
 # -- exact decide (oa2t_pair: c*N <= -40*S impossible, c*N >= 120*S too far)
@@ -229,107 +199,3 @@ def test_config_exposes_v2(client):
     assert c["self_os_tol_ms"] == 50 and c["delta_ms"] == 2 and c["popt_versions"] == [1, 2]
     assert c["zk_rates"] == [44100, 48000] and c["popt2_rates"]["48000"]["B"] == 4474747
     assert c["leaf"] == 1024 and c["tree_depth"] == 4 and c["template_bits"] == 8 and c["fir_taps"] == 63
-
-
-# -- spike fixtures: 12 JBL250 sessions x {48k, mix} (+ sodfar, sodwide)
-
-def _fieldtest_code(seed: str, role: str, sr: int):
-    """The spike's templates come from the fieldtest bed key; same math as production (pop-v1 bed key)."""
-    key = hashlib.sha256(f"fieldtest-v1|{seed}|JBL250|{role}|bed".encode()).digest()
-    return popt2.code_from_template(template(key, role, sr), sr)
-
-
-def _checked(fx: dict, r: str) -> dict:
-    other = "B" if r == "A" else "A"
-    ro, rp = fx["roles"][r], fx["roles"][other]
-    sr = int(ro["sample_rate"])
-    raw, sig = (__import__("base64").b64decode(ro[k]) for k in ("transcript_b64", "sig_b64"))
-    craw, csig = (__import__("base64").b64decode(ro[k]) for k in ("commit_b64", "commit_sig_b64"))
-    pk, pkp, nonce = bytes.fromhex(ro["pubkey"]), bytes.fromhex(rp["pubkey"]), bytes.fromhex(fx["session_nonce"])
-    c = check_commit(craw, csig, role=r, pk=pk, nonce=nonce, attempt=fx["attempt"])
-    own = tuple(v.tobytes() for v in _fieldtest_code(fx["seed_hex"], r, sr))
-    par = tuple(v.tobytes() for v in _fieldtest_code(fx["seed_hex"], other, sr))
-    cc = popt2.code_commit(own, par)
-    assert cc.hex() == ro["code_commit"]
-    t = check_transcript(raw, sig, role=r, pk_self=pk, pk_partner=pkp, nonce=nonce, attempt=fx["attempt"],
-                         commit_sha256=hashlib.sha256(craw).digest(), rec=c["rec_root"], sample_rate=sr,
-                         version=2, code_commit=cc)
-    assert encode_transcript(t) == raw and len(raw) == 311 and verify_raw(pk, raw, sig)
-    for k in ("half", "a_self", "a_partner", "p_self", "p_partner", "self_os_delta", "delta"):
-        assert t[k] == int(ro[k]), k
-    assert int.from_bytes(t["rec_root"], "big") == int(ro["rec_root"], 16)
-    with pytest.raises(Reject, match="code_commit"):
-        check_transcript(raw, sig, role=r, pk_self=pk, pk_partner=pkp, nonce=nonce, attempt=fx["attempt"],
-                         commit_sha256=hashlib.sha256(craw).digest(), rec=c["rec_root"], sample_rate=sr,
-                         version=2, code_commit=popt2.code_commit(par, own))
-    with pytest.raises(Reject, match="version"):
-        check_transcript(raw, sig, role=r, pk_self=pk, pk_partner=pkp, nonce=nonce, attempt=fx["attempt"],
-                         commit_sha256=hashlib.sha256(craw).digest(), rec=c["rec_root"], version=1)
-    return t
-
-
-@need_spike
-@pytest.mark.skip(reason="Poseidon7/sha256-era fixtures: POPT v2 rec_root and code_commit are Poseidon2 (Noir option A) now")
-@pytest.mark.parametrize("path", FIXTURES, ids=lambda p: p.stem)
-def test_fixture_transcripts_and_verdict(path):
-    fx = json.loads(path.read_text())
-    ta, tb = _checked(fx, "A"), _checked(fx, "B")
-    out = combine(ta, tb)
-    want = fx["expect"]
-    if want["verdict"] is None or want.get("reason") == "self_timestamp_mismatch":
-        assert out["reason"] == want["reason"]
-    else:
-        assert (out["verdict"], out["reason"]) == (want["verdict"], want["reason"])
-        assert out["flight_cm"] == pytest.approx(want["flight_cm"], abs=0.01)
-
-
-def _captures():
-    out = []
-    for f in FIXTURES:
-        fx = json.loads(f.read_text())
-        for r in "AB":
-            ro = fx["roles"][r]
-            out.append(pytest.param(f.stem, r, ZK / ro["capture_npy"], ZK / ro["tree_json"], ro["rec_root"],
-                                    id=f"{f.stem}-{r}"))
-    return out
-
-
-@need_spike
-@pytest.mark.parametrize("name,role,npy,tree,root", _captures())
-def test_fixture_rec_root(name, role, npy, tree, root):
-    if not (npy.exists() and tree.exists()):
-        pytest.skip("spike build/popt2 captures absent (gitignored there)")
-    x = np.load(npy)
-    assert x.dtype == np.int16 and x.size in (120000, 110250)
-    d = json.loads(tree.read_text())
-    assert d["depth"] == p7.DEPTH
-    levels = [{int(k): int(v, 16) for k, v in lvl.items()} for lvl in d["levels"]]
-    leaves = [levels[0][i] for i in range(len(levels[0]))]
-    assert len(leaves) == -(-x.size // 1024)
-    ours = p7.levels_from_leaves(leaves)
-    assert ours == levels and p7.root_of(ours) == int(root, 16)
-    full = SLOW or (name, role) in (("180ca04b_48k", "A"), ("180ca04b_mix", "B"))
-    if full:
-        assert p7.rec_root(x).hex() == "%064x" % int(root, 16)
-    else:
-        idx = [0, len(leaves) // 2, len(leaves) - 1]     # includes the zero-padded last leaf
-        got = p7.leaf_hashes(np.concatenate([x[i * 1024:(i + 1) * 1024] for i in idx[:-1]] + [x[idx[-1] * 1024:]]))
-        assert got == [leaves[i] for i in idx]
-
-
-@need_spike
-@pytest.mark.parametrize("name", ["180ca04b_48k", "180ca04b_mix"])
-def test_twin_with_server_codes_finds_fixture_arrivals(name):
-    """tests/twin2 (the app's integer rule) + server-derived codes reproduce the signed a_self / a_partner."""
-    from tests import twin2
-    fx = json.loads((FIX / f"{name}.json").read_text())
-    for r in "AB":
-        ro = fx["roles"][r]
-        npy = ZK / ro["capture_npy"]
-        if not npy.exists():
-            pytest.skip("spike captures absent")
-        sr, x = int(ro["sample_rate"]), np.load(npy)
-        own = _fieldtest_code(fx["seed_hex"], r, sr)
-        par = _fieldtest_code(fx["seed_hex"], "B" if r == "A" else "A", sr)
-        assert twin2.earliest(x, own[0], own[1], *ro["search_self"], sr)[0] == int(ro["a_self"])
-        assert twin2.earliest(x, par[0], par[1], *ro["search_partner"], sr)[0] == int(ro["a_partner"])

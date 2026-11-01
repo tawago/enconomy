@@ -59,3 +59,8 @@ node_modules/
 
 # ./demo runtime (logs, pids)
 /.demo/
+
+# local renders and build scratch
+/output/
+/.pop-build/
+/.claude/worktrees/
