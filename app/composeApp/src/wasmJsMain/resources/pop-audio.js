@@ -12,7 +12,7 @@
 (function () {
   'use strict';
   const RING_S = 16;
-  let ctx = null, stream = null, source = null, node = null, sink = null, track = null;
+  let ctx = null, stream = null, source = null, node = null, sink = null, track = null, keepAlive = null;
   let settings = {}, micOk = false, unlocking = null, lastError = '';
   let ring = null, ringN = 0, endFrame = -1, firstFrame = -1;
   const gaps = []; // [start, end) context frames with no mic data
@@ -78,6 +78,14 @@
         sink = ctx.createGain();
         sink.gain.value = 0; // keeps the worklet pulled; the mic never reaches the speaker
         source.connect(node).connect(sink).connect(ctx.destination);
+        // A signal far below hearing (-120 dBFS), so the output is never all zeros. Without it, after a long silence
+        // the play-to-mic delay on a MacBook Air jumped by about 40 ms, which calibration at page load can't know.
+        if (!keepAlive) {
+          keepAlive = ctx.createConstantSource();
+          keepAlive.offset.value = 1e-6;
+          keepAlive.connect(ctx.destination);
+          keepAlive.start();
+        }
       } catch (e) {
         st.getTracks().forEach((t) => t.stop());
         teardown();
