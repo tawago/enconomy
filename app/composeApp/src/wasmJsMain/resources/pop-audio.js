@@ -36,8 +36,11 @@
     for (let i = 0; i < n; i += 1) ring[(f + i) % ringN] = s[i];
     endFrame = Math.max(endFrame, f + n);
     blocks += 1;
-    const t = outputTs();
-    if (t) { offs.push(t.performanceTime - t.contextTime * 1000); if (offs.length > 400) offs.shift(); }
+    // Read the output clock about 6 times a second, not on every block: at 375 reads a second the mic drops blocks.
+    if (blocks % 64 === 1) {
+      const t = outputTs();
+      if (t) { offs.push(t.performanceTime - t.contextTime * 1000); if (offs.length > 32) offs.shift(); }
+    }
     if (gaps.length > 64) gaps.splice(0, gaps.length - 64);
     for (const w of Array.from(waiters)) w();
   }
