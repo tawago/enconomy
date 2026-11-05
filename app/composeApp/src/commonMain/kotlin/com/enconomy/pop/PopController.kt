@@ -71,6 +71,7 @@ data class SafeForm(
 
 val ENS_LABEL = Regex("^[a-z0-9-]{3,32}$")
 const val ENS_SUFFIX = ".enconomy.eth"
+private const val CAL_CAPTURE_TRIES = 3
 
 const val DEFAULT_SEPOLIA_RPC = "https://ethereum-sepolia-rpc.publicnode.com"
 
@@ -1190,7 +1191,7 @@ class PopController(
         try {
             for (i in 1..PopConstants.CAL_N) {
                 _state.update { it.copy(status = "calibrating $i/${PopConstants.CAL_N}") }
-                val r = checkOnce(forceSpeaker = true, tuneDb = state.value.serverTuneDb ?: 0.0)
+                val r = checkWithRetry()
                 val off = r.offset
                 val f = off?.frames ?: throw CalibrationException("check $i: own sound not found (${off?.reason ?: "no offset"})")
                 if (sr != 0 && off.sr != sr) throw CalibrationException("sample rate changed ${sr} -> ${off.sr}")
@@ -1205,6 +1206,20 @@ class PopController(
         val cal = Calibration.fromSamples(us)
         println("POPCAL cal_us=$cal samples=$us sr=$sr route=$route backend=${backendName()}")
         return CalibrationReq(cal, sr, route.take(64), backendName(), us.toList())
+    }
+
+    /** One calibration check; a failed capture (the web mic drops blocks) gets up to CAL_CAPTURE_TRIES tries. */
+    private suspend fun checkWithRetry(): AudioCheckResult {
+        var tries = 0
+        while (true) {
+            try {
+                return checkOnce(forceSpeaker = true, tuneDb = state.value.serverTuneDb ?: 0.0)
+            } catch (e: AudioException) {
+                tries += 1
+                if (e.reason != "capture_failed" || tries >= CAL_CAPTURE_TRIES) throw e
+                println("POPCAL capture retry $tries: ${e.message}")
+            }
+        }
     }
 
     /** Recalibrate: new calibration, sent signed (POST /v1/device/calibration), kept locally on success. */

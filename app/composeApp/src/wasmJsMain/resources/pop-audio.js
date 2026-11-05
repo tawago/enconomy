@@ -2,7 +2,8 @@
  *
  * One AudioContext at 48 kHz for the tab's lifetime. The mic stream (EC/NS/AGC requested off) feeds an
  * AudioWorklet recorder that posts every block with its context frame; blocks go into a ring buffer keyed by
- * context frame, and frame gaps are remembered as drops. Playback is AudioBufferSourceNode.start(when).
+ * context frame, and frame gaps are remembered as drops and read back as silence. Playback is
+ * AudioBufferSourceNode.start(when).
  *
  * Clocks: ctxToPerf / perfToCtx map context seconds <-> performance.now() ms through getOutputTimestamp()
  * ({contextTime, performanceTime}: when that context frame is heard at the output). Before the output clock
@@ -26,7 +27,11 @@
     const f = d.frame, s = d.samples, n = s.length;
     if (firstFrame < 0) firstFrame = f;
     if (endFrame >= 0 && f !== endFrame) {
-      if (f > endFrame) { gaps.push([endFrame, f]); drops += 1; }
+      if (f > endFrame) {
+        gaps.push([endFrame, f]);
+        drops += 1;
+        for (let i = endFrame; i < f && i < endFrame + ringN; i += 1) ring[i % ringN] = 0; // no stale audio
+      }
     }
     for (let i = 0; i < n; i += 1) ring[(f + i) % ringN] = s[i];
     endFrame = Math.max(endFrame, f + n);
@@ -172,8 +177,12 @@
     sources.clear();
   }
 
-  /** Float32Array of n mic frames from context frame start; rejects on overwrite, drop or timeout. */
-  function collect(start, n, timeoutMs) {
+  /**
+   * Float32Array of n mic frames from context frame start; rejects on overwrite or timeout, and on a drop inside
+   * [protectFrom, protectTo). A drop elsewhere reads as silence: a drop between two arrivals could move one against
+   * the other (128 frames at 48 kHz = 46 cm), one outside them moves both or neither.
+   */
+  function collect(start, n, timeoutMs, protectFrom, protectTo) {
     start = Math.round(start);
     return new Promise((resolve, reject) => {
       let timer = null;
@@ -185,7 +194,7 @@
       const check = () => {
         if (endFrame < start + n) return;
         if (start < endFrame - ringN || start < firstFrame) return done(`capture [${start}, ${start + n}) not in ring (first ${firstFrame}, end ${endFrame})`);
-        for (const g of gaps) if (g[0] < start + n && g[1] > start) return done(`dropped mic blocks [${g[0]}, ${g[1]})`);
+        for (const g of gaps) if (g[0] < protectTo && g[1] > protectFrom) return done(`dropped mic blocks [${g[0]}, ${g[1]})`);
         const out = new Float32Array(n);
         for (let i = 0; i < n; i += 1) out[i] = ring[(start + i) % ringN];
         done(null, out);
@@ -194,6 +203,11 @@
       timer = setTimeout(() => done(`mic stalled (end ${endFrame}, wanted ${start + n}, ctx ${ctx ? ctx.state : 'none'})`), timeoutMs);
       check();
     });
+  }
+
+  /** Number of remembered drops that touch [start, start + n). */
+  function gapsIn(start, n) {
+    return gaps.filter((g) => g[0] < start + n && g[1] > start).length;
   }
 
   window.popAudio = {
@@ -208,5 +222,6 @@
     schedule,
     stopAll,
     collect,
+    gapsIn,
   };
 })();

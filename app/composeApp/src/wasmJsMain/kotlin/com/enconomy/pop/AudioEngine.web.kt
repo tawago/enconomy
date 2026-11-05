@@ -103,8 +103,12 @@ class WebAudioEngine : AudioEngine {
         // capture window: CAPTURE_FRAMES from the context frame whose capture instant is plan.captureStartNs
         val startFrame = round(((plan.captureStartNs / 1e6 - off0) / 1000.0 + lagS) * sr).toLong()
         val waitMs = ((plan.stopNs - monoNanos()) / 1_000_000L + 4000L).coerceIn(4000L, 30_000L).toInt()
+        // Dropped mic blocks read as silence, unless they fall where either arrival can be: both search windows
+        // and everything between them.
+        val protectFrom = startFrame + round((PopConstants.LEAD_S - PopConstants.SEARCH_PRE_S) * sr).toLong()
+        val protectTo = startFrame + round((PopConstants.LEAD_S + PopConstants.B_PLAY_S + PopConstants.SEARCH_POST_S + PopConstants.CODE_S) * sr).toLong()
         val samples = try {
-            audioCollect(startFrame.toDouble(), plan.captureFrames, waitMs).await<JsAny?>()
+            audioCollect(startFrame.toDouble(), plan.captureFrames, waitMs, protectFrom.toDouble(), protectTo.toDouble()).await<JsAny?>()
                 ?: throw AudioException("capture_failed", "no capture")
         } catch (e: AudioException) {
             throw e
@@ -139,6 +143,7 @@ class WebAudioEngine : AudioEngine {
                 put("web_base_latency_ms", (i0.d("baseLatency") ?: 0.0) * 1000)
                 put("web_clock_offset_drift_us", (off - off0) * 1000)
                 put("web_drops", drops.toDouble())
+                put("web_drops_in_capture", audioGapsIn(startFrame.toDouble(), plan.captureFrames).toDouble())
             },
             extraMetaStr = buildMap {
                 put("audio_backend", "webaudio")

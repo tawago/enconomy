@@ -49,8 +49,10 @@ internal fun audioCtxToPerf(ctxS: Double): Double = js("window.popAudio.ctxToPer
 internal fun audioCtxNow(): Double = js("window.popAudio.ctxNow()")
 /** Schedules [buf] to start at context time [whenS]; returns the context time actually used. */
 internal fun audioSchedule(buf: JsAny, whenS: Double): Double = js("window.popAudio.schedule(buf, whenS)")
-/** Resolves with a Float32Array of [n] mic frames starting at context frame [start]. */
-internal fun audioCollect(start: Double, n: Int, timeoutMs: Int): Promise<JsAny?> = js("window.popAudio.collect(start, n, timeoutMs)")
+/** Resolves with a Float32Array of [n] mic frames starting at context frame [start]; rejects on a drop in [protectFrom, protectTo). */
+internal fun audioCollect(start: Double, n: Int, timeoutMs: Int, protectFrom: Double, protectTo: Double): Promise<JsAny?> =
+    js("window.popAudio.collect(start, n, timeoutMs, protectFrom, protectTo)")
+internal fun audioGapsIn(start: Double, n: Int): Int = js("window.popAudio.gapsIn(start, n)")
 internal fun audioStopAll(): Unit = js("window.popAudio && window.popAudio.stopAll()")
 
 // ---- QR glue (pop-qr.js, window.popQr) ----

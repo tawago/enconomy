@@ -277,9 +277,15 @@ class PopRun(
         val partnerCode = Popt2Code.fromB64(pc.cI_b64, pc.cQ_b64, pc.n)
 
         status(RunPhase.Measuring, k)
-        val expPartner = cap.expectedPartner(plan)
+        // Web capture time runs late against the plan by a steady amount (70 ms on a MacBook), and a Pixel can fire
+        // 200 ms late, which together pass the search window's end. The self arrival measures the capture's part.
+        // This moves only the window: half comes from the arrivals.
+        val webShift = if (cap.micSource == "webaudio") self.aSelf - expSelf else 0.0
+        val expPartner = cap.expectedPartner(plan) + webShift
         val p = withContext(Dispatchers.Default) { r.measurePartner(partnerCode, expPartner) }
         if (p !is PopRound2.Step.PartnerOk) {
+            // A committed capture that missed the partner is the one worth looking at; the attempt ends at fail().
+            if (uploadRecordings) upload(k, cap)
             return@coroutineScope fail(k, (p as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, expPartner, null, recRoot, hear.await()))
         }
 
