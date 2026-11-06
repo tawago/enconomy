@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get a name</title>
+<style>
+  :root { --ink: #16181d; --muted: #667; --line: #d9dce3; --accent: #1f5fd6; --bad: #b3261e; --good: #17693a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 17px/1.5 system-ui, sans-serif; color: var(--ink); background: #f6f7f9; }
+  main { max-width: 480px; margin: 8vh auto; padding: 28px; background: #fff; border: 1px solid var(--line); border-radius: 14px; }
+  h1 { font-size: 26px; line-height: 1.25; margin: 0 0 8px; overflow-wrap: anywhere; }
+  p { margin: 0 0 16px; color: var(--muted); }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .name { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+  input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+  button, a.button { display: block; width: 100%; font: inherit; font-weight: 600; text-align: center; text-decoration: none; padding: 12px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; cursor: pointer; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.quiet { background: none; color: var(--accent); border: 1px solid var(--line); margin-bottom: 16px; }
+  code { display: block; font-size: 14px; overflow-wrap: anywhere; color: var(--ink); margin-bottom: 16px; }
+  #err { color: var(--bad); margin-top: 12px; min-height: 1.5em; }
+  .done { color: var(--good); }
+  [hidden] { display: none !important; }
+</style>
+<main>
+  <section id="ask">
+    <h1>Get a name</h1>
+    <p>An admin gives you this name in person, on your wallet.</p>
+    <button id="connect" class="quiet" type="button">Connect wallet</button>
+    <code id="wallet" hidden></code>
+    <label for="label">Your name</label>
+    <div class="name"><input id="label" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="bob"><span id="org"></span></div>
+    <button id="send" type="button" disabled>Ask the admin</button>
+  </section>
+  <section id="wait" hidden>
+    <h1 id="wait-title"></h1>
+    <p>Show the admin this name and wallet. They approve it on their phone.</p>
+    <code id="wait-addr"></code>
+  </section>
+  <section id="beep" hidden>
+    <h1>Approved. Now the beep.</h1>
+    <p>Open the beep page and start a session. The admin scans its code with the app on their phone, then keep the two side by side while they beep.</p>
+    <a id="beep-link" class="button" target="_blank">Open the beep page</a>
+  </section>
+  <section id="done" hidden>
+    <h1 class="done" id="done-title"></h1>
+    <p>Sign in anywhere that takes this name. Your wallet approves each browser, as usual.</p>
+    <code id="done-addr"></code>
+  </section>
+  <section id="no" hidden>
+    <h1>The admin said no</h1>
+    <p>Talk to them, then ask again.</p>
+    <button id="again" class="quiet" type="button">Start over</button>
+  </section>
+  <div id="err" role="status"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const say = (text) => { $("err").textContent = text; };
+const show = (id) => { for (const s of ["ask", "wait", "beep", "done", "no"]) $(s).hidden = s !== id; };
+const REASON = { bad_label: "Use lowercase letters, digits and inner hyphens.", label_taken: "That name is taken.", bad_address: "That wallet address doesn't look right." };
+let address = null, ctx = new URLSearchParams(location.search).get("r"), org = "";
+
+const ready = () => { $("send").disabled = !address || !$("label").value; };
+$("label").addEventListener("input", ready);
+fetch("/v1/config").then((r) => r.json()).then((c) => { org = c.org; $("org").textContent = "." + org; });
+
+$("connect").onclick = async () => {
+  say("");
+  if (!window.ethereum) return say("No wallet found in this browser.");
+  try {
+    [address] = await window.ethereum.request({ method: "eth_requestAccounts" });
+    $("wallet").textContent = address; $("wallet").hidden = false; $("connect").hidden = true;
+    ready();
+  } catch { say("The wallet didn't connect."); }
+};
+
+$("send").onclick = async () => {
+  say("");
+  const r = await fetch("/v1/requests", { method: "POST", body: JSON.stringify({ label: $("label").value.trim(), address }) });
+  const j = await r.json();
+  if (!r.ok) return say(REASON[j.error] ?? "That didn't work: " + j.error);
+  ctx = j.ctx_hash;
+  history.replaceState(null, "", "?r=" + ctx);
+  render(j);
+  poll();
+};
+
+$("again").onclick = () => { history.replaceState(null, "", location.pathname); location.reload(); };
+
+function render(j) {
+  say(j.last_error && j.status === "approved" ? "The beep worked but the name wasn't created: " + j.last_error + ". Beep again, or tell the admin." : "");
+  if (j.status === "pending") { $("wait-title").textContent = j.name; $("wait-addr").textContent = j.address; show("wait"); }
+  if (j.status === "approved") { $("beep-link").href = j.beep_url; show("beep"); }
+  if (j.status === "declined") show("no");
+  if (j.status === "issued") { $("done-title").textContent = j.name + " is yours"; $("done-addr").textContent = j.address; show("done"); }
+}
+
+let polling = false;
+async function poll() {
+  if (polling) return;
+  polling = true;
+  while (ctx) {
+    try {
+      const r = await fetch("/v1/requests/" + encodeURIComponent(ctx));
+      if (r.ok) { const j = await r.json(); render(j); if (j.status === "issued" || j.status === "declined") break; }
+    } catch {}
+    await new Promise((ok) => setTimeout(ok, 2000));
+  }
+  polling = false;
+}
+if (ctx) poll();
+</script>
+</html>

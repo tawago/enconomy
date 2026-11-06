@@ -185,6 +185,10 @@ class PopController(
 
     init { checkConfig() }
 
+    /** Set by the web page from its URL, for a consumer of the record (examples/wvp-onboarding). Null everywhere else. */
+    var hostContext: JsonObject? = null
+    var onPresence: ((String) -> Unit)? = null
+
     private fun initial(): UiState {
         val url = Prefs.get("baseUrl") ?: DEFAULT_BASE_URL
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
@@ -421,7 +425,7 @@ class PopController(
             val me = keystore.load() ?: error("not enrolled")
             try {
                 while (true) {
-                    val inv = api.createSession()
+                    val inv = api.createSession(hostContext)
                     val bytes = inviteBytes(inv, me.pubkey)
                     InviteBeacon.publish(bytes)
                     _state.update { it.copy(invite = inv.copy(invite_b64url = bytes.toB64Url()), session = null, status = "waiting for guest") }
@@ -569,6 +573,7 @@ class PopController(
             val ev = r.evidence
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
             _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null) }
+            if (res.verdict == "NEAR") res.presence?.let { p -> onPresence?.invoke(p.toString()) }
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
