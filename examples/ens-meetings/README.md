@@ -2,9 +2,7 @@
 
 `<label>.enconomy.eth` for phones, and a meeting recorded on chain when two named phones get a NEAR. An outside developer could build this: it uses only the core's public HTTP routes, its device statement and its presence record. It has its own database and imports nothing from the core.
 
-It isn't part of `./demo`, and the core app has no ENS screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
-
-The removed Kotlin app code for this feature (`PopController.kt`, `App.kt` and `PopApi.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
+It isn't part of `./demo`, and the core app has no ENS screen. This example has its own copy of the app in `app/`, reference code that has never been compiled, see [App](#app).
 
 ## What it proves
 
@@ -98,18 +96,39 @@ A delivered record goes to the worker, which runs the bridge: a NEAR between two
 
 More in [ENS.md](ENS.md), including the live site.
 
-## What its future app must do
+## App
 
-Nothing is built yet. The app:
+`app/` is this example's own full copy of the mobile and web app. **It has never been compiled or run**: no Gradle, no Xcode, no tests. It's kept as reference code and there is no SDK behind it.
 
-1. Has its own `applicationId` and enrolls by itself with the core. Device keys are per app, so it gets a new key, and old names stay with the old key. Android first. Keep the `device_statement` the enroll returns.
-2. Calibrates, as any core app does.
-3. Claims the subname right after calibration: ask for a label, sign, `POST /v1/names/claim`. Then `POST /v1/names/read` until it says `registered` or `failed`. On `failed`, offer another claim.
-4. Refetches the statement on `statement_stale`, with the signed `GET /v1/device/statement` on the core, then claims again with a new `ts`.
-5. Tells the user plainly on `not_attested` and `not_allowed`. Web is never allowed here.
-6. Runs a session through the core as usual.
-7. Delivers the record after the result: take `presence` from `GET /v1/session/{id}/result` and `POST /v1/presence`. Either phone can do it, both is fine, so both should. Keep a small local queue and retry until accepted, surviving an app restart.
-8. Delivers again when ZK finishes. Wait for `zk.pair.status` to settle: a record delivered before the pair proof is marked with no on-chain verify, and it can't be added later, see [bridge/README.md](bridge/README.md).
+It's the core's `app/` with the ENS screen from commit `1e80216` brought back and pointed at this backend. The session calls are the core's current ones. The Android `applicationId` and iOS bundle id are `com.enconomy.pop.ens`, so it gets its own device key and old names stay with the old key. The Kotlin package and Android namespace stay `com.enconomy.pop`.
+
+What it does:
+
+1. Enrolls with the core, which runs the calibration, and keeps the `device_statement` the enroll returns.
+2. Goes straight to the claim step on a phone: ask for a label, sign, `POST /v1/names/claim`. Then `POST /v1/names/read` every 3 s until it says `registered` or `failed`. On `failed` it offers another claim. Home has an "ENS name" row for later.
+3. Refetches the statement on `statement_stale`, with the signed `GET /v1/device/statement` on the core, and sends once more with a new `ts`.
+4. Says so plainly on `not_attested` and `not_allowed`.
+5. Runs a session through the core as usual.
+6. After a NEAR: takes `presence` from `GET /v1/session/{id}/result` and `POST /v1/presence`. Each phone does this.
+7. Delivers again when `zk.pair.status` is `verified` or `rejected`, watching for 15 minutes. It sends nothing in between, because a record delivered ahead of the pair proof is marked with no on-chain verify, see [bridge/README.md](bridge/README.md).
+
+The ENS backend URL is under Server in the app. The build default is `-Ppop.ensUrl` or `POP_ENS_URL`, otherwise `http://10.0.2.2:8100`.
+
+The web app can't claim: it has no ENS screen and never calls this backend, which has no CORS anyway. A browser holds no name, so a meeting with one never records. `app/scripts/build_web.sh` builds into `web/app/` (gitignored) and the core then needs `POP_CORS_ORIGINS` for that origin.
+
+**Left out:** `app/prover`, `app/zkprove` and built binaries. They come from the core's `app/` if anyone ever builds this: copy both folders next to `composeApp` and build with `-Ppop.buildProver=true`. Without them the phone can't prove, so a proof has to go through "Delegate proof to server" on the result screen.
+
+**Happy path only:** there's no local delivery queue. A record is sent twice at most from memory, and if the app dies or the network is down at those moments it's lost until someone delivers it by hand. That also means no meeting from a phone that was killed right after the result, unless the other phone delivered.
+
+What's expected to need fixing if someone builds it:
+
+- Compile errors in what changed by hand and was never checked: `EnsApi.kt`, `EnsApiTest.kt`, the ENS parts of `PopController.kt` and `App.kt`, `isWeb()` in the three `Platform` files, `ENS_URL` in `genPopBuildConfig`.
+- **iOS App Attest:** the core has one `POP_IOS_APP_ID`, and this bundle id isn't it. Set `TEAMID.com.enconomy.pop.ens`, which refuses the core's own app on that core. A free team (`POP_PAID = 0`) has no App Attest, so its phones get `not_attested`. `POP_ENS_URL` in `Config.xcconfig` follows the way `POP_SERVER_URL` works there, also unchecked.
+- **Android attestation:** the core's pin hasn't been tried on a real phone, as said above. If a real enroll comes back unattested, every claim is `not_attested`.
+- **NFC:** the HCE AID is the same as the core app's. With both apps on one phone, expect Android to ask which one answers.
+- **Plain HTTP:** iOS only allows local networking, so a backend on a LAN IP may need an ATS exception.
+- **The bundled tests:** copied from the core and never run here. `LiveServerRunTest` needs a live core.
+- **Gradle:** needs JDK 21. On an 8 GB machine run it through the repo's `tools/heavy.sh`.
 
 ## Security checks that moved here
 
