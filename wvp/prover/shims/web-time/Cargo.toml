@@ -1,0 +1,5 @@
+# Local shim. Spartan2 uses web_time::Instant only for its own timing logs.
+[package]
+name = "web-time"
+version = "1.1.0"
+edition = "2021"

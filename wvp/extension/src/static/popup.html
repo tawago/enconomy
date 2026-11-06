@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>WVP</title>
+<style>
+  body { font: 13px/1.45 system-ui, sans-serif; margin: 0; padding: 14px; width: 340px; color: #18181b; }
+  h1 { font-size: 13px; color: #71717a; margin: 0 0 6px; font-weight: 600; }
+  #who { font: 13px ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
+  #exp { color: #52525b; margin: 4px 0 10px; }
+  #revoke { width: 100%; font: 600 13px system-ui; padding: 8px; border: 1px solid #fca5a5; color: #b91c1c; background: #fff; border-radius: 8px; cursor: pointer; }
+  ul { margin: 4px 0 0; padding-left: 16px; max-height: 150px; overflow: auto; word-break: break-all; color: #3f3f46; }
+  section { margin-top: 12px; border-top: 1px solid #e4e4e7; padding-top: 10px; }
+</style>
+<h1>This browser's credential</h1>
+<div id="who">...</div>
+<div id="exp"></div>
+<button id="revoke" hidden>Revoke</button>
+<section><h1>Proofs made</h1><div id="none">None yet.</div><ul id="log"></ul></section>
+<script type="module" src="popup.js"></script>

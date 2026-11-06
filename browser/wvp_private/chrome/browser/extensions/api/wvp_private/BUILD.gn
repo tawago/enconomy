@@ -1,0 +1,30 @@
+# Copyright 2026 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("//extensions/buildflags/buildflags.gni")
+
+assert(enable_extensions)
+
+source_set("wvp_private") {
+  sources = [
+    "wvp_private_api.cc",
+    "wvp_private_api.h",
+  ]
+
+  public_deps = [ "//extensions/browser" ]
+
+  deps = [
+    "//base",
+    "//chrome/browser/extensions",
+    "//chrome/browser/profiles:profile",
+    "//chrome/common/extensions/api",
+    "//components/autofill/content/browser",
+    "//components/autofill/core/common",
+    "//components/prefs",
+    "//content/public/browser",
+    "//net",
+    "//ui/gfx/geometry",
+    "//url",
+  ]
+}

@@ -1,0 +1,7 @@
+# Build settings for the demo binary. Copy to out/<dir>/args.gn, then run gn gen out/<dir>.
+is_debug = false
+is_component_build = false
+is_official_build = false
+symbol_level = 0
+use_remoteexec = false
+dcheck_always_on = false

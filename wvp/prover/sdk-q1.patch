@@ -1,0 +1,40 @@
+--- a/src/prover.ts	2026-11-06 03:07:35
++++ b/src/prover.ts	2026-11-06 03:26:48
+@@ -169,7 +169,18 @@
+     const timing: Partial<PresentationTiming> = {};
+ 
+     const { precomputed, verifierNonce, devicePrivateKey, keys } = request;
+-    const deviceSignature = signDeviceNonce(verifierNonce, devicePrivateKey);
++    // An external signer (e.g. a non-extractable WebCrypto key) may pass the
++    // signature directly. buildShowCircuitInputs still verifies it.
++    let deviceSignature = request.deviceSignature;
++    if (deviceSignature === undefined) {
++      if (devicePrivateKey === undefined) {
++        throw new InputError(
++          "INVALID_KEY",
++          "present() needs devicePrivateKey or deviceSignature",
++        );
++      }
++      deviceSignature = signDeviceNonce(verifierNonce, devicePrivateKey);
++    }
+ 
+     const parsed = Credential.parse(
+       precomputed.credential.jwt,
+--- a/src/types.ts	2026-11-06 03:07:35
++++ b/src/types.ts	2026-11-06 03:26:48
+@@ -414,7 +414,14 @@
+ export interface PresentRequest {
+   precomputed: PrecomputedCredential;
+   verifierNonce: string;
+-  devicePrivateKey: EcdsaPrivateKey;
++  /** Raw device key. Optional when deviceSignature is given. */
++  devicePrivateKey?: EcdsaPrivateKey;
++  /**
++   * ECDSA P-256 signature over SHA-256(utf8(verifierNonce)), as base64url r||s
++   * (64 bytes). This is what WebCrypto sign({name:"ECDSA",hash:"SHA-256"}, key,
++   * utf8(nonce)) returns.
++   */
++  deviceSignature?: string;
+   keys: KeySet;
+ 
+   /** Predicates to evaluate against the precomputed credential. */
