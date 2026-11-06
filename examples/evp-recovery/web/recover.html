@@ -36,13 +36,15 @@
 
 <section id="s-b">
   <h2>2. Chirp with the phone</h2>
-  <p><a id="open-app" class="btn" target="_blank" href="#">Open the chirp app</a></p>
+  <p><a id="open-app" class="btn" target="evp_chirp" href="#">Open the chirp app</a></p>
   <p>Host the session there and join from the phone. Keep this tab open.</p>
 </section>
 
 <section id="s-c">
   <h2>3. Proofs</h2>
   <p id="bundle-status">Waiting for the session.</p>
+  <p>If the chirp app says the proof was skipped or failed, or the session went wrong, chirp again. Nothing has been sent yet.</p>
+  <p><button id="redo">Redo the chirp</button></p>
 </section>
 
 <section id="s-d">
@@ -106,7 +108,7 @@ const post = async (path, body) => {
   if (!r.ok) throw new Error(`${path}: ${r.status} ${t}`);
   return JSON.parse(t);
 };
-let start = null, session = null, sending = false;
+let start = null, session = null, sending = false, pollId = 0;
 
 // a. key
 function parseKey(text) {
@@ -131,26 +133,35 @@ $("scan").onclick = async () => {
   cam.style.display = "none";
 };
 
-$("start").onclick = async () => {
+const begin = async () => {
   try {
     localStorage.removeItem("evp_session");
+    session = null; sending = false;
+    $("tok").removeAttribute("nonce");
+    ["s-b", "s-c", "s-d"].forEach((id) => done.delete(id));
+    open_.delete("s-d");
     start = await post("/v1/recovery/start", parseKey($("key").value));
     show("start-out", { newKey: start.newKey, ctx: start.ctx, deadline: new Date(start.deadline * 1000).toLocaleTimeString() });
     $("open-app").href = "/app/?context=" + b64url(JSON.stringify(start.context));
     finished("s-a"); on("s-c"); go("s-b");
+    $("bundle-status").textContent = "Waiting for the session.";
     pollBundle();
-  } catch (e) { show("start-out", String(e)); }
+  } catch (e) { show("start-out", String(e)); go("s-a"); }
 };
+$("start").onclick = begin;
+$("redo").onclick = begin;
 
 // c. bundle. The app writes evp_session to localStorage on this origin.
 async function pollBundle() {
-  const st = $("bundle-status");
+  const st = $("bundle-status"), me = ++pollId;
   for (;;) {
     await sleep(2000);
+    if (me !== pollId) return; // a redo started a newer poll
     const raw = localStorage.getItem("evp_session");
     if (!raw) { st.textContent = "Waiting for the session."; continue; }
     session = JSON.parse(raw);
     const r = await fetch(`/v1/session/${session.session_id}/zk/bundle`);
+    if (me !== pollId) return;
     if (r.ok) {
       const b = await r.json();
       st.textContent = `Ready. Verdict ${b.verdict}, three proofs for session ${session.session_id}.`;
