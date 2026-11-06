@@ -40,13 +40,6 @@ actual fun unixMs(): Long = jsDateNow().toLong()
 /** performance.now() in ns: the clock the audio glue maps context time onto. */
 actual fun monoNanos(): Long = (jsPerfNow() * 1e6).toLong()
 
-actual fun isDebugBuild(): Boolean {
-    val h = jsHostname()
-    return h == "localhost" || h == "127.0.0.1" || Regex("[?&]debug(=|&|$)").containsMatchIn(jsSearch())
-}
-
-actual fun openExternalUrl(url: String): Boolean = jsOpen(url)
-
 @Composable
 actual fun KeepScreenOn(on: Boolean) {
     DisposableEffect(on) {
@@ -75,9 +68,7 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
     }
 }
 
-actual fun isWeb(): Boolean = true
-
-/** Server mode (build_web.sh without --workers): the API is the origin that served /app/. */
+/** Server mode (build_web.sh): the API is the origin that served /app/. */
 actual fun platformDefaultBaseUrl(baked: String): String {
     if (!PopBuildConfig.WEB_SAME_ORIGIN) return baked
     val o = jsOrigin()

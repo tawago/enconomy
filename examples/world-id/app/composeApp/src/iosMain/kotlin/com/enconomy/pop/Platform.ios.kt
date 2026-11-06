@@ -67,15 +67,4 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
     }
 }
 
-@OptIn(kotlin.experimental.ExperimentalNativeApi::class)
-actual fun isDebugBuild(): Boolean = kotlin.native.Platform.isDebugBinary
-
-actual fun openExternalUrl(url: String): Boolean {
-    val u = platform.Foundation.NSURL.URLWithString(url) ?: return false
-    UIApplication.sharedApplication.openURL(u, options = emptyMap<Any?, Any>(), completionHandler = null)
-    return true
-}
-
-actual fun isWeb(): Boolean = false
-
 actual fun platformDefaultBaseUrl(baked: String): String = baked
