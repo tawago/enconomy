@@ -23,6 +23,7 @@ tmp/
 # Local devnet: third-party clones and Rust build output (multi-GB)
 devnet/.vendor/
 devnet/.run/
+devnet/ens-v2/
 **/target/
 
 # Research we decided not to use. Kept locally.
