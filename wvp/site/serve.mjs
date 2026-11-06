@@ -142,7 +142,7 @@ const PAGE = (nonce, s) => `<!doctype html><html lang="en"><meta charset="utf-8"
 <main id="view">${s ? member(s) : brand.signedOut(form(nonce), esc)}</main>
 ${s ? `<div hidden>${form(nonce, true)}</div>` : ""}
 <footer class="colophon">${esc(title)} is a demo site, not a real ${esc(brand.kind)}, and isn't affiliated with any company. Names come from ${esc(ENS_NOTE)}.</footer>
-<script src="/site.js"></script></body></html>`;
+<script src="/site.js?v=2"></script></body></html>`;
 // Same form, no site script at all, for tests that want the raw token. The field fills with no page JS.
 const BARE = (nonce) => `<!doctype html><meta charset="utf-8"><title>${esc(title)} bare</title>${form(nonce)}`;
 const JS = `
@@ -228,7 +228,8 @@ createServer((req, res) => {
   if (req.method === "GET" && path === "/bare") return html(BARE(newChallenge()));
   // A header CSP makes the browser blank a nonce attribute that came in the markup. Here to test that.
   if (req.method === "GET" && path === "/csp") return html(BARE(newChallenge()), { "content-security-policy": "default-src 'self'" });
-  if (req.method === "GET" && path === "/site.js") { res.writeHead(200, { "content-type": "text/javascript" }); return res.end(JS); }
+  // no-store: a CDN in front would hold this script for hours past a redeploy. The ?v= only gets past copies already out there.
+  if (req.method === "GET" && path === "/site.js") { res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-store" }); return res.end(JS); }
   if (req.method === "POST" && path === "/challenge") return send(200, { challenge: newChallenge() });
   if (req.method === "POST" && path === "/submit") {
     let body = "", big = false;

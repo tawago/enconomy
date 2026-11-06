@@ -38,7 +38,7 @@ ${anonymous ? `<p class="fine">You can also sign in without showing a name. To s
 <div id="out" role="status"></div>
 <button id="go" type="button" disabled>Continue with wallet</button>
 <button id="no" type="button">Not now</button>
-</div></main><script src="/enroll.js"></script></html>`;
+</div></main><script src="/enroll.js?v=2"></script></html>`;
 const JS = `
 const out = document.getElementById("out"), go = document.getElementById("go"), input = document.getElementById("n");
 const typed = new URLSearchParams(location.hash.slice(1)).get("name");
@@ -77,7 +77,8 @@ go.onclick = async () => {
 };`;
 createServer((req, res) => {
   const path = new URL(req.url, "http://x").pathname;
-  if (path === "/enroll.js") { res.writeHead(200, { "content-type": "text/javascript" }); return res.end(JS); }
+  // no-store: a CDN in front would hold this script for hours past a redeploy. The ?v= only gets past copies already out there.
+  if (path === "/enroll.js") { res.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-store" }); return res.end(JS); }
   if (path === "/enroll") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(PAGE); }
   res.writeHead(404); res.end();
 }).listen(port, "127.0.0.1", () => console.log(JSON.stringify({ ready: true, port, server: "approve" })));
