@@ -65,3 +65,7 @@ node_modules/
 research/wvp-spike/
 
 tools/cloud/
+
+# Foundry build output, wherever a contracts folder lives
+**/contracts/out/
+**/contracts/cache/
