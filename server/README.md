@@ -59,6 +59,7 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_TEST_KINDS` | `0` | Enables `context.kind == "test"`. |
 | `POP_CHAIN_ID` | `11155111` | The only accepted `context.chain_id` (Ethereum Sepolia). |
 | `POP_ATTEST_KEY_FILE` | `data/attest.pem` | Chain attester, P-256 PEM (not the issuer key). Loaded if present, else created 0600. A Safe pins its qx/qy (`/v1/config` `attest`): back it up, never regenerate. |
+| `POP_PRESENCE_KEY_FILE` | `data/presence.pem` | Signs device statements and presence records, P-256 PEM. Loaded if present, else created 0600. The server refuses to start if it is the issuer or attest key. Outside parties pin the public key (`/v1/config` `presence`): back it up, never regenerate. |
 | `POP_ATT_TTL_S` | `900` | Attestation `expiry = finished_s + TTL`. |
 | `POP_UNATTESTED_ALLOW` | empty | Comma list of device_ids that may be unattested and still get a chain attestation (the free-team iPhone). |
 | `POP_ALLOW_WEB` | `0` | `1` accepts `platform: "web"` at enroll (the browser build, `app/README.md` "Web"): software P-256 key, `key_kind` / `security_level` `software`, `attested: false`, no chain / app_attest. `POP_ALLOW_UNATTESTED=1` also lets web in. Web devices get no chain attestation unless listed in `POP_UNATTESTED_ALLOW` or `POP_ATTEST_ALLOW_WEB=1`. |
@@ -177,6 +178,27 @@ NOT verified: revocation / RKP, `attestationApplicationId` (package + signing di
 ### iOS (contract §2.2.1)
 
 `platform: "ios"` takes `app_attest: {key_id, attestation}` instead of `chain`. The App Attest key is not the Secure Enclave signing key; the signing key is bound by `clientDataHash = sha256(nonce || sha256(pubkey65))`, which the app passes to `attestKey`. Verified: `fmt`, x5c chain to the pinned Apple App Attestation Root CA, the credCert nonce extension (`1.2.840.113635.100.8.2`) == `sha256(authData || clientDataHash)`, `sha256(credCert key) == keyId == credentialId`, `rpIdHash == sha256(POP_IOS_APP_ID)`, `signCount == 0`, aaguid `appattestdevelop` / `appattest`. NOT verified: cert validity dates, the receipt, revocation. `key_kind` (`secure_enclave` / `software`) is only reported and becomes `security_level`. Without App Attest (free team, simulator) the app sends `app_attest: null`, which needs `POP_ALLOW_UNATTESTED=1`.
+
+## Device statement (`pop/presence.py`)
+
+The core's signed word about one device, for a service with no device table of its own. `POST /v1/enroll` returns it as `device_statement`; `GET /v1/device/statement` (signed request) returns a fresh one. Shape: `{"body": {...}, "sig_b64": "..."}`.
+
+Body: `format` (`pop-device-statement-v1`), `device_id`, `pubkey` (hex65), `attested`, `platform`, `trust_tier`, `issued_at_ms`.
+
+`attested` is rechecked against the pinned roots on every statement, so an old row from before the Android pin says false. `trust_tier`:
+
+| Device | `trust_tier` |
+|---|---|
+| Android, attested | its attested level, `strongbox` or `tee` |
+| iOS, attested | `app_attest` (App Attest binds the key; the key kind is only reported) |
+| Web | `software` |
+| Anything else unattested | `unattested`, whatever level it reported |
+
+To verify: take the P-256 key from `/v1/config` `presence.pubkey` once and pin it, don't fetch it at runtime. Check SHA256withECDSA, raw `r||s` base64, over `b"pop-device-statement-v1\n" + canonical(body)`. Then check `device_id == sha256(pubkey)[:16]` as hex and that `issued_at_ms` is fresh enough for you.
+
+`canonical(body)` is `json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)` as ASCII bytes. Values are strings, ints, bools, null, lists and objects only; a float raises. Keys sort by code point. Tags differ per format, so a statement can't pass as a presence record.
+
+The signature means this core saw that key and its attestation evidence. It doesn't say who holds the phone; see "Attestation" above for what the evidence doesn't cover.
 
 ## Notes and choices the contract leaves open
 

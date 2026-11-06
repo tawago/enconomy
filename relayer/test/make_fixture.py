@@ -31,6 +31,7 @@ tmp = Path(tempfile.mkdtemp())
     serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
 cfg = Settings(db=":memory:", data_dir=str(tmp), issuer_key_file=str(tmp / "issuer.pem"),
                worldid_signing_key_file=str(tmp / "rp.key"), attest_key_file=str(tmp / "attest.pem"),
+               presence_key_file=str(tmp / "presence.pem"),
                worldid_rp_id="rp_0123456789abcdef", worldid_bg_poll=False)
 c = TestClient(create_app(cfg, SqliteStore(":memory:")))
 clock = cfg.now_ms

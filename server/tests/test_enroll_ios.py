@@ -112,6 +112,8 @@ def test_ios_app_attest_ok(ios_client, clock, apple):
     assert dev["platform"] == "ios" and dev["attest_key_id"] == base64.b64decode(aa["key_id"]).hex()
     assert dev["chain_pem"].count("BEGIN CERTIFICATE") == 2
     assert dev["root_sha256"] == hashlib.sha256(apple.root.public_bytes(serialization.Encoding.DER)).hexdigest()
+    body = j["device_statement"]["body"]
+    assert body["attested"] is True and body["platform"] == "ios" and body["trust_tier"] == "app_attest"
     # enrolled key signs requests like any other device
     assert p.post("/v1/session").status_code == 200
 

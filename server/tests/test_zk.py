@@ -126,6 +126,8 @@ HOLD = "%064x" % p2.hash_n(11, [123456789])
 def zk_world(clock, tmp_path):
     def make(d=30, holder=True, v1=(), verifier=None, prover=None, pair=(None, None), **cfg):
         cfg.setdefault("issuer_key_file", str(tmp_path / "issuer.pem"))
+        cfg.setdefault("presence_key_file", str(tmp_path / "presence.pem"))
+        cfg.setdefault("attest_key_file", str(tmp_path / "attest.pem"))
         fv = verifier or FakeVerifier()
         app = create_app(Settings(db=":memory:", allow_unattested=True, now_ms=clock, data_dir=str(tmp_path), **cfg),
                          SqliteStore(":memory:"), verifier=fv, prover=prover,

@@ -17,6 +17,7 @@ def make_client(clock, tmp_path):
         kw.setdefault("issuer_key_file", str(tmp_path / "issuer.pem"))
         kw.setdefault("worldid_signing_key_file", str(tmp_path / "worldid-rp.key"))
         kw.setdefault("attest_key_file", str(tmp_path / "attest.pem"))
+        kw.setdefault("presence_key_file", str(tmp_path / "presence.pem"))
         kw.setdefault("android_roots", TEST_ANDROID_ROOTS)
         kw.setdefault("worldid_bg_poll", False)
         kw.setdefault("worldid_poll_s", 0.0)
