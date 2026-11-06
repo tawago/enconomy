@@ -142,7 +142,7 @@ const PAGE = (nonce, s) => `<!doctype html><html lang="en"><meta charset="utf-8"
 <main id="view">${s ? member(s) : brand.signedOut(form(nonce), esc)}</main>
 ${s ? `<div hidden>${form(nonce, true)}</div>` : ""}
 <footer class="colophon">${esc(title)} is a demo site, not a real ${esc(brand.kind)}, and isn't affiliated with any company. Names come from ${esc(ENS_NOTE)}.</footer>
-<script src="/site.js?v=3"></script></body></html>`;
+<script src="/site.js?v=4"></script></body></html>`;
 // Same form, no site script at all, for tests that want the raw token. The field fills with no page JS.
 const BARE = (nonce) => `<!doctype html><meta charset="utf-8"><title>${esc(title)} bare</title>${form(nonce)}`;
 const JS = `
@@ -187,7 +187,7 @@ who.addEventListener("keydown", (e) => { if (e.key === "Enter") noExtension(e); 
 // Page-only hint when leaving the field. Starts nothing: leaving a field isn't asking to sign in.
 who.addEventListener("blur", () => { if (who.value.startsWith("0x")) say(SITE + " signs in by name. Addresses won't work here.", true); });
 who.addEventListener("input", () => { if (status.className === "hint") say(""); if (form.dataset.state === "error") { form.dataset.state = ""; say(""); } });
-anon?.addEventListener("change", () => { document.querySelector(".share").textContent = anon.checked ? SITE + " gets proof of a valid approval, not your name or address. First use: a 293 MB download and a few minutes of setup." : "Signing in shares your name and wallet address with " + SITE + "."; });
+anon?.addEventListener("change", () => { document.querySelector(".share").textContent = anon.checked ? SITE + " gets proof of a valid approval, not your name or address. First use: a 280 MB download and a few minutes of setup." : "Signing in shares your name and wallet address with " + SITE + "."; });
 form.addEventListener("wvp-state", async () => {
   const st = tok.dataset.wvpState;
   if (st === "working") { t0 = performance.now(); form.dataset.state = "working"; return say(""); }

@@ -38,7 +38,7 @@ The patched build ran on Linux x64 only. See `../browser/`.
 
 K's public key is the same at every site until you enroll again. So sites can link your named logins. They see your address anyway. A site holds your wallet's signature, but without K it can't log in as you.
 
-The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit. Every approval also starts that background setup: a download of about 293 MB the first time, then Prepare, near 3 GiB of memory. If the issuer can't be reached, none of that starts.
+The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit. Every approval also starts that background setup: a download of about 280 MB the first time, then Prepare, near 3 GiB of memory. If the issuer can't be reached, none of that starts.
 
 ### What a site writes
 
