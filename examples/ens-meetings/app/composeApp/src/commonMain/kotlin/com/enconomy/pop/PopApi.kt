@@ -74,6 +74,8 @@ data class EnrollResp(
     val enrolled_at: JsonElement? = null,
     val credential: CredentialResp? = null,
     val calibration: CalibrationResp? = null,
+    /** The core's signed word about this device, {body, sig_b64}. What the ENS backend reads. */
+    val device_statement: JsonObject? = null,
 )
 
 /** Issued when holder_commit was sent. cred/sig base64 std; sig raw r||s; issuer_pubkey 65 hex. */
@@ -268,6 +270,9 @@ class PopApi(
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
 
+    /** A fresh statement, for when the ENS backend answers statement_stale. */
+    suspend fun deviceStatement(): JsonObject = call(HttpMethod.Get, "/v1/device/statement", null, JsonObject.serializer())
+
     suspend fun createSession(): CreateSessionResp =
         call(HttpMethod.Post, "/v1/session", "{}", CreateSessionResp.serializer())
 
@@ -359,6 +364,10 @@ class PopApi(
     /** Raw signed request (e.g. multipart recording upload). Returns body text. */
     suspend fun signedRaw(method: HttpMethod, path: String, body: ByteArray, contentType: ContentType): String =
         send(method, path, body, contentType, signed = true).textOrThrow()
+
+    /** Unsigned JSON POST, for [EnsApi]. Returns body text. */
+    suspend fun postJson(path: String, body: String): String =
+        send(HttpMethod.Post, path, body.encodeToByteArray(), ContentType.Application.Json, signed = false).textOrThrow()
 
     fun close() {
         onClose(this)

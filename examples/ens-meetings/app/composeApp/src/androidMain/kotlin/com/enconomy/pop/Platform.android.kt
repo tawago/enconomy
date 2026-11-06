@@ -17,4 +17,6 @@ actual fun deviceModel(): String = Build.MODEL ?: "unknown"
 
 actual fun unixMs(): Long = System.currentTimeMillis()
 
+actual fun isWeb(): Boolean = false
+
 actual fun platformDefaultBaseUrl(baked: String): String = baked

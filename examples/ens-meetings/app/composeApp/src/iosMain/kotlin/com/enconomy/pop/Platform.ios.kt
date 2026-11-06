@@ -67,4 +67,6 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
     }
 }
 
+actual fun isWeb(): Boolean = false
+
 actual fun platformDefaultBaseUrl(baked: String): String = baked

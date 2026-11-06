@@ -45,7 +45,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
-/** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL, see app/README.md). A saved Prefs value wins. */
+/** Build-time server URL (-Ppop.serverUrl / POP_SERVER_URL). A saved Prefs value wins. */
 val DEFAULT_BASE_URL: String = platformDefaultBaseUrl(PopBuildConfig.SERVER_URL)
 
 /** Prefs key of the iOS audio session mode ("measurement" | "default" | "videoRecording"); Android uses "audio.backend". */
@@ -54,7 +54,7 @@ const val AUDIO_MODE_PREF = "audio.mode"
 /** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
 const val DEFAULT_AUDIO_MODE = "videoRecording"
 
-enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
+enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck, Ens }
 
 private const val CAL_CAPTURE_TRIES = 3
 
@@ -132,6 +132,15 @@ data class UiState(
     val serverTuneDb: Double? = null,
     /** Audio check tune boost picked on screen (null = follow the server's tune_db, else 0). */
     val audioTuneDb: Double? = null,
+    // ---- ENS name (not on the web app) ----
+    val ensUrl: String = DEFAULT_ENS_URL,
+    /** Last answer from the ENS backend; null = not fetched yet. */
+    val ens: EnsResp? = null,
+    val ensLabel: String = "",
+    /** Claimed name as last seen (Prefs "ens.name"), for the Home row. */
+    val ensName: String? = null,
+    /** Presence record delivery on the result screen; null = nothing to deliver. */
+    val meeting: String? = null,
 ) {
     val tuneDb: Double get() = audioTuneDb ?: serverTuneDb ?: 0.0
 }
@@ -173,6 +182,7 @@ class PopController(
     private var popt2: Popt2Config? = null
     private var proofJob: Job? = null
     private var benchJob: Job? = null
+    private var ensJob: Job? = null
     /** Evidence + verdict of the last NEAR v2 run, kept for "prove now" / retry. */
     private var pendingProof: Pair<Popt2Evidence, ResultRecord>? = null
     private val keyCache: KeyCache by lazy {
@@ -190,7 +200,8 @@ class PopController(
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
         return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
-            popt2On = Prefs.get("popt") != "1", audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
+            popt2On = Prefs.get("popt") != "1", audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "",
+            ensUrl = Prefs.get("ensUrl") ?: DEFAULT_ENS_URL, ensName = Prefs.get("ens.name"))
     }
 
     private fun storedEnrollment(): Enrollment? {
@@ -233,6 +244,16 @@ class PopController(
     fun resetBaseUrl() {
         Prefs.set("baseUrl", null)
         _state.update { it.copy(baseUrl = DEFAULT_BASE_URL, configOk = null) }
+    }
+
+    fun setEnsUrl(url: String) {
+        Prefs.set("ensUrl", url)
+        _state.update { it.copy(ensUrl = url) }
+    }
+
+    fun resetEnsUrl() {
+        Prefs.set("ensUrl", null)
+        _state.update { it.copy(ensUrl = DEFAULT_ENS_URL) }
     }
 
     /** POPT v2 on/off (v1 when off or when the server has no v2). */
@@ -346,7 +367,12 @@ class PopController(
         if (cal != null && !calOk) calErr = "server kept no calibration; use Recalibrate"
         val e = Enrollment(k.deviceId, url, name, resp.attested, k.securityLevel, holder.credential(k.pubkey)?.expiry,
             if (calOk) cal!!.cal_us else null)
-        _state.update { it.copy(enrollment = e, screen = Screen.Home, status = "enrolled", error = listOfNotNull(credErr, calErr).joinToString("; ").ifEmpty { null }) }
+        // new key, so no name yet. Next step on a phone: claim one.
+        ensJob?.cancel()
+        Prefs.set(ENS_STATEMENT_PREF, resp.device_statement?.toString())
+        Prefs.set("ens.name", null)
+        _state.update { it.copy(enrollment = e, screen = if (isWeb()) Screen.Home else Screen.Ens, ens = EnsResp(), ensLabel = "", ensName = null,
+            status = "enrolled", error = listOfNotNull(credErr, calErr).joinToString("; ").ifEmpty { null }) }
     }
 
     fun forgetKey() {
@@ -355,7 +381,10 @@ class PopController(
         holder.clearCredential()
         Calibration.save(null)
         Prefs.set("enroll.deviceId", null)
-        _state.update { it.copy(enrollment = null, screen = Screen.Enroll) }
+        ensJob?.cancel()
+        Prefs.set(ENS_STATEMENT_PREF, null)
+        Prefs.set("ens.name", null)
+        _state.update { it.copy(enrollment = null, screen = Screen.Enroll, ens = null, ensName = null) }
     }
 
     /** Server sanity: /v1/time + /v1/config (also re-runs the §1 constants check). */
@@ -568,7 +597,8 @@ class PopController(
             val res = r.run()
             val ev = r.evidence
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
-            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null) }
+            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null, meeting = null) }
+            if (res.verdict == "NEAR") deliverPresence(v.session_id)
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
@@ -596,7 +626,7 @@ class PopController(
     fun again() {
         proofJob?.cancel()
         pendingProof = null
-        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null) }
+        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null, meeting = null) }
         go(Screen.Home)
     }
 
@@ -882,6 +912,158 @@ class PopController(
                 runCatching { engine.release() }
                 engine.setForceSpeaker(true)
                 _state.update { it.copy(audioCheckRunning = false) }
+            }
+        }
+    }
+
+    // ---- ENS name, on this example's own backend ----
+
+    private fun ensApi() = EnsApi(state.value.ensUrl)
+
+    fun openEns() {
+        if (isWeb()) return
+        go(Screen.Ens)
+        refreshEns()
+    }
+
+    fun refreshEns() = run("ens") { api ->
+        setEns(ensSigned(api, null))
+        watchEns()
+    }
+
+    fun setEnsLabel(v: String) {
+        _state.update { it.copy(ensLabel = v.lowercase().filter { ch -> ch in 'a'..'z' || ch in '0'..'9' || ch == '-' }.take(32)) }
+    }
+
+    /** One name per device, no renames: the backend refuses a second claim. A failed one can claim again. */
+    fun claimEns() {
+        val label = state.value.ensLabel
+        if (isWeb() || !ENS_LABEL.matches(label)) return
+        run("claiming $label$ENS_SUFFIX") { api ->
+            val r = try {
+                ensSigned(api, label)
+            } catch (e: PopHttpException) {
+                // claimed from elsewhere (or a lost reply): show what the backend holds
+                if (e.code == "already_claimed") runCatching { ensSigned(api, null) }.getOrNull()?.takeIf { it.status != "none" }?.let {
+                    setEns(it)
+                    watchEns()
+                    return@run
+                }
+                throw e
+            }
+            setEns(r)
+            watchEns()
+        }
+    }
+
+    /** Claim, or read when [label] is null. On statement_stale, fetch a new statement from the core ([api]) and send once more. */
+    private suspend fun ensSigned(api: PopApi, label: String?): EnsResp {
+        val key = keystore.load() ?: error("not enrolled")
+        val ens = ensApi()
+        suspend fun send(statement: JsonObject): EnsResp {
+            val ts = unixMs()
+            val sig = withContext(Dispatchers.Default) { key.sign(ensClaimMessage(key.deviceId, label, ts)) }.toB64()
+            return if (label != null) ens.claim(statement, label, ts, sig) else ens.read(statement, ts, sig)
+        }
+        try {
+            val stored = Prefs.get(ENS_STATEMENT_PREF)?.let { popJson.parseToJsonElement(it).jsonObject }
+            return try {
+                send(stored ?: newStatement(api))
+            } catch (e: PopHttpException) {
+                if (e.code != "statement_stale") throw e
+                send(newStatement(api))
+            }
+        } catch (e: PopHttpException) {
+            throw PopHttpException(e.status, e.code, e.body, e.hint ?: ensErrorText(e))
+        } finally {
+            ens.close()
+        }
+    }
+
+    private suspend fun newStatement(api: PopApi): JsonObject =
+        api.deviceStatement().also { Prefs.set(ENS_STATEMENT_PREF, it.toString()) }
+
+    /** Reads until the backend's worker settles the claim, while the app is free to do other things. */
+    private fun watchEns() {
+        ensJob?.cancel()
+        if (state.value.ens?.status != "pending") return
+        ensJob = scope.launch {
+            val api = api()
+            try {
+                while (state.value.ens?.status == "pending") {
+                    delay(3000)
+                    setEns(ensSigned(api, null))
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _state.update { it.copy(status = "ens: ${e.message}") } // the Refresh button is still there
+            } finally {
+                api.close()
+            }
+        }
+    }
+
+    private fun setEns(r: EnsResp) {
+        val name = r.name?.takeIf { r.status == "pending" || r.status == "registered" }
+        Prefs.set("ens.name", name)
+        _state.update { it.copy(ens = r, ensName = name, status = "ens: ${r.status}") }
+    }
+
+    /** A line per code, else the backend's `detail`. */
+    private fun ensErrorText(e: PopHttpException): String =
+        when (e.code) {
+            "bad_label" -> "Use 3-32 characters: a-z, 0-9 and -."
+            "already_claimed" -> "This phone already has a name."
+            "label_taken" -> "That name is taken."
+            "not_allowed" -> "ENS names are for phones."
+            "not_attested" -> "This phone isn't attested, so it can't claim a name."
+            "auth_stale" -> CLOCK_OFF_TEXT
+            else -> runCatching { popJson.parseToJsonElement(e.body).jsonObject["detail"]?.jsonPrimitive?.content }.getOrNull()?.ifEmpty { null }
+                ?: e.code ?: "http_${e.status}"
+        }
+
+    /**
+     * After NEAR: give the core's presence record to the ENS backend, so the meeting is recorded. Then once more when
+     * the pair proof settles, not before: a record delivered once both phone proofs verified but ahead of the pair
+     * proof gets its zk mark with no on-chain verify (bridge/README.md). The web app holds no name and the backend
+     * has no CORS, so only phones deliver. Nothing here survives the app being killed.
+     */
+    private fun deliverPresence(sid: String) {
+        if (isWeb()) return
+        scope.launch {
+            val api = api()
+            val ens = ensApi()
+            suspend fun deliver(result: JsonObject) {
+                val record = result["presence"] as? JsonObject ?: return
+                val text = try {
+                    "delivered (${ens.presence(record).status})"
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    "not delivered: ${(e as? PopHttpException)?.code ?: e.message}"
+                }
+                _state.update { if (it.session?.session_id == sid) it.copy(meeting = text) else it }
+            }
+            try {
+                deliver(api.resultJson(sid))
+                val end = unixMs() + PAIR_PROOF_WATCH_MS
+                while (unixMs() < end) {
+                    delay(5000)
+                    val result = runCatching { api.resultJson(sid) }.getOrNull() ?: continue
+                    val pair = ((result["zk"] as? JsonObject)?.get("pair") as? JsonObject)?.get("status")?.jsonPrimitive?.content
+                    if (pair == "verified" || pair == "rejected") {
+                        deliver(result)
+                        return@launch
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                _state.update { if (it.session?.session_id == sid) it.copy(meeting = "not delivered: ${e.message}") else it }
+            } finally {
+                api.close()
+                ens.close()
             }
         }
     }

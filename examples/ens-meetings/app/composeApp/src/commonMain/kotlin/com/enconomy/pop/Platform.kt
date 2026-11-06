@@ -13,5 +13,8 @@ expect fun deviceModel(): String
 
 expect fun unixMs(): Long
 
+/** Web app (wasmJs): no ENS name and no calls to the ENS backend. */
+expect fun isWeb(): Boolean
+
 /** Default server URL: the baked one; the web build served by the PoP server uses the page origin. */
 expect fun platformDefaultBaseUrl(baked: String): String

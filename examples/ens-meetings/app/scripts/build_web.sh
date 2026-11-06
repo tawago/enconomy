@@ -1,23 +1,18 @@
 #!/bin/bash
-# Web build of the PoP app (Kotlin/Wasm, app/composeApp wasmJs target) and copy to where it is served.
+# Web build of this example's app (Kotlin/Wasm, composeApp wasmJs target), copied to web/app/ for ens.enconomy.dev/app/
+# (wrangler serves web/, nothing is deployed here). It talks to the core at POP_SERVER_URL, which then needs
+# POP_CORS_ORIGINS=https://ens.enconomy.dev. The web app has no ENS screen and never calls the ENS backend.
 #
-#   app/scripts/build_web.sh  -> server/web-app/   (server: POP_WEB_DIR=web-app; the app talks to the origin
-#                                                  that serves /app/: tunnel, LAN or localhost:8000)
-#
-# POP_SERVER_URL overrides the baked-in server (default https://pop.enconomy.dev; the fallback
-# when the page is not served over http(s)). Nothing is deployed here.
+# Never run yet, like the rest of this copy. On a small machine put the gradle run under the repo's tools/heavy.sh.
 set -euo pipefail
 here="$(cd "$(dirname "$0")/.." && pwd)"     # app/
-repo="$(cd "$here/.." && pwd)"
 url="${POP_SERVER_URL:-https://pop.enconomy.dev}"
-dest="$repo/server/web-app"
+dest="$here/../web/app"
 
-heavy="$repo/research/sound-bound/spikes/zk/tools/heavy.sh"
-run=(./gradlew :composeApp:wasmJsBrowserDistribution "-Ppop.serverUrl=$url" "-Ppop.webSameOrigin=true")
 cd "$here"
-if [ -x "$heavy" ]; then "$heavy" pop-web "${run[@]}"; else "${run[@]}"; fi
+./gradlew :composeApp:wasmJsBrowserDistribution "-Ppop.serverUrl=$url" "-Ppop.webSameOrigin=false"
 
 out="$here/composeApp/build/dist/wasmJs/productionExecutable"
 mkdir -p "$dest"
 rsync -a --delete --exclude '*.map' "$out/" "$dest/"
-echo "web app (same origin as /app/) -> $dest"
+echo "web app ($url) -> $dest"

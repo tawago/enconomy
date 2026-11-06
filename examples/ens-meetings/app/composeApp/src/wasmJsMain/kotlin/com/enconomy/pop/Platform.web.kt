@@ -68,7 +68,9 @@ actual fun rememberMicPermissionRequest(onResult: (Boolean) -> Unit): () -> Unit
     }
 }
 
-/** Server mode (build_web.sh): the API is the origin that served /app/. */
+actual fun isWeb(): Boolean = true
+
+/** Same-origin build (-Ppop.webSameOrigin=true): the API is the origin that served /app/. */
 actual fun platformDefaultBaseUrl(baked: String): String {
     if (!PopBuildConfig.WEB_SAME_ORIGIN) return baked
     val o = jsOrigin()
