@@ -24,7 +24,7 @@ interface IGuardR {
 /// env: SAFE, GUARD, TO, DATA (hex calldata), NONCE (Safe nonce this tx will use, in [nonce(), nonce()+4)), G1_PK
 ///   MODE=announce : G1 calls guard.announce(SAFE, TO, DATA, NONCE)  (then wait cfg.delay, execute within cfg.grace)
 ///   MODE=exec     : also needs G2_PK. G1+G2 sign safeTxHash, G1 sends execTransaction with NO presence suffix
-/// Keys: contracts/.env.guardians (gitignored, chmod 600), `source` it only for the hatch.
+/// Keys: examples/safe/contracts/.env.guardians (gitignored, chmod 600), `source` it only for the hatch.
 contract Recover is Script {
     function run() external {
         ISafeR safe = ISafeR(vm.envAddress("SAFE"));

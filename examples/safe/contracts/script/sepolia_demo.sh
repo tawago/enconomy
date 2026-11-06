@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sepolia demo: deploy (attestation verifier) -> create the 2-of-4 PoP Safe -> fund -> presence spend ->
 # guardian spend with no presence, sent on purpose so it mines as a reverted tx (NoPresence).
-# Keys (all gitignored): deployer = $SAFE_KEY_FILE (contracts/.env), phones + dev issuer = .env.demo,
+# Keys (all gitignored): deployer = $SAFE_KEY_FILE (examples/safe/contracts/.env), phones + dev issuer = .env.demo,
 # guardians = .env.guardians. Dry run: RPC=http://127.0.0.1:8612 OUT_TAG=anvil-11155111 script/sepolia_demo.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."

@@ -1,6 +1,6 @@
 # Deployments: Ethereum Sepolia (11155111)
 
-2026-09-27, block 11,787,131. Deployer `0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860` (shared with the [ENS example](../examples/ens-meetings/contracts/README.md), whose addresses are in `examples/ens-meetings/contracts/deployments/sepolia.json`). Source verified on Sourcify (`exact_match`). Etherscan isn't verified because no API key is available. Machine-readable: `deployments/11155111.json`, `deployments/demo-11155111.json`.
+2026-09-27, block 11,787,131. Deployer `0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860` (shared with the [ENS example](../../ens-meetings/contracts/README.md), whose addresses are in `examples/ens-meetings/contracts/deployments/sepolia.json`). Source verified on Sourcify (`exact_match`). Etherscan isn't verified because no API key is available. Machine-readable: `deployments/11155111.json`, `deployments/demo-11155111.json`.
 
 ## Contracts
 
