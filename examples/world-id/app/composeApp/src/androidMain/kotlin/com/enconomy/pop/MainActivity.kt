@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }
-        // adb shell am start -n com.enconomy.pop/.MainActivity --es pop.bench 180ca04b_48k_A [--ez pop.force true]
+        // adb shell am start -n com.enconomy.pop.worldid/com.enconomy.pop.MainActivity --es pop.bench 180ca04b_48k_A [--ez pop.force true]
         // The bench shows over the lock screen and wakes it, so a locked phone on the cable still proves at full speed.
         startBench(intent)
     }
@@ -53,14 +53,15 @@ class MainActivity : ComponentActivity() {
         controller.openBench(); controller.benchRun(name, i.getBooleanExtra("pop.force", false))
     }
 
-    /** Bench intent on the running activity (singleTask). */
+    /** enconomy://worldid from World App (singleTask). */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         startBench(intent)
+        if (WorldId.isReturnLink(intent.dataString)) (application as PopApplication).controller.onWorldIdReturn()
     }
 
-    /** Back in front: resync the server clock. */
+    /** Back in front (e.g. from World App by hand): resync the server clock, restart the World ID poll. */
     override fun onResume() {
         super.onResume()
         (application as PopApplication).controller.onForeground()

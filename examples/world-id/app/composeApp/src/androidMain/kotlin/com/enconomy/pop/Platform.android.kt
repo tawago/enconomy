@@ -17,4 +17,13 @@ actual fun deviceModel(): String = Build.MODEL ?: "unknown"
 
 actual fun unixMs(): Long = System.currentTimeMillis()
 
+actual fun openExternalUrl(url: String): Boolean = try {
+    val i = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    PopApplication.instance.startActivity(i)
+    true
+} catch (_: android.content.ActivityNotFoundException) {
+    false
+}
+
 actual fun platformDefaultBaseUrl(baked: String): String = baked

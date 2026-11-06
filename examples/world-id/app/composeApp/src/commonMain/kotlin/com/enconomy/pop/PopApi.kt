@@ -122,6 +122,7 @@ data class SessionView(
     val state: String,
     val attempt: Int = 0,
     val role: String? = null,
+    /** With early_nonce this is set before both confirmed: it doesn't mean they did, read [state]. */
     val nonce: String? = null,
     val self: DeviceRef? = null,
     val partner: PartnerView? = null,
@@ -152,6 +153,8 @@ data class ResultRecord(
     val attempts: List<JsonObject> = emptyList(),
     /** Option A validAt (unix s) when the server pins one; the phone falls back to t0 of the attempt. */
     val valid_at: Long? = null,
+    /** The core's signed presence record {body, sig_b64}, delivered as is to this example's backend. */
+    val presence: JsonObject? = null,
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -268,8 +271,9 @@ class PopApi(
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
 
+    /** early_nonce: the session view shows the nonce from join on, so World ID can bind to it before Confirm. */
     suspend fun createSession(): CreateSessionResp =
-        call(HttpMethod.Post, "/v1/session", "{}", CreateSessionResp.serializer())
+        call(HttpMethod.Post, "/v1/session", """{"early_nonce":true}""", CreateSessionResp.serializer())
 
     suspend fun join(id: String, joinToken: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/join", enc(JoinReq.serializer(), JoinReq(joinToken)), SessionView.serializer())

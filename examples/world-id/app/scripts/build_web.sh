@@ -1,16 +1,14 @@
 #!/bin/bash
-# Web build of the PoP app (Kotlin/Wasm, app/composeApp wasmJs target) and copy to where it is served.
+# Web build of this example's app (Kotlin/Wasm, composeApp wasmJs target), copied to web-dist/. Never run so far.
 #
-#   app/scripts/build_web.sh  -> server/web-app/   (server: POP_WEB_DIR=web-app; the app talks to the origin
-#                                                  that serves /app/: tunnel, LAN or localhost:8000)
-#
-# POP_SERVER_URL overrides the baked-in server (default https://pop.enconomy.dev; the fallback
-# when the page is not served over http(s)). Nothing is deployed here.
+# The app talks to the origin that serves it for the core, so the core serves it: POP_WEB_DIR=<this web-dist>.
+# POP_SERVER_URL is the fallback when the page isn't served over http(s), POP_WORLD_ID_URL is this example's backend.
+# The backend must accept that origin, it has no CORS setting yet (see ../README.md). Nothing is deployed here.
 set -euo pipefail
-here="$(cd "$(dirname "$0")/.." && pwd)"     # app/
-repo="$(cd "$here/.." && pwd)"
+here="$(cd "$(dirname "$0")/.." && pwd)"     # examples/world-id/app/
+repo="$(cd "$here/../../.." && pwd)"
 url="${POP_SERVER_URL:-https://pop.enconomy.dev}"
-dest="$repo/server/web-app"
+dest="$here/web-dist"
 
 heavy="$repo/research/sound-bound/spikes/zk/tools/heavy.sh"
 run=(./gradlew :composeApp:wasmJsBrowserDistribution "-Ppop.serverUrl=$url" "-Ppop.webSameOrigin=true")

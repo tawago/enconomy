@@ -36,7 +36,11 @@ fun MainViewController(): UIViewController {
     }
 }
 
-/** Scene active: the app is in front again, so resync the server clock. */
-fun onForeground() {
-    controller.onForeground()
+/**
+ * SwiftUI .onOpenURL (enconomy://worldid back from World App, docs/worldid/01 §12) and scene active (url = null):
+ * the app is in front again, so resync the server clock and restart the World ID poll.
+ */
+fun onOpenUrl(url: String?) {
+    if (url == null) controller.onForeground()
+    else if (WorldId.isReturnLink(url)) controller.onWorldIdReturn()
 }

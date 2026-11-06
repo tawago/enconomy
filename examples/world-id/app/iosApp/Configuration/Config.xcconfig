@@ -4,8 +4,8 @@
 //   POP_SERVER_URL = http:/$()/192.168.0.34:8000
 
 TEAM_ID =
-BUNDLE_ID = com.enconomy.pop
-APP_NAME = pop
+BUNDLE_ID = com.enconomy.pop.worldid
+APP_NAME = pop-worldid
 
 // 0 = free personal team: no entitlements, QR only, unattested key.
 // 1 = paid account: NFC tag reading + App Attest (iosApp-paid.entitlements).
@@ -18,6 +18,7 @@ POP_APPATTEST_ENV = development
 
 // Read by :composeApp:genPopBuildConfig (env POP_SERVER_URL). Simulator reaches the Mac at localhost.
 POP_SERVER_URL = http:/$()/localhost:8000
+POP_WORLD_ID_URL = http:/$()/localhost:8300
 
 #include? "Local.xcconfig"
 

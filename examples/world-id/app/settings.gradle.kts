@@ -1,4 +1,4 @@
-rootProject.name = "pop"
+rootProject.name = "pop-worldid"
 
 pluginManagement {
     repositories {

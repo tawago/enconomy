@@ -40,6 +40,8 @@ actual fun unixMs(): Long = jsDateNow().toLong()
 /** performance.now() in ns: the clock the audio glue maps context time onto. */
 actual fun monoNanos(): Long = (jsPerfNow() * 1e6).toLong()
 
+actual fun openExternalUrl(url: String): Boolean = jsOpen(url)
+
 @Composable
 actual fun KeepScreenOn(on: Boolean) {
     DisposableEffect(on) {

@@ -15,6 +15,7 @@ internal fun jsUserAgent(): String = js("navigator.userAgent || ''")
 internal fun jsOrigin(): String = js("location.origin || ''")
 internal fun jsHash(): String = js("location.hash || ''")
 internal fun jsClearHash(): Unit = js("history.replaceState(null, '', location.pathname + location.search)")
+internal fun jsOpen(url: String): Boolean = js("!!window.open(url, '_blank')")
 internal fun jsLog(msg: String): Unit = js("console.log(msg)")
 
 internal fun jsStorageGet(key: String): String? = js("(function(){ try { return localStorage.getItem(key); } catch (e) { return null; } })()")

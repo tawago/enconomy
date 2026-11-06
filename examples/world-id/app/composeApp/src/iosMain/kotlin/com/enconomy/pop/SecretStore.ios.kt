@@ -45,7 +45,7 @@ import platform.Security.kSecRandomDefault
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
 
-private const val SERVICE = "com.enconomy.pop.secret"
+private const val SERVICE = "com.enconomy.pop.worldid.secret"
 
 private fun log(msg: String) = NSLog("PopSecrets: ${msg.replace("%", "%%")}")
 

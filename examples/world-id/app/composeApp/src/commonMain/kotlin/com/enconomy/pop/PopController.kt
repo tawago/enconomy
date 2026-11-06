@@ -40,7 +40,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -53,6 +55,9 @@ const val AUDIO_MODE_PREF = "audio.mode"
 
 /** iOS session mode when Prefs has none: videoRecording hears itself ~35 dB over the floor (measurement ~18 dB). */
 const val DEFAULT_AUDIO_MODE = "videoRecording"
+
+/** Build-time World ID backend URL (-Ppop.worldIdUrl / POP_WORLD_ID_URL). A saved Prefs value wins. */
+val DEFAULT_WORLD_ID_URL: String = PopBuildConfig.WORLD_ID_URL
 
 enum class Screen { Enroll, Home, Host, Join, Confirm, Run, Result, Bench, AudioCheck }
 
@@ -72,6 +77,7 @@ data class Enrollment(
 
 data class UiState(
     val baseUrl: String = DEFAULT_BASE_URL,
+    val worldIdUrl: String = DEFAULT_WORLD_ID_URL,
     val screen: Screen = Screen.Enroll,
     val busy: Boolean = false,
     val status: String = "",
@@ -92,6 +98,12 @@ data class UiState(
     val runAttempt: Int = 0,
     /** Retry reason text or what we wait on. */
     val runNote: String? = null,
+    /** World ID step of this phone; null until Confirm starts it. */
+    val wid: WidUi? = null,
+    /** The backend's answer to the presence record of this result. */
+    val meeting: MeetingAnswer? = null,
+    /** Why there's no [meeting] yet. */
+    val meetingNote: String? = null,
     /** Pre-flight / clock problem; user fixes it and taps Start. */
     val runBlocked: String? = null,
     val preflight: AudioPreflight? = null,
@@ -145,6 +157,8 @@ data class UiState(
  */
 /** Session states before both confirms. */
 private val PRE_CONFIRM = setOf("created", "joined")
+/** Presence records not yet answered by the World ID backend, a JSON array. */
+private const val RECORDS_PREF = "worldid.records"
 
 class PopController(
     private val keystore: DeviceKeystore,
@@ -170,6 +184,9 @@ class PopController(
     private val _state = MutableStateFlow(initial())
     val state: StateFlow<UiState> = _state
     private var job: Job? = null
+    /** World ID start + status/view polling while on Confirm. */
+    private var widJob: Job? = null
+    private var recordJob: Job? = null
     private var popt2: Popt2Config? = null
     private var proofJob: Job? = null
     private var benchJob: Job? = null
@@ -183,13 +200,16 @@ class PopController(
     }
     private val prover: ProofRunner by lazy { ProofRunner(keyCache) }
 
-    init { checkConfig() }
+    init {
+        checkConfig()
+        flushRecords()
+    }
 
     private fun initial(): UiState {
         val url = Prefs.get("baseUrl") ?: DEFAULT_BASE_URL
         val name = Prefs.get("displayName") ?: deviceModel().take(32)
         val e = storedEnrollment()
-        return UiState(baseUrl = url, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
+        return UiState(baseUrl = url, worldIdUrl = Prefs.get("worldid.url") ?: DEFAULT_WORLD_ID_URL, displayName = name, enrollment = e, screen = if (e != null) Screen.Home else Screen.Enroll,
             popt2On = Prefs.get("popt") != "1", audioMode = Prefs.get(AUDIO_MODE_PREF) ?: "")
     }
 
@@ -216,12 +236,15 @@ class PopController(
     }
 
     /**
-     * App back in the foreground (iOS scene active, Android onResume): the phone may have slept.
-     * Drop every client's server offset (next signed call syncs /v1/time first).
+     * App back in the foreground (iOS scene active, Android onResume): the phone may have slept or sat
+     * suspended in World App. Drop every client's server offset (next signed call syncs /v1/time first),
+     * restart the World ID polls, whose in-flight requests may be dead sockets, and retry any undelivered record.
      */
     @OptIn(ExperimentalAtomicApi::class)
     fun onForeground() {
         liveApis.load().forEach { it.invalidateClock() }
+        onWorldIdReturn(restart = true)
+        flushRecords()
     }
 
     fun setBaseUrl(url: String) {
@@ -233,6 +256,16 @@ class PopController(
     fun resetBaseUrl() {
         Prefs.set("baseUrl", null)
         _state.update { it.copy(baseUrl = DEFAULT_BASE_URL, configOk = null) }
+    }
+
+    fun setWorldIdUrl(url: String) {
+        Prefs.set("worldid.url", url)
+        _state.update { it.copy(worldIdUrl = url) }
+    }
+
+    fun resetWorldIdUrl() {
+        Prefs.set("worldid.url", null)
+        _state.update { it.copy(worldIdUrl = DEFAULT_WORLD_ID_URL) }
     }
 
     /** POPT v2 on/off (v1 when off or when the server has no v2). */
@@ -249,6 +282,7 @@ class PopController(
 
     fun go(s: Screen) {
         if (s != Screen.Host) job?.cancel()
+        if (s != Screen.Confirm) widJob?.cancel()
         if (s != Screen.Host) InviteBeacon.publish(null)
         _state.update { it.copy(screen = s, error = null, status = "") }
     }
@@ -415,7 +449,7 @@ class PopController(
      */
     fun host() {
         go(Screen.Host)
-        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false) }
+        _state.update { it.copy(invite = null, session = null, role = "A", confirmSent = false, wid = null) }
         run("creating session") { api ->
             requireConfig(api)
             val me = keystore.load() ?: error("not enrolled")
@@ -429,6 +463,7 @@ class PopController(
                     if (v?.partner != null) {
                         InviteBeacon.publish(null)
                         _state.update { it.copy(session = v, screen = Screen.Confirm, status = "guest joined") }
+                        startWorldId()
                         return@run
                     }
                     _state.update { it.copy(status = "invite expired, new session") }
@@ -496,7 +531,7 @@ class PopController(
             _state.update { it.copy(error = e.code, status = e.message ?: "") }
             return
         }
-        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null) }
+        _state.update { it.copy(joinInvite = inv, role = "B", confirmSent = false, session = null, wid = null) }
         run("joining ${inv.sessionId.take(8)}") { api ->
             var v = api.join(inv.sessionId, inv.joinToken)
             _state.update { it.copy(session = v) }
@@ -511,6 +546,188 @@ class PopController(
                 return@run
             }
             _state.update { it.copy(session = v, screen = Screen.Confirm, status = "joined") }
+            startWorldId()
+        }
+    }
+
+    // ---- World ID, through this example's backend ----
+
+    private fun widApi() = WorldIdApi(state.value.worldIdUrl, key = { keystore.load() })
+
+    /**
+     * Runs on Confirm, so before Arm: the app switch to World App can kill iOS audio.
+     * [create] = POST /v1/worldid/start (the backend reuses a live request), then poll status until both roles are
+     * verified while a second loop refreshes the core's view. create = false only resumes polling (return from World App).
+     */
+    fun startWorldId(create: Boolean = true) {
+        val v = state.value.session ?: return
+        val sid = v.session_id
+        val nonce = v.nonce ?: return    // the session was created with early_nonce, so it's there from join on
+        val role = v.role ?: state.value.role ?: return
+        widJob?.cancel()
+        val mode = state.value.wid?.mode ?: defaultWidMode()
+        _state.update { it.copy(wid = (it.wid ?: WidUi(mode = mode)).let { w -> if (create) w.copy(status = "starting", error = null) else w }) }
+        val wid = widApi()
+        val core = api()
+        widJob = scope.launch {
+            try {
+                if (create) {
+                    try {
+                        val r = wid.start(nonce, sid, role)
+                        setWid { it.copy(status = r.status ?: "requested", connectorUri = r.connector_uri, expiresAtS = r.expires_at_s) }
+                    } catch (e: PopHttpException) {
+                        if (e.code != "already_verified") throw e
+                        setWid { it.copy(status = WorldId.VERIFIED) }
+                    }
+                }
+                kotlinx.coroutines.coroutineScope {
+                    launch { widViewLoop(core, sid) }
+                    widStatusLoop(wid, nonce, sid, role)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                setWid { it.copy(status = WorldId.FAILED, error = e.code ?: "http_${e.status}") }
+            } catch (e: Throwable) {
+                setWid { it.copy(status = WorldId.FAILED, error = "worldid_unavailable") }
+                _state.update { it.copy(status = "${e::class.simpleName}: ${e.message}") }
+            } finally {
+                wid.close()
+                core.close()
+            }
+        }
+    }
+
+    /** iOS and web default to the code (scanned by the phone with World App): the PoP phone stays in the foreground. */
+    private fun defaultWidMode(): String = if (keystore.platform == "android") "app" else "qr"
+
+    fun setWidMode(m: String) = setWid { it.copy(mode = m) }
+
+    /** "This phone": hand the connector link to World App. */
+    fun openWorldIdApp() {
+        val uri = state.value.wid?.connectorUri ?: return
+        if (!openExternalUrl(uri)) {
+            setWid { it.copy(mode = "qr") }
+            _state.update { it.copy(status = "No app opened the World ID link; showing the code.") }
+        }
+    }
+
+    /** enconomy://worldid came back (or the app returned to the foreground): make sure the poll runs. */
+    fun onWorldIdReturn(restart: Boolean = false) {
+        val w = state.value.wid ?: return
+        if (state.value.screen != Screen.Confirm || w.bothVerified || w.failed) return
+        // restart only once /v1/worldid/start answered; before that the running job still owns the start call
+        if (widJob?.isActive != true || (restart && w.connectorUri != null)) startWorldId(create = false)
+    }
+
+    /** A failed World ID that this session can't fix: abort, then host/join again. */
+    fun newSession() {
+        val role = state.value.role
+        abortPairing()
+        if (role == "A") host() else join()
+    }
+
+    private fun setWid(f: (WidUi) -> WidUi) = _state.update { s -> s.wid?.let { s.copy(wid = f(it)) } ?: s }
+
+    /** One sidecar poll per status call on the backend's side, so plain polling. Stops once both roles are verified. */
+    private suspend fun widStatusLoop(wid: WorldIdApi, nonce: String, sid: String, role: String) {
+        var misses = 0
+        while (true) {
+            val st = try {
+                wid.status(nonce, sid, role)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                throw e
+            } catch (_: Throwable) {
+                // backgrounded while World App is open, or a flaky network: keep polling
+                setWid { it.copy(error = "network") }
+                delay((500L shl misses.coerceAtMost(3)))
+                misses++
+                continue
+            }
+            misses = 0
+            setWid {
+                it.copy(status = st.status, error = st.error, partnerStatus = st.partner.status,
+                    connectorUri = it.connectorUri ?: st.connector_uri, expiresAtS = it.expiresAtS ?: st.expires_at_s)
+            }
+            if (st.status == WorldId.FAILED) return
+            if (st.status == WorldId.VERIFIED && st.partner.status == WorldId.VERIFIED) return
+            delay(1500)
+        }
+    }
+
+    /** The core's view of the session (partner's confirm, an abort). */
+    private suspend fun widViewLoop(api: PopApi, sid: String) {
+        var seq: Long? = state.value.session?.seq
+        while (true) {
+            val v = try {
+                api.session(sid, after = seq, timeoutS = 5)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: PopHttpException) {
+                return
+            } catch (_: Throwable) {
+                delay(1000); continue
+            }
+            seq = v.seq
+            _state.update { if (it.session?.session_id == sid && it.screen == Screen.Confirm) it.copy(session = v) else it }
+            if (v.state == "aborted") {
+                _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
+                return
+            }
+            if (v.state == "done") return
+        }
+    }
+
+    // ---- the core's presence record -> this example's backend ----
+
+    private fun pendingRecords(): List<JsonObject> = Prefs.get(RECORDS_PREF)?.let { saved ->
+        runCatching { popJson.parseToJsonElement(saved).jsonArray.map { it.jsonObject } }.getOrNull()
+    } ?: emptyList()
+
+    private fun savePendingRecords(l: List<JsonObject>) =
+        Prefs.set(RECORDS_PREF, if (l.isEmpty()) null else JsonArray(l).toString())
+
+    /** After NEAR. Either phone can deliver and both do. */
+    private fun deliverPresence(res: ResultRecord) {
+        val p = res.presence
+        if (p == null) {
+            _state.update { it.copy(meetingNote = "The core signed no presence record, so the World ID backend can't answer.") }
+            return
+        }
+        savePendingRecords(pendingRecords() + p)
+        flushRecords()
+    }
+
+    /** Sends the saved records until a 200. A 4xx won't get better, so that record is dropped. Survives a restart: they're in Prefs. */
+    private fun flushRecords() {
+        if (recordJob?.isActive == true || pendingRecords().isEmpty()) return
+        val wid = widApi()
+        recordJob = scope.launch {
+            try {
+                while (true) {
+                    val next = pendingRecords().firstOrNull() ?: return@launch
+                    try {
+                        val answer = wid.record(next)
+                        savePendingRecords(pendingRecords() - next)
+                        _state.update { if (it.result?.session_id == answer.session_id) it.copy(meeting = answer, meetingNote = null) else it }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        val st = (e as? PopHttpException)?.status
+                        if (st != null && st in 400..499) {
+                            savePendingRecords(pendingRecords() - next)
+                            _state.update { it.copy(meetingNote = "The World ID backend refused the record: ${(e as PopHttpException).code ?: st}") }
+                        } else {
+                            _state.update { it.copy(meetingNote = "Can't reach the World ID backend. Retrying…") }
+                            delay(5000)
+                        }
+                    }
+                }
+            } finally {
+                wid.close()
+            }
         }
     }
 
@@ -522,13 +739,15 @@ class PopController(
         run("confirming") { api ->
             val v0 = api.confirm(id)
             _state.update { it.copy(session = v0, confirmSent = true, status = "waiting for partner to confirm") }
-            // wait for the partner's confirm by state: PopRun started in "joined" would wait for a later attempt instead of arming
+            // wait for the partner's confirm by state: with early_nonce the nonce is set long before both confirmed,
+            // and PopRun started in "joined" would wait for a later attempt instead of arming
             val v = if (v0.state !in PRE_CONFIRM) v0
             else pollUntil(api, id) { it.state !in PRE_CONFIRM } ?: error("confirm timed out")
             if (v.state == "aborted") {
                 _state.update { it.copy(error = v.error ?: "aborted", status = "Session aborted.") }
                 return@run
             }
+            widJob?.cancel()
             _state.update { it.copy(session = v, screen = Screen.Run, status = "confirmed", result = null, runBlocked = null) }
             runSession(api, v)
         }
@@ -568,7 +787,8 @@ class PopController(
             val res = r.run()
             val ev = r.evidence
             val near = res.verdict == "NEAR" && ev != null && ev.attempt == res.attempt
-            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null) }
+            _state.update { it.copy(result = res, resultDetail = r.audioError, screen = Screen.Result, runPhase = null, proof = null, meeting = null, meetingNote = null) }
+            if (res.verdict == "NEAR") deliverPresence(res)
             if (near) startProof(ev!!, res, allowMetered = false)
         } catch (e: RunBlocked) {
             refreshPreflight()
@@ -596,7 +816,7 @@ class PopController(
     fun again() {
         proofJob?.cancel()
         pendingProof = null
-        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null) }
+        _state.update { it.copy(session = null, invite = null, joinInvite = null, result = null, resultDetail = null, runPhase = null, runNote = null, runBlocked = null, confirmSent = false, proof = null, wid = null, meeting = null, meetingNote = null) }
         go(Screen.Home)
     }
 

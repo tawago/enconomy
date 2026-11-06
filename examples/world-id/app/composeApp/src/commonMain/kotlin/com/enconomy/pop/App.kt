@@ -306,6 +306,24 @@ private fun ServerPanel(s: UiState, c: PopController) {
             if (s.baseUrl != DEFAULT_BASE_URL) Text("Default: $DEFAULT_BASE_URL", style = Pop.mono, color = Pop.palette.muted)
             s.info?.let { CodeBlock(it) }
         }
+        Hairline()
+        Expandable("World ID backend", subtitle = s.worldIdUrl.removePrefix("https://").removePrefix("http://"), icon = PopIcons.Shield) {
+            OutlinedTextField(
+                value = s.worldIdUrl,
+                onValueChange = c::setWorldIdUrl,
+                label = { Text("Backend URL") },
+                singleLine = true,
+                enabled = !s.busy,
+                shape = MaterialTheme.shapes.medium,
+                colors = popTextFieldColors(),
+                textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (s.worldIdUrl != DEFAULT_WORLD_ID_URL) {
+                QuietButton("Reset to default", c::resetWorldIdUrl, enabled = !s.busy)
+                Text("Default: $DEFAULT_WORLD_ID_URL", style = Pop.mono, color = Pop.palette.muted)
+            }
+        }
     }
 }
 
@@ -553,13 +571,75 @@ private fun Confirm(s: UiState, c: PopController) {
             else Pill("Partner deciding", Tone.Neutral, dot = true)
         }
     }
+    if (v != null && s.wid != null) WorldIdPanel(s, v, s.wid, c)
     val askMic = rememberMicPermissionRequest { c.confirmPartner() }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SecondaryButton("Cancel", c::abortPairing, Modifier.weight(1f))
         PrimaryButton(
             if (s.confirmSent) "Waiting…" else "Confirm", askMic, Modifier.weight(1.4f),
-            enabled = !s.busy && p != null, loading = s.confirmSent, icon = PopIcons.Check,
+            enabled = !s.busy && p != null && s.wid?.bothVerified == true, loading = s.confirmSent, icon = PopIcons.Check,
         )
+    }
+}
+
+/** World ID step: both roles' status, "This phone" / "Other phone" on one request. */
+@Composable
+private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController) {
+    val mine = v.role ?: s.role ?: "A"
+    val other = if (mine == "A") "B" else "A"
+    Panel {
+        Text("World ID", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Each person proves they're a unique human with their own World ID. Confirm unlocks once both are verified.",
+            style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted,
+        )
+        WidRow("You ($mine)", w.status)
+        WidRow("Partner ($other)", w.partnerStatus)
+        if (!w.verified && !w.failed) {
+            val uri = w.connectorUri
+            if (uri == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("Preparing World ID request…", style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted)
+                }
+            } else {
+                Segmented(listOf("app" to "This phone", "qr" to "Other phone"), w.mode, c::setWidMode)
+                if (w.mode == "app") {
+                    PrimaryButton("Open World ID", c::openWorldIdApp, Modifier.fillMaxWidth(), icon = PopIcons.Shield)
+                    Text("Approve in World ID, then come back here.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                } else {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Surface(Modifier.size(240.dp), shape = RoundedCornerShape(20.dp), color = Color.White) {
+                            Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) { QrCode(uri, Modifier.fillMaxSize()) }
+                        }
+                    }
+                    Text("Scan with the World ID app on the phone that holds your World ID.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+                }
+            }
+            if (w.error == "network") Text(WorldId.errorText("network"), style = MaterialTheme.typography.bodySmall, color = Pop.palette.warn)
+        }
+        if (w.failed) {
+            val newOnly = WorldId.needsNewSession(w.error)
+            Banner(WorldId.errorText(w.error), Tone.Bad, title = "World ID") {
+                if (!newOnly) SecondaryButton("Try again", { c.startWorldId() }, compact = true)
+                SecondaryButton("New session", c::newSession, compact = true)
+            }
+        }
+        w.error?.takeIf { w.failed }?.let { Field("code", it) }
+    }
+}
+
+@Composable
+private fun WidRow(who: String, status: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(who, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+        when (status) {
+            WorldId.VERIFIED -> Pill(WorldId.statusText(status), Tone.Good, icon = PopIcons.Check)
+            WorldId.FAILED -> Pill(WorldId.statusText(status), Tone.Bad, icon = PopIcons.Alert)
+            "idle" -> Pill(WorldId.statusText(status), Tone.Neutral)
+            else -> Pill(WorldId.statusText(status), Tone.Accent, dot = true)
+        }
     }
 }
 
@@ -710,6 +790,7 @@ private fun Result(s: UiState, c: PopController) {
         }
         Reveal(250) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                if (near) MeetingPanel(s)
                 s.proof?.let { ProofCard("Option A proof", it, onRetry = c::proveNow) }
                 if (s.proof != null) Panel {
                     SecondaryButton("Delegate proof to server", c::delegateProof, Modifier.fillMaxWidth(), enabled = !s.proofBusy, compact = true)
@@ -730,6 +811,24 @@ private fun Result(s: UiState, c: PopController) {
         }
     }
     PrimaryButton("Done", c::again, Modifier.fillMaxWidth())
+}
+
+/** What the World ID backend answered to the core's presence record. */
+@Composable
+private fun MeetingPanel(s: UiState) {
+    Panel {
+        Text("Two different humans?", style = MaterialTheme.typography.titleMedium)
+        val m = s.meeting
+        when {
+            m == null -> Text(s.meetingNote ?: "Asking the World ID backend…", style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted)
+            m.met -> Pill("Two different verified humans met", Tone.Good, icon = PopIcons.Check)
+            else -> {
+                Pill("Not confirmed", Tone.Bad, icon = PopIcons.Alert)
+                Text(WorldId.reasonText(m.reason), style = MaterialTheme.typography.bodyMedium)
+                m.reason?.let { Field("reason", it) }
+            }
+        }
+    }
 }
 
 @Composable
