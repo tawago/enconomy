@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import uuid
@@ -31,6 +32,19 @@ def sign_raw(sk, msg: bytes) -> bytes:
 
 def sign_record(body: dict, key=CORE_KEY) -> dict:
     return {"body": body, "sig_b64": base64.b64encode(sign_raw(key, TAG_RECORD + canonical(body))).decode()}
+
+
+def make_body(a: "Phone", b: "Phone", verdict="NEAR", nonce=NONCE, sid=SID) -> dict:
+    """The vector's record with these two phones in it. record_problem checks a transcript's hash and device signature,
+    not what's inside, so any bytes do."""
+    body = copy.deepcopy(VECTOR["record"]["body"]) | {"verdict": verdict, "session_nonce": nonce, "session_id": sid}
+    for phone in (a, b):
+        raw = b"transcript " + phone.role.encode()
+        body["devices"][phone.role] |= {"pubkey": phone.pub.hex(), "device_id": hashlib.sha256(phone.pub).digest()[:16].hex()}
+        body["transcripts"][phone.role] = {"transcript_b64": base64.b64encode(raw).decode(),
+                                           "sig_b64": base64.b64encode(sign_raw(phone.sk, raw)).decode(),
+                                           "sha256": hashlib.sha256(raw).hexdigest()}
+    return body
 
 
 class Clock:

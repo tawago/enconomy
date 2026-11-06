@@ -1,5 +1,5 @@
 """The example's own sqlite. wid_state has one row per (session_nonce, role). wid_nullifiers is the only replay
-guard, because the Portal answers 200 on reuse."""
+guard, because the Portal answers 200 on reuse. meetings holds the answer for each delivered record."""
 from __future__ import annotations
 
 import json
@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS wid_nullifiers (
   rp_id TEXT NOT NULL, action TEXT NOT NULL, nullifier TEXT NOT NULL,
   env TEXT NOT NULL, kind TEXT NOT NULL, subject TEXT NOT NULL, created_at INTEGER NOT NULL,
   PRIMARY KEY (rp_id, env, action, nullifier));
+CREATE TABLE IF NOT EXISTS meetings (
+  session_nonce TEXT PRIMARY KEY, answer TEXT NOT NULL, received_at INTEGER NOT NULL);
 """
 
 FIELDS = {"status", "error", "detail", "issued_nonces", "rp_nonce", "request_id", "connector_uri", "request_created_s",
@@ -87,3 +89,13 @@ class Store:
     def nullifier_rows(self) -> list[dict]:
         with self.lock:
             return [dict(r) for r in self.db.execute("SELECT * FROM wid_nullifiers")]
+
+    # -- meetings
+    def put_meeting(self, nonce: str, answer: dict, now_s: int) -> None:
+        with self.lock:
+            self.db.execute("INSERT OR REPLACE INTO meetings VALUES (?, ?, ?)", (nonce, json.dumps(answer), now_s))
+
+    def get_meeting(self, nonce: str) -> dict | None:
+        with self.lock:
+            row = self.db.execute("SELECT answer FROM meetings WHERE session_nonce = ?", (nonce,)).fetchone()
+        return None if row is None else json.loads(row["answer"])

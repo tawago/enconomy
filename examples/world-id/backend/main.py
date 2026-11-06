@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 
 from backend import worldid_rp
 from backend.config import Settings
-from backend.core import ROLES, SID_RE, canonical, load_pub, verify_raw
+from backend.core import ROLES, SID_RE, TAG_RECORD, canonical, load_pub, record_problem, verify_raw, verify_signed
 from backend.errors import ApiError
 from backend.human import ENV, WorldID
 from backend.store import Store
@@ -71,6 +71,25 @@ def device_request(req: dict, now_ms: int) -> tuple[str, str, str, str]:
     return nonce, sid, role, pubkey
 
 
+def why_not_met(store: Store, body: dict) -> str | None:
+    """None if two different verified humans met in this NEAR session, else the first thing that fails."""
+    if body.get("verdict") != "NEAR":
+        return "not_near"
+    nonce = body["session_nonce"]
+    rows = {r: store.get(nonce, r) for r in ROLES}
+    if not all(rows.values()):
+        return "no_world_id"
+    if any(row["session_id"] != body["session_id"] for row in rows.values()):
+        return "session_id_mismatch"
+    if any(row["status"] != "verified" or not row["nullifier"] for row in rows.values()):
+        return "role_unverified"
+    if rows["A"]["nullifier"] == rows["B"]["nullifier"]:
+        return "same_human"
+    if any(row["pubkey"] != body["devices"][r]["pubkey"] for r, row in rows.items()):
+        return "pubkey_mismatch"
+    return None
+
+
 def create_app(settings: Settings | None = None, now_ms=None, transport=None, sleep=asyncio.sleep) -> FastAPI:
     settings = settings or Settings.from_env()
     now_ms = now_ms or (lambda: int(time.time() * 1000))
@@ -111,5 +130,25 @@ def create_app(settings: Settings | None = None, now_ms=None, transport=None, sl
     @app.post("/v1/worldid/status")
     async def status(request: Request):
         return await wid.status(*device_request(await _body(request), now_ms()))
+
+    @app.post("/v1/record")
+    async def record(request: Request):
+        """The core's signature is the auth, so either phone can deliver. Delivering again just works the answer out
+        again: a record that came before a role finished World ID gets its real answer on the retry."""
+        rec = await _body(request)
+        if not verify_signed(settings.core_pubkey, TAG_RECORD, rec):
+            raise ApiError(401, "bad_record_signature", "not signed by the core")
+        body = rec["body"]
+        if (problem := record_problem(body)) is not None:
+            raise ApiError(400, "bad_record", problem)
+        nonce = body.get("session_nonce")
+        if not isinstance(nonce, str) or not NONCE_RE.fullmatch(nonce):
+            raise ApiError(400, "bad_record", "session_nonce")
+        reason = why_not_met(store, body)
+        answer = {"met": reason is None, "reason": reason, "session_id": body["session_id"], "session_nonce": nonce,
+                  "finished_at": body.get("finished_at"), "flight_cm": body.get("flight_cm"),
+                  "trust_tier": {r: body["devices"].get(r, {}).get("trust_tier") for r in ROLES}}
+        store.put_meeting(nonce, answer, now_ms() // 1000)
+        return answer
 
     return app
