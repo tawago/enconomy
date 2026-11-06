@@ -4,8 +4,18 @@
 <title>Recover this account</title>
 <style>
   body { font: 16px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
-  section { border-top: 1px solid #ccc; padding: 1rem 0; }
-  section.off { opacity: .4; pointer-events: none; }
+  nav { display: flex; gap: .25rem; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
+  nav button { border: 1px solid #ccc; border-bottom: 0; background: #f4f4f4; border-radius: 6px 6px 0 0; padding: .4rem .8rem; font-size: 14px; cursor: pointer; }
+  nav button:disabled { color: #aaa; cursor: default; }
+  nav button.active { background: #fff; font-weight: 600; position: relative; top: 1px; }
+  nav button.done::after { content: " \2713"; color: #17803d; }
+  section { padding: 1rem 0; display: none; }
+  section.active { display: block; }
+  section h2 { margin-top: 0; }
+  .tx { background: #f4f4f4; padding: .6rem; border-radius: 6px; margin: .5rem 0; }
+  .tx code { word-break: break-all; font-size: 13px; }
+  .tx table { border-collapse: collapse; margin-top: .4rem; font-size: 14px; }
+  .tx td, .tx th { padding: 0 .8rem 0 0; text-align: left; }
   input[type=text], input[type=email] { width: 100%; font: 14px monospace; padding: .4rem; box-sizing: border-box; }
   button, a.btn { font: inherit; padding: .4rem 1rem; }
   pre { background: #f4f4f4; padding: .5rem; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
@@ -13,6 +23,7 @@
   .err { color: #b00; }
 </style>
 <h1>Recover this account</h1>
+<nav id="tabs"></nav>
 
 <section id="s-a">
   <h2>1. New phone's key</h2>
@@ -23,38 +34,69 @@
   <pre id="start-out" hidden></pre>
 </section>
 
-<section id="s-b" class="off">
+<section id="s-b">
   <h2>2. Chirp with the phone</h2>
   <p><a id="open-app" class="btn" target="_blank" href="#">Open the chirp app</a></p>
   <p>Host the session there and join from the phone. Keep this tab open.</p>
 </section>
 
-<section id="s-c" class="off">
+<section id="s-c">
   <h2>3. Proofs</h2>
   <p id="bundle-status">Waiting for the session.</p>
 </section>
 
-<section id="s-d" class="off">
-  <h2>4. Email token</h2>
+<section id="s-d">
+  <h2>4. Start the recovery</h2>
   <p>Type the email, then press Tab. Chrome mints the token when the field loses focus.</p>
   <form id="f">
     <input type="email" autocomplete="email" name="email" id="email" placeholder="alice@tawago.test">
     <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
   </form>
   <p id="token-status"></p>
+  <div id="start-tx"></div>
   <pre id="submit-out" hidden></pre>
 </section>
 
-<section id="s-e" class="off">
-  <h2>5. Finish</h2>
+<section id="s-e">
+  <h2>5. Finish the recovery</h2>
   <p id="countdown"></p>
   <p><button id="finish" disabled>Finish</button></p>
+  <div id="finish-tx"></div>
   <pre id="state-out" hidden></pre>
 </section>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const on = (id) => $(id).classList.remove("off");
+const STEPS = [["s-a", "1 Key"], ["s-b", "2 Chirp"], ["s-c", "3 Proofs"], ["s-d", "4 Start tx"], ["s-e", "5 Finish tx"]];
+const EXPLORER = "https://explorer.altmempool.wtf/tx/";
+const EXPLORER_NODE = "https://altmempoolgateway.forshtat.com/rpc";
+const open_ = new Set(["s-a"]), done = new Set();
+function renderTabs(active) {
+  const nav = $("tabs");
+  nav.replaceChildren(...STEPS.map(([id, label]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label; b.disabled = !open_.has(id);
+    b.className = (id === active ? "active " : "") + (done.has(id) ? "done" : "");
+    b.onclick = () => go(id);
+    return b;
+  }));
+}
+function go(id) {
+  open_.add(id);
+  STEPS.forEach(([s]) => $(s).classList.toggle("active", s === id));
+  renderTabs(id);
+}
+const on = (id) => { open_.add(id); renderTabs(document.querySelector("section.active")?.id); };
+const finished = (id) => { done.add(id); on(id); };
+function txBox(el, title, r) {
+  const hash = r.hash ?? r.tx;
+  const ok = r.status === "0x1" || r.status === 1 || r.status === undefined;
+  let html = `<div class="tx"><b>${title}</b>${r.block ? `, block ${r.block}` : ""}, ${ok ? "success" : "failed"}<br>`;
+  if (hash) html += `<code>${hash}</code><br><a target="_blank" href="${EXPLORER}${hash}?node=${encodeURIComponent(EXPLORER_NODE)}">View on the explorer</a>`;
+  if (r.frames) html += `<table><tr><th>Frame</th><th>Status</th><th>Gas</th></tr>${r.frames.map((f, i) =>
+    `<tr><td>${["0 expiry", "1 proofs", "2 laptop pays", "3 email + rotate"][i] ?? i}</td><td>${f.status === "0x1" ? "ok" : "reverted"}</td><td>${Number(f.gasUsed).toLocaleString()}</td></tr>`).join("")}</table>`;
+  el.innerHTML = html + "</div>";
+}
 const show = (id, v) => { const e = $(id); e.hidden = false; e.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -64,7 +106,7 @@ const post = async (path, body) => {
   if (!r.ok) throw new Error(`${path}: ${r.status} ${t}`);
   return JSON.parse(t);
 };
-let start = null, session = null;
+let start = null, session = null, sending = false;
 
 // a. key
 function parseKey(text) {
@@ -95,7 +137,7 @@ $("start").onclick = async () => {
     start = await post("/v1/recovery/start", parseKey($("key").value));
     show("start-out", { newKey: start.newKey, ctx: start.ctx, deadline: new Date(start.deadline * 1000).toLocaleTimeString() });
     $("open-app").href = "/app/?context=" + b64url(JSON.stringify(start.context));
-    on("s-b"); on("s-c");
+    finished("s-a"); on("s-c"); go("s-b");
     pollBundle();
   } catch (e) { show("start-out", String(e)); }
 };
@@ -112,22 +154,26 @@ async function pollBundle() {
     if (r.ok) {
       const b = await r.json();
       st.textContent = `Ready. Verdict ${b.verdict}, three proofs for session ${session.session_id}.`;
+      done.add("s-b"); finished("s-c");
       armToken();
       return;
     }
     const e = await r.json().catch(() => ({}));
     st.textContent = `Session ${session.session_id}: ${e.detail ?? r.status}`;
+    done.add("s-b"); if (document.querySelector("section.active")?.id === "s-b") go("s-c");
   }
 }
 
 // d. token. Chrome 156 reads the nonce attribute, not the property. Lowercase email, mint on blur, then requestSubmit.
 function armToken() {
   $("tok").setAttribute("nonce", start.evpNonce);
-  on("s-d");
+  go("s-d");
   $("email").focus();
 }
 
 $("email").addEventListener("blur", async () => {
+  if (!$("email").value || sending || !$("tok").getAttribute("nonce")) return;
+  sending = true;
   const st = $("token-status");
   st.textContent = "Waiting for Chrome's token.";
   await sleep(4000); // Chrome mints in the background and fills the field only on submit
@@ -138,19 +184,19 @@ $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
   const st = $("token-status");
   for (let i = 0; i < 40 && !$("tok").value; i++) await sleep(500);
-  if (!$("tok").value) { st.textContent = "No token. Check the sign-in at tawago.test, retype the email."; return; }
+  if (!$("tok").value) { sending = false; st.textContent = "No token. Check the sign-in at tawago.test, reload, retype the email."; return; }
   st.textContent = "Token received. Sending the transaction, this takes a minute.";
   try {
     const r = await post("/v1/recovery/submit", { ...session, token: $("tok").value });
-    show("submit-out", r);
+    txBox($("start-tx"), "Start tx", r);
     $("token-status").textContent = r.status === "0x1" ? "Mined." : "Not started, see below.";
-    if (r.hash && r.status === "0x1") countdown();
-  } catch (err) { show("submit-out", String(err)); }
+    if (r.status !== "0x1") show("submit-out", r);
+    if (r.hash && r.status === "0x1") { finished("s-d"); go("s-e"); countdown(); }
+  } catch (err) { sending = false; $("token-status").textContent = "The transaction was not sent."; show("submit-out", String(err)); }
 });
 
 // e. finish
 async function countdown() {
-  on("s-e");
   for (;;) {
     const s = await (await fetch("/v1/recovery/state")).json();
     show("state-out", s);
@@ -166,10 +212,15 @@ async function countdown() {
 
 $("finish").onclick = async () => {
   try {
+    $("finish").disabled = true;
     const r = await post("/v1/recovery/finish");
-    show("state-out", r);
+    show("state-out", r.state ?? r);
+    txBox($("finish-tx"), "Finish tx", r);
+    finished("s-e");
     const ok = start && r.state.owner.toLowerCase() === start.newKey.toLowerCase();
     $("countdown").textContent = ok ? "Done. The new phone owns the account." : "Finished, but owner is not the new key.";
-  } catch (e) { show("state-out", String(e)); }
+  } catch (e) { $("finish").disabled = false; show("state-out", String(e)); }
 };
+
+go("s-a");
 </script>
