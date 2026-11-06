@@ -221,9 +221,6 @@ data class ArmResp(
 @Serializable data class CommitResp(val partner_bed: Pcm, val partner_code: CodeWire? = null)
 @Serializable data class TranscriptReq(val transcript_b64: String, val sig_b64: String, val meta: JsonObject)
 @Serializable data class TranscriptResp(val accepted: Boolean, val state: String? = null)
-/** GET / POST /v1/device/ens: one name per device, <label>.enconomy.eth. status none | pending | registered | failed. */
-@Serializable data class EnsReq(val label: String)
-@Serializable data class EnsResp(val label: String? = null, val name: String? = null, val status: String = "none", val tx: String? = null)
 
 @Serializable data class FailReq(val attempt: Int, val reason: String)
 @Serializable class Empty
@@ -308,12 +305,6 @@ class PopApi(
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
 
-    /** This device's ENS name (signed). */
-    suspend fun ens(): EnsResp = call(HttpMethod.Get, "/v1/device/ens", null, EnsResp.serializer())
-    /** Claim <label>.enconomy.eth once; 400 bad_label, 409 already_claimed / label_taken. */
-    suspend fun claimEns(label: String): EnsResp =
-        call(HttpMethod.Post, "/v1/device/ens", enc(EnsReq.serializer(), EnsReq(label)), EnsResp.serializer())
-
     suspend fun createSession(req: SessionReq = SessionReq()): CreateSessionResp =
         call(HttpMethod.Post, "/v1/session", req.body(), CreateSessionResp.serializer())
 
@@ -348,23 +339,6 @@ class PopApi(
     /** Public attestation (docs/worldid/01 §8.4), unsigned. */
     suspend fun attestation(id: String): JsonObject =
         call(HttpMethod.Get, "/v1/session/$id/attestation", null, JsonObject.serializer(), signed = false)
-
-    /** SAFE (02 §7.3): this phone's P256Owner signature over "pop-safe-owner-v1" ‖ safeTxHash, raw r‖s. */
-    suspend fun safeOwnerSig(id: String, sigHex: String): JsonObject =
-        call(HttpMethod.Post, "/v1/session/$id/safe/owner-sig", buildJsonObject { put("sig", sigHex) }.toString(), JsonObject.serializer())
-
-    /** What the laptop relayer did (relayer/out/<sid>.result.json via the server), unsigned. status "none" = nothing yet. */
-    suspend fun relayStatus(id: String): JsonObject =
-        call(HttpMethod.Get, "/v1/session/$id/relay", null, JsonObject.serializer(), signed = false)
-
-    /** JSON-RPC eth_call to [rpcUrl] (not the PoP server). Returns the 0x result. */
-    suspend fun ethCall(rpcUrl: String, to: String, data: String): String {
-        val body = """{"jsonrpc":"2.0","id":1,"method":"eth_call","params":[{"to":"$to","data":"$data"},"latest"]}"""
-        val text = request(HttpMethod.Post, rpcUrl, body.encodeToByteArray(), ContentType.Application.Json, null).textOrThrow()
-        val o = popJson.parseToJsonElement(text).jsonObject
-        o["error"]?.let { error("rpc: $it") }
-        return o["result"]?.jsonPrimitive?.content ?: error("rpc: no result")
-    }
 
     suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 

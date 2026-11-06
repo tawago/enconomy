@@ -59,7 +59,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.enconomy.pop.chain.SafeTx
 import com.enconomy.pop.ui.Avatar
 import com.enconomy.pop.ui.Banner
 import com.enconomy.pop.ui.CodeBlock
@@ -123,7 +122,6 @@ fun App(c: PopController) {
                             when (s.screen) {
                                 Screen.Enroll -> Enroll(s, c)
                                 Screen.Home -> Home(s, c)
-                                Screen.Safe -> SafeSpend(s, c)
                                 Screen.Host -> Host(s, c)
                                 Screen.Join -> Join(s, c)
                                 Screen.Confirm -> Confirm(s, c)
@@ -131,7 +129,6 @@ fun App(c: PopController) {
                                 Screen.Result -> Result(s, c)
                                 Screen.Bench -> Bench(s, c)
                                 Screen.AudioCheck -> AudioCheck(s, c)
-                                Screen.Ens -> if (!isWeb()) Ens(s, c)
                             }
                             StatusLine(s)
                         }
@@ -166,8 +163,6 @@ private fun TopBar(s: UiState, c: PopController) {
         val back: (() -> Unit)? = when (s.screen) {
             Screen.Bench -> { { c.go(Screen.Home) } }
             Screen.AudioCheck -> { { c.go(Screen.Home) } }
-            Screen.Safe -> { { c.go(Screen.Home) } }
-            Screen.Ens -> { { c.go(Screen.Home) } }
             else -> null
         }
         if (back != null) {
@@ -367,7 +362,6 @@ private fun Home(s: UiState, c: PopController) {
                 }
                 // a `test` context makes the server require World ID (fake mode or real)
                 SecondaryButton("Host with World ID (test)", c::hostWorldIdTest, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Shield)
-                SecondaryButton("Safe spend", c::openSafe, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Key)
             }
         }
     }
@@ -384,10 +378,6 @@ private fun Home(s: UiState, c: PopController) {
                 Hairline()
                 NavRow(PopIcons.Chip, "Prover bench", "Prove a bundled fixture on this phone", c::openBench, enabled = !s.busy)
                 Hairline()
-                if (!isWeb()) {
-                    NavRow(PopIcons.Key, "ENS name", s.ensName ?: "Claim <label>$ENS_SUFFIX for this phone", c::openEns, enabled = !s.busy)
-                    Hairline()
-                }
                 SwitchRow(
                     "Transcript v2", transcriptText(s), s.popt2On, { c.setPopt2(it) }, enabled = !s.busy, icon = PopIcons.Wave,
                 )
@@ -570,7 +560,6 @@ private fun Confirm(s: UiState, c: PopController) {
             else Pill("Partner deciding", Tone.Neutral, dot = true)
         }
     }
-    if (v != null && s.ctxOk?.kind == SafeTx.KIND) SafeTxPanel(v.context)
     if (v != null && s.wid != null) WorldIdPanel(s, v, s.wid, c)
     val askMic = rememberMicPermissionRequest { c.confirmPartner() }
     val widOk = s.wid == null || s.wid.verified
@@ -798,7 +787,6 @@ private fun Result(s: UiState, c: PopController) {
         }
         Reveal(250) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                s.safe?.let { SafeResultPanel(s, it) }
                 s.proof?.let { ProofCard("Option A proof", it, onRetry = c::proveNow) }
                 if (s.proof != null) Panel {
                     SecondaryButton("Delegate proof to server", c::delegateProof, Modifier.fillMaxWidth(), enabled = !s.proofBusy, compact = true)
@@ -1042,128 +1030,4 @@ private fun Bench(s: UiState, c: PopController) {
     }
     s.benchStatus?.let { ProofCard("Status", it, onRetry = null) }
     if (s.benchLog.isNotEmpty()) CodeBlock(s.benchLog.joinToString("\n"))
-}
-
-
-// ---- Safe spend (docs/worldid/02 §9) ----
-
-@Composable
-private fun SafeSpend(s: UiState, c: PopController) {
-    val f = s.safeForm
-    PageTitle("Safe spend", "Both owners' phones meet, then the relayer sends the Safe transaction.")
-    Panel {
-        @Composable
-        fun input(label: String, value: String, onChange: (String) -> Unit) = OutlinedTextField(
-            value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true, enabled = !s.busy,
-            shape = MaterialTheme.shapes.medium, colors = popTextFieldColors(),
-            textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize), modifier = Modifier.fillMaxWidth(),
-        )
-        input("Safe (Sepolia)", f.safe) { c.setSafeForm(f.copy(safe = it)) }
-        Text("Both phones save the same Safe here once. A guest refuses sessions for any other Safe.",
-            style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-        Hairline()
-        input("Send to", f.to) { c.setSafeForm(f.copy(to = it)) }
-        input("Amount (ETH)", f.amountEth) { c.setSafeForm(f.copy(amountEth = it)) }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f)) { input("Safe nonce", f.nonce) { c.setSafeForm(f.copy(nonce = it)) } }
-            SecondaryButton("Read", c::refreshSafeNonce, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
-        }
-        f.note?.let { Text(it, style = Pop.mono, color = Pop.palette.muted) }
-        val chain = s.serverChainId ?: SafeTx.CHAIN_SEPOLIA
-        val wei = SafeTx.ethToWei(f.amountEth)
-        if (SafeTx.addrOk(f.safe) && SafeTx.addrOk(f.to) && wei != null && f.nonce.isNotEmpty() && f.nonce.all { it.isDigit() }) {
-            Field("safeTxHash", runCatching { SafeTx.hashHex(chain, f.safe, SafeTx(to = f.to, value = wei, nonce = f.nonce.trimStart('0').ifEmpty { "0" })) }.getOrDefault("?"))
-        }
-    }
-    PrimaryButton("Host spend", c::hostSafeSpend, Modifier.fillMaxWidth(), enabled = !s.busy && s.configOk != false, icon = PopIcons.Qr)
-    Text("The other phone taps Join as usual.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-}
-
-// ---------------------------------------------------------------- ENS name
-
-/** One name per phone, no renames: once claimed only the name and its status are shown. */
-@Composable
-private fun Ens(s: UiState, c: PopController) {
-    val r = s.ens
-    PageTitle("ENS name", "A name under enconomy.eth for this phone. No wallet needed.")
-    if (r == null) {
-        if (!s.busy) SecondaryButton("Retry", c::refreshEns, icon = PopIcons.Refresh, compact = true)
-        return
-    }
-    if (r.status == "none") {
-        Panel {
-            OutlinedTextField(
-                value = s.ensLabel,
-                onValueChange = c::setEnsLabel,
-                label = { Text("Name") },
-                suffix = { Text(ENS_SUFFIX, color = Pop.palette.muted) },
-                supportingText = { Text("3-32 characters: a-z, 0-9, -") },
-                singleLine = true,
-                enabled = !s.busy,
-                shape = MaterialTheme.shapes.medium,
-                colors = popTextFieldColors(),
-                textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("One name per phone. Can't be changed later.", style = MaterialTheme.typography.bodySmall, color = toneColor(Tone.Warn))
-            PrimaryButton(if (s.busy) "Claiming…" else "Claim", c::claimEns, Modifier.fillMaxWidth(),
-                enabled = !s.busy && ENS_LABEL.matches(s.ensLabel), loading = s.busy, icon = PopIcons.Key)
-        }
-        return
-    }
-    Panel {
-        Text(r.name ?: (r.label ?: "?") + ENS_SUFFIX, style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (r.status) {
-                "registered" -> Pill("Registered", Tone.Good, icon = PopIcons.Check)
-                "pending" -> Pill("Pending", Tone.Neutral, dot = true)
-                "failed" -> Pill("Failed", Tone.Bad)
-                else -> Pill(r.status, Tone.Neutral)
-            }
-        }
-        r.tx?.let { tx ->
-            Field("tx", tx)
-            QuietButton("Open on Etherscan", { openExternalUrl("https://sepolia.etherscan.io/tx/$tx") })
-        }
-        if (r.status == "pending") SecondaryButton("Refresh", c::refreshEns, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
-    }
-}
-
-@Composable
-private fun SafeTxPanel(context: kotlinx.serialization.json.JsonObject?) {
-    val t = (context?.get("safe_tx") as? kotlinx.serialization.json.JsonObject)?.let { SafeTx.fromJson(it) } ?: return
-    val safe = (context["consumer"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "?"
-    Panel {
-        Text("You approve this Safe transaction", style = MaterialTheme.typography.titleMedium)
-        Field("from Safe", safe)
-        Field("to", t.to)
-        Field("amount", weiToEth(t.value) + " ETH")
-        Field("nonce", t.nonce)
-        Text("Confirm signs it with this phone's key.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-    }
-}
-
-@Composable
-private fun SafeResultPanel(s: UiState, st: SafeStatus) {
-    val uri = androidx.compose.ui.platform.LocalUriHandler.current
-    Panel {
-        Text("Safe spend", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            val tone = when (st.relay) { "success" -> Tone.Good; "reverted", "skipped", "error" -> Tone.Bad; else -> Tone.Neutral }
-            Pill(st.relay ?: "waiting", tone, dot = st.relay !in setOf("success", "reverted", "skipped", "error"))
-        }
-        st.relayText?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-        Field("owner signature", st.ownerSig ?: "?")
-        s.attText?.let { Field("attestation", it) }
-        Field("zk pair proof", st.zk ?: "?")
-        st.txHash?.let { Field("tx", it) }
-        st.txLink?.let { l -> QuietButton("Open on Etherscan", { runCatching { uri.openUri(l) } }) }
-    }
-}
-
-private fun weiToEth(wei: String): String {
-    val p = wei.padStart(19, '0')
-    val i = p.dropLast(18).trimStart('0').ifEmpty { "0" }
-    val f = p.takeLast(18).trimEnd('0')
-    return if (f.isEmpty()) i else "$i.$f"
 }
