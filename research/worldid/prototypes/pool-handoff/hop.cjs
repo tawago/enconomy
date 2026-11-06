@@ -1,5 +1,5 @@
 // laptop-wallet <-> phone PoP handoff prototype: popreq1 / popoff1 / popctx1 codecs, one QR hop (render PNG -> decode), phone check.
-const NM='/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/node_modules/';
+const NM='/tmp/scratch/pool/privacy-pools-core/node_modules/';
 const {poseidon2,poseidon3}=require(NM+'poseidon-lite');
 const QR=require('qrcode'), jsQR=require('jsqr'), {PNG}=require('pngjs'), crypto=require('crypto'), fs=require('fs');
 const P=21888242871839275222246405745257275088548364400416034343698204186575808495617n;

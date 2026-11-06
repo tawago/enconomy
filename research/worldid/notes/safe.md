@@ -5,7 +5,7 @@ Date: 2026-09-26. Scope: how to make a Safe execute only when its owners were ph
 Tags: **V(...)** = verified, with the source or command. **U** = unverified.
 
 Prototype (fork tests, all passing) lives in the scratchpad, which is temporary:
-`/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/popguard/` (`src/PopGuard.sol`, `src/P256Owner.sol`, `src/DenyModuleGuard.sol`, `test/*.t.sol`). The code that matters is copied into §6 below, so this note stands on its own.
+`/tmp/scratch/popguard/` (`src/PopGuard.sol`, `src/P256Owner.sol`, `src/DenyModuleGuard.sol`, `test/*.t.sol`). The code that matters is copied into §6 below, so this note stands on its own.
 
 ---
 

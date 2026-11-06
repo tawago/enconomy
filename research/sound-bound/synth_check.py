@@ -20,7 +20,7 @@ import probes
 from analysis import analyze_session
 
 SCRATCH = pathlib.Path(
-    "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy-research-proximity-echo"
+    "/private/tmp/claude-501/-Users-me-dev-enconomy-research-proximity-echo"
     "/26bd5281-92b7-40ad-8374-472856ce1c02/scratchpad/sb-synth"
 )
 SEED = "5b" * 32

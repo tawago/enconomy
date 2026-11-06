@@ -1,7 +1,7 @@
 # Option 2: server-trusted credential, Groth16 on BN254
 
 2026-09-26. Prototype runs end to end: circuit, proof, Solidity verifier, gate contract on anvil.
-Code: `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/onchain-zk/opt2-server-credential/`
+Code: `/tmp/scratch/onchain-zk/opt2-server-credential/`
 (`circuits/core.circom`, `opt2a.circom`, `opt2b.circom`, `gen_inputs.js`, `sol/src/PopGate.sol`, `run_anvil.sh`, `bench.js`).
 
 ## Idea

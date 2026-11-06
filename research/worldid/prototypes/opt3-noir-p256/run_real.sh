@@ -1,7 +1,7 @@
 # usage: run_real.sh FIXTURE_NAME [extra gen_real args]; outputs in $S/runs/NAME$TAG
-S=/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/onchain-zk/opt3-nonnative-p256
-F=/Users/takahiro_ogawa/dev/enconomy/research/sound-bound/spikes/zk/fixtures/popt_v2
-G=/Users/takahiro_ogawa/dev/enconomy/research/worldid/prototypes/opt3-noir-p256/noir/gen_real.py
+S=/tmp/scratch/onchain-zk/opt3-nonnative-p256
+F=~/dev/enconomy/research/sound-bound/spikes/zk/fixtures/popt_v2
+G=~/dev/enconomy/research/worldid/prototypes/opt3-noir-p256/noir/gen_real.py
 export NARGO=$S/bin/nargo; BB=$S/bin/bb; n=$1; shift; R=$S/runs/$n$TAG; rm -rf $R; mkdir -p $R/half $R/pair
 python3 $G $F/$n.json $S/noir --cred bn --lows "$@" || exit 1
 cd $S/noir/half

@@ -10,9 +10,9 @@ If the product needs a tune, play it as a public jingle and put the secret in a 
 
 ## Reproduce
 
-    cd /Users/takahiro_ogawa/dev/enconomy/research/sound-bound/spikes/melody
-    /Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py          # ~6.5 min, writes results.json + wav/
-    /Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py --table  # the table below, from results.json
+    cd ~/dev/enconomy/research/sound-bound/spikes/melody
+    ~/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py          # ~6.5 min, writes results.json + wav/
+    ~/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py --table  # the table below, from results.json
 
 Everything except the timings is seeded and deterministic. `--quick` gives a smaller run.
 

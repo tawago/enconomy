@@ -7,8 +7,8 @@ pragma circom 2.1.8;
 // payeeCommitment= Poseidon(transferValue, 0, payeePrecommitment)   (0xbow note format, label 0)
 // presenceLeaf   = Poseidon(TAG_PRES, payerTag, payeeCommitment)    (posted by the PoP attester)
 
-include "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/commitment.circom";
-include "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom";
+include "/tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/commitment.circom";
+include "/tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom";
 
 template PresenceTransfer(maxTreeDepth, presDepth) {
   // public

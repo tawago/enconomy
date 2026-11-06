@@ -1,7 +1,7 @@
 circomspect: analyzing template 'CommitmentHasher'
 circomspect: analyzing template 'LeanIMTInclusionProof'
 note: Field element arithmetic could overflow, which may produce unexpected results.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:31:18
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:31:18
    │
 31 │     signal nodes[maxDepth + 1];      // Array to store computed node values at each level
    │                  ^^^^^^^^^^^^ Field element arithmetic here.
@@ -9,7 +9,7 @@ note: Field element arithmetic could overflow, which may produce unexpected resu
    = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
 
 note: Field element arithmetic could overflow, which may produce unexpected results.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:74:15
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:74:15
    │
 74 │         nodes[i + 1] <== (nodes[i] - poseidons[i].out) * siblingIsEmpty[i].out + poseidons[i].out;
    │               ^^^^^ Field element arithmetic here.
@@ -17,7 +17,7 @@ note: Field element arithmetic could overflow, which may produce unexpected resu
    = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
 
 note: Field element arithmetic could overflow, which may produce unexpected results.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:74:26
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:74:26
    │
 74 │         nodes[i + 1] <== (nodes[i] - poseidons[i].out) * siblingIsEmpty[i].out + poseidons[i].out;
    │                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Field element arithmetic here.
@@ -25,7 +25,7 @@ note: Field element arithmetic could overflow, which may produce unexpected resu
    = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
 
 note: Field element arithmetic could overflow, which may produce unexpected results.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:58:35
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:58:35
    │
 58 │     for (var i = 0; i < maxDepth; i++) {
    │                                   ^^^ Field element arithmetic here.
@@ -33,7 +33,7 @@ note: Field element arithmetic could overflow, which may produce unexpected resu
    = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-arithmetic.
 
 note: Comparisons with field elements greater than `p/2` may produce unexpected results.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:58:21
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:58:21
    │
 58 │     for (var i = 0; i < maxDepth; i++) {
    │                     ^^^^^^^^^^^^ Field element comparison here.
@@ -42,7 +42,7 @@ note: Comparisons with field elements greater than `p/2` may produce unexpected 
    = For more details, see https://github.com/trailofbits/circomspect/blob/main/doc/analysis_passes.md#field-element-comparison.
 
 warning: Using `Num2Bits` to convert field elements to bits may lead to aliasing issues.
-   ┌─ /private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:50:29
+   ┌─ /tmp/scratch/pool/privacy-pools-core/packages/circuits/pres/merkleTree.circom:50:29
    │
 50 │     component indexToPath = Num2Bits(maxDepth);
    │                             ^^^^^^^^^^^^^^^^^^ Circomlib template `Num2Bits` instantiated here.

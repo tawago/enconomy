@@ -1,6 +1,6 @@
 """Melody-vs-noise probe bake-off (offline, deterministic apart from timings).
 
-  /Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py [--quick]
+  ~/dev/enconomy/research/proximity-echo/.venv/bin/python3 bakeoff.py [--quick]
 
 Writes wav/ and results.json next to this file and prints markdown tables.
 
