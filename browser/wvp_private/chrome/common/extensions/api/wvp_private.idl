@@ -1,0 +1,38 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// wvpPrivate. Demo fork. Lets the bundled WVP extension ask the browser whether
+// a tab's top frame just had a real user gesture, and show the native prompt.
+namespace wvpPrivate {
+  dictionary Request {
+    long tabId;
+    // Consume the tab's transient user activation. No activation, no proof.
+    boolean requireActivation;
+    // Show the native prompt, unless this origin already allowed this mode.
+    boolean askUser;
+    // "named" or "anonymous". Allowed separately per origin.
+    DOMString mode;
+    // What the site would learn. Shown in the prompt.
+    DOMString text;
+    // Where to anchor the prompt, in page coordinates. Display only.
+    double x;
+    double y;
+    double width;
+    double height;
+  };
+
+  dictionary Answer {
+    boolean allowed;
+    // "ok", "no_activation", "declined", "bad_origin".
+    DOMString reason;
+    // The top frame's committed origin, read in the browser process.
+    DOMString origin;
+  };
+
+  callback ApproveCallback = void (Answer answer);
+
+  interface Functions {
+    static void approve(Request request, ApproveCallback callback);
+  };
+};

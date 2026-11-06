@@ -1,0 +1,378 @@
+diff --git a/chrome/browser/extensions/api/BUILD.gn b/chrome/browser/extensions/api/BUILD.gn
+index e45bfd458e..8070a04411 100644
+--- a/chrome/browser/extensions/api/BUILD.gn
++++ b/chrome/browser/extensions/api/BUILD.gn
+@@ -79,6 +79,7 @@ group("api_implementations") {
+       "//chrome/browser/extensions/api/safe_browsing_private",
+       "//chrome/browser/extensions/api/settings_overrides",
+       "//chrome/browser/extensions/api/webrtc_desktop_capture_private",
++      "//chrome/browser/extensions/api/wvp_private",
+     ]
+ 
+     if (enable_pdf) {
+diff --git a/chrome/browser/extensions/api/wvp_private/BUILD.gn b/chrome/browser/extensions/api/wvp_private/BUILD.gn
+new file mode 100644
+index 0000000000..38efd00188
+--- /dev/null
++++ b/chrome/browser/extensions/api/wvp_private/BUILD.gn
+@@ -0,0 +1,30 @@
++# Copyright 2026 The Chromium Authors
++# Use of this source code is governed by a BSD-style license that can be
++# found in the LICENSE file.
++
++import("//extensions/buildflags/buildflags.gni")
++
++assert(enable_extensions)
++
++source_set("wvp_private") {
++  sources = [
++    "wvp_private_api.cc",
++    "wvp_private_api.h",
++  ]
++
++  public_deps = [ "//extensions/browser" ]
++
++  deps = [
++    "//base",
++    "//chrome/browser/extensions",
++    "//chrome/browser/profiles:profile",
++    "//chrome/common/extensions/api",
++    "//components/autofill/content/browser",
++    "//components/autofill/core/common",
++    "//components/prefs",
++    "//content/public/browser",
++    "//net",
++    "//ui/gfx/geometry",
++    "//url",
++  ]
++}
+diff --git a/chrome/browser/extensions/api/wvp_private/wvp_private_api.cc b/chrome/browser/extensions/api/wvp_private/wvp_private_api.cc
+new file mode 100644
+index 0000000000..c7fcd7af7f
+--- /dev/null
++++ b/chrome/browser/extensions/api/wvp_private/wvp_private_api.cc
+@@ -0,0 +1,121 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "chrome/browser/extensions/api/wvp_private/wvp_private_api.h"
++
++#include <utility>
++
++#include "base/functional/bind.h"
++#include "base/strings/strcat.h"
++#include "base/strings/utf_string_conversions.h"
++#include "base/values.h"
++#include "chrome/browser/extensions/extension_tab_util.h"
++#include "chrome/browser/profiles/profile.h"
++#include "chrome/common/extensions/api/wvp_private.h"
++#include "components/autofill/content/browser/content_autofill_client.h"
++#include "components/autofill/core/common/autofill_prefs.h"
++#include "components/prefs/pref_service.h"
++#include "components/prefs/scoped_user_pref_update.h"
++#include "content/public/browser/render_frame_host.h"
++#include "content/public/browser/web_contents.h"
++#include "net/base/schemeful_site.h"
++#include "ui/gfx/geometry/rect_f.h"
++#include "url/origin.h"
++
++namespace extensions {
++
++namespace approve = api::wvp_private::Approve;
++
++WvpPrivateApproveFunction::WvpPrivateApproveFunction() = default;
++WvpPrivateApproveFunction::~WvpPrivateApproveFunction() = default;
++
++ExtensionFunction::ResponseValue WvpPrivateApproveFunction::Reply(
++    bool allowed,
++    const std::string& reason) {
++  api::wvp_private::Answer answer;
++  answer.allowed = allowed;
++  answer.reason = reason;
++  answer.origin = origin_;
++  return ArgumentList(approve::Results::Create(answer));
++}
++
++ExtensionFunction::ResponseAction WvpPrivateApproveFunction::Run() {
++  std::optional<approve::Params> params = approve::Params::Create(args());
++  EXTENSION_FUNCTION_VALIDATE(params);
++  const api::wvp_private::Request& request = params->request;
++
++  content::WebContents* contents = nullptr;
++  if (!ExtensionTabUtil::GetTabById(request.tab_id, browser_context(),
++                                    /*include_incognito=*/true, &contents) ||
++      !contents) {
++    return RespondNow(Error("no such tab"));
++  }
++  // Always the top frame, and the origin is the browser's own record of it.
++  content::RenderFrameHost* rfh = contents->GetPrimaryMainFrame();
++  const url::Origin origin = rfh->GetLastCommittedOrigin();
++  if (origin.opaque()) {
++    return RespondNow(Reply(false, "bad_origin"));
++  }
++  origin_ = origin.Serialize();
++
++  // One gesture, one use. Script alone can't produce this bit.
++  if (request.require_activation && !rfh->ConsumeTransientUserActivation()) {
++    return RespondNow(Reply(false, "no_activation"));
++  }
++  if (!request.ask_user) {
++    return RespondNow(Reply(true, "ok"));
++  }
++
++  // One prompt per origin and mode. The prompt is browser UI, so a page can't
++  // cover it or click it for the user.
++  const std::string pref_key =
++      base::StrCat({"wvp|", origin_, "|", request.mode});
++  PrefService* prefs = Profile::FromBrowserContext(browser_context())->GetPrefs();
++  if (prefs->GetDict(autofill::prefs::kAutofillEmailVerificationState)
++          .FindBool(pref_key)
++          .value_or(false)) {
++    return RespondNow(Reply(true, "ok"));
++  }
++
++  auto* client = autofill::ContentAutofillClient::FromWebContents(contents);
++  if (!client) {
++    return RespondNow(Error("no autofill client"));
++  }
++  // The "wvp:" prefix tells the popup view to use WVP text.
++  client->ShowEmailVerificationPopup(
++      gfx::RectF(request.x, request.y, request.width, request.height),
++      net::SchemefulSite(origin),
++      base::UTF8ToUTF16(base::StrCat({"wvp:", origin_, " gets a proof of: ",
++                                      request.text})),
++      base::BindOnce(&WvpPrivateApproveFunction::OnDecision, this,
++                     request.tab_id, pref_key));
++  return RespondLater();
++}
++
++void WvpPrivateApproveFunction::OnDecision(int tab_id,
++                                           const std::string& pref_key,
++                                           UiStatus status) {
++  if (!browser_context()) {
++    return;
++  }
++  const bool allowed = status == UiStatus::kAllowed;
++  if (allowed) {
++    ScopedDictPrefUpdate(Profile::FromBrowserContext(browser_context())->GetPrefs(),
++                         autofill::prefs::kAutofillEmailVerificationState)
++        ->Set(pref_key, true);
++    // The EVP popup keeps a spinner until told to close. Close it now.
++    content::WebContents* contents = nullptr;
++    if (ExtensionTabUtil::GetTabById(tab_id, browser_context(),
++                                     /*include_incognito=*/true, &contents) &&
++        contents) {
++      if (auto* client =
++              autofill::ContentAutofillClient::FromWebContents(contents)) {
++        client->HideEmailVerificationPopup();
++      }
++    }
++  }
++  Respond(Reply(allowed, allowed ? "ok" : "declined"));
++}
++
++}  // namespace extensions
+diff --git a/chrome/browser/extensions/api/wvp_private/wvp_private_api.h b/chrome/browser/extensions/api/wvp_private/wvp_private_api.h
+new file mode 100644
+index 0000000000..0aa8218864
+--- /dev/null
++++ b/chrome/browser/extensions/api/wvp_private/wvp_private_api.h
+@@ -0,0 +1,38 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef CHROME_BROWSER_EXTENSIONS_API_WVP_PRIVATE_WVP_PRIVATE_API_H_
++#define CHROME_BROWSER_EXTENSIONS_API_WVP_PRIVATE_WVP_PRIVATE_API_H_
++
++#include <string>
++
++#include "components/autofill/core/browser/foundations/autofill_client.h"
++#include "extensions/browser/extension_function.h"
++
++namespace extensions {
++
++class WvpPrivateApproveFunction : public ExtensionFunction {
++ public:
++  DECLARE_EXTENSION_FUNCTION("wvpPrivate.approve", UNKNOWN)
++  WvpPrivateApproveFunction();
++
++  WvpPrivateApproveFunction(const WvpPrivateApproveFunction&) = delete;
++  WvpPrivateApproveFunction& operator=(const WvpPrivateApproveFunction&) =
++      delete;
++
++ protected:
++  ~WvpPrivateApproveFunction() override;
++  ResponseAction Run() override;
++
++ private:
++  using UiStatus = autofill::AutofillClient::EmailVerificationPermissionUiStatus;
++  ResponseValue Reply(bool allowed, const std::string& reason);
++  void OnDecision(int tab_id, const std::string& pref_key, UiStatus status);
++
++  std::string origin_;
++};
++
++}  // namespace extensions
++
++#endif  // CHROME_BROWSER_EXTENSIONS_API_WVP_PRIVATE_WVP_PRIVATE_API_H_
+diff --git a/chrome/browser/extensions/component_loader.cc b/chrome/browser/extensions/component_loader.cc
+index afe6eac8e5..792588b3bf 100644
+--- a/chrome/browser/extensions/component_loader.cc
++++ b/chrome/browser/extensions/component_loader.cc
+@@ -755,6 +755,30 @@ void ComponentLoader::AddDefaultComponentExtensionsWithBackgroundPages(
+     return;
+   }
+ 
++  // WVP demo: bundled extension from a folder beside the binary. 14 MB of WASM
++  // stays out of .pak files. No folder, no extension.
++  base::FilePath wvp_dir;
++  if (!skip_session_components &&
++      base::PathService::Get(base::DIR_MODULE, &wvp_dir)) {
++    wvp_dir = wvp_dir.AppendASCII("wvp_extension");
++    GetExtensionFileTaskRunner()->PostTaskAndReplyWithResult(
++        FROM_HERE,
++        base::BindOnce(
++            [](const base::FilePath& dir) {
++              std::string error;
++              return file_util::LoadManifest(dir, &error);
++            },
++            wvp_dir),
++        base::BindOnce(
++            [](base::WeakPtr<ComponentLoader> self, const base::FilePath& dir,
++               std::optional<base::DictValue> manifest) {
++              if (self && manifest) {
++                self->Add(std::move(*manifest), dir, /*skip_allowlist=*/true);
++              }
++            },
++            weak_factory_.GetWeakPtr(), wvp_dir));
++  }
++
+   if (!skip_session_components) {
+ #if BUILDFLAG(IS_CHROMEOS)
+     Add(IDR_ECHO_MANIFEST,
+diff --git a/chrome/browser/ui/views/autofill/popup/email_verifier/email_verification_popup_view_impl.cc b/chrome/browser/ui/views/autofill/popup/email_verifier/email_verification_popup_view_impl.cc
+index b92b4fa452..a4487693be 100644
+--- a/chrome/browser/ui/views/autofill/popup/email_verifier/email_verification_popup_view_impl.cc
++++ b/chrome/browser/ui/views/autofill/popup/email_verifier/email_verification_popup_view_impl.cc
+@@ -78,6 +78,8 @@ EmailVerificationPopupViewImpl::EmailVerificationPopupViewImpl(
+   const int kHorizontalMargin =
+       provider->GetDistanceMetric(views::DISTANCE_UNRELATED_CONTROL_HORIZONTAL);
+ 
++  // WVP demo: the caller marks its text with this prefix.
++  const bool is_wvp = email.starts_with(u"wvp:");
+   std::u16string issuer_site_string =
+       url_formatter::FormatUrlForSecurityDisplay(
+           issuer_site.GetURL(),
+@@ -117,8 +119,9 @@ EmailVerificationPopupViewImpl::EmailVerificationPopupViewImpl(
+ 
+   headline->AddChildView(
+       views::Builder<views::Label>()
+-          .SetText(l10n_util::GetStringUTF16(
+-              IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_TITLE))
++          .SetText(is_wvp ? u"Prove who you are to this site?"
++                          : l10n_util::GetStringUTF16(
++                                IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_TITLE))
+           .SetTextStyle(views::style::TextStyle::STYLE_BODY_3_MEDIUM)
+           .SetAccessibleRole(ax::mojom::Role::kHeading)
+           .Build());
+@@ -133,9 +136,10 @@ EmailVerificationPopupViewImpl::EmailVerificationPopupViewImpl(
+ 
+   body->AddChildView(
+       views::Builder<views::Label>()
+-          .SetText(l10n_util::GetStringFUTF16(
+-              IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_BODY, issuer_site_string,
+-              email))
++          .SetText(is_wvp ? email.substr(4)
++                          : l10n_util::GetStringFUTF16(
++                                IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_BODY,
++                                issuer_site_string, email))
+           .SetMultiLine(true)
+           .SetTextStyle(views::style::TextStyle::STYLE_BODY_4)
+           .SetEnabledColor(ui::kColorLabelForegroundSecondary)
+@@ -167,8 +171,9 @@ EmailVerificationPopupViewImpl::EmailVerificationPopupViewImpl(
+ 
+   confirm_button_ = controls->AddChildView(
+       views::Builder<views::MdTextButtonWithSpinner>()
+-          .SetText(l10n_util::GetStringUTF16(
+-              IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_VERIFY))
++          .SetText(is_wvp ? u"Prove"
++                          : l10n_util::GetStringUTF16(
++                                IDS_AUTOFILL_EMAIL_VERIFIER_PROMPT_VERIFY))
+           .SetStyle(ui::ButtonStyle::kProminent)
+           .SetCallback(
+               base::BindRepeating(&EmailVerificationPopupViewImpl::OnConfirm,
+diff --git a/chrome/common/extensions/api/_api_features.json b/chrome/common/extensions/api/_api_features.json
+index 340a5e03ac..b8094ff300 100644
+--- a/chrome/common/extensions/api/_api_features.json
++++ b/chrome/common/extensions/api/_api_features.json
+@@ -791,6 +791,12 @@
+     "dependencies": ["permission:readingList"],
+     "contexts": ["privileged_extension"]
+   },
++  "wvpPrivate": {
++    "channel": "stable",
++    "contexts": ["privileged_extension"],
++    "extension_types": ["extension"],
++    "location": "component"
++  },
+   "resourcesPrivate": [{
+     "dependencies": ["permission:resourcesPrivate"],
+     "contexts": ["privileged_extension"]
+diff --git a/chrome/common/extensions/api/api_sources.gni b/chrome/common/extensions/api/api_sources.gni
+index acdc60b675..e433a03579 100644
+--- a/chrome/common/extensions/api/api_sources.gni
++++ b/chrome/common/extensions/api/api_sources.gni
+@@ -93,6 +93,7 @@ if (enable_extensions) {
+     "safe_browsing_private.idl",
+     "settings_private.idl",
+     "system_private.json",
++    "wvp_private.idl",
+ 
+     # Despite the name, these APIs do not rely on any WebRTC-specific bits and
+     # as such do not belong in a conditional.
+diff --git a/chrome/common/extensions/api/wvp_private.idl b/chrome/common/extensions/api/wvp_private.idl
+new file mode 100644
+index 0000000000..df0aba68f6
+--- /dev/null
++++ b/chrome/common/extensions/api/wvp_private.idl
+@@ -0,0 +1,38 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++// wvpPrivate. Demo fork. Lets the bundled WVP extension ask the browser whether
++// a tab's top frame just had a real user gesture, and show the native prompt.
++namespace wvpPrivate {
++  dictionary Request {
++    long tabId;
++    // Consume the tab's transient user activation. No activation, no proof.
++    boolean requireActivation;
++    // Show the native prompt, unless this origin already allowed this mode.
++    boolean askUser;
++    // "named" or "anonymous". Allowed separately per origin.
++    DOMString mode;
++    // What the site would learn. Shown in the prompt.
++    DOMString text;
++    // Where to anchor the prompt, in page coordinates. Display only.
++    double x;
++    double y;
++    double width;
++    double height;
++  };
++
++  dictionary Answer {
++    boolean allowed;
++    // "ok", "no_activation", "declined", "bad_origin".
++    DOMString reason;
++    // The top frame's committed origin, read in the browser process.
++    DOMString origin;
++  };
++
++  callback ApproveCallback = void (Answer answer);
++
++  interface Functions {
++    static void approve(Request request, ApproveCallback callback);
++  };
++};

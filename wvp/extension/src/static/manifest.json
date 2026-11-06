@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "WVP (test only)",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuaGAfpOiekiWA1y4/JazbxgZl7KR5Y0kTnEchD4KXio1MSMq7dd/8VBOGVbxYwQQWDAWeiAv31g4EWedCL/4itFaKYPJ5NhvwoDf8263XR8xykwhCj3K/oCsX98wv3n7tAVtFM6Vnwqy46ifm25J1O0TnwTnhUN+Jn9ZngaGRoCtvfXRTGT2PI53hFqEFF3UGXplqtFwBzYgz9pVZgF2HQXRL5hdkED/YzhJzmXz6qf70iY7LgHVvOMkHvyswMdz71xv3uoU6Ird9HB79vO+IcVmp5ijJJBdjKLsdgKg2ucEMYXEqJR8ub6uzWW7BhWk4jzPftRcUroqce2pW5CVGwIDAQAB",
+  "version": "0.0.5",
+  "description": "Proves you hold a credential for an ENS name or address, bound to the site's real origin. Throwaway keys only.",
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
+  "permissions": [
+    "offscreen",
+    "storage",
+    "unlimitedStorage"
+  ],
+  "host_permissions": [
+    "http://issuer.test:8801/*",
+    "http://keys.test:8804/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "http://issuer.test:8801/*"
+      ],
+      "js": [
+        "page-api.js"
+      ],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "http://issuer.test:8801/*"
+      ],
+      "js": [
+        "bridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    },
+    {
+      "matches": [
+        "http://*.test/*"
+      ],
+      "js": [
+        "login.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "cross_origin_embedder_policy": {
+    "value": "require-corp"
+  },
+  "cross_origin_opener_policy": {
+    "value": "same-origin"
+  },
+  "action": {
+    "default_title": "WVP",
+    "default_popup": "popup.html"
+  }
+}

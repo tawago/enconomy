@@ -1,0 +1,8 @@
+{
+  "name": "wvp",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "viem": "2.57.5"
+  }
+}
