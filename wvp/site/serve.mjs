@@ -93,7 +93,7 @@ const ENS_NOTE = { table: "a local table", mainnet: "mainnet ENS", deployment: "
 // What every brand shares: the field, its end-of-field mark, and the status lines. A brand only sets the variables and its own page around this.
 const BASE = `
   * { box-sizing: border-box; }
-  html { scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent; }
+  html { scrollbar-gutter: stable both-edges; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--ink) 28%, transparent) transparent; }
   body { margin: 0; }
   [hidden] { display: none !important; }
   #login label.name { display: block; }
@@ -124,16 +124,16 @@ const BASE = `
   @media (prefers-reduced-motion: reduce) { .tick, .tick .yes, #view { animation-duration: .001s !important; } [data-state="working"] .tick { animation-duration: 2s !important; } }
 `;
 // The whole login is this markup. Nothing here calls the extension. wvp/README.md says what each attribute means.
-const form = (nonce, signedIn = false) => `<form id="login" onsubmit="return false"${signedIn ? " hidden" : ""}>
+const form = (nonce, signedIn = false) => `<form id="login" autocomplete="off" onsubmit="return false"${signedIn ? " hidden" : ""}>
   <label class="name" for="who">ENS name</label>
   <div class="entry">
-    <span class="field"><input id="who" type="text" autocomplete="wvp" placeholder="yourname.eth" spellcheck="false" autocapitalize="off"${signedIn ? " readonly" : ""}><span class="tick" aria-hidden="true"><svg class="yes" viewBox="0 0 18 18"><path d="M3 9.6l4 4 8-9"/></svg><svg class="no" viewBox="0 0 18 18"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg></span></span>
+    <span class="field"><input id="who" type="text" data-wvp-name autocomplete="off" placeholder="yourname.eth" spellcheck="false" autocapitalize="off"${signedIn ? " readonly" : ""}><span class="tick" aria-hidden="true"><svg class="yes" viewBox="0 0 18 18"><path d="M3 9.6l4 4 8-9"/></svg><svg class="no" viewBox="0 0 18 18"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg></span></span>
     <button id="go" type="button" data-wvp-signin${signedIn ? " hidden" : ""}>Sign in</button>
   </div>
   ${noProofs ? "" : `<label class="switch"><input id="anon" type="checkbox" data-wvp-anonymous>${esc(brand.anonLabel)}</label>`}
   <p class="share">Signing in shares your name and wallet address with ${esc(title)}.</p>
   <div class="msgs"><div id="status" role="status"></div><div data-wvp-status></div></div>
-  <input id="token" type="hidden" autocomplete="wvp-token" nonce="${nonce}">
+  <input id="token" type="hidden" data-wvp-token autocomplete="off" nonce="${nonce}">
 </form>`;
 const account = (s) => `<span class="acct" title="${esc(s.address ?? "")}"><b>${s.name ? esc(s.name) : "Member, no name shared"}</b>${s.address ? `<code>${esc(short(s.address))}</code>` : ""}</span><button id="out" type="button">Sign out</button>`;
 const member = (s) => brand.signedIn({ name: s.name, address: s.address, short: short(s.address) }, esc);
@@ -142,7 +142,7 @@ const PAGE = (nonce, s) => `<!doctype html><html lang="en"><meta charset="utf-8"
 <main id="view">${s ? member(s) : brand.signedOut(form(nonce), esc)}</main>
 ${s ? `<div hidden>${form(nonce, true)}</div>` : ""}
 <footer class="colophon">${esc(title)} is a demo site, not a real ${esc(brand.kind)}, and isn't affiliated with any company. Names come from ${esc(ENS_NOTE)}.</footer>
-<script src="/site.js?v=4"></script></body></html>`;
+<script src="/site.js?v=5"></script></body></html>`;
 // Same form, no site script at all, for tests that want the raw token. The field fills with no page JS.
 const BARE = (nonce) => `<!doctype html><meta charset="utf-8"><title>${esc(title)} bare</title>${form(nonce)}`;
 const JS = `
@@ -187,7 +187,7 @@ who.addEventListener("keydown", (e) => { if (e.key === "Enter") noExtension(e); 
 // Page-only hint when leaving the field. Starts nothing: leaving a field isn't asking to sign in.
 who.addEventListener("blur", () => { if (who.value.startsWith("0x")) say(SITE + " signs in by name. Addresses won't work here.", true); });
 who.addEventListener("input", () => { if (status.className === "hint") say(""); if (form.dataset.state === "error") { form.dataset.state = ""; say(""); } });
-anon?.addEventListener("change", () => { document.querySelector(".share").textContent = anon.checked ? SITE + " gets proof of a valid approval, not your name or address. First use: a 280 MB download and a few minutes of setup." : "Signing in shares your name and wallet address with " + SITE + "."; });
+anon?.addEventListener("change", () => { document.querySelector(".share").textContent = anon.checked ? SITE + " gets proof of a valid approval, not your name or address. First use: our sign-in service sees your name and address once, then a 280 MB download and a few minutes of setup." : "Signing in shares your name and wallet address with " + SITE + "."; });
 form.addEventListener("wvp-state", async () => {
   const st = tok.dataset.wvpState;
   if (st === "working") { t0 = performance.now(); form.dataset.state = "working"; return say(""); }

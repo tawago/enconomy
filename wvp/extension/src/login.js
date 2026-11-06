@@ -13,7 +13,8 @@
 //  - Leaving the field: can open the bubble, and that's all. It's never a gesture, because a script's blur() is trusted too.
 //  - Switch: only a trusted click, and it only locks the field.
 (() => {
-  const FIELD = 'input[autocomplete="wvp"]', SWITCH = 'input[type="checkbox"][data-wvp-anonymous]', TOKEN = 'input[autocomplete="wvp-token"]', SIGNIN = "button[data-wvp-signin]";
+  // data-wvp-name and data-wvp-token are the hooks, so a page can say autocomplete="off". The autocomplete tokens are the old form, still read for pages that have them.
+  const FIELD = 'input[data-wvp-name],input[autocomplete="wvp"]', SWITCH = 'input[type="checkbox"][data-wvp-anonymous]', TOKEN = 'input[data-wvp-token],input[autocomplete="wvp-token"]', SIGNIN = "button[data-wvp-signin]";
   const is = (t, sel) => t instanceof HTMLInputElement && t.matches(sel);
   const fields = new WeakMap();
   const track = (f) => { let s = fields.get(f); if (!s) fields.set(f, s = { tracked: "", tainted: false, key: null, paste: null, ime: false, done: null, dismissed: null }); return s; };
@@ -61,6 +62,7 @@
     s.key = null; s.paste = null;
     if (v === "" && e.isTrusted) { s.tainted = false; s.tracked = ""; }
     if (bubble?.f === e.target) closeBubble();
+    if (e.isTrusted) line(e.target, ""); // The user is on it. Whatever the line said is old now.
   }, true);
   // Leaving the field may ask the question, on a first use. It never signs in. See the top of this file.
   window.addEventListener("blur", (e) => {
@@ -115,7 +117,7 @@
     job.tok.form?.querySelector(SIGNIN)?.setAttribute("disabled", "");
     clearToken(job.tok);
     setState(job.tok, "working");
-    queue = queue.then(() => run(job)).catch((e) => fail(job, String(e?.message ?? e)));
+    queue = queue.then(() => run(job)).catch((e) => fail(job, plain(e)));
   }
   // The one way in: a real click on Sign in, or Enter in the field. Mode is whatever the switch says now.
   function signIn(form, btn) {
@@ -137,9 +139,16 @@
     if (s.done === doneKey(f)) return;
     offer(f, { btn });
   }
+  // A value we didn't see typed gets no proof. A page or the browser may have put it there, so this blames neither. Only a real press lands
+  // here. The field goes empty, focused, one step from fixing it. An empty field carries nothing forged, so tracking starts over.
   const refuseFilled = (f) => {
+    const s = track(f);
+    f.value = "";
+    f.dispatchEvent(new Event("input", { bubbles: true })); // So the page's own state follows. It lands in our listener above as untrusted, hence the reset after.
+    Object.assign(s, { tracked: "", tainted: false, key: null, paste: null, ime: false, done: null, dismissed: null });
+    f.focus();
     setState(tokenOf(f), "none");
-    line(f, "This page filled in the name, not you. Clear it and type it yourself. Not signed in.");
+    line(f, "Type your name by hand to sign in.");
   };
   // Asks the service worker where this site stands, then one of: nothing, the bubble, or the login. The worker decides, and checks again in prove.
   // With no gesture behind it (leaving), it can only open the bubble. With one (Sign in, Enter), a site already verified goes straight in.
@@ -151,7 +160,7 @@
     const tok = tokenOf(f), typed = f.value, mine = ++asking;
     let st;
     try { st = await statusOf(typed); }
-    catch (e) { if (!leaving && mine === asking) line(f, WHY[e.code] ?? e.message); return; }
+    catch (e) { if (!leaving && mine === asking) line(f, plain(e)); return; }
     // The user or the page moved on while we asked.
     if (mine !== asking || f.value !== typed || !typedOk(f) || f.readOnly || working.has(tok)) return;
     if (leaving) {
@@ -195,9 +204,9 @@
   const ask = (method, args, onProgress) => new Promise((ok, no) => {
     let answered = false, port;
     // The extension was reloaded and this tab wasn't. This script is cut off from it for good.
-    try { port = chrome.runtime.connect({ name: "wvp" }); } catch { return no(new Error("The WVP extension was reloaded. Reload this page.")); }
+    try { port = chrome.runtime.connect({ name: "wvp" }); } catch { return no(Object.assign(new Error("reloaded"), { code: "extension_reloaded" })); }
     port.onMessage.addListener((m) => { if (m.progress) return onProgress?.(m.progress); answered = true; port.disconnect(); if (m.err) no(Object.assign(new Error(m.err.message), { code: m.err.code })); else ok(m.ok); });
-    port.onDisconnect.addListener(() => { if (!answered) no(Object.assign(new Error("Your browser's sign-in restarted. Try again."), { code: "extension_restarted" })); });
+    port.onDisconnect.addListener(() => { if (!answered) no(Object.assign(new Error("restarted"), { code: "extension_restarted" })); });
     port.postMessage({ method, args });
   });
 
@@ -210,7 +219,7 @@
     catch (e) {
       // The approval or the site's standing changed since we asked. Back to the question. Not awaited: offer waits for this queue.
       if (e.code === "needs_confirm" && job.gen === gen) { finish(job.tok, false); setState(job.tok, "none"); offer(job.field); return; }
-      return fail(job, WHY[e.code] ?? e.message);
+      return fail(job, plain(e));
     }
     if (job.gen !== gen) return;
     if (r.enroll) { waiting = job; line(job.tok, "Approve in the new window. This continues by itself."); return; }
@@ -230,7 +239,13 @@
     bad_nonce: "This site's sign-in form is broken. Not signed in.",
     busy: "Another sign-in is running. Try again in a moment.",
     no_activation: "That didn't come from a real click or key press.",
+    extension_reloaded: "The WVP extension was reloaded. Reload this page.",
+    extension_restarted: "Your browser's sign-in restarted. Try again.",
+    bad_method: "Your extension is out of date. Reload it and this page.", // This script and the worker come from different builds.
+    bad_request: "Your extension is out of date. Reload it and this page.",
   };
+  // What may reach the status line: our own sentences. not_ready's text is written in the worker for this line. Anything else, an internal word or a thrown error's text, stays out.
+  const plain = (e) => WHY[e?.code] ?? (e?.code === "not_ready" ? e.message : "Something went wrong with sign-in. Reload this page and try again.");
   chrome.runtime.onMessage.addListener((m, sender) => {
     if (sender.id !== chrome.runtime.id || m?.to !== "wvp-login" || !waiting) return;
     const job = waiting;

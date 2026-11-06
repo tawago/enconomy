@@ -20,13 +20,14 @@ The patched build ran on Linux x64 only. See `../browser/`.
 1. Your first Verify (see below) opens a small window with a static approval page at `enroll.test:8806`. A wallet needs a web page to inject into. If the window can't be opened, it's a plain tab.
 2. The extension makes a browser key, K. K can sign but can't be exported.
 3. Your wallet signs one message: "Approve browser key K to log in to websites as `alice.eth` and `0x...`, or anonymously, until this time. No other use." It lasts 24 h. No issuer is needed for this.
-4. In the background, the browser takes that signature to the issuer. K answers a nonce from the issuer, so a site holding your signature can't do this. The issuer signs two SD-JWT credentials over K. The browser then runs OpenAC's slow Prepare step, with no wallet.
+
+Approving contacts nothing but your wallet. The issuer stays out of it until your first anonymous login.
 
 **Named login, first time on a site.** Type your name and leave the field, or click Sign in, or press Enter. A dark bubble opens under the field: "Verify this name automatically?", with Not now and Verify. Verify is the go-ahead. If this browser has no approval yet, the approval window comes next. Then K signs this site's origin and challenge. The site checks K's signature, the wallet's approval, and that ENS says the wallet owns the name. There's no issuer and no circuit. Not now closes the bubble and sends nothing.
 
 **Named login, after that.** The extension remembers that you pressed Verify on this site, under this approval. With a valid approval there's no bubble. Press Enter or click Sign in, and you're in. A new approval means a new K, maybe a new wallet, so every site asks again. Remove approval forgets the sites too.
 
-**Anonymous login.** Tick the box, which only locks the field, and click Sign in. There's no bubble, because no name goes to the site. It shows only on a site that can check proofs. The extension makes a zero-knowledge proof, bound to the site's origin and challenge. The site checks it against the issuer's key. If Prepare is still running, you wait. If the issuer is down, named login still works, and anonymous tells you to try later. The wallet doesn't ask again.
+**Anonymous login.** Tick the box, which only locks the field, and click Sign in. There's no bubble, because no name goes to the site. It shows only on a site that can check proofs. The first time, with no second wallet signature while your approval is valid, the browser takes the stored signature to the issuer. K answers a nonce from the issuer, so a site holding your signature can't do this. The issuer signs two SD-JWT credentials over K. The browser then runs OpenAC's slow Prepare step, and the form shows that it's working. After that, the extension makes a zero-knowledge proof, bound to the site's origin and challenge. The site checks it against the issuer's key. If the issuer is down, named login still works, and anonymous tells you to try later.
 
 ### What the site sees
 
@@ -38,21 +39,23 @@ The patched build ran on Linux x64 only. See `../browser/`.
 
 K's public key is the same at every site until you enroll again. So sites can link your named logins. They see your address anyway. A site holds your wallet's signature, but without K it can't log in as you.
 
-The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit. Every approval also starts that background setup: a download of about 280 MB the first time, then Prepare, near 3 GiB of memory. If the issuer can't be reached, none of that starts.
+The issuer sees your name and address only if you use anonymous, once per approval, at your first anonymous login. It never sees which sites you visit. That login also starts the setup: a download of about 280 MB the first time, then Prepare, near 3 GiB of memory. Named login never contacts the issuer and never starts the prover.
 
 ### What a site writes
 
 A site calls nothing:
 
 ```html
-<form>
-  <input type="text" autocomplete="wvp">
+<form autocomplete="off">
+  <input type="text" data-wvp-name autocomplete="off">
   <input type="checkbox" data-wvp-anonymous>
-  <input type="hidden" autocomplete="wvp-token" nonce="64 lowercase hex chars">
+  <input type="hidden" data-wvp-token autocomplete="off" nonce="64 lowercase hex chars">
   <button type="button" data-wvp-signin>Sign in</button>
   <div data-wvp-status></div>
 </form>
 ```
+
+`autocomplete="off"` belongs on the form and both fields. A value the extension didn't see being typed gets no login, so Chrome's suggestions or a value restored on reload would only get in the way. If the field holds such a value anyway, a real press on Sign in empties it, focuses it, and the line says "Type your name by hand to sign in." The older hooks, `autocomplete="wvp"` and `autocomplete="wvp-token"`, still work, but they leave Chrome free to fill the field.
 
 The extension fills the hidden field with JSON. A named token is `{v: 2, kind: "direct", challenge, now, claim, message, walletSig, key, loginSig}`. An anonymous one is `{v: 1, challenge, now, claim: null, bundle}`. The page can follow progress through `data-wvp-state` on the hidden field and a `wvp-state` event. It draws its own spinner and check from that. `done` means a token was made, not that the site accepted it. A real press on Sign in or Enter sets the state at once, `idle` if there's none yet, so a page that sees no state a moment later knows the extension isn't in this tab and can say so.
 
@@ -103,7 +106,7 @@ node demo/try-it.mjs --repoint         # You play it. The steps print in the ter
 node demo/repoint.mjs alice.eth 0xNEW  # The repoint itself, in another terminal.
 ```
 
-Both start no issuer, no key host and no verifying keys. Named login doesn't need them, and no Prepare starts because the issuer can't be reached. So anonymous is off here. The extension still has to be built once.
+Both start no issuer, no key host and no verifying keys. Named login doesn't need them. So anonymous is off here. The extension still has to be built once.
 
 On `not_owner`, the extension forgets the approval and says so in the form. Your next Sign in opens the bubble, and Verify opens the approval window. Pick Wallet B in the Demo wallet bar. Approving makes a new K.
 
@@ -187,7 +190,7 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 - **The bubble doesn't say what the site gets.** It says what the approval does. That a site sees your name and wallet address is in the site's form, if the site keeps that line, and in the approval window.
 - **Clickjacking stays.** A page can place a decoy over the bubble that lets clicks through, so a real click lands on Verify. On a site already verified, a hidden Sign in under a fake button gets a real click, on both builds. With the switch on, the site learns you hold a valid credential. A named login still needs a typed value that matches.
 - **The real-click check is weaker in stock Chrome.** It's only `login.js` reading `isTrusted`. A script's `.click()` does nothing. But nothing in the browser backs that check up.
-- **The issuer is trusted in anonymous mode.** The proof tells the site "a valid credential from this issuer". The issuer can issue false credentials. It sees your name and address once. A sold name keeps working for anonymous until expiry.
+- **The issuer is trusted in anonymous mode.** The proof tells the site "a valid credential from this issuer". The issuer can issue false credentials. If you use anonymous, it sees your name and address once. A sold name keeps working for anonymous until expiry.
 - **The approval page's host is a small trusted party.** Sites and the issuer pin it. If it's compromised, it can ask for an approval of its own K.
 - **Fake wallet and ENS table,** unless you bring a real wallet and use a real lookup.
 - **Nothing tells you at the moment of a return login what a site saw.** The form says it before the click, if the site keeps that line. After, it's the toolbar badge and popup. Pin the icon, or you won't see the badge.
@@ -200,7 +203,7 @@ More weak points:
 
 - **Our "typed" rules are a list and may be incomplete.** Any gesture opens a window of about 5 s on the patched build, and then only `login.js` narrows it.
 - **Any field with this markup can ask.** A site can label the box "search names". If you type your own name and click, it gets your login.
-- **Autofill and password managers get no login.** A site script that rewrites the field as you type also blocks it.
+- **Autofill and password managers get no login.** The field asks Chrome not to fill it. A password manager may fill it anyway, and then Sign in empties it and asks for typing. A site script that rewrites the field as you type also blocks it.
 - **Thin privacy evidence.** Upstream leaves blind values in proofs that link them. The holder wipes those and the site refuses unwiped proofs. The check was a byte comparison of 3 proofs.
 - **Thin byte-flip sweep.** About 0.4% of proof bytes, and not rerun on this issuer. 48 of 495 flips passed OpenAC's verify alone, so the form check in `lib/bundle.mjs` is required.
 - **You need an ENS name to enroll.** An address with no name can't.
@@ -213,7 +216,7 @@ More weak points:
 - **Site denial of service.** `/challenge` is open, and a proof check blocks about 1.4 s.
 - **Time slack.** The holder picks `now`, and the site allows 300 s either way.
 - **The extension runs on every page it serves.** Here that's `*.test`. A real build would carry a broad permission warning.
-- **Not tried:** expiry in the browser, the last hour when anonymous asks the wallet again, a plain form with a submit button marked as Sign in, and a restart with the same profile.
+- **Not tried:** expiry in the browser, a first anonymous login in the approval's last hour, which the issuer refuses, a plain form with a submit button marked as Sign in, and a restart with the same profile.
 
 ### The forged digest
 

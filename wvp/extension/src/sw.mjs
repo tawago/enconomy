@@ -87,11 +87,10 @@ async function enrollFinish(args, origin) {
   await dbPut("holder", { K: p.k, jwk: p.jwk, message: p.message, walletSig: args.signature, name: p.name, address: p.address, exp: p.exp, credExp: 0 });
   await dbDel("pending");
   if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
-  startPrepare().catch(() => {});
   return { name: p.name, exp: p.exp };
 }
 
-// ---- background setup for anonymous. Takes the same signature to the issuer, no wallet. One at a time. Safe to retry at any time. ----
+// ---- setup for anonymous, on the first anonymous sign-in and never before: the issuer sees the name and address, and it's a big download. Takes the same signature to the issuer, no wallet. One at a time. Safe to retry at any time. ----
 let prepP = null;
 const startPrepare = () => (prepP ??= doPrepare().finally(() => { prepP = null; }));
 async function doPrepare() {
@@ -189,7 +188,7 @@ async function prove(args, origin, tabId, say) {
     if (g.origin !== origin) throw new Refuse("bad_origin", "the tab's origin isn't the sender's");
   }
   let h = await dbGet("holder");
-  const now = Math.floor(Date.now() / 1000);
+  let now = Math.floor(Date.now() / 1000);
   const approved = !!h && h.exp > now;
   // A name goes to a site only after Verify on that site, under this approval. That includes the wallet window: no Verify, no window.
   if (mode === "name" && confirmed !== true && !(approved && await siteVerified(origin, h))) throw new Refuse("needs_confirm", "this site needs Verify first");
@@ -197,16 +196,16 @@ async function prove(args, origin, tabId, say) {
     await sendToEnrollment(tabId, id?.kind === "name" ? id.claim : null);
     return { enroll: true };
   }
-  // The approval is good. If the issuer was down, this is a chance to try again. Never a wallet prompt.
-  if (!(h.credExp > now)) startPrepare().catch(() => {});
+  // Named login never touches the issuer or the prover.
   if (mode === "name") return directLogin(id, nonce, origin, h, tAll);
 
   if (!(h.credExp > now)) {
     say("Getting anonymous sign-in ready. A 280 MB download and a few minutes, once. Your wallet won't ask.");
     try { await startPrepare(); }
-    catch (e) { throw new Refuse("not_ready", `Anonymous sign-in isn't ready: ${e.code ? `the issuer said ${e.code}` : "the issuer can't be reached"}. Try again later. Your wallet won't ask.`); }
+    catch (e) { throw new Refuse("not_ready", notReady(e)); }
     h = await dbGet("holder");
     if (!(h?.credExp > now)) throw new Refuse("not_ready", "Anonymous sign-in isn't ready. Try again later. Your wallet won't ask.");
+    now = Math.floor(Date.now() / 1000); // Setup takes minutes. The site allows five either way, so the proof needs the time it's made.
   }
   if (busy) throw new Refuse("busy", "another proof is running");
   busy = true;
@@ -224,6 +223,12 @@ async function prove(args, origin, tabId, say) {
     return { token, revealed: null };
   } finally { busy = false; }
 }
+const notReady = (e) => {
+  if (e.code === "siwe_expired") return "Your approval is about to end, too soon for anonymous sign-in. Remove it from the toolbar icon, then sign in again.";
+  if (e.code === "ens_mismatch" || e.code === "ens_no_address") return "Anonymous sign-in isn't ready: this name doesn't point to the wallet you approved with.";
+  if (e.code) return "Anonymous sign-in isn't ready: our sign-in service turned this approval down. Try again later.";
+  return e instanceof TypeError ? "Anonymous sign-in isn't ready: our sign-in service can't be reached. Try again later. Your wallet won't ask." : "Anonymous sign-in couldn't finish setting up. Try again later. Your wallet won't ask.";
+};
 // Named login. K signs this site and this challenge. No issuer and no prover. The site sees the wallet address. The form says so before the click, and the toolbar popup after.
 // Sites the user pressed Verify for, tied to this K. A new approval is a new K, maybe a new wallet, so every site asks again.
 const siteVerified = async (origin, h) => { const { verified } = await chrome.storage.local.get("verified"); return verified?.key === h.jwk.x && verified.origins.includes(origin); };
@@ -315,7 +320,7 @@ chrome.runtime.onConnect.addListener((port) => {
       if (method === "siteRefused") return answer({ ok: await siteRefused(args) });
       if (method === "enrollBegin") return answer({ ok: await enrollBegin(args, origin) });
       if (method === "enrollFinish") { answer({ ok: await enrollFinish(args, origin) }); return await resumeAfterEnroll(); }
-      throw new Refuse("bad_method", method);
+      throw new Refuse("bad_method", "Your extension is out of date. Reload it and this page.");
     } catch (e) { answer({ err: { code: e.code ?? "error", message: String(e.message ?? e).slice(0, 500) } }); }
   });
 });

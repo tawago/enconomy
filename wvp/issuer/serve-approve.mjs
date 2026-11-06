@@ -1,6 +1,6 @@
 // A static page, shown in a small window the extension opens. The wallet needs a real web page to inject into. It holds no secrets and makes no decisions: the extension builds the message and checks the signature.
 // Its host is the domain in the wallet message, so sites pin it. Usage: node issuer/serve-approve.mjs --port 8806 --name alice.eth [--anonymous]
-//   --anonymous  an issuer is running, so say what it sees and what setting up anonymous sign-in costs.
+//   --anonymous  an issuer is running, so say when it sees anything and what anonymous sign-in costs.
 import { createServer } from "node:http";
 const opt = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : process.argv[i + 1]; };
 const port = Number(opt("port", 8806)), name = opt("name", "alice.eth"), anonymous = process.argv.includes("--anonymous");
@@ -31,14 +31,14 @@ button{font:inherit;cursor:pointer;max-width:100%}
 <main><div class="box">
 <h1>Sign in with your wallet, once</h1>
 <p class="name"><span id="t">${esc(name)}</span></p>
-<label for="n" id="nl" hidden>Your ENS name</label><input id="n" value="${esc(name)}" spellcheck="false" autocapitalize="off" hidden>
+<label for="n" id="nl" hidden>Your ENS name</label><input id="n" autocomplete="off" value="${esc(name)}" spellcheck="false" autocapitalize="off" hidden>
 <p>Your wallet signs once and it costs nothing. After that, this browser can sign you in to sites as <span id="t2">${esc(name)}</span> for about a day.</p>
 <p class="fine">Sites you sign in to see your name and wallet address.</p>
-${anonymous ? `<p class="fine">After you sign, this browser also gets ready to sign in without showing a name: a 280 MB download, then a few minutes of background work. For that, our sign-in service sees your name and address once, even if you never use it.</p>` : ""}
+${anonymous ? `<p class="fine">Our sign-in service sees your name and address only if you use anonymous sign-in, once, the first time. That first time is also a 280 MB download and a few minutes of work. Nothing starts until then.</p>` : ""}
 <div id="out" role="status"></div>
 <button id="go" type="button" disabled>Continue with wallet</button>
 <button id="no" type="button">Not now</button>
-</div></main><script src="/enroll.js?v=2"></script></html>`;
+</div></main><script src="/enroll.js?v=3"></script></html>`;
 const JS = `
 const out = document.getElementById("out"), go = document.getElementById("go"), input = document.getElementById("n");
 const typed = new URLSearchParams(location.hash.slice(1)).get("name");
@@ -71,7 +71,10 @@ go.onclick = async () => {
       : e?.code === "wrong_wallet" ? "That signature came from a different wallet. Try again."
       : e?.code === "no_pending" ? "That took a little too long. Try again."
       : e?.code === "not_approval_page" ? "Sign-in can't start from this page."
-      : (e?.message ?? String(e));
+      : e?.code === "bad_method" ? "Your extension is out of date. Reload it and this page."
+      // A text code is the extension's. Its words stay out. Everything else is this page's own sentence or the wallet's.
+      : typeof e?.code === "string" || !e?.message ? "Something went wrong. Try again."
+      : e.message;
     go.disabled = false;
   }
 };`;

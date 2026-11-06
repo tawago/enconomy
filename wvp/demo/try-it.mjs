@@ -194,7 +194,7 @@ const ta = await br.newTab(`${A}/`);
 // If that tab showed up late, it's still blank. Close it.
 for (const t of await br.targets()) if (t.type === "page" && t.url === "about:blank") await br.send("Target.closeTarget", { targetId: t.targetId }).catch(() => {});
 await sleep(500);
-const before = await ta.evaluate(`({ wvp: typeof window.wvp, form: !!document.querySelector('input[autocomplete="wvp"]'), token: !!document.querySelector('input[autocomplete="wvp-token"]').getAttribute("nonce"), title: document.title })`);
+const before = await ta.evaluate(`({ wvp: typeof window.wvp, form: !!document.querySelector('input[data-wvp-name]'), token: !!document.querySelector('input[autocomplete="wvp-token"]').getAttribute("nonce"), title: document.title })`);
 await ta.send("Page.bringToFront");
 console.log(`chrome ${br.version.product}  extension ${id}`);
 console.log(`check ${JSON.stringify(before)}`);
