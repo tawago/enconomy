@@ -1,0 +1,173 @@
+<!doctype html>
+<!-- Origin https://recover.tawago.test = the token's aud. Served by web/serve.mjs. -->
+<meta charset="utf-8">
+<title>Recover this account</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
+  section { border-top: 1px solid #ccc; padding: 1rem 0; }
+  section.off { opacity: .4; pointer-events: none; }
+  input[type=text], input[type=email] { width: 100%; font: 14px monospace; padding: .4rem; box-sizing: border-box; }
+  button, a.btn { font: inherit; padding: .4rem 1rem; }
+  pre { background: #f4f4f4; padding: .5rem; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
+  video { width: 16rem; display: none; }
+  .err { color: #b00; }
+</style>
+<h1>Recover this account</h1>
+
+<section id="s-a">
+  <h2>1. New phone's key</h2>
+  <p>Paste the key the phone shows, or scan its QR. 128 hex characters: qx, then qy.</p>
+  <input type="text" id="key" placeholder="qx qy">
+  <p><button id="scan">Scan</button> <button id="start">Use this key</button></p>
+  <video id="cam" playsinline muted></video>
+  <pre id="start-out" hidden></pre>
+</section>
+
+<section id="s-b" class="off">
+  <h2>2. Chirp with the phone</h2>
+  <p><a id="open-app" class="btn" target="_blank" href="#">Open the chirp app</a></p>
+  <p>Host the session there and join from the phone. Keep this tab open.</p>
+</section>
+
+<section id="s-c" class="off">
+  <h2>3. Proofs</h2>
+  <p id="bundle-status">Waiting for the session.</p>
+</section>
+
+<section id="s-d" class="off">
+  <h2>4. Email token</h2>
+  <p>Type the email, then press Tab. Chrome mints the token when the field loses focus.</p>
+  <form id="f">
+    <input type="email" autocomplete="email" name="email" id="email" placeholder="alice@tawago.test">
+    <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
+  </form>
+  <p id="token-status"></p>
+  <pre id="submit-out" hidden></pre>
+</section>
+
+<section id="s-e" class="off">
+  <h2>5. Finish</h2>
+  <p id="countdown"></p>
+  <p><button id="finish" disabled>Finish</button></p>
+  <pre id="state-out" hidden></pre>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const on = (id) => $(id).classList.remove("off");
+const show = (id, v) => { const e = $(id); e.hidden = false; e.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 1); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const b64url = (s) => btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const post = async (path, body) => {
+  const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body ?? {}) });
+  const t = await r.text();
+  if (!r.ok) throw new Error(`${path}: ${r.status} ${t}`);
+  return JSON.parse(t);
+};
+let start = null, session = null;
+
+// a. key
+function parseKey(text) {
+  const h = text.toLowerCase().replace(/0x/g, "").replace(/[^0-9a-f]/g, "");
+  if (h.length !== 128) throw new Error(`need 128 hex characters, got ${h.length}`);
+  return { qx: "0x" + h.slice(0, 64), qy: "0x" + h.slice(64) };
+}
+
+$("scan").onclick = async () => {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  const cam = $("cam");
+  cam.srcObject = stream;
+  cam.style.display = "block";
+  await cam.play();
+  const det = new BarcodeDetector({ formats: ["qr_code"] });
+  for (;;) {
+    const codes = await det.detect(cam);
+    if (codes.length) { $("key").value = codes[0].rawValue; break; }
+    await sleep(300);
+  }
+  stream.getTracks().forEach((t) => t.stop());
+  cam.style.display = "none";
+};
+
+$("start").onclick = async () => {
+  try {
+    localStorage.removeItem("evp_session");
+    start = await post("/v1/recovery/start", parseKey($("key").value));
+    show("start-out", { newKey: start.newKey, ctx: start.ctx, deadline: new Date(start.deadline * 1000).toLocaleTimeString() });
+    $("open-app").href = "/app/?context=" + b64url(JSON.stringify(start.context));
+    on("s-b"); on("s-c");
+    pollBundle();
+  } catch (e) { show("start-out", String(e)); }
+};
+
+// c. bundle. The app writes evp_session to localStorage on this origin.
+async function pollBundle() {
+  const st = $("bundle-status");
+  for (;;) {
+    await sleep(2000);
+    const raw = localStorage.getItem("evp_session");
+    if (!raw) { st.textContent = "Waiting for the session."; continue; }
+    session = JSON.parse(raw);
+    const r = await fetch(`/v1/session/${session.session_id}/zk/bundle`);
+    if (r.ok) {
+      const b = await r.json();
+      st.textContent = `Ready. Verdict ${b.verdict}, three proofs for session ${session.session_id}.`;
+      armToken();
+      return;
+    }
+    const e = await r.json().catch(() => ({}));
+    st.textContent = `Session ${session.session_id}: ${e.detail ?? r.status}`;
+  }
+}
+
+// d. token. Chrome 156 reads the nonce attribute, not the property. Lowercase email, mint on blur, then requestSubmit.
+function armToken() {
+  $("tok").setAttribute("nonce", start.evpNonce);
+  on("s-d");
+  $("email").focus();
+}
+
+$("email").addEventListener("blur", async () => {
+  const st = $("token-status");
+  st.textContent = "Waiting for Chrome's token.";
+  for (let i = 0; i < 40 && !$("tok").value; i++) await sleep(500);
+  if (!$("tok").value) { st.textContent = "No token. Check the sign-in at tawago.test, retype the email."; return; }
+  st.textContent = "Token received. Sending the transaction, this takes a minute.";
+  $("f").requestSubmit();
+});
+
+$("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  try {
+    const r = await post("/v1/recovery/submit", { ...session, token: $("tok").value });
+    show("submit-out", r);
+    $("token-status").textContent = r.status === "0x1" ? "Mined." : "Not started, see below.";
+    if (r.hash && r.status === "0x1") countdown();
+  } catch (err) { show("submit-out", String(err)); }
+});
+
+// e. finish
+async function countdown() {
+  on("s-e");
+  for (;;) {
+    const s = await (await fetch("/v1/recovery/state")).json();
+    show("state-out", s);
+    if (Number(s.readyAt) === 0) { $("countdown").textContent = "No rotation pending."; return; }
+    const left = s.readyAt - Math.floor(Date.now() / 1000);
+    if (left <= 0) break;
+    $("countdown").textContent = `${left} s until it can finish.`;
+    await sleep(Math.min(left, 5) * 1000);
+  }
+  $("countdown").textContent = "Ready.";
+  $("finish").disabled = false;
+}
+
+$("finish").onclick = async () => {
+  try {
+    const r = await post("/v1/recovery/finish");
+    show("state-out", r);
+    const ok = start && r.state.owner.toLowerCase() === start.newKey.toLowerCase();
+    $("countdown").textContent = ok ? "Done. The new phone owns the account." : "Finished, but owner is not the new key.";
+  } catch (e) { show("state-out", String(e)); }
+};
+</script>

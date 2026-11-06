@@ -63,6 +63,20 @@ PAIR_ARTIFACTS = {
     "bn254_g1_2p20.dat": ARTIFACTS["bn254_g1_2p20.dat"],
     f"{PAIR}.vk": (1888, PAIR_VK_SHA256, _HOME / ".enconomy/zk/optA/noir/pair/vk/vk"),
 }
+# POP_PAIR_CIRCUIT=named: fv/v1.1/circuit/pair_named, same witness, xa and xb public too, 11 inputs. For consumers that
+# hold the device keys to the proof (examples/evp-recovery). examples/evp-recovery/scripts/build_pair_named.sh makes the json.
+PAIR_NAMED_MODE = os.environ.get("POP_PAIR_CIRCUIT") == "named"
+if PAIR_NAMED_MODE:
+    PAIR = "pair_named"
+    N_PUBLIC_PAIR = 11
+    PAIR_VK_SHA256 = "3a6a94469ab2fd7e02297a03b0ceaf61752a4e38d7b96b0f01bfe5949abed1dd"
+    PAIR_VK_HASH = "1b998943818ded4848c0cb1365265eb7e9e9b195f9c01f2e1d88dbb5a9fafbd2"
+    PAIR_ARTIFACTS = {
+        f"{PAIR}.json": (3492, "604559dc13fffef2c6a1db1f8a69b27ae688c10084f4dfeb2a02e1a3d8e66863",
+                         _HOME / ".enconomy/zk/optA/noir/pair_named/target/pair_named.json"),
+        "bn254_g1_2p20.dat": ARTIFACTS["bn254_g1_2p20.dat"],
+        f"{PAIR}.vk": (1888, PAIR_VK_SHA256, Path(__file__).resolve().parents[2] / "fv/v1.1/circuit/pair_named/vk/vk"),
+    }
 PAIR_PINS = {PAIR: PAIR_VK_SHA256}
 KEY_FILE = re.compile(r"^(oaN_s48\.json|oaN_s48\.vk|bn254_g1_2p20\.dat)$")
 DEFAULT_BB = _HOME / ".enconomy/zk/pinned/bin/bb"
@@ -169,6 +183,8 @@ def pair_witness(ta: dict, tb: dict, salt_a: int, salt_b: int) -> tuple[str, lis
     ca, cb = half_commit(ta, salt_a), half_commit(tb, salt_b)
     xa, xb = _limbs(ta["pk_self"][1:33]), _limbs(tb["pk_self"][1:33])
     public = [nh, nl, ta["attempt"], ca, cb, ta["sample_rate"], tb["sample_rate"]]
+    if PAIR_NAMED_MODE:
+        public += [*xa, *xb]
     q = lambda v: f'"{v % R}"'   # noqa: E731
     toml = (f"nonce_hi = {q(nh)}\nnonce_lo = {q(nl)}\nattempt = {ta['attempt']}\ncommit_a = {q(ca)}\n"
             f"commit_b = {q(cb)}\nsr_a = {ta['sample_rate']}\nsr_b = {tb['sample_rate']}\n"

@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(pop_aaudio CXX)
+add_library(pop_aaudio SHARED pop_aaudio.cpp)
+target_compile_options(pop_aaudio PRIVATE -Wall -O2)
+target_link_libraries(pop_aaudio aaudio log dl)

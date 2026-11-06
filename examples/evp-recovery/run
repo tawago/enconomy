@@ -1,0 +1,28 @@
+#!/bin/bash
+# ./run keys | core | sidecar | backend | front | chrome    Each long-running one in its own terminal. See README.
+set -euo pipefail
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(cd "$HERE/../.." && pwd)
+RUN=$HERE/.run
+case ${1:-} in
+  keys)
+    mkdir -p "$RUN/keys" "$RUN/core"
+    [ -f "$RUN/keys/tls.key" ] || openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+      -keyout "$RUN/keys/tls.key" -out "$RUN/keys/tls.crt" -days 30 -subj /CN=tawago.test \
+      -addext "subjectAltName=DNS:tawago.test,DNS:*.tawago.test"
+    [ -f "$RUN/keys/issuer.jwk.json" ] || node "$HERE/issuer/keygen.mjs" > "$RUN/keys/issuer.jwk.json"
+    ;;
+  core)
+    mkdir -p "$RUN/core"
+    cd "$ROOT/server"
+    POP_PORT=8001 POP_HOST=0.0.0.0 POP_CHAIN_ID=1337 POP_ALLOW_WEB=1 POP_ALLOW_UNATTESTED=1 POP_PAIR_CIRCUIT=named \
+    POP_WEB_DIR="$HERE/app/build/web" POP_DB="$RUN/core/pop.sqlite" POP_DATA_DIR="$RUN/core" \
+    POP_ISSUER_KEY_FILE="$RUN/core/issuer.pem" POP_PRESENCE_KEY_FILE="$RUN/core/presence.pem" \
+      exec uv run python -m pop
+    ;;
+  sidecar) exec "$ROOT/research/ethglobal-mumbai/devnet/sidecar.sh" ;;
+  backend) cd "$HERE"; exec uv run uvicorn backend.main:app --host 127.0.0.1 --port 8100 ;;
+  front) exec node "$HERE/web/serve.mjs" ;;
+  chrome) exec "$HERE/web/launch.sh" ;;
+  *) sed -n 2p "$0"; exit 2 ;;
+esac

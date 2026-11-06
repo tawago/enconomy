@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pop_hce_description">Proof of Presence invite</string>
+    <string name="pop_hce_aid_group">Proof of Presence pairing</string>
+</resources>

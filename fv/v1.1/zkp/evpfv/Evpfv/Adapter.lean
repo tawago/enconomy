@@ -1,7 +1,7 @@
 /-!
 # Evpfv.Adapter — hand model of `verifyPresence`
 
-Source: `research/ethglobal-mumbai/evp-recovery/contracts/src/pop/EvpNoirPresenceVerifier.sol`, lines 75-98,
+Source: `examples/evp-recovery/contracts/src/pop/EvpNoirPresenceVerifier.sol`, lines 75-98,
 plus the helpers `_ccOk` (107-121), `_issuerOk` (123-126) and `PopCtx.split` (`PopCtx.sol` 40-43).
 This is a hand model, not a compiled one: nothing ties it to the Solidity but reading the two side by side.
 
