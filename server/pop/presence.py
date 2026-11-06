@@ -1,6 +1,6 @@
 """What the core signs for outsiders: device statements and presence records (server/README.md).
 
-Own P-256 key, POP_PRESENCE_KEY_FILE (default data/presence.pem), never the attest or issuer key. An outside party
+Own P-256 key, POP_PRESENCE_KEY_FILE (default data/presence.pem), never the issuer key. An outside party
 pins the public key from /v1/config `presence`, so back it up.
 
 Signature: crypto.sign_raw (SHA256withECDSA, raw r||s, low-S) over a domain tag + canonical(body).

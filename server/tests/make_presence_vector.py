@@ -31,7 +31,7 @@ def main() -> None:
         (d / "presence.pem").write_bytes(sk.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
                                                           serialization.NoEncryption()))
         cfg = Settings(db=":memory:", now_ms=clock, data_dir=tmp, android_roots=TEST_ANDROID_ROOTS,
-                       issuer_key_file=str(d / "issuer.pem"), attest_key_file=str(d / "attest.pem"),
+                       issuer_key_file=str(d / "issuer.pem"),
                        presence_key_file=str(d / "presence.pem"), worldid_signing_key_file=str(d / "worldid-rp.key"),
                        worldid_bg_poll=False, worldid_poll_s=0.0)
         client = TestClient(create_app(cfg, SqliteStore(":memory:")))

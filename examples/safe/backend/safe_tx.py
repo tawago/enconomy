@@ -1,18 +1,13 @@
-"""SAFE consumer (worldid spec 02 §7.1-§7.2): context.safe_tx -> safeTxHash (EIP-712, Safe >= 1.3), allowlist.
-
-ctx_hash = safeTxHash on context.chain_id for the Safe context.consumer. The route checks chain_id == POP_CHAIN_ID
-(Ethereum Sepolia 11155111) before this runs; validate() itself only recomputes and applies the allowlist.
-"""
+"""A Safe transaction: parse, safeTxHash (EIP-712, Safe >= 1.3), the allowlist, what the owners sign."""
 from __future__ import annotations
 
 import re
 from types import SimpleNamespace
 
-from pop import attest
-from pop.errors import PopError
-from pop.popctx import keccak
+from Crypto.Hash import keccak as _keccak
 
-KIND = "safe-tx"
+from backend.errors import ApiError
+
 TAG = b"pop-safe-v2"
 OWNER_MSG_TAG = b"pop-safe-owner-v1"
 
@@ -36,12 +31,18 @@ KEYS = set(ADDR_F) | set(DEC_F) | {"data", "operation"}
 TRANSFER = bytes.fromhex("a9059cbb")
 
 
-def _bad(field: str) -> PopError:
-    return PopError(400, "bad_context", field)
+def keccak(b: bytes) -> bytes:
+    h = _keccak.new(digest_bits=256)
+    h.update(b)
+    return h.digest()
 
 
-def _refuse(reason: str) -> PopError:
-    return PopError(400, "context_refused", reason)
+def _bad(field: str) -> ApiError:
+    return ApiError(400, "bad_context", field)
+
+
+def _refuse(reason: str) -> ApiError:
+    return ApiError(400, "context_refused", reason)
 
 
 def _u(n: int) -> bytes:
@@ -58,14 +59,14 @@ def parse_safe_tx(t) -> SimpleNamespace:
         raise _bad("safe_tx_keys")
     out: dict = {}
     for f in ADDR_F:
-        if not isinstance(t[f], str) or not ADDR.match(t[f]):
+        if not isinstance(t[f], str) or not ADDR.fullmatch(t[f]):
             raise _bad(f)
         out[f] = bytes.fromhex(t[f][2:])
     for f in DEC_F:
-        if not isinstance(t[f], str) or not DEC.match(t[f]) or int(t[f]) >= 2 ** 256:
+        if not isinstance(t[f], str) or not DEC.fullmatch(t[f]) or int(t[f]) >= 2 ** 256:
             raise _bad(f)
         out[f] = int(t[f])
-    if not isinstance(t["data"], str) or not DATA.match(t["data"]):
+    if not isinstance(t["data"], str) or not DATA.fullmatch(t["data"]):
         raise _bad("data")
     out["data"] = bytes.fromhex(t["data"][2:])
     if type(t["operation"]) is not int or t["operation"] not in (0, 1):
@@ -82,7 +83,7 @@ def safe_tx_hash(chain_id: int, safe20: bytes, t: SimpleNamespace) -> bytes:
 
 
 def allowlist(chain_id: int, safe20: bytes, t: SimpleNamespace) -> dict:
-    """§7.2, check order: delegatecall, gas_refund_fields, self_call, value_with_call, then case match.
+    """Check order: delegatecall, gas_refund_fields, self_call, value_with_call, then case match.
     -> {"case": "native"|"erc20", ...} or raises 400 context_refused."""
     if t.operation != 0:
         raise _refuse("delegatecall")
@@ -100,23 +101,6 @@ def allowlist(chain_id: int, safe20: bytes, t: SimpleNamespace) -> dict:
         return {"case": "erc20", "token": tok[0], "decimals": tok[1], "to": "0x" + t.data[16:36].hex(),
                 "amount": str(int.from_bytes(t.data[36:68], "big"))}
     raise _refuse("unknown_call")
-
-
-def validate(context: dict) -> bytes:
-    """-> ctx_hash (the recomputed safeTxHash) or raises PopError (bad_context / context_refused / context_mismatch)."""
-    t = parse_safe_tx(context.get("safe_tx"))
-    safe20 = bytes.fromhex(context["consumer"][2:])
-    allowlist(context["chain_id"], safe20, t)
-    h = safe_tx_hash(context["chain_id"], safe20, t)
-    if h != bytes.fromhex(context["ctx_hash"][2:]):
-        raise PopError(400, "context_mismatch", "ctx_hash != safeTxHash(safe_tx)")
-    return h
-
-
-def digest(s: dict, dev_a: bytes, dev_b: bytes, expiry: int) -> bytes:
-    c = s["context"]
-    return attest.tagged_digest(TAG, c["chain_id"], c["consumer"], c["ctx_hash"], s["human"]["pair_tag"],
-                                dev_a, dev_b, expiry)
 
 
 def owner_message(ctx_hash: bytes) -> bytes:

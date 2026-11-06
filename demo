@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PoP demo stack in one command. bash 3.2 (macOS default) compatible.
 #
-#   ./demo up [flags]     preflight, then run server, sidecar, relayer, tunnel (Ctrl-C stops all)
+#   ./demo up [flags]     preflight, then run server, sidecar, tunnel (Ctrl-C stops all)
 #   ./demo check [flags]  preflight only
 #   ./demo status         what is running
 #   ./demo help
@@ -16,15 +16,11 @@ RUN="$DEMO_DIR/run"
 SERVER_DIR="$ROOT/server"
 SIDECAR_DIR="$SERVER_DIR/idkit-sidecar"
 ENVFILE="$SERVER_DIR/.env"
-PIECES="server sidecar relayer tunnel"
+PIECES="server sidecar tunnel"
 
 SIDECAR_PORT=8787
-KEY_FILE=${RELAYER_KEY_FILE:-$HOME/.enconomy/ens-sepolia.key}
-ADDR_FILE=$HOME/.enconomy/ens-sepolia.addr
-ETH_RPC_EFF=${ETH_RPC:-https://ethereum-sepolia-rpc.publicnode.com}
 TUNNEL_CONFIG=${DEMO_TUNNEL_CONFIG:-$HOME/.cloudflared/enconomy-pop.yml}
 TUNNEL_NAME=${DEMO_TUNNEL_NAME:-enconomy-pop}
-MIN_ETH=0.05
 WEB_ORIGINS="https://webapp.enconomy.dev,https://pop-webapp.pages.dev"
 
 # ---------------------------------------------------------------- output
@@ -45,7 +41,7 @@ tag_color() {
   [ -t 1 ] || return 0
   case $1 in
     server) printf '\033[36m' ;; sidecar) printf '\033[35m' ;;
-    relayer) printf '\033[33m' ;; tunnel) printf '\033[32m' ;;
+    tunnel) printf '\033[32m' ;;
   esac
 }
 
@@ -54,21 +50,19 @@ usage() {
 PoP demo stack.
 
   ./demo up [flags]      preflight, then start everything in the foreground; Ctrl-C stops all
-  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, ports, tunnel config)
+  ./demo check [flags]   preflight only (tools, deps, ports, tunnel config)
   ./demo status          which pieces run (pid files + ports + /health)
   ./demo help
 
 Pieces (start order; the rest start after the server answers /health):
   server   server/        uv run python -m pop        0.0.0.0:\$POP_PORT (default 8001)
   sidecar  server/idkit-sidecar   node index.mjs      127.0.0.1:8787  (World ID)
-  relayer  relayer/       ./watch.sh                   safe-tx sessions -> Safe (Sepolia)
   tunnel   cloudflared tunnel --config $TUNNEL_CONFIG run $TUNNEL_NAME
                                                         https://pop.enconomy.dev -> localhost:8001
 
 Flags:
   --no-tunnel    no cloudflared (LAN / local only)
   --no-worldid   no IDKit sidecar (World ID start answers 503 worldid_unavailable)
-  --no-safe      no relayer (Safe spends never get sent)
   --web          POP_ALLOW_WEB=1 and POP_CORS_ORIGINS=$WEB_ORIGINS
                  (unless already set). Needed by the web app at https://webapp.enconomy.dev.
   --port N       server port (default: \$POP_PORT, else server/.env POP_PORT, else 8001).
@@ -76,16 +70,16 @@ Flags:
 
 Server env: the server reads server/.env itself (real env vars win), so put POP_* there or export
 them before ./demo up. Demo defaults applied only when neither env nor server/.env sets them:
-  POP_TEST_KINDS=1 POP_WORLDID_SANDBOX=1 POP_ALLOW_UNATTESTED=1
+  POP_WORLDID_SANDBOX=1 POP_ALLOW_UNATTESTED=1
 Web app (https://webapp.enconomy.dev) needs POP_ALLOW_WEB=1 and
   POP_CORS_ORIGINS=$WEB_ORIGINS  (or just --web).
 
-Other env: ETH_RPC (Sepolia RPC for the balance check), RELAYER_KEY_FILE (relayer gas key, default
-~/.enconomy/ens-sepolia.key), DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
+Other env: DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
 
-The ENS example runs separately, see examples/ens-meetings/README.md.
+The ENS and Safe examples run separately, see examples/ens-meetings/README.md and
+examples/safe/README.md.
 
-If a piece dies, a banner names it and the rest keep running (a dead relayer should not take down
+If a piece dies, a banner names it and the rest keep running (a dead sidecar should not take down
 the phones' server mid-demo). Fix it in another terminal, then Ctrl-C and ./demo up again.
 ./demo up then exits nonzero. If the server dies before /health answers, nothing else starts.
 Logs: .demo/logs/<piece>.log (appended per run).
@@ -114,13 +108,12 @@ port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 
 # ---------------------------------------------------------------- flags
 
-EN_server=1; EN_sidecar=1; EN_relayer=1; EN_tunnel=1; WEB=0; PORT_FLAG=
+EN_server=1; EN_sidecar=1; EN_tunnel=1; WEB=0; PORT_FLAG=
 parse_flags() {
   while [ $# -gt 0 ]; do
     case $1 in
       --no-tunnel) EN_tunnel=0 ;;
       --no-worldid|--no-sidecar) EN_sidecar=0 ;;
-      --no-safe|--no-relayer) EN_relayer=0 ;;
       --web) WEB=1 ;;
       --port) shift; PORT_FLAG=${1-} ;;
       --port=*) PORT_FLAG=${1#--port=} ;;
@@ -132,7 +125,6 @@ parse_flags() {
   PORT=${PORT_FLAG:-$(eff POP_PORT 8001)}
   case $PORT in ''|*[!0-9]*) echo "bad port: $PORT" >&2; exit 2 ;; esac
   DATA_DIR=$(abs_server "$(eff POP_DATA_DIR data)")
-  DB=$(abs_server "$(eff POP_DB data/pop.sqlite)")
 }
 enabled() { eval "[ \"\$EN_$1\" = 1 ]"; }
 
@@ -151,9 +143,7 @@ preflight() {
   need_tool uv "server" "$EN_server"
   need_tool curl "health checks" 1
   need_tool lsof "port checks" 1
-  need_tool node "sidecar, relayer" "$( { enabled sidecar || enabled relayer; } && echo 1 || echo 0)"
-  need_tool cast "relayer balance check" "$EN_relayer"
-  need_tool sqlite3 "relayer" "$EN_relayer"
+  need_tool node "sidecar" "$EN_sidecar"
   need_tool cloudflared "tunnel" "$EN_tunnel"
 
   echo "deps"
@@ -163,19 +153,15 @@ preflight() {
     if [ -d "$SIDECAR_DIR/node_modules/@worldcoin/idkit-core" ]; then ok "sidecar node_modules"
     else bad "sidecar node_modules missing. Run: (cd server/idkit-sidecar && npm ci)"; fi
   fi
-  if enabled relayer; then
-    if [ -d "$ROOT/relayer/node_modules/viem" ]; then ok "relayer node_modules"
-    else bad "relayer node_modules missing. Run: (cd relayer && npm ci)"; fi
-  fi
 
   echo "server config"
   if [ -f "$ENVFILE" ]; then ok "server/.env"; else warn "no server/.env (World ID off unless POP_WORLDID_* exported)"; fi
-  for k in POP_TEST_KINDS POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED POP_ALLOW_WEB POP_ATTEST_ALLOW_WEB POP_CORS_ORIGINS POP_WEB_DIR; do
+  for k in POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED POP_ALLOW_WEB POP_CORS_ORIGINS POP_WEB_DIR; do
     v=$(eff "$k" "")
     [ -n "$v" ] && info "$k=$v"
   done
   d=
-  for k in POP_TEST_KINDS POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED; do is_set "$k" || d="$d $k=1"; done
+  for k in POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED; do is_set "$k" || d="$d $k=1"; done
   [ -n "$d" ] && info "demo defaults (not in env or server/.env):$d"
   if enabled sidecar; then
     if [ -n "$(eff POP_WORLDID_RP_ID "")" ] && [ -n "$(eff POP_WORLDID_APP_ID "")" ]; then ok "World ID app/rp ids set"
@@ -191,28 +177,6 @@ preflight() {
   fi
   bb=$(eff POP_ZK_VERIFIER "$HOME/.enconomy/zk/pinned/bin/bb")
   if [ -x "$(abs_server "$bb")" ]; then ok "zk verifier bb"; else warn "zk verifier missing ($bb): proof routes answer 503 zk_unavailable"; fi
-
-  if enabled relayer; then
-    echo "Sepolia key"
-    if [ -f "$KEY_FILE" ]; then
-      ok "key file $KEY_FILE"
-      addr=
-      [ -f "$ADDR_FILE" ] && [ -z "${RELAYER_KEY_FILE-}" ] && addr=$(tr -d '[:space:]' <"$ADDR_FILE")
-      if [ -z "$addr" ] && command -v cast >/dev/null 2>&1; then
-        pk=$(tr -d '[:space:]' <"$KEY_FILE"); case $pk in 0x*) ;; *) pk=0x$pk ;; esac
-        addr=$(cast wallet address --private-key "$pk" 2>/dev/null); pk=
-      fi
-      if [ -n "$addr" ] && command -v cast >/dev/null 2>&1; then
-        bal=$(cast balance --ether --rpc-url "$ETH_RPC_EFF" "$addr" 2>/dev/null)
-        if [ -z "$bal" ]; then warn "balance of $addr: RPC $ETH_RPC_EFF did not answer"
-        elif awk -v b="$bal" -v m="$MIN_ETH" 'BEGIN{exit !(b+0 < m+0)}'; then
-          warn "$addr has $bal ETH (< $MIN_ETH). Top up from a Sepolia faucet"
-        else ok "$addr has $bal Sepolia ETH"; fi
-      else warn "could not derive the key's address (need cast)"; fi
-    else
-      bad "no $KEY_FILE (relayer gas key: a funded Sepolia key, RELAYER_KEY_FILE overrides the path)"
-    fi
-  fi
 
   echo "ports"
   p=$(port_pid "$PORT")
@@ -337,7 +301,6 @@ cmd_up() {
   trap on_signal INT TERM HUP
 
   # server env: demo defaults only where neither env nor server/.env sets a value
-  is_set POP_TEST_KINDS || export POP_TEST_KINDS=1
   is_set POP_WORLDID_SANDBOX || export POP_WORLDID_SANDBOX=1
   is_set POP_ALLOW_UNATTESTED || export POP_ALLOW_UNATTESTED=1
   if [ "$WEB" = 1 ]; then
@@ -359,9 +322,6 @@ cmd_up() {
     start_piece sidecar "$SIDECAR_DIR" env PORT="$SIDECAR_PORT" node index.mjs
     if wait_http "http://127.0.0.1:$SIDECAR_PORT/health" 20 sidecar; then say "sidecar /health ok"
     else say "${C_YEL}sidecar /health not answering (World ID start will 503)${C_OFF}"; fi
-  fi
-  if enabled relayer; then
-    start_piece relayer "$ROOT/relayer" env POP_DB="$DB" POP_SERVER_URL="http://127.0.0.1:$PORT" ./watch.sh
   fi
   if enabled tunnel; then
     start_piece tunnel "$HOME" cloudflared tunnel --config "$TUNNEL_CONFIG" run "$TUNNEL_NAME"
@@ -400,7 +360,6 @@ cmd_status() {
       case $n in
         server)  p=$(port_pid "$PORT") ;;
         sidecar) p=$(port_pid "$SIDECAR_PORT") ;;
-        relayer) p=$(pgrep -f 'relayer/watch.sh|[.]/watch.sh' | head -1) ;;
         tunnel)  p=$(pgrep -f "cloudflared.*$TUNNEL_NAME" | head -1) ;;
       esac
       if [ -n "$p" ]; then st="${C_YEL}running outside ./demo${C_OFF} (pid $p)"; else st="${C_RED}not running${C_OFF}"; fi

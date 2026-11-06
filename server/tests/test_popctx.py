@@ -93,16 +93,14 @@ def test_bad_inputs():
         popctx.nonce(CHAIN, SAFE, CTX, 1 << 64, SID)
 
 
-# -- POST /v1/session with a context (01 §9 row 1, §7.2 policy table)
+# -- POST /v1/session with a plain context: bound into the nonce, policy only from body.policy
 
-CTX_TEST = {"kind": "test", "chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
+PLAIN = {"chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
 
 
 @pytest.fixture
 def ctx_phones(make_client, clock):
     def make(**kw):
-        kw.setdefault("test_kinds", True)
-        kw.setdefault("worldid_rp_id", "rp_0123456789abcdef")
         c = make_client(**kw)
         a, b = Phone(c, clock, "Alice", "Pixel 8"), Phone(c, clock, "Bob", "Galaxy S23")
         assert a.enroll().status_code == 200 and b.enroll().status_code == 200
@@ -112,24 +110,23 @@ def ctx_phones(make_client, clock):
 
 def test_create_with_context(ctx_phones, clock):
     a, b = ctx_phones()
-    r = a.post("/v1/session", {"context": CTX_TEST})
+    r = a.post("/v1/session", {"context": PLAIN})
     assert r.status_code == 200, r.text
     c = r.json()
     nb = clock() // 1000
-    assert c["not_before"] == nb and c["context"] == CTX_TEST and c["policy"] == {"human": "worldid"}
+    assert c["not_before"] == nb and c["context"] == PLAIN and c["policy"] == {"human": "none"}
     assert c["nonce"] == popctx.nonce(11155111, SAFE, CTX, nb, c["session_id"]).hex()
-    # the guest sees the nonce + context from join on (World ID session)
+    # no World ID: the guest gets the nonce at confirm, as in any plain session
     v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
-    assert v["nonce"] == c["nonce"] and v["context"] == CTX_TEST and v["not_before"] == nb
-    assert v["policy"] == {"human": "worldid"}
-    va = a.get(f"/v1/session/{c['session_id']}").json()
-    assert va["nonce"] == c["nonce"]
+    assert v["nonce"] is None and v["context"] == PLAIN and v["not_before"] == nb and v["policy"] == {"human": "none"}
 
 
-def test_create_explicit_worldid_policy(ctx_phones):
-    a, _ = ctx_phones()
-    r = a.post("/v1/session", {"context": CTX_TEST, "policy": {"human": "worldid"}})
-    assert r.status_code == 200 and r.json()["policy"] == {"human": "worldid"}
+def test_context_with_worldid_policy_shows_the_nonce_early(ctx_phones):
+    a, b = ctx_phones()   # no POP_WORLDID_RP_ID: create no longer cares
+    c = a.post("/v1/session", {"context": PLAIN, "policy": {"human": "worldid"}}).json()
+    assert c["policy"] == {"human": "worldid"} and c["context"] == PLAIN
+    v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
+    assert v["nonce"] == c["nonce"]
 
 
 def test_plain_sessions_unchanged(ctx_phones):
@@ -151,37 +148,17 @@ def test_worldid_without_context(ctx_phones):
 
 
 @pytest.mark.parametrize("body,status,code", [
-    ({"context": CTX_TEST, "policy": {"human": "none"}}, 400, "bad_policy"),
-    ({"context": CTX_TEST, "policy": {"human": "maybe"}}, 400, "bad_policy"),
+    ({"context": PLAIN, "policy": {"human": "maybe"}}, 400, "bad_policy"),
     ({"policy": "worldid"}, 400, "bad_policy"),
-    ({"context": {**CTX_TEST, "kind": "safe-tx"}}, 400, "bad_context"),  # no safe_tx fields
-    ({"context": {**CTX_TEST, "kind": "nope"}}, 400, "bad_kind"),
-    ({"context": {**CTX_TEST, "chain_id": 4801}}, 400, "bad_chain"),
-    ({"context": {**CTX_TEST, "chain_id": "11155111"}}, 400, "bad_chain"),
-    ({"context": {**CTX_TEST, "consumer": SAFE.upper().replace("0X", "0x")}}, 400, "bad_request"),
-    ({"context": {**CTX_TEST, "ctx_hash": "0x" + CTX.hex()[:-2]}}, 400, "bad_request"),
+    ({"context": {**PLAIN, "kind": "safe-tx"}}, 400, "bad_context"),
+    ({"context": {k: PLAIN[k] for k in ("chain_id", "consumer")}}, 400, "bad_context"),
+    ({"context": {**PLAIN, "chain_id": 4801}}, 400, "bad_chain"),
+    ({"context": {**PLAIN, "chain_id": "11155111"}}, 400, "bad_chain"),
+    ({"context": {**PLAIN, "consumer": SAFE.upper().replace("0X", "0x")}}, 400, "bad_request"),
+    ({"context": {**PLAIN, "ctx_hash": "0x" + CTX.hex()[:-2]}}, 400, "bad_request"),
     ({"context": "x"}, 400, "bad_request"),
 ])
 def test_create_rejects(ctx_phones, body, status, code):
     a, _ = ctx_phones()
     r = a.post("/v1/session", body)
     assert r.status_code == status and r.json()["error"] == code, r.text
-
-
-def test_test_kind_off_by_default(ctx_phones):
-    a, _ = ctx_phones(test_kinds=False)
-    r = a.post("/v1/session", {"context": CTX_TEST})
-    assert r.status_code == 400 and r.json()["error"] == "bad_kind"
-
-
-def test_worldid_unavailable(ctx_phones):
-    a, _ = ctx_phones(worldid_rp_id=None)
-    r = a.post("/v1/session", {"context": CTX_TEST})
-    assert r.status_code == 503 and r.json()["error"] == "worldid_unavailable"
-    assert ctx_phones(worldid_rp_id=None, worldid_fake=True)[0].post(
-        "/v1/session", {"context": CTX_TEST}).status_code == 200
-
-
-def test_fake_requires_test_kinds(make_client):
-    with pytest.raises(RuntimeError):
-        make_client(worldid_fake=True, test_kinds=False)
