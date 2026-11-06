@@ -20,7 +20,8 @@ from tests.sim2 import World2
 
 CANNED = json.loads((Path(__file__).parent / "fixtures" / "worldid-canned.json").read_text())
 SAFE = "0x5afe5afe5afe5afe5afe5afe5afe5afe5afe5afe"
-CTX = {"kind": "test", "chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + bytes(range(0xa0, 0xc0)).hex()}
+CTX = {"chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + bytes(range(0xa0, 0xc0)).hex()}
+WID_BODY = {"context": CTX, "policy": {"human": "worldid"}}
 RP = "rp_0123456789abcdef"
 
 
@@ -104,7 +105,6 @@ def fw():
 def wid(make_client, clock, fw):
     """-> make(fake=True, **settings) -> (client, A, B); both phones enrolled."""
     def make(fake: bool = True, **kw):
-        kw.setdefault("test_kinds", True)
         kw.setdefault("worldid_fake", fake)
         kw.setdefault("worldid_rp_id", RP)
         kw.setdefault("worldid_app_id", "app_test")
@@ -122,7 +122,7 @@ def wid(make_client, clock, fw):
 
 
 def paired(a, b, body=None):
-    c = a.post("/v1/session", body if body is not None else {"context": CTX}).json()
+    c = a.post("/v1/session", body if body is not None else WID_BODY).json()
     sid = c["session_id"]
     assert b.post(f"/v1/session/{sid}/join", {"join_token": c["join_token"]}).status_code == 200
     return sid
@@ -232,7 +232,7 @@ def test_happy_path_fake(wid, fw):
 
 def test_full_flow_near_with_worldid(make_client, clock, fw):
     """sim2 fake phones: context + fake World ID on both roles -> NEAR; the record carries humans + pair_tag."""
-    c = make_client(allow_unattested=True, test_kinds=True, worldid_fake=True, worldid_rp_id=RP,
+    c = make_client(allow_unattested=True, worldid_fake=True, worldid_rp_id=RP,
                     worldid_app_id="app_test", worldid_transport=httpx.MockTransport(fw))
     w = World2(c, clock, 30, Knobs(), Knobs(sr=44100, mono_off_ns=9_000_000_000, sync_err_ms=-3, out_lat_ms=25))
     a, b = w.phones
@@ -375,7 +375,7 @@ def test_expired_then_restart(wid, fw, clock):
 
 def test_start_rules(wid, fw):
     c, a, b = wid()
-    s = a.post("/v1/session", {"context": CTX}).json()
+    s = a.post("/v1/session", WID_BODY).json()
     r = a.post(f"/v1/session/{s['session_id']}/worldid/start")
     assert r.status_code == 409 and r.json()["error"] == "not_joined"
     plain = paired(a, b, {})
@@ -413,11 +413,6 @@ def test_config_and_health(wid):
     assert cfg["worldid"] == {"app_id": "app_test", "rp_id": RP, "environment": "fake", "fake": True, "enabled": True}
     assert cfg["chain"] == {"chain_id": 11155111}
     assert c.get("/health").json()["worldid"]["sidecar_ok"] is True
-
-
-def test_fake_requires_test_kinds(make_client):
-    with pytest.raises(RuntimeError, match="POP_TEST_KINDS"):
-        make_client(worldid_fake=True, test_kinds=False)
 
 
 def test_no_key_means_unavailable(wid, tmp_path):
@@ -558,9 +553,3 @@ def test_sandbox_mock_nullifier_and_gate(wid, fw):
     until(a, sid, "verified")
     want = "0x" + hashlib.sha256(b"pop-mock-v1" + a.device_id.encode() + sid.encode()).hexdigest()
     assert doc(c, sid)["human"]["A"]["nullifier"] == want
-    sid2 = paired(a, b)
-    d = doc(c, sid2)
-    d["context"] = {**d["context"], "kind": "safe"}   # a real consumer kind
-    c.app.state.worldid.sessions._save(d)
-    r = a.post(f"/v1/session/{sid2}/worldid/start", {"env": "sandbox"})
-    assert r.status_code == 403 and r.json()["error"] == "sandbox_not_allowed"

@@ -14,14 +14,14 @@ Concurrency (§6.4): sessions are whole-doc read-modify-write with no lock. Neve
 across an await: re-load after every await, change only s["human"], save, all without awaiting.
 One uvicorn worker. Polls of one (sid, role) are serialized by an asyncio.Lock.
 
-Fake mode (POP_WORLDID_FAKE=1, needs POP_TEST_KINDS=1, §6.10): step 8 makes no network call and stores
+Fake mode (POP_WORLDID_FAKE=1, §6.10): step 8 makes no network call and stores
 environment "fake"; everything else runs unchanged.
 
 Sandbox per role (POP_WORLDID_SANDBOX=1): POST /worldid/start {"env": "sandbox"} builds the request with IDKit
 environment "staging"; the phone opens it in the World ID Simulator (connector_uri is the simulator link). Polling
 runs as in production; on "confirmed" the nullifier is taken from the bridge result (else
-sha256("pop-mock-v1" || device_id || session_id)) with no Portal verify, environment "sandbox". Only in a session
-whose context is absent or kind "test". The nullifier table is keyed by env, so sandbox never meets production.
+sha256("pop-mock-v1" || device_id || session_id)) with no Portal verify, environment "sandbox". The nullifier table
+is keyed by env, so sandbox never meets production.
 """
 from __future__ import annotations
 
@@ -208,9 +208,8 @@ class WorldID:
         sandbox = env == SANDBOX_ENV
         if env not in (None, "production", SANDBOX_ENV):
             raise PopError(400, "bad_request", "env must be production|sandbox")
-        if sandbox and (not self.cfg.worldid_sandbox
-                        or (s.get("context") is not None and (s.get("context") or {}).get("kind") != "test")):
-            raise PopError(403, "sandbox_not_allowed", "sandbox World ID needs POP_WORLDID_SANDBOX=1 and a test session")
+        if sandbox and not self.cfg.worldid_sandbox:
+            raise PopError(403, "sandbox_not_allowed", "sandbox World ID needs POP_WORLDID_SANDBOX=1")
         if not self.enabled:
             raise PopError(503, "worldid_unavailable", "World ID is not configured on this server")
         sid = s["session_id"]
