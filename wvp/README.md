@@ -38,7 +38,7 @@ The patched build ran on Linux x64 only. See `../browser/`.
 
 K's public key is the same at every site until you enroll again. So sites can link your named logins. They see your address anyway. A site holds your wallet's signature, but without K it can't log in as you.
 
-The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit.
+The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit. Every approval also starts that background setup: a download of about 293 MB the first time, then Prepare, near 3 GiB of memory. If the issuer can't be reached, none of that starts.
 
 ### What a site writes
 
@@ -134,7 +134,7 @@ node demo/try-it.mjs --repoint --real-wallet --ens deployment --deployment <depl
 
 Nothing fake is injected, and you do every step, including switching accounts in Rabby. The script never sees a wallet key. Never import a seed phrase that holds real money. Each start wipes WVP's data and the demo sites' data, so the first login asks for approval. The rest of the profile stays, Rabby included. ENS is still our own deployment on devnet 1337. `--profile DIR` picks another folder.
 
-To read a chain with no demo, start the sites with `--ens deployment --deployment file.json`. The file holds `{ rpc, chainId, universalResolver }`. `demo/repoint.mjs` only changes the table.
+To read a chain with no demo, start the sites and the issuer with `--ens deployment --deployment file.json`. The file holds `{ rpc, chainId, universalResolver }`. `demo/repoint.mjs` only changes the table.
 
 ## Folders
 
@@ -161,7 +161,7 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 | Site servers, sessions, both checks, challenge check | **Real.** Separate processes. |
 | Prepare, Show, reblind | **Real** proofs with the published 1k keys. Modified OpenAC build. |
 | K | **Real** and non-extractable. |
-| Issuer code | **Real.** Throwaway key, localhost. |
+| Issuer code | **Real.** Throwaway key on localhost in the demo. `--key-file` keeps one across restarts. |
 | Wallet | **FAKE** in every automated run. A script signs with a throwaway key, or in chain mode with the key file you pass. The prompt is drawn by the demo and labelled. **Real once:** the user ran `--real-wallet` by hand with Rabby, plain EOA accounts, on our devnet 1337 deployment. |
 | User | **FAKE** in automated runs, and a person in that one Rabby run. A script sends trusted input through the debug protocol. On the Linux build, a script sent real X input. |
 | ENS | **FAKE** in the default demo. A local table in a temp file, read again at each login. Nothing is registered. `alice.eth` here has nothing to do with the real name. In chain mode: real ENS v2 contracts, our own deployment on devnet 1337, not real ENS. |
@@ -169,7 +169,7 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 | Second wallet | **FAKE** in automated runs. A second throwaway key, picked in the Demo wallet bar on the approval page. With `--real-wallet`, your second Rabby account, run once by hand. |
 | Name-only | **Real** check, but a site setting. A site without it still takes a typed address until expiry. |
 | Chain lookup | **Real on our devnet.** `--ens deployment` reads a Universal Resolver through viem. Tried only against our own deployment on chain 1337. |
-| Mainnet ENS lookup | **Partly.** `site/serve.mjs --ens mainnet --rpc URL` is read-only. The verifier refused a throwaway wallet claiming `vitalik.eth` on a real read. It wasn't tried through the live site. The issuer's server uses only the table. |
+| Mainnet ENS lookup | **Partly.** `site/serve.mjs --ens mainnet --rpc URL` is read-only. The verifier refused a throwaway wallet claiming `vitalik.eth` on a real read. It wasn't tried through the live site. |
 | Approval page | **Local**, on http. |
 | Key download speed | **FAKE.** Real bytes from localhost. |
 | Attack tests | Real tokens and proofs against real site code, but our own scripts. **Not an audit.** |

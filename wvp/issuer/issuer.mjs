@@ -2,6 +2,7 @@
 // One signature gets two credentials over the same K: one whose name slot is the ENS name, one whose name slot is the address.
 // No new keys, no new circuit. Same shape check on both.
 import { randomBytes, webcrypto, createHash } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { recoverMessageAddress, isAddressEqual, getAddress } from "viem";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
 import { nameDigest, normalizeName, thumbprint, THUMB_URN, NAME_URN } from "../lib/wvp.mjs";
@@ -24,6 +25,18 @@ export async function newIssuerKey() {
   const k = await subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
   const { kty, crv, x, y } = await subtle.exportKey("jwk", k.publicKey);
   return { privateKey: k.privateKey, publicJwk: { kty, crv, x, y } };
+}
+
+// Made on first start and kept in the file. In memory it can't be exported, same as a throwaway key.
+export async function loadIssuerKey(file) {
+  const algo = { name: "ECDSA", namedCurve: "P-256" };
+  if (!existsSync(file)) {
+    const k = await subtle.generateKey(algo, true, ["sign", "verify"]);
+    writeFileSync(file, JSON.stringify(await subtle.exportKey("jwk", k.privateKey)), { mode: 0o600, flag: "wx" });
+  }
+  const jwk = JSON.parse(readFileSync(file, "utf8"));
+  const { kty, crv, x, y } = jwk;
+  return { privateKey: await subtle.importKey("jwk", jwk, algo, false, ["sign"]), publicJwk: { kty, crv, x, y } };
 }
 
 async function checkDeviceKey(jwk) {

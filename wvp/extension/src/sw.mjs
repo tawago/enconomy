@@ -202,7 +202,7 @@ async function prove(args, origin, tabId, say) {
   if (mode === "name") return directLogin(id, nonce, origin, h, tAll);
 
   if (!(h.credExp > now)) {
-    say("Getting anonymous sign-in ready. About a minute, once. Your wallet won't ask.");
+    say("Getting anonymous sign-in ready. A 293 MB download and a few minutes, once. Your wallet won't ask.");
     try { await startPrepare(); }
     catch (e) { throw new Refuse("not_ready", `Anonymous sign-in isn't ready: ${e.code ? `the issuer said ${e.code}` : "the issuer can't be reached"}. Try again later. Your wallet won't ask.`); }
     h = await dbGet("holder");

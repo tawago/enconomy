@@ -1,6 +1,6 @@
 // A static page, shown in a small window the extension opens. The wallet needs a real web page to inject into. It holds no secrets and makes no decisions: the extension builds the message and checks the signature.
 // Its host is the domain in the wallet message, so sites pin it. Usage: node issuer/serve-approve.mjs --port 8806 --name alice.eth [--anonymous]
-//   --anonymous  an issuer is running, so say what anonymous sign-in shows and costs.
+//   --anonymous  an issuer is running, so say what it sees and what setting up anonymous sign-in costs.
 import { createServer } from "node:http";
 const opt = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : process.argv[i + 1]; };
 const port = Number(opt("port", 8806)), name = opt("name", "alice.eth"), anonymous = process.argv.includes("--anonymous");
@@ -34,7 +34,7 @@ button{font:inherit;cursor:pointer;max-width:100%}
 <label for="n" id="nl" hidden>Your ENS name</label><input id="n" value="${esc(name)}" spellcheck="false" autocapitalize="off" hidden>
 <p>Your wallet signs once and it costs nothing. After that, this browser can sign you in to sites as <span id="t2">${esc(name)}</span> for about a day.</p>
 <p class="fine">Sites you sign in to see your name and wallet address.</p>
-${anonymous ? `<p class="fine">You can also sign in without showing a name. To set that up, our sign-in service sees your name and address once.</p>` : ""}
+${anonymous ? `<p class="fine">After you sign, this browser also gets ready to sign in without showing a name: a 293 MB download, then a few minutes of background work. For that, our sign-in service sees your name and address once, even if you never use it.</p>` : ""}
 <div id="out" role="status"></div>
 <button id="go" type="button" disabled>Continue with wallet</button>
 <button id="no" type="button">Not now</button>
