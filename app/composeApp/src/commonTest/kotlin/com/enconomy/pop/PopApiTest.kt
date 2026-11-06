@@ -193,7 +193,7 @@ class PopApiTest {
         return -1
     }
 
-    // ---- resume after suspension (iPhone back from World App) ----
+    // ---- resume after suspension (iPhone back from the background) ----
 
     /** Server with the §2.3 replay cache on (device, ts, sig). */
     private class ReplayServer(var serverMs: () -> Long) {
@@ -211,7 +211,6 @@ class PopApiTest {
                 else -> null
             }
             if (body != null) respond(body, HttpStatusCode.Unauthorized, headersOf(HttpHeaders.ContentType, "application/json"))
-            else if (req.url.encodedPath.endsWith("/worldid")) respond("""{"status":"verified"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
             else respond("""{"session_id":"s","seq":9,"state":"joined"}""", HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "application/json"))
         }
     }
@@ -221,15 +220,15 @@ class PopApiTest {
         val srv = ReplayServer { 1_005_000L }
         val key = FakeKey()
         val api = PopApi("http://h:8000", key = { key }, nowMs = { 1_000_000L }, engine = srv.engine)
-        api.worldidStatus("s", timeoutS = 25)
+        api.session("s", timeoutS = 25)
         val ts0 = srv.tss.single()
         assertEquals(1_005_000L, ts0)
         // the bytes the next call will carry already reached the server (iOS resent them on resume)
         val ts1 = ts0 + 1
-        srv.seen += ts1.toString() to signRequest(key, "GET", "/v1/session/s/worldid?timeout_s=25", ByteArray(0), ts1).sig
-        assertEquals("verified", api.worldidStatus("s", timeoutS = 25).status)
+        srv.seen += ts1.toString() to signRequest(key, "GET", "/v1/session/s?timeout_s=25", ByteArray(0), ts1).sig
+        assertEquals("joined", api.session("s", timeoutS = 25).state)
         assertEquals(listOf(ts0, ts1, ts1 + 1), srv.tss)
-        assertEquals(listOf("/v1/time", "/v1/session/s/worldid", "/v1/session/s/worldid", "/v1/time", "/v1/session/s/worldid"), srv.paths)
+        assertEquals(listOf("/v1/time", "/v1/session/s", "/v1/session/s", "/v1/time", "/v1/session/s"), srv.paths)
     }
 
     /** Two parallel requests in the same wall ms never share X-Pop-Ts (deterministic signer = same sig otherwise). */
