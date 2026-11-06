@@ -358,7 +358,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         cal = None
         if req.calibration is not None:
             try:
-                cal = CAL.parse(req.calibration)
+                cal = CAL.parse(req.calibration, CAL.max_us(req.platform))
             except CAL.CalError as e:
                 raise PopError(400, e.code, e.detail) from None
             try:
@@ -440,7 +440,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     async def recalibrate(request: Request, dev: dict = Depends(device)):
         try:
             body = json.loads(await request.body() or b"{}")
-            cal = CAL.parse(body.get("calibration") if isinstance(body, dict) else None)
+            cal = CAL.parse(body.get("calibration") if isinstance(body, dict) else None, CAL.max_us(dev.get("platform")))
         except ValueError:
             raise PopError(400, "bad_request", "json body with a calibration object") from None
         except CAL.CalError as e:

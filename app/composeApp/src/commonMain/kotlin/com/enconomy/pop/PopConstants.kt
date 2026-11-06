@@ -42,6 +42,7 @@ object PopConstants {
     const val CAL_N = 5
     const val CAL_SPREAD_MAX_US = 1000L
     const val CAL_MAX_US = 50000L
+    const val CAL_MAX_US_WEB = 150000L
     const val CAL_NEG_CLAMP_US = 2000L
 
     /** Lowercase keys, as /v1/config sends them. */
@@ -57,7 +58,7 @@ object PopConstants {
         "self_os_tol_ms" to SELF_OS_TOL_MS, "transcript_deadline_s" to TRANSCRIPT_DEADLINE_S,
         "max_attempts" to MAX_ATTEMPTS,
         "cal_n" to CAL_N, "cal_spread_max_us" to CAL_SPREAD_MAX_US, "cal_max_us" to CAL_MAX_US,
-        "cal_neg_clamp_us" to CAL_NEG_CLAMP_US,
+        "cal_max_us_web" to CAL_MAX_US_WEB, "cal_neg_clamp_us" to CAL_NEG_CLAMP_US,
     )
 
     /** Keys that differ from [cfg] (missing counts). Extra server keys are ignored. Empty = ok. */

@@ -1,6 +1,6 @@
 # pop app (KMP, Android + iOS + web)
 
-Proof-of-presence phone app. Contract: `../docs/pop-contract.md`.
+The core's basic reference app for proof of presence: Host, Join, Confirm, run, Result, ZK proof. Contract: `../docs/pop-contract.md`.
 
 Enroll (Keystore P-256, StrongBox if present, attestation chain), pairing by NFC tap or QR, then the full run: clock sync, arm, record + play at t0, self check, signed commitment, partner bed, partner arrival, signed transcript, result. One automatic retry on a failed measurement (server driven).
 
@@ -31,7 +31,7 @@ If attested keygen fails (some emulators), the app makes a plain key and sends `
 
 ```
 cd app
-cp ~/dev/worldid-spike/app/local.properties .     # sdk.dir, gitignored
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties  # gitignored
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)  # JDK 26 is too new for Gradle 8.14
 ../research/sound-bound/spikes/zk/tools/heavy.sh pop-app ./gradlew :composeApp:assembleDebug :composeApp:testDebugUnitTest
 # APK: composeApp/build/outputs/apk/debug/composeApp-debug.apk
@@ -167,15 +167,13 @@ This build talks to the origin that served `/app/` (`-Ppop.webSameOrigin=true`),
 
 Build by hand: `./gradlew :composeApp:wasmJsBrowserDistribution -Ppop.serverUrl=https://pop.enconomy.dev`, output in `composeApp/build/dist/wasmJs/productionExecutable/` (~13 MB: app wasm 4.5 MB + Skiko 8 MB).
 
-Dev: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun -Ppop.serverUrl=http://localhost:8000` (serves `localhost:8080`), server started with `POP_ALLOW_WEB=1 POP_CORS_ORIGINS=http://localhost:8080`. On localhost the build counts as debug (`isDebugBuild`, also `?debug`).
+Dev: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun -Ppop.serverUrl=http://localhost:8000` (serves `localhost:8080`), server started with `POP_ALLOW_WEB=1 POP_CORS_ORIGINS=http://localhost:8080`.
 
-Workers alternative (`ens.enconomy.dev/app/`): `app/scripts/build_web.sh --workers` copies into `examples/ens-meetings/web/app/` (gitignored); set `appUrl` in its `config.json` to `/app/` if the landing page should link it; server needs `POP_CORS_ORIGINS=https://ens.enconomy.dev`; deploy is `npx wrangler deploy` from `examples/ens-meetings/` (not run by the script).
-
-Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`, index and `.js` sent `no-cache`), `POP_CORS_ORIGINS` (other origins only), `POP_ATTEST_ALLOW_WEB` (demo: web pairs may get chain attestations for the ENS / World ID flows). See `server/README.md`.
+Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`, index and `.js` sent `no-cache`), `POP_CORS_ORIGINS` (other origins only). See `server/README.md`.
 
 What differs from the phones:
 
-- **Demo tier, unattested.** Device key = software P-256 (`@noble/curves`, sync signing) in `localStorage`; enroll `platform: "web"`, `security_level: "software"`, no chain. The holder secret is in `localStorage` too. No chain attestation for web devices unless allowlisted (`POP_UNATTESTED_ALLOW`) or the server runs with `POP_ATTEST_ALLOW_WEB=1`; without either, a pair with a browser stops at the verdict and proof. Two tabs on one machine defeat the proximity premise; the server does not stop that.
+- **Demo tier, unattested.** Device key = software P-256 (`@noble/curves`, sync signing) in `localStorage`; enroll `platform: "web"`, `security_level: "software"`, no chain. The holder secret is in `localStorage` too. A pair with a browser stops at the verdict and proof. Two tabs on one machine defeat the proximity premise; the server does not stop that.
 - **QR only.** No NFC. Join opens a camera overlay (BarcodeDetector, else jsQR) with a paste field. `https://…/app/#pop1:…` joins directly when the tab is already enrolled.
 - **ZK delegated.** No prover in the browser: after NEAR the app calls `POST /v1/session/{id}/proof/delegate`. In-browser noir_js + bb.js (2^20 gates, ~1.5 GB, pinned noir 1.0.0-beta.22 / bb 5.0.0-nightly.20260522, COOP/COEP) is phase 2.
 - **Audio.** First tap starts one 48 kHz AudioContext and the mic with echo cancellation, noise suppression and AGC off (preflight refuses if the browser keeps them on). The worklet keys every mic block by context frame (gaps = `capture_failed`). Context time maps to `performance.now()` through the median of recent `getOutputTimestamp()` readings; mic frames are shifted back by output + input latency (`settings.latency`, else `baseLatency`). Volume and route can't be read: turn the volume up, use the built-in speaker. Enrollment calibration absorbs the constant rest; whether browser jitter fits the calibration spread (≤ 1 ms) and the v2 2 ms `provable` window is the open question, so a run may end with a verdict and no proof.

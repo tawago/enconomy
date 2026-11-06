@@ -230,7 +230,7 @@ World ID is never checked on chain. The [World ID example](examples/world-id/REA
 | [`examples/safe/`](examples/safe/README.md) | Safe example, independent of the core: spend backend, attester, sender, [contracts](examples/safe/contracts/README.md) (`PopSafeGuard`, `P256Owner`, verifiers). |
 | [`examples/ens-meetings/`](examples/ens-meetings/README.md) | ENS example, independent of the core: name claims, [bridge](examples/ens-meetings/bridge/README.md) to `MeetResolver`, [contracts](examples/ens-meetings/contracts/README.md). |
 | [`examples/world-id/`](examples/world-id/README.md) | World ID example, independent of the core: backend and IDKit sidecar, answers whether two different humans met. |
-| [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into its `app/`. |
+| [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. |
 | `zkmobile/` | Spikes behind the Noir port: Android and iOS prove runs, hash vectors, toolchain pin. |
 | [`research/sound-bound/`](research/sound-bound/README.md) | Acoustic prototype, field tests, melody bakeoff, ZK spikes. |
 | `research/*.md` | Decision notes and threat model. |

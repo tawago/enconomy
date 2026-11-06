@@ -53,15 +53,14 @@ class MainActivity : ComponentActivity() {
         controller.openBench(); controller.benchRun(name, i.getBooleanExtra("pop.force", false))
     }
 
-    /** enconomy://worldid from World App (singleTask). */
+    /** Bench intent on the running activity (singleTask). */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         startBench(intent)
-        if (WorldId.isReturnLink(intent.dataString)) (application as PopApplication).controller.onWorldIdReturn()
     }
 
-    /** Back in front (e.g. from World App by hand): resync the server clock, restart the World ID poll. */
+    /** Back in front: resync the server clock. */
     override fun onResume() {
         super.onResume()
         (application as PopApplication).controller.onForeground()

@@ -22,6 +22,14 @@ class CalibrationTest {
         assertFailsWith<CalibrationException> { Calibration.fromSamples(listOf(1, 2, 3, 4)) }
     }
 
+    @Test fun webLimit() {
+        val web = PopConstants.CAL_MAX_US_WEB
+        assertEquals(74375L, Calibration.fromSamples(listOf(74375, 74380, 74370, 74372, 74378), web))
+        assertEquals(150000L, Calibration.fromSamples(listOf(150000, 149900, 150100, 149950, 150050), web))
+        assertFailsWith<CalibrationException> { Calibration.fromSamples(listOf(150001, 150001, 150001, 150001, 150001), web) }
+        assertFailsWith<CalibrationException> { Calibration.fromSamples(listOf(74375, 74380, 74370, 74372, 74378)) } // phones
+    }
+
     @Test fun spreadBoundaryPasses() = assertEquals(500L, Calibration.fromSamples(listOf(0, 1000, 500, 400, 600)))
 
     @Test fun selfOsOkMatchesServer() {

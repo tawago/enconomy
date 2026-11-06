@@ -38,6 +38,27 @@ def test_rule_rejects(samples, why):
         CAL.from_samples(samples)
 
 
+# Same vectors as the app's CalibrationTest.webLimit.
+@pytest.mark.parametrize("samples,want", [
+    ([74375, 74380, 74370, 74372, 74378], 74375),
+    ([150000, 149900, 150100, 149950, 150050], 150000),  # median exactly 150 ms: ok
+])
+def test_rule_web(samples, want):
+    assert CAL.from_samples(samples, K.CAL_MAX_US_WEB) == want
+
+
+def test_rule_web_limit():
+    with pytest.raises(CAL.CalError, match="median"):
+        CAL.from_samples([150001] * 5, K.CAL_MAX_US_WEB)
+    with pytest.raises(CAL.CalError, match="median"):
+        CAL.from_samples([74375, 74380, 74370, 74372, 74378])  # phones
+
+
+def test_max_us_by_platform():
+    assert CAL.max_us("web") == 150000
+    assert CAL.max_us("android") == CAL.max_us("ios") == CAL.max_us(None) == 50000
+
+
 def test_self_os_ok_calibrated():
     sr = 48000
     assert self_os_ok(2400, sr) and not self_os_ok(2401, sr)            # uncalibrated: the old |d| <= 50 ms
@@ -123,6 +144,54 @@ def test_recalibrate(client, clock):
     assert client.post("/v1/device/calibration", json={"calibration": _cal()}).status_code == 401
 
 
+SLOW = [74375, 74380, 74370, 74372, 74378]
+
+
+def _enroll_platform(client, p: Phone, platform: str, cal: dict):
+    n = client.get("/v1/enroll/nonce").json()["nonce"]
+    body = {**p.enroll_body(n, None), "platform": platform, "calibration": cal}
+    msg = CAL.message(n, CAL.parse(cal, K.CAL_MAX_US_WEB))
+    body["cal_sig_b64"] = base64.b64encode(sign_raw(p.sk, msg)).decode()
+    return client.post("/v1/enroll", json=body)
+
+
+def test_web_enroll_and_recalibrate_use_web_limit(make_client, clock):
+    c = make_client(allow_web=True)
+    p = Phone(c, clock)
+    r = _enroll_platform(c, p, "web", _cal(74375, samples_us=SLOW))
+    assert r.status_code == 200 and r.json()["calibration"]["cal_us"] == 74375, r.text
+    ok = p.post("/v1/device/calibration", {"calibration": _cal(150000)})
+    assert ok.status_code == 200 and ok.json()["calibration"]["cal_us"] == 150000, ok.text
+    bad = p.post("/v1/device/calibration", {"calibration": _cal(150001)})
+    assert bad.status_code == 400 and bad.json()["error"] == "bad_calibration"
+
+
+def test_web_enroll_over_web_limit(make_client, clock):
+    c = make_client(allow_web=True)
+    n = c.get("/v1/enroll/nonce").json()["nonce"]
+    p = Phone(c, clock)
+    body = {**p.enroll_body(n, None), "platform": "web", "calibration": _cal(150001), "cal_sig_b64": "AA=="}
+    r = c.post("/v1/enroll", json=body)
+    assert r.status_code == 400 and r.json()["error"] == "bad_calibration" and "150000" in r.json()["detail"], r.text
+
+
+@pytest.mark.parametrize("platform", ["android", "ios"])
+@pytest.mark.parametrize("cal", [_cal(50001), _cal(74375), _cal(74375, samples_us=SLOW)])
+def test_phone_enroll_keeps_phone_limit(make_client, clock, platform, cal):
+    """A phone's enroll stops at the calibration rule, before attestation, even with web enroll on."""
+    c = make_client(allow_web=True)
+    r = _enroll_platform(c, Phone(c, clock), platform, cal)
+    assert r.status_code == 400 and r.json()["error"] == "bad_calibration", r.text
+
+
+def test_phone_recalibrate_keeps_phone_limit(client, clock):
+    p = Phone(client, clock)
+    assert _enroll(client, p, _cal(12000)).status_code == 200
+    r = p.post("/v1/device/calibration", {"calibration": _cal(74375)})
+    assert r.status_code == 400 and r.json()["error"] == "bad_calibration" and "50000" in r.json()["detail"], r.text
+    assert client.app.state.store.get_device(p.device_id)["cal_us"] == 12000
+
+
 def _calibrate(w, role, cal_us):
     p = w.a if role == "A" else w.b
     r = p.post("/v1/device/calibration", {"calibration": {**_cal(cal_us), "sample_rate": p.k.sr}})
@@ -170,8 +239,9 @@ def test_self_os_ok_v1_keeps_cal():
 
 def test_config_exports_cal_constants(client):
     c = client.get("/v1/config").json()
-    assert {k: c[k] for k in ("cal_n", "cal_spread_max_us", "cal_max_us", "cal_neg_clamp_us", "self_os_tol_ms")} == {
-        "cal_n": K.CAL_N, "cal_spread_max_us": 1000, "cal_max_us": 50000, "cal_neg_clamp_us": 2000, "self_os_tol_ms": 50}
+    assert {k: c[k] for k in ("cal_n", "cal_spread_max_us", "cal_max_us", "cal_max_us_web", "cal_neg_clamp_us", "self_os_tol_ms")} == {
+        "cal_n": K.CAL_N, "cal_spread_max_us": 1000, "cal_max_us": 50000, "cal_max_us_web": 150000,
+        "cal_neg_clamp_us": 2000, "self_os_tol_ms": 50}
 
 
 def test_message_layout_matches_app():

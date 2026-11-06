@@ -2,7 +2,9 @@
 
 `<label>.enconomy.eth` for phones, and a meeting recorded on chain when two named phones get a NEAR. An outside developer could build this: it uses only the core's public HTTP routes, its device statement and its presence record. It has its own database and imports nothing from the core.
 
-It isn't part of `./demo`, and the current app can't use it: its ENS screen calls core routes that are gone. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+It isn't part of `./demo`, and the core app has no ENS screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+
+The removed Kotlin app code for this feature (`PopController.kt`, `App.kt` and `PopApi.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
 
 ## What it proves
 
