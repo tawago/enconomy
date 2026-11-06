@@ -54,7 +54,7 @@ from pop.attestation import GOOGLE_ANDROID_ROOTS, AttestationError, roots_from_p
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub, pub_bytes, verify_raw
 from pop import issuer as sbcred
-from pop import attest, chainatt, consumers, ens, jbl250, popt2, presence, zk
+from pop import attest, chainatt, consumers, jbl250, popt2, presence, zk
 from pop.consumers import safe_tx
 from pop.errors import PopError
 from pop.human import WorldID
@@ -294,7 +294,6 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
     prove_tasks: set = set()
     wid = WorldID(cfg, sessions, db, worldid_transport)
-    names = ens.Names(db)
     att_key = attest.load_key(cfg.attest_key_file)
     presence_key = presence.load_key(cfg.presence_key_file)
     if presence.public(presence_key)["pubkey"] in (issuer.pub.hex(), pub_bytes(att_key.public_key()).hex()):
@@ -513,21 +512,6 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     @app.get("/v1/device/statement")
     async def device_statement(dev: dict = Depends(device)):
         return presence.device_statement(presence_key, dev, cfg.android_roots, cfg.now_ms())
-
-    # -- ENS name: one per device, no renames (pop/ens.py); the bridge registers it onchain
-    @app.get("/v1/device/ens")
-    async def ens_get(dev: dict = Depends(device)):
-        return ens.view(names.get(dev["device_id"]))
-
-    @app.post("/v1/device/ens")
-    async def ens_claim(request: Request, dev: dict = Depends(device)):
-        try:
-            body = json.loads(await request.body() or b"{}")
-        except ValueError:
-            raise PopError(400, "bad_request", "json body with a label") from None
-        row = names.claim(dev, body.get("label") if isinstance(body, dict) else None, _iso(cfg.now_ms()))
-        log.info("ens claim %s -> %s", dev["device_id"], row["label"])
-        return ens.view(row)
 
     # -- pairing (§3)
     @app.post("/v1/session")

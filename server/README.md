@@ -63,7 +63,7 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_ATT_TTL_S` | `900` | Attestation `expiry = finished_s + TTL`. |
 | `POP_UNATTESTED_ALLOW` | empty | Comma list of device_ids that may be unattested and still get a chain attestation (the free-team iPhone). |
 | `POP_ALLOW_WEB` | `0` | `1` accepts `platform: "web"` at enroll (the browser build, `app/README.md` "Web"): software P-256 key, `key_kind` / `security_level` `software`, `attested: false`, no chain / app_attest. `POP_ALLOW_UNATTESTED=1` also lets web in. Web devices get no chain attestation unless listed in `POP_UNATTESTED_ALLOW` or `POP_ATTEST_ALLOW_WEB=1`. |
-| `POP_ATTEST_ALLOW_WEB` | `0` | Demo only: `1` lets `platform: "web"` devices through the chain attestation check (ENS / World ID flows with a browser on one side). Software keys, so this attests nothing about the device. |
+| `POP_ATTEST_ALLOW_WEB` | `0` | Demo only: `1` lets `platform: "web"` devices through the chain attestation check (World ID flows with a browser on one side). Software keys, so this attests nothing about the device. |
 | `POP_WEB_DIR` | unset | Directory with the web build (`app/scripts/build_web.sh` fills `server/web-app/`, gitignored), served at `/app/` after every API route (`.wasm` as `application/wasm`). Relative paths are from `server/`. Refused (exit 2) if it is missing or inside `server/data`. Same origin as the API, so no CORS. |
 | `POP_CORS_ORIGINS` | empty | Comma list of origins allowed to call the API from a browser (e.g. `http://localhost:8080` for `wasmJsBrowserDevelopmentRun`, `https://ens.enconomy.dev` for the Workers-hosted app). Methods GET/POST/OPTIONS; headers `X-Pop-Device`, `X-Pop-Ts`, `X-Pop-Sig`, `Content-Type`, `Range`; exposes `Content-Range`, `Accept-Ranges`. Off by default. |
 
@@ -116,7 +116,7 @@ cd server && POP_DATA_DIR=/tmp/pop-live POP_DB=/tmp/pop-live/pop.sqlite POP_ISSU
 
 In fake mode the RP key file is generated if missing, and the log says `*** FAKE WORLD ID: TEST IDENTITIES, NO REAL HUMANS ***`.
 
-Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call, ENS fixed actions.
+Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call.
 
 ## SAFE: safe-tx consumer + chain attestation
 
