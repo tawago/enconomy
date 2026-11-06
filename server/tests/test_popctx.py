@@ -6,7 +6,7 @@ from pop.popctx import DOMAIN, keccak
 from tests.phones import Phone
 
 CHAIN = 480
-SAFE = "0x5afe5afe5afe5afe5afe5afe5afe5afe5afe5afe"
+CONSUMER = "0x5afe5afe5afe5afe5afe5afe5afe5afe5afe5afe"
 GUARD = "0x6a7d6a7d6a7d6a7d6a7d6a7d6a7d6a7d6a7d6a7d"
 POOL = "0x9001900190019001900190019001900190019001"
 CTX = bytes(range(0xa0, 0xc0))
@@ -30,10 +30,10 @@ def test_domain():
 
 
 def test_g_vector():
-    assert len(popctx.preimage(CHAIN, SAFE, CTX, NB, SID)) == 192
-    n = popctx.nonce(CHAIN, SAFE, CTX, NB, SID)
+    assert len(popctx.preimage(CHAIN, CONSUMER, CTX, NB, SID)) == 192
+    n = popctx.nonce(CHAIN, CONSUMER, CTX, NB, SID)
     assert n.hex() == G_NONCE
-    assert popctx.nonce(CHAIN, SAFE, "0x" + CTX.hex(), NB, bytes.fromhex(SID)) == n
+    assert popctx.nonce(CHAIN, CONSUMER, "0x" + CTX.hex(), NB, bytes.fromhex(SID)) == n
 
 
 def test_n_vector():
@@ -59,9 +59,9 @@ def test_traps_differ():
 
     traps = {
         str_dom(GUARD): "5acffbeffd0ba155be27ac0beba39e9100dd749fc15b72ca842a6855cf78becf",
-        str_dom(SAFE): "36603c76b65742d4039f5fb98950286cfeac74c033b263139045e8beaf472430",
+        str_dom(CONSUMER): "36603c76b65742d4039f5fb98950286cfeac74c033b263139045e8beaf472430",
         popctx.nonce(CHAIN, GUARD, CTX, NB, SID).hex(): "a0b4077ef6736018b1ddbc33a5d4b3e3c28a211f1a52566e6d400f7aecd6ff8b",
-        keccak(DOMAIN + u256(CHAIN) + addr(SAFE) + CTX + u256(NB) + bytes(16) + sid).hex():
+        keccak(DOMAIN + u256(CHAIN) + addr(CONSUMER) + CTX + u256(NB) + bytes(16) + sid).hex():
             "a3993cf3f5bce4adc7c16d5e5c9c50e78dbde87ce9e1b933ad53fc8665440661",
     }
     for got, want in traps.items():
@@ -70,18 +70,18 @@ def test_traps_differ():
 
 def test_bad_inputs():
     with pytest.raises(ValueError):
-        popctx.nonce(CHAIN, SAFE[:-2], CTX, NB, SID)
+        popctx.nonce(CHAIN, CONSUMER[:-2], CTX, NB, SID)
     with pytest.raises(ValueError):
-        popctx.nonce(CHAIN, SAFE, CTX[:31], NB, SID)
+        popctx.nonce(CHAIN, CONSUMER, CTX[:31], NB, SID)
     with pytest.raises(ValueError):
-        popctx.nonce(CHAIN, SAFE, CTX, NB, SID[:-2])
+        popctx.nonce(CHAIN, CONSUMER, CTX, NB, SID[:-2])
     with pytest.raises(ValueError):
-        popctx.nonce(CHAIN, SAFE, CTX, 1 << 64, SID)
+        popctx.nonce(CHAIN, CONSUMER, CTX, 1 << 64, SID)
 
 
 # -- POST /v1/session with a plain context: bound into the nonce
 
-PLAIN = {"chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
+PLAIN = {"chain_id": 11155111, "consumer": CONSUMER, "ctx_hash": "0x" + CTX.hex()}
 
 
 @pytest.fixture
@@ -101,7 +101,7 @@ def test_create_with_context(ctx_phones, clock):
     c = r.json()
     nb = clock() // 1000
     assert c["not_before"] == nb and c["context"] == PLAIN
-    assert c["nonce"] == popctx.nonce(11155111, SAFE, CTX, nb, c["session_id"]).hex()
+    assert c["nonce"] == popctx.nonce(11155111, CONSUMER, CTX, nb, c["session_id"]).hex()
     # the guest gets the nonce at confirm, as in any plain session
     v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
     assert v["nonce"] is None and v["context"] == PLAIN and v["not_before"] == nb
@@ -135,11 +135,11 @@ def test_early_nonce(ctx_phones):
 @pytest.mark.parametrize("body,status,code", [
     ({"early_nonce": "yes"}, 400, "bad_request"),
     ({"early_nonce": None}, 400, "bad_request"),
-    ({"context": {**PLAIN, "kind": "safe-tx"}}, 400, "bad_context"),
+    ({"context": {**PLAIN, "kind": "x"}}, 400, "bad_context"),
     ({"context": {k: PLAIN[k] for k in ("chain_id", "consumer")}}, 400, "bad_context"),
     ({"context": {**PLAIN, "chain_id": 4801}}, 400, "bad_chain"),
     ({"context": {**PLAIN, "chain_id": "11155111"}}, 400, "bad_chain"),
-    ({"context": {**PLAIN, "consumer": SAFE.upper().replace("0X", "0x")}}, 400, "bad_request"),
+    ({"context": {**PLAIN, "consumer": CONSUMER.upper().replace("0X", "0x")}}, 400, "bad_request"),
     ({"context": {**PLAIN, "ctx_hash": "0x" + CTX.hex()[:-2]}}, 400, "bad_request"),
     ({"context": "x"}, 400, "bad_request"),
 ])

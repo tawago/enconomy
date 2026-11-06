@@ -6,19 +6,19 @@
 
 Proof of presence: two phones use sound to prove they were physically close.
 
-Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. The core does only that: it signs a record saying two enrolled devices were near each other. Two examples build on the record, both on Ethereum Sepolia and both independent of the core: [`examples/safe`](examples/safe/README.md) unlocks a 2-of-4 Safe spend, [`examples/ens-meetings`](examples/ens-meetings/README.md) records a meeting under `enconomy.eth`. The current app's Safe and ENS screens have no backend until those examples get their own apps.
+Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. The core does only that: it signs a record saying two enrolled devices were near each other. Three examples build on the record, each independent of the core: [`examples/safe`](examples/safe/README.md) unlocks a 2-of-4 Safe spend on Sepolia, [`examples/ens-meetings`](examples/ens-meetings/README.md) records a meeting under `enconomy.eth` on Sepolia, [`examples/world-id`](examples/world-id/README.md) answers whether two different humans met. The current app's Safe, ENS and World ID screens have no backend until those examples get their own apps.
 
 ```mermaid
 flowchart LR
     A["Phone A<br/>hardware key"] -- "sound" --- B["Phone B<br/>hardware key"]
     A -- "signed transcript + ZK proof" --> S["PoP server"]
     B -- "signed transcript + ZK proof" --> S
-    W["World ID"] -. "two distinct humans" .-> S
     S -- "signed presence record" --> A
     A -. "presence record, owner sigs" .-> F["Safe example backend<br/>examples/safe"]
     F -- "attestation, execTransaction" --> G["Safe + PopSafeGuard<br/>Sepolia"]
     A -. "presence record" .-> E["ENS example backend<br/>examples/ens-meetings"]
     E --> M["MeetResolver<br/>*.enconomy.eth"]
+    A -. "presence record" .-> W["World ID example backend<br/>examples/world-id"]
 ```
 
 This is a hackathon build. It runs on testnet only, it has not been audited, and the field data is limited. See [Limitations](#limitations).
@@ -35,7 +35,7 @@ uv run python -m pop        # 0.0.0.0:8000
 ## Requirements
 
 - Python 3.11 or newer and [uv](https://docs.astral.sh/uv/), for the server.
-- Node and npm, for the World ID sidecar and the Safe example's sender. It was tested with Node 24. No `engines` field is pinned.
+- Node and npm, for the World ID example's sidecar and the Safe example's sender. It was tested with Node 24. No `engines` field is pinned.
 - JDK 21 and the Android SDK for the app, plus Xcode for iOS. JDK 26 is too new for Gradle 8.14.
 - Rust, NDK 28.2.13676358, cargo-ndk and zig 0.15. You need these only to build `app/zkprove`.
 - Foundry (forge, cast, anvil) with solc 0.8.30.
@@ -98,6 +98,12 @@ FORK=1 forge test --match-contract PopSafeForkTest     # against Sepolia Safe 1.
 cd examples/safe && uv sync && uv run pytest -q
 ```
 
+**World ID example backend**
+
+```sh
+cd examples/world-id && uv sync && uv run pytest -q
+```
+
 **Static ENS site**
 
 ```sh
@@ -109,25 +115,24 @@ Each component README has more detail.
 
 ## Demo stack
 
-One command runs the core's demo. It starts three processes: the server (:8001), the World ID sidecar (:8787) and the `pop.enconomy.dev` tunnel. The examples aren't among them, they run on their own: see [`examples/safe`](examples/safe/README.md) and [`examples/ens-meetings`](examples/ens-meetings/README.md). Log lines are prefixed `[server]`, `[sidecar]` and so on, and are also saved in `.demo/logs/`.
+One command runs the core's demo. It starts two processes: the server (:8001) and the `pop.enconomy.dev` tunnel. The examples aren't among them, they run on their own: see [`examples/safe`](examples/safe/README.md), [`examples/ens-meetings`](examples/ens-meetings/README.md) and [`examples/world-id`](examples/world-id/README.md). Log lines are prefixed `[server]` and `[tunnel]`, and are also saved in `.demo/logs/`.
 
 First-time setup:
 
 ```sh
 (cd server && uv sync)
-(cd server/idkit-sidecar && npm ci)
 cp server/.env.example server/.env
 ```
 
 ```sh
-./demo check          # preflight: tools, node_modules, ports, tunnel
-./demo up             # all three; Ctrl-C stops everything
+./demo check          # preflight: tools, ports, tunnel
+./demo up             # both; Ctrl-C stops everything
 ./demo up --web       # also sets POP_ALLOW_WEB=1 and POP_CORS_ORIGINS for the web app
-./demo up --no-tunnel --no-worldid   # skip pieces
+./demo up --no-tunnel   # skip the tunnel
 ./demo status         # what is running
 ```
 
-Server config lives in `server/.env`, and real environment variables override it. The demo sets `POP_WORLDID_SANDBOX=1` and `POP_ALLOW_UNATTESTED=1`, unless you set them yourself. If one process dies, a banner names it and the others keep running. `./demo up` then exits nonzero when it stops. Run `./demo help` for details.
+Server config lives in `server/.env`, and real environment variables override it. The demo sets `POP_ALLOW_UNATTESTED=1`, unless you set it yourself. If one process dies, a banner names it and the others keep running. `./demo up` then exits nonzero when it stops. Run `./demo help` for details.
 
 ## How it works
 
@@ -212,7 +217,7 @@ Each phone proves its own half with Noir and Barretenberg UltraHonk (BN254). The
 - **ENS "Met on ENS".** `MeetResolver` is a wildcard resolver for `*.enconomy.eth` on ENSv2 Sepolia. It serves live meeting counters as text records. The ENS example's backend writes each delivered NEAR record to it, in [`examples/ens-meetings`](examples/ens-meetings/README.md).
 - **ZK verifiers.** `PhoneVerifier`, `PairVerifier` and `VerifyLog` are deployed, and they verify a real fixture.
 
-World ID is checked only on the core server, never on chain, and the Safe example doesn't use it.
+World ID is never checked on chain. The [World ID example](examples/world-id/README.md) checks it off chain, and the Safe example doesn't use it.
 
 ## Repository layout
 
@@ -220,11 +225,11 @@ World ID is checked only on the core server, never on chain, and the Safe exampl
 |---|---|
 | [`app/`](app/README.md) | Kotlin Multiplatform app "pop" for Android, iOS and Kotlin/Wasm web: enroll, pairing, runs, on-device prover. |
 | `app/zkprove/` | Rust native prover (Barretenberg + ACVM), exposed over JNI and a C ABI. |
-| [`server/`](server/README.md) | FastAPI PoP server: enroll, sessions, verdict, World ID gate, ZK verify and delegated proving, signed presence record. |
-| `server/idkit-sidecar/` | Node sidecar for World ID IDKit, on port 8787. |
+| [`server/`](server/README.md) | FastAPI PoP server: enroll, sessions, verdict, ZK verify and delegated proving, signed presence record. |
 | [`contracts/zk/`](contracts/zk/README.md) | The generated ZK verifiers. |
 | [`examples/safe/`](examples/safe/README.md) | Safe example, independent of the core: spend backend, attester, sender, [contracts](examples/safe/contracts/README.md) (`PopSafeGuard`, `P256Owner`, verifiers). |
 | [`examples/ens-meetings/`](examples/ens-meetings/README.md) | ENS example, independent of the core: name claims, [bridge](examples/ens-meetings/bridge/README.md) to `MeetResolver`, [contracts](examples/ens-meetings/contracts/README.md). |
+| [`examples/world-id/`](examples/world-id/README.md) | World ID example, independent of the core: backend and IDKit sidecar, answers whether two different humans met. |
 | [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into its `app/`. |
 | `zkmobile/` | Spikes behind the Noir port: Android and iOS prove runs, hash vectors, toolchain pin. |
 | [`research/sound-bound/`](research/sound-bound/README.md) | Acoustic prototype, field tests, melody bakeoff, ZK spikes. |
