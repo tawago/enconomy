@@ -59,6 +59,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.enconomy.pop.chain.Allowlist
+import com.enconomy.pop.chain.ContextGate
 import com.enconomy.pop.chain.SafeTx
 import com.enconomy.pop.ui.Avatar
 import com.enconomy.pop.ui.Banner
@@ -131,7 +133,6 @@ fun App(c: PopController) {
                                 Screen.Result -> Result(s, c)
                                 Screen.Bench -> Bench(s, c)
                                 Screen.AudioCheck -> AudioCheck(s, c)
-                                Screen.Ens -> if (!isWeb()) Ens(s, c)
                             }
                             StatusLine(s)
                         }
@@ -167,7 +168,6 @@ private fun TopBar(s: UiState, c: PopController) {
             Screen.Bench -> { { c.go(Screen.Home) } }
             Screen.AudioCheck -> { { c.go(Screen.Home) } }
             Screen.Safe -> { { c.go(Screen.Home) } }
-            Screen.Ens -> { { c.go(Screen.Home) } }
             else -> null
         }
         if (back != null) {
@@ -365,12 +365,11 @@ private fun Home(s: UiState, c: PopController) {
                     PrimaryButton("Host", { c.host() }, Modifier.weight(1f), enabled = ok, icon = PopIcons.Qr)
                     PrimaryButton("Join", c::join, Modifier.weight(1f), enabled = ok, icon = PopIcons.Scan)
                 }
-                // a `test` context makes the server require World ID (fake mode or real)
-                SecondaryButton("Host with World ID (test)", c::hostWorldIdTest, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Shield)
                 SecondaryButton("Safe spend", c::openSafe, Modifier.fillMaxWidth(), enabled = ok, icon = PopIcons.Key)
             }
         }
     }
+    s.safe?.let { SafeResultPanel(it) }
     Reveal(160) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel("Tools")
@@ -384,17 +383,8 @@ private fun Home(s: UiState, c: PopController) {
                 Hairline()
                 NavRow(PopIcons.Chip, "Prover bench", "Prove a bundled fixture on this phone", c::openBench, enabled = !s.busy)
                 Hairline()
-                if (!isWeb()) {
-                    NavRow(PopIcons.Key, "ENS name", s.ensName ?: "Claim <label>$ENS_SUFFIX for this phone", c::openEns, enabled = !s.busy)
-                    Hairline()
-                }
                 SwitchRow(
                     "Transcript v2", transcriptText(s), s.popt2On, { c.setPopt2(it) }, enabled = !s.busy, icon = PopIcons.Wave,
-                )
-                Hairline()
-                SwitchRow(
-                    "World ID: sandbox", if (s.widSandbox) "Test sessions: World ID Simulator for this phone" else "World App",
-                    s.widSandbox, { c.setWidSandbox(it) }, enabled = !s.busy, icon = PopIcons.Shield,
                 )
             }
         }
@@ -570,84 +560,16 @@ private fun Confirm(s: UiState, c: PopController) {
             else Pill("Partner deciding", Tone.Neutral, dot = true)
         }
     }
-    if (v != null && s.ctxOk?.kind == SafeTx.KIND) SafeTxPanel(v.context)
-    if (v != null && s.wid != null) WorldIdPanel(s, v, s.wid, c)
+    if (v != null) s.spend?.let { SafeTxPanel(it, s.enrollment?.attested == true && p?.attested == true) }
     val askMic = rememberMicPermissionRequest { c.confirmPartner() }
-    val widOk = s.wid == null || s.wid.verified
+    // a session with a context only confirms once this phone's own gate passed
+    val spendOk = v?.context == null || s.spend != null
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         SecondaryButton("Cancel", c::abortPairing, Modifier.weight(1f))
         PrimaryButton(
             if (s.confirmSent) "Waiting…" else "Confirm", askMic, Modifier.weight(1.4f),
-            enabled = !s.busy && p != null && widOk, loading = s.confirmSent, icon = PopIcons.Check,
+            enabled = !s.busy && p != null && spendOk, loading = s.confirmSent, icon = PopIcons.Check,
         )
-    }
-}
-
-/** World ID step (docs/worldid/01 §6.7, §6.9): both roles' status, "This phone" / "Other phone" on one request. */
-@Composable
-private fun WorldIdPanel(s: UiState, v: SessionView, w: WidUi, c: PopController) {
-    val mine = v.role ?: s.role ?: "A"
-    val other = if (mine == "A") "B" else "A"
-    val partner = WorldId.role(v.human, other)
-    Panel {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("World ID", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            s.ctxOk?.let { Pill("Request checks out", Tone.Good, icon = PopIcons.Check) }
-        }
-        Text(
-            "Each person proves they're a unique human with their own World ID. Confirm unlocks once yours is verified.",
-            style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted,
-        )
-        WidRow("You ($mine)", w.status, sandbox = w.sandbox || WorldId.role(v.human, mine).sandbox)
-        WidRow("Partner ($other)", partner.status, partner.error, sandbox = partner.sandbox)
-        if (!w.verified && !w.failed) {
-            val uri = w.connectorUri
-            if (uri == null) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("Preparing World ID request…", style = MaterialTheme.typography.bodyMedium, color = Pop.palette.muted)
-                }
-            } else {
-                Segmented(listOf("app" to "This phone", "qr" to "Other phone"), w.mode, c::setWidMode)
-                if (w.mode == "app") {
-                    PrimaryButton(if (w.sandbox) "Sandbox World ID" else "Open World ID", c::openWorldIdApp, Modifier.fillMaxWidth(), icon = PopIcons.Shield)
-                    Text(if (w.sandbox) "Pick an identity and approve in the simulator, then come back here." else "Approve in World ID, then come back here.",
-                        style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-                } else {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Surface(Modifier.size(240.dp), shape = RoundedCornerShape(20.dp), color = Color.White) {
-                            Box(Modifier.padding(12.dp), contentAlignment = Alignment.Center) { QrCode(uri, Modifier.fillMaxSize()) }
-                        }
-                    }
-                    Text(if (w.sandbox) "Open this link on another device to use the World ID Simulator." else "Scan with the World ID app on the phone that holds your World ID.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
-                }
-            }
-            if (w.error == "network") Text(WorldId.errorText("network"), style = MaterialTheme.typography.bodySmall, color = Pop.palette.warn)
-        }
-        if (w.failed) {
-            val newOnly = WorldId.needsNewSession(w.error)
-            Banner(WorldId.errorText(w.error), Tone.Bad, title = "World ID") {
-                if (!newOnly) SecondaryButton("Try again", { c.startWorldId() }, compact = true)
-                SecondaryButton("New session", c::newSession, compact = true)
-            }
-        }
-        if (partner.status == WorldId.FAILED) Text("Partner: " + WorldId.errorText(partner.error), style = MaterialTheme.typography.bodySmall, color = Pop.palette.bad)
-        w.error?.takeIf { w.failed }?.let { Field("code", it) }
-    }
-}
-
-@Composable
-private fun WidRow(who: String, status: String, error: String? = null, sandbox: Boolean = false) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(who, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
-        if (sandbox) Text("sandbox", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted, modifier = Modifier.padding(end = 6.dp))
-        when (status) {
-            WorldId.VERIFIED -> Pill(WorldId.statusText(status), Tone.Good, icon = PopIcons.Check)
-            WorldId.FAILED -> Pill(if (error != null) error else "Failed", Tone.Bad, icon = PopIcons.Alert)
-            "idle" -> Pill(WorldId.statusText(status), Tone.Neutral)
-            else -> Pill(WorldId.statusText(status), Tone.Accent, dot = true)
-        }
     }
 }
 
@@ -798,7 +720,7 @@ private fun Result(s: UiState, c: PopController) {
         }
         Reveal(250) {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                s.safe?.let { SafeResultPanel(s, it) }
+                s.safe?.let { SafeResultPanel(it) }
                 s.proof?.let { ProofCard("Option A proof", it, onRetry = c::proveNow) }
                 if (s.proof != null) Panel {
                     SecondaryButton("Delegate proof to server", c::delegateProof, Modifier.fillMaxWidth(), enabled = !s.proofBusy, compact = true)
@@ -813,7 +735,6 @@ private fun Result(s: UiState, c: PopController) {
                             listOf("attempt", "outcome", "reason", "by").mapNotNull { k -> a[k]?.toString()?.trim('"')?.takeIf { it != "null" } }.joinToString(" ")
                         })
                         r.session_id?.let { Field("session", it) }
-                        s.attText?.let { Field("attestation", it) }
                     }
                 }
             }
@@ -1044,13 +965,15 @@ private fun Bench(s: UiState, c: PopController) {
     if (s.benchLog.isNotEmpty()) CodeBlock(s.benchLog.joinToString("\n"))
 }
 
+// ---------------------------------------------------------------- Safe spend
 
-// ---- Safe spend (docs/worldid/02 §9) ----
+private const val NOT_TWO_HUMANS = "A spend proves two owner phones were near each other. It doesn't prove two different humans: one person holding both phones can spend."
 
 @Composable
 private fun SafeSpend(s: UiState, c: PopController) {
     val f = s.safeForm
-    PageTitle("Safe spend", "Both owners' phones meet, then the relayer sends the Safe transaction.")
+    PageTitle("Safe spend", "Both owners' phones meet, then the Safe backend sends the transaction.")
+    Banner(NOT_TWO_HUMANS, Tone.Warn)
     Panel {
         @Composable
         fun input(label: String, value: String, onChange: (String) -> Unit) = OutlinedTextField(
@@ -1058,112 +981,69 @@ private fun SafeSpend(s: UiState, c: PopController) {
             shape = MaterialTheme.shapes.medium, colors = popTextFieldColors(),
             textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize), modifier = Modifier.fillMaxWidth(),
         )
+        input("Safe backend URL", f.backend) { c.setSafeForm(f.copy(backend = it)) }
         input("Safe (Sepolia)", f.safe) { c.setSafeForm(f.copy(safe = it)) }
-        Text("Both phones save the same Safe here once. A guest refuses sessions for any other Safe.",
+        Text("Both phones save the same backend and Safe here once. A guest refuses sessions for any other Safe.",
             style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
         Hairline()
+        val chain = s.serverChainId ?: SafeTx.CHAIN_SEPOLIA
+        val tokens = Allowlist.TOKENS[chain].orEmpty()
+        Segmented(listOf("" to "ETH") + tokens.map { it.address to it.symbol }, f.token, { c.setSafeForm(f.copy(token = it)) }, enabled = !s.busy)
         input("Send to", f.to) { c.setSafeForm(f.copy(to = it)) }
-        input("Amount (ETH)", f.amountEth) { c.setSafeForm(f.copy(amountEth = it)) }
+        input("Amount (${Allowlist.token(chain, f.token)?.symbol ?: "ETH"})", f.amount) { c.setSafeForm(f.copy(amount = it)) }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.weight(1f)) { input("Safe nonce", f.nonce) { c.setSafeForm(f.copy(nonce = it)) } }
             SecondaryButton("Read", c::refreshSafeNonce, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
         }
         f.note?.let { Text(it, style = Pop.mono, color = Pop.palette.muted) }
-        val chain = s.serverChainId ?: SafeTx.CHAIN_SEPOLIA
-        val wei = SafeTx.ethToWei(f.amountEth)
-        if (SafeTx.addrOk(f.safe) && SafeTx.addrOk(f.to) && wei != null && f.nonce.isNotEmpty() && f.nonce.all { it.isDigit() }) {
-            Field("safeTxHash", runCatching { SafeTx.hashHex(chain, f.safe, SafeTx(to = f.to, value = wei, nonce = f.nonce.trimStart('0').ifEmpty { "0" })) }.getOrDefault("?"))
-        }
+        val tx = c.safeFormTx(f)
+        if (SafeTx.addrOk(f.safe) && tx != null) Field("safeTxHash", runCatching { SafeTx.hashHex(chain, f.safe, tx) }.getOrDefault("?"))
     }
     PrimaryButton("Host spend", c::hostSafeSpend, Modifier.fillMaxWidth(), enabled = !s.busy && s.configOk != false, icon = PopIcons.Qr)
     Text("The other phone taps Join as usual.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
 }
 
-// ---------------------------------------------------------------- ENS name
-
-/** One name per phone, no renames: once claimed only the name and its status are shown. */
+/** On Confirm: what the transaction does, from this phone's own reading of it. */
 @Composable
-private fun Ens(s: UiState, c: PopController) {
-    val r = s.ens
-    PageTitle("ENS name", "A name under enconomy.eth for this phone. No wallet needed.")
-    if (r == null) {
-        if (!s.busy) SecondaryButton("Retry", c::refreshEns, icon = PopIcons.Refresh, compact = true)
-        return
-    }
-    if (r.status == "none") {
-        Panel {
-            OutlinedTextField(
-                value = s.ensLabel,
-                onValueChange = c::setEnsLabel,
-                label = { Text("Name") },
-                suffix = { Text(ENS_SUFFIX, color = Pop.palette.muted) },
-                supportingText = { Text("3-32 characters: a-z, 0-9, -") },
-                singleLine = true,
-                enabled = !s.busy,
-                shape = MaterialTheme.shapes.medium,
-                colors = popTextFieldColors(),
-                textStyle = Pop.mono.copy(fontSize = MaterialTheme.typography.bodyMedium.fontSize),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text("One name per phone. Can't be changed later.", style = MaterialTheme.typography.bodySmall, color = toneColor(Tone.Warn))
-            PrimaryButton(if (s.busy) "Claiming…" else "Claim", c::claimEns, Modifier.fillMaxWidth(),
-                enabled = !s.busy && ENS_LABEL.matches(s.ensLabel), loading = s.busy, icon = PopIcons.Key)
-        }
-        return
-    }
-    Panel {
-        Text(r.name ?: (r.label ?: "?") + ENS_SUFFIX, style = MaterialTheme.typography.titleLarge)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (r.status) {
-                "registered" -> Pill("Registered", Tone.Good, icon = PopIcons.Check)
-                "pending" -> Pill("Pending", Tone.Neutral, dot = true)
-                "failed" -> Pill("Failed", Tone.Bad)
-                else -> Pill(r.status, Tone.Neutral)
-            }
-        }
-        r.tx?.let { tx ->
-            Field("tx", tx)
-            QuietButton("Open on Etherscan", { openExternalUrl("https://sepolia.etherscan.io/tx/$tx") })
-        }
-        if (r.status == "pending") SecondaryButton("Refresh", c::refreshEns, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
-    }
-}
-
-@Composable
-private fun SafeTxPanel(context: kotlinx.serialization.json.JsonObject?) {
-    val t = (context?.get("safe_tx") as? kotlinx.serialization.json.JsonObject)?.let { SafeTx.fromJson(it) } ?: return
-    val safe = (context["consumer"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "?"
+private fun SafeTxPanel(spend: ContextGate.Spend, bothAttested: Boolean) {
     Panel {
         Text("You approve this Safe transaction", style = MaterialTheme.typography.titleMedium)
-        Field("from Safe", safe)
-        Field("to", t.to)
-        Field("amount", weiToEth(t.value) + " ETH")
-        Field("nonce", t.nonce)
+        Field("from Safe", spend.safe)
+        when (val w = spend.what) {
+            is Allowlist.What.Native -> {
+                Field("sends", SafeTx.formatUnits(w.wei, 18) + " ETH")
+                Field("to", w.to)
+            }
+            is Allowlist.What.Erc20 -> {
+                Field("sends", SafeTx.formatUnits(w.amount, w.token.decimals) + " " + w.token.symbol)
+                Field("to", w.to)
+                Field("token contract", w.token.address)
+            }
+        }
+        Field("nonce", spend.tx.nonce)
+        Field("safeTxHash", spend.ctxHash)
         Text("Confirm signs it with this phone's key.", style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+        Text(NOT_TWO_HUMANS, style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
+        if (!bothAttested) Banner("One of these phones has no attested key, so the Safe backend will refuse this spend.", Tone.Warn)
     }
 }
 
 @Composable
-private fun SafeResultPanel(s: UiState, st: SafeStatus) {
+private fun SafeResultPanel(st: SafeStatus) {
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
     Panel {
         Text("Safe spend", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        st.refused?.let { Banner(it, Tone.Bad, title = "Not sent") }
+        if (st.refused == null) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val done = st.relay in setOf("success", "reverted", "skipped", "error")
             val tone = when (st.relay) { "success" -> Tone.Good; "reverted", "skipped", "error" -> Tone.Bad; else -> Tone.Neutral }
-            Pill(st.relay ?: "waiting", tone, dot = st.relay !in setOf("success", "reverted", "skipped", "error"))
+            Pill(st.relay ?: "waiting", tone, dot = !done)
         }
         st.relayText?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-        Field("owner signature", st.ownerSig ?: "?")
-        s.attText?.let { Field("attestation", it) }
-        Field("zk pair proof", st.zk ?: "?")
+        st.ownerSig?.let { Field("owner signature", it) }
+        st.delivery?.let { Field("presence record", it) }
         st.txHash?.let { Field("tx", it) }
         st.txLink?.let { l -> QuietButton("Open on Etherscan", { runCatching { uri.openUri(l) } }) }
+        Text(NOT_TWO_HUMANS, style = MaterialTheme.typography.bodySmall, color = Pop.palette.muted)
     }
-}
-
-private fun weiToEth(wei: String): String {
-    val p = wei.padStart(19, '0')
-    val i = p.dropLast(18).trimStart('0').ifEmpty { "0" }
-    val f = p.takeLast(18).trimEnd('0')
-    return if (f.isEmpty()) i else "$i.$f"
 }

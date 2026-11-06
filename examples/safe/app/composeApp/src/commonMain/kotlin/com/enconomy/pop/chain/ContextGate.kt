@@ -6,70 +6,68 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
 
 /**
- * Context gate (docs/worldid/01 §7.1, §12), both roles, before World ID / Confirm / any signature:
- *  1. consumer is one we know (02 "My Safes", 03 scanned popctx1; kind "test": any, debug builds only) else unknown_consumer
- *  2. the kind recomputes ctx_hash (kind "test": accepted as-is) else context_mismatch
- *  3. PopCtx.nonce(chain_id, consumer, ctx_hash, not_before, sid) == view nonce else context_mismatch
- * A session without a context passes (policy none, the v1/v2 flows).
+ * The gate both phones run before Confirm and before any signature:
+ *  1. the context's Safe is the one saved on this phone, else unknown_consumer
+ *  2. chain and Safe agree across the session and the spend, and safe_tx recomputes ctx_hash, else context_mismatch
+ *  3. this phone's own allowlist takes the transaction, else context_refused
+ * Once both confirmed the core shows the nonce: [nonceOk] recomputes it before the run.
  */
 object ContextGate {
     const val UNKNOWN_CONSUMER = "unknown_consumer"
     const val CONTEXT_MISMATCH = "context_mismatch"
+    const val CONTEXT_REFUSED = "context_refused"
+    const val SPEND_UNAVAILABLE = "spend_unavailable"
 
-    /** §6.9 screen text. */
-    fun text(code: String): String = when (code) {
-        UNKNOWN_CONSUMER -> "Unknown account in this request. Not approving."
-        else -> "This request doesn't match. Not approving."
-    }
+    private val KEYS = setOf("chain_id", "consumer", "ctx_hash")
+    private val HEX40 = Regex("^0x[0-9a-f]{40}$")
+    private val HEX64 = Regex("^0x[0-9a-f]{64}$")
+
+    data class Spend(val chainId: Long, val safe: String, val ctxHash: String, val tx: SafeTx, val what: Allowlist.What)
 
     sealed class Result {
-        /** No context: nothing to bind. */
-        data object NoContext : Result()
-        data class Ok(val nonceHex: String, val kind: String, val consumer: String, val ctxHash: String) : Result()
+        data class Ok(val spend: Spend) : Result()
         data class Refused(val code: String, val why: String) : Result()
     }
 
-    /**
-     * @param expectCtxHash per-kind recompute: returns the ctx_hash the phone derives from the context's kind
-     *   fields, or null when this phone can't (unknown kind -> refused). Kind "test" needs none.
-     */
-    fun check(
-        sessionId: String,
-        context: JsonObject?,
-        notBefore: Long?,
-        nonce: String?,
-        knownConsumers: Set<String> = emptySet(),
-        allowTestKind: Boolean = false,
-        expectCtxHash: (kind: String, context: JsonObject) -> String? = { _, _ -> null },
-    ): Result {
-        if (context == null) return Result.NoContext
-        fun mismatch(why: String) = Result.Refused(CONTEXT_MISMATCH, why)
-        val kind = context.str("kind") ?: return mismatch("no kind")
-        val chainId = (context["chain_id"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull ?: return mismatch("bad chain_id")
-        val consumer = context.str("consumer")?.takeIf { HEX40.matches(it) } ?: return mismatch("bad consumer")
-        val ctxHash = context.str("ctx_hash")?.takeIf { HEX64.matches(it) } ?: return mismatch("bad ctx_hash")
-        val nb = notBefore ?: return mismatch("no not_before")
-        val got = nonce?.lowercase()?.removePrefix("0x") ?: return mismatch("no nonce")
-
-        val isTest = kind == "test"
-        if (isTest && !allowTestKind) return Result.Refused(UNKNOWN_CONSUMER, "test kind off in this build")
-        if (!isTest && consumer !in knownConsumers.map { it.lowercase() }) return Result.Refused(UNKNOWN_CONSUMER, "consumer $consumer")
-        if (!isTest) {
-            val want = expectCtxHash(kind, context) ?: return mismatch("can't recompute kind $kind")
-            if (want.lowercase() != ctxHash) return mismatch("ctx_hash")
-        }
-        val mine = try {
-            PopCtx.nonce(chainId, consumer, ctxHash, nb, sessionId).toHex()
-        } catch (e: IllegalArgumentException) {
-            return mismatch(e.message ?: "bad input")
-        }
-        if (mine != got) return mismatch("nonce")
-        return Result.Ok("0x$mine", kind, consumer, ctxHash)
+    fun text(r: Result.Refused): String = when (r.code) {
+        UNKNOWN_CONSUMER -> "This request is for a Safe that isn't saved on this phone. Not approving."
+        CONTEXT_REFUSED -> "This phone won't sign this transaction (${r.why}). Not approving."
+        SPEND_UNAVAILABLE -> "Couldn't get the transaction from the Safe backend (${r.why}). Not approving."
+        else -> "This request doesn't match (${r.why}). Not approving."
     }
 
-    private fun JsonObject.str(k: String): String? = (this[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+    /** The context's ctx_hash when it has the right form, so it's safe to put in a URL. */
+    fun ctxHash(context: JsonObject): String? =
+        (context["ctx_hash"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { HEX64.matches(it) }
 
-    // §9 row 1: consumer lowercase 0x+40 hex, ctx_hash lowercase 0x+64 hex.
-    private val HEX40 = Regex("^0x[0-9a-f]{40}$")
-    private val HEX64 = Regex("^0x[0-9a-f]{64}$")
+    /**
+     * @param context the session's plain context
+     * @param safeTx the spend's safe_tx: this phone's own on the host, from GET /v1/spends/{ctx_hash} on the guest
+     * @param spendChain, spendSafe the spend's chain_id and safe
+     * @param mySafe the Safe saved on this phone
+     * @param coreChain the core's chain_id
+     */
+    fun check(context: JsonObject, safeTx: JsonObject, spendChain: Long, spendSafe: String, mySafe: String?, coreChain: Long): Result {
+        fun mismatch(why: String) = Result.Refused(CONTEXT_MISMATCH, why)
+        if (context.keys != KEYS) return mismatch("context keys")
+        val chainId = (context["chain_id"] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull ?: return mismatch("chain_id")
+        val safe = (context["consumer"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { HEX40.matches(it) } ?: return mismatch("consumer")
+        val ctxHash = ctxHash(context) ?: return mismatch("ctx_hash")
+        if (safe != mySafe) return Result.Refused(UNKNOWN_CONSUMER, safe)
+        if (chainId != coreChain || chainId != spendChain) return mismatch("chain_id")
+        if (safe != spendSafe) return mismatch("safe")
+        val tx = SafeTx.fromJson(safeTx) ?: return mismatch("safe_tx")
+        val want = runCatching { SafeTx.hashHex(chainId, safe, tx) }.getOrNull() ?: return mismatch("safe_tx")
+        if (want != ctxHash) return mismatch("ctx_hash")
+        return when (val a = Allowlist.check(chainId, safe, tx)) {
+            is Allowlist.Result.Refused -> Result.Refused(CONTEXT_REFUSED, a.reason)
+            is Allowlist.Result.Ok -> Result.Ok(Spend(chainId, safe, ctxHash, tx, a.what))
+        }
+    }
+
+    fun nonceOk(spend: Spend, sessionId: String, notBefore: Long?, nonce: String?): Boolean {
+        val nb = notBefore ?: return false
+        val got = nonce?.lowercase()?.removePrefix("0x") ?: return false
+        return runCatching { PopCtx.nonce(spend.chainId, spend.safe, spend.ctxHash, nb, sessionId).toHex() }.getOrNull() == got
+    }
 }

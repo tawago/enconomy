@@ -9,8 +9,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 
 /**
- * Safe (>= 1.3, here 1.5.0 SafeL2 on Ethereum Sepolia) EIP-712 SafeTx, same as server pop/consumers/safe_tx.py.
- * Wire form = the server's context.safe_tx: addresses lowercase 0x+40 hex, uint256 fields canonical decimal
+ * Safe (>= 1.3, here 1.5.0 SafeL2 on Ethereum Sepolia) EIP-712 SafeTx, same as examples/safe/backend/safe_tx.py.
+ * Wire form = the backend's safe_tx: addresses lowercase 0x+40 hex, uint256 fields canonical decimal
  * strings, data lowercase 0x hex, operation a JSON int.
  */
 data class SafeTx(
@@ -32,17 +32,21 @@ data class SafeTx(
     }
 
     companion object {
-        const val KIND = "safe-tx"
         const val CHAIN_SEPOLIA = 11155111L
         const val ZERO = "0x0000000000000000000000000000000000000000"
+        const val TRANSFER = "a9059cbb"
         val OWNER_MSG_TAG = "pop-safe-owner-v1".encodeToByteArray()
         private val SAFE_TX_TYPEHASH = "bb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8".hexToBytes()
         private val DOMAIN_TYPEHASH = "47e79534a245952e8b16893a336b85a3d9ea9fa8c573f3d803afb92a79469218".hexToBytes()
         private val ADDR = Regex("^0x[0-9a-f]{40}$")
         private val DEC = Regex("^(0|[1-9][0-9]{0,77})$")
         private val DATA = Regex("^0x([0-9a-f]{2})*$")
+        private val KEYS = setOf("to", "value", "data", "operation", "safe_tx_gas", "base_gas", "gas_price",
+            "gas_token", "refund_receiver", "nonce")
 
+        /** Strict like the backend's parse_safe_tx: exactly the 10 keys, null if anything is off. */
         fun fromJson(o: JsonObject): SafeTx? {
+            if (o.keys != KEYS) return null
             fun s(k: String) = (o[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
             val op = (o["operation"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: return null
             val t = SafeTx(
@@ -68,18 +72,9 @@ data class SafeTx(
 
         fun hashHex(chainId: Long, safe: String, t: SafeTx): String = "0x" + hash(chainId, safe, t).toHex()
 
-        /** The session context the server's safe_tx consumer takes (contracts/README.md "Run the demo" 4). */
+        /** The plain session context the core takes: exactly these three keys. */
         fun context(chainId: Long, safe: String, t: SafeTx): JsonObject = buildJsonObject {
-            put("kind", KIND); put("chain_id", chainId); put("consumer", safe)
-            put("ctx_hash", hashHex(chainId, safe, t)); put("safe_tx", t.json())
-        }
-
-        /** Guest side of the context gate: the ctx_hash this phone derives from context.safe_tx, null = can't. */
-        fun expectCtxHash(context: JsonObject): String? {
-            val chain = (context["chain_id"] as? JsonPrimitive)?.content?.toLongOrNull() ?: return null
-            val safe = (context["consumer"] as? JsonPrimitive)?.content ?: return null
-            val t = (context["safe_tx"] as? JsonObject)?.let(::fromJson) ?: return null
-            return runCatching { hashHex(chain, safe, t) }.getOrNull()
+            put("chain_id", chainId); put("consumer", safe); put("ctx_hash", hashHex(chainId, safe, t))
         }
 
         /** What each phone signs at Confirm (P256Owner, SHA256withECDSA): "pop-safe-owner-v1" ‖ safeTxHash. */
@@ -88,12 +83,24 @@ data class SafeTx(
             return OWNER_MSG_TAG + safeTxHash
         }
 
-        /** "0.0015" ETH -> wei decimal string; null = not a non-negative decimal with <= 18 places. */
-        fun ethToWei(eth: String): String? {
-            val s = eth.trim()
-            if (!Regex("^[0-9]+(\\.[0-9]{0,18})?$").matches(s) && !Regex("^\\.[0-9]{1,18}$").matches(s)) return null
+        /** ERC-20 transfer(to, amount) calldata. [amount] canonical decimal. */
+        fun transferData(to: String, amount: String): String =
+            "0x" + TRANSFER + addr(to).toHex() + u256(amount).toHex()
+
+        /** "0.0015" with 18 decimals -> "1500000000000000"; null = not a non-negative decimal with <= [decimals] places. */
+        fun toUnits(amount: String, decimals: Int): String? {
+            val s = amount.trim()
+            if (!Regex("^[0-9]+(\\.[0-9]{0,$decimals})?$").matches(s) && !Regex("^\\.[0-9]{1,$decimals}$").matches(s)) return null
             val (i, f) = s.split('.').let { it[0] to (it.getOrNull(1) ?: "") }
-            return (i + f.padEnd(18, '0')).trimStart('0').ifEmpty { "0" }
+            return (i + f.padEnd(decimals, '0')).trimStart('0').ifEmpty { "0" }
+        }
+
+        /** Canonical decimal base units -> "1.5" with [decimals] places. */
+        fun formatUnits(units: String, decimals: Int): String {
+            val p = units.padStart(decimals + 1, '0')
+            val i = p.dropLast(decimals).trimStart('0').ifEmpty { "0" }
+            val f = p.takeLast(decimals).trimEnd('0')
+            return if (f.isEmpty()) i else "$i.$f"
         }
 
         fun addrOk(a: String) = ADDR.matches(a)
@@ -116,7 +123,7 @@ data class SafeTx(
             return out
         }
 
-        /** 0x-hex quantity (JSON-RPC) -> decimal string. */
+        /** 0x-hex quantity (JSON-RPC, calldata word) -> decimal string. */
         fun hexToDec(h: String): String {
             val b = h.removePrefix("0x").let { if (it.length % 2 == 1) "0$it" else it }.hexToBytes()
             val digits = mutableListOf(0)

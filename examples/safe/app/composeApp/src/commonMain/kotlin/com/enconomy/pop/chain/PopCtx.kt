@@ -1,16 +1,13 @@
 package com.enconomy.pop.chain
 
 import com.enconomy.pop.hexToBytes
-import com.enconomy.pop.toHex
 import org.kotlincrypto.hash.sha3.Keccak256
 
 /**
- * PopCtx (docs/worldid/01 §5): the one context-binding formula.
+ * PopCtx: the one context-binding formula, same as the core's server/pop/popctx.py.
  *
  *   session_nonce = keccak256(abi.encode(bytes32 DOMAIN, uint256 chainId, address consumer,
  *                                        bytes32 ctxHash, uint64 notBefore, bytes16 sid))
- *   signal        = session_nonce ‖ role (33 B, role 'A' 0x41 | 'B' 0x42)
- *   signalHash    = uint256(keccak256(signal)) >> 8
  *
  * The 192-byte preimage is built by hand as six 32-byte words; no ABI library.
  */
@@ -45,24 +42,6 @@ object PopCtx {
     /** Wire form: consumer "0x"+40 hex, ctxHash "0x"+64 hex, sessionId 32 hex (no prefix). Returns 32 bytes. */
     fun nonce(chainId: Long, consumer: String, ctxHash: String, notBefore: Long, sessionId: String): ByteArray =
         nonce(chainId, hex0x(consumer, 20), hex0x(ctxHash, 32), notBefore, hexN(sessionId.removePrefix("0x"), 16))
-
-    fun signal(nonce: ByteArray, role: Char): ByteArray {
-        require(nonce.size == 32) { "nonce must be 32 bytes" }
-        require(role == 'A' || role == 'B') { "role must be A or B" }
-        return nonce + byteArrayOf(role.code.toByte())
-    }
-
-    /** The IDKit signal string: lowercase "0x" + 66 hex, so IDKit decodes it to raw bytes. */
-    fun signalHex(nonce: ByteArray, role: Char): String = "0x" + signal(nonce, role).toHex()
-
-    /** uint256(keccak256(b)) >> 8 as "0x%064x". */
-    fun fieldHash(b: ByteArray): String = "0x00" + keccak(b).copyOf(31).toHex()
-
-    fun signalHash(nonce: ByteArray, role: Char): String = fieldHash(signal(nonce, role))
-
-    fun action(sessionId: String): String = "pop:$sessionId"
-
-    fun actionField(action: String): String = fieldHash(action.encodeToByteArray())
 
     /** Big-endian [v] in the 32-byte word that ends at [end] (exclusive). */
     private fun putBe(out: ByteArray, end: Int, v: Long) {

@@ -1,4 +1,4 @@
-rootProject.name = "pop"
+rootProject.name = "pop-safe"
 
 pluginManagement {
     repositories {

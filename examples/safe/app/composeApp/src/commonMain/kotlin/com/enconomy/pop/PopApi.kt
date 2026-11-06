@@ -99,18 +99,11 @@ data class CreateSessionResp(
     val join_token: String,
     val expires_at_ms: Long,
     val invite_b64url: String? = null,
-    // docs/worldid/01 §9 row 1: present when created with a context (PopCtx nonce)
+    /** Present with a context: PopCtx nonce, its not_before, the plain context back. */
     val nonce: String? = null,
     val not_before: Long? = null,
     val context: JsonObject? = null,
-    val policy: JsonObject? = null,
 )
-
-/** docs/worldid/01 §9 row 1. Both null = the old `{}` body. */
-@Serializable data class SessionReq(val context: JsonObject? = null, val policy: JsonObject? = null) {
-    /** Absent fields are left out (not null), so no context still sends exactly `{}`. */
-    fun body(): String = JsonObject(listOfNotNull(context?.let { "context" to it }, policy?.let { "policy" to it }).toMap()).toString()
-}
 
 @Serializable data class JoinReq(val join_token: String)
 /** [cal_us] = this device's enrollment calibration as the server holds it (0 = none). */
@@ -146,11 +139,9 @@ data class SessionView(
     val error: String? = null,
     /** Server extra: why the previous attempt failed (shown while re-arming). */
     val last_failure: Failure? = null,
-    // docs/worldid/01 §9 row 3
+    /** The session's plain context {chain_id, consumer, ctx_hash}, null for a session without one. */
     val context: JsonObject? = null,
     val not_before: Long? = null,
-    val policy: JsonObject? = null,
-    val human: JsonObject? = null,
 )
 
 @Serializable data class Failure(val attempt: Int = 0, val reason: String? = null, val by: String? = null, val text: String? = null)
@@ -168,27 +159,6 @@ data class ResultRecord(
     val attempts: List<JsonObject> = emptyList(),
     /** Option A validAt (unix s) when the server pins one; the phone falls back to t0 of the attempt. */
     val valid_at: Long? = null,
-    // docs/worldid/01 §9 row 8
-    val context: JsonObject? = null,
-    val not_before: Long? = null,
-    val human: JsonObject? = null,
-    val pair_tag: String? = null,
-)
-
-/** POST /v1/session/{sid}/worldid/start (docs/worldid/01 §9 row 4). */
-@Serializable data class WorldIdStartResp(val request_id: String? = null, val connector_uri: String, val expires_at_s: Long? = null)
-
-/** GET /v1/session/{sid}/worldid (§9 row 5), the caller's role. */
-@Serializable
-data class WorldIdStatusResp(
-    val role: String? = null,
-    val status: String,
-    val error: String? = null,
-    /** Server extras: partner {status}, and the live request while pending. */
-    val partner: JsonObject? = null,
-    val pair_tag: String? = null,
-    val connector_uri: String? = null,
-    val expires_at_s: Long? = null,
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -221,9 +191,6 @@ data class ArmResp(
 @Serializable data class CommitResp(val partner_bed: Pcm, val partner_code: CodeWire? = null)
 @Serializable data class TranscriptReq(val transcript_b64: String, val sig_b64: String, val meta: JsonObject)
 @Serializable data class TranscriptResp(val accepted: Boolean, val state: String? = null)
-/** GET / POST /v1/device/ens: one name per device, <label>.enconomy.eth. status none | pending | registered | failed. */
-@Serializable data class EnsReq(val label: String)
-@Serializable data class EnsResp(val label: String? = null, val name: String? = null, val status: String = "none", val tx: String? = null)
 
 @Serializable data class FailReq(val attempt: Int, val reason: String)
 @Serializable class Empty
@@ -308,14 +275,9 @@ class PopApi(
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
 
-    /** This device's ENS name (signed). */
-    suspend fun ens(): EnsResp = call(HttpMethod.Get, "/v1/device/ens", null, EnsResp.serializer())
-    /** Claim <label>.enconomy.eth once; 400 bad_label, 409 already_claimed / label_taken. */
-    suspend fun claimEns(label: String): EnsResp =
-        call(HttpMethod.Post, "/v1/device/ens", enc(EnsReq.serializer(), EnsReq(label)), EnsResp.serializer())
-
-    suspend fun createSession(req: SessionReq = SessionReq()): CreateSessionResp =
-        call(HttpMethod.Post, "/v1/session", req.body(), CreateSessionResp.serializer())
+    /** [context] = plain {chain_id, consumer, ctx_hash}: the core binds it into the nonce and the signed record. */
+    suspend fun createSession(context: JsonObject? = null): CreateSessionResp =
+        call(HttpMethod.Post, "/v1/session", if (context == null) "{}" else buildJsonObject { put("context", context) }.toString(), CreateSessionResp.serializer())
 
     suspend fun join(id: String, joinToken: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/join", enc(JoinReq.serializer(), JoinReq(joinToken)), SessionView.serializer())
@@ -336,26 +298,7 @@ class PopApi(
     suspend fun fail(id: String, attempt: Int, reason: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/fail", enc(FailReq.serializer(), FailReq(attempt, reason)), SessionView.serializer())
     suspend fun abort(id: String): SessionView = call(HttpMethod.Post, "/v1/session/$id/abort", "{}", SessionView.serializer())
-    /** One request per role serves both buttons (§6.7); the server reuses a live one under 240 s. */
-    /** [sandbox] = World ID Simulator request (server POP_WORLDID_SANDBOX=1, test sessions): connector_uri is the simulator link. */
-    suspend fun worldidStart(id: String, sandbox: Boolean = false): WorldIdStartResp =
-        call(HttpMethod.Post, "/v1/session/$id/worldid/start", if (sandbox) """{"env":"sandbox"}""" else "{}", WorldIdStartResp.serializer())
-
-    /** Long-poll (server holds up to 25 s). */
-    suspend fun worldidStatus(id: String, timeoutS: Int? = null): WorldIdStatusResp =
-        call(HttpMethod.Get, "/v1/session/$id/worldid" + (timeoutS?.let { "?timeout_s=$it" } ?: ""), null, WorldIdStatusResp.serializer())
-
-    /** Public attestation (docs/worldid/01 §8.4), unsigned. */
-    suspend fun attestation(id: String): JsonObject =
-        call(HttpMethod.Get, "/v1/session/$id/attestation", null, JsonObject.serializer(), signed = false)
-
-    /** SAFE (02 §7.3): this phone's P256Owner signature over "pop-safe-owner-v1" ‖ safeTxHash, raw r‖s. */
-    suspend fun safeOwnerSig(id: String, sigHex: String): JsonObject =
-        call(HttpMethod.Post, "/v1/session/$id/safe/owner-sig", buildJsonObject { put("sig", sigHex) }.toString(), JsonObject.serializer())
-
-    /** What the laptop relayer did (relayer/out/<sid>.result.json via the server), unsigned. status "none" = nothing yet. */
-    suspend fun relayStatus(id: String): JsonObject =
-        call(HttpMethod.Get, "/v1/session/$id/relay", null, JsonObject.serializer(), signed = false)
+    suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 
     /** JSON-RPC eth_call to [rpcUrl] (not the PoP server). Returns the 0x result. */
     suspend fun ethCall(rpcUrl: String, to: String, data: String): String {
@@ -365,8 +308,6 @@ class PopApi(
         o["error"]?.let { error("rpc: $it") }
         return o["result"]?.jsonPrimitive?.content ?: error("rpc: no result")
     }
-
-    suspend fun result(id: String): ResultRecord = call(HttpMethod.Get, "/v1/session/$id/result", null, ResultRecord.serializer())
 
     /**
      * Unsigned streaming GET of a static file from byte [from] (Range). [onStart] gets the status and the
@@ -428,7 +369,7 @@ class PopApi(
         return st to r.textOrThrow()
     }
 
-    /** GET /v1/session/{id}/result as raw JSON (for the zk block). */
+    /** GET /v1/session/{id}/result as raw JSON (zk block, and the presence record the Safe backend takes). */
     suspend fun resultJson(id: String): JsonObject =
         popJson.parseToJsonElement(send(HttpMethod.Get, "/v1/session/$id/result", ByteArray(0), null, signed = true).textOrThrow()).jsonObject
 

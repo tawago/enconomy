@@ -210,7 +210,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.enconomy.pop"
+        applicationId = "com.enconomy.pop.safe"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
