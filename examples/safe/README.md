@@ -2,9 +2,7 @@
 
 A 2-of-4 Safe on Sepolia that only spends when its two phone owners got a NEAR from the core. An outside developer could build this: it uses only the core's public HTTP routes and its signed presence record. It has its own database and imports nothing from the core.
 
-It isn't part of `./demo`, and the core app has no Safe screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
-
-The removed Kotlin app code for this feature (`chain/SafeTx.kt`, `chain/ContextGate.kt`, `chain/PopCtx.kt`, `PopController.kt` and `App.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
+It isn't part of `./demo`, and the core app has no Safe screen. This example has its own copy of the app in `app/`, see [App](#app). It has never been compiled.
 
 ## What it proves
 
@@ -86,19 +84,39 @@ One worker thread in the backend runs `relay.mjs` per job, so the gas key sends 
 
 **Existing Safes won't match a new app.** Device keys are per `applicationId`, so a new app's phones get new keys, and a Safe that registered the old ones reverts with `UnknownDevice`. Create a new Safe for the new keys.
 
-## What its future app must do
+## App
 
-Nothing is built yet. The app:
+`app/` is a full copy of the mobile and web app, Android, iOS and Kotlin/Wasm, from commit `1e80216`. It's trimmed to the proximity flow plus this spend, with the core's current session API. Application id and bundle id are `com.enconomy.pop.safe`. The Kotlin package stays `com.enconomy.pop`. It's reference code: **nobody has compiled or run this copy, not once.** There's no SDK under it and none is planned.
 
-1. Has its own `applicationId`, enrolls with the core and calibrates as any core app does.
-2. Host: `POST /v1/spends`, gets `ctx_hash`. Guest: `GET /v1/spends/{ctx_hash}` with the hash from the host.
-3. On both phones: recompute the `safeTxHash` from `safe_tx`, and refuse if it differs.
-4. On both phones: **run the allowlist itself before Confirm**, and **show what the transaction does**, not just `to` and an ETH amount. A token `approve` reads as 0 ETH.
-5. Creates the core session with the plain context `{chain_id, consumer: <safe, lowercase>, ctx_hash}`.
-6. At Confirm, each phone signs and sends `owner-sig` to this backend.
-7. Runs the session through the core as usual.
-8. After the result, takes `presence` from `GET /v1/session/{id}/result` and sends it to `POST /v1/spends/{ctx_hash}/presence`. Either phone, both is fine, so both should. Retry until accepted, surviving an app restart. Then read `/relay`.
-9. Says plainly on `unattested_device` that this phone can't spend.
+What it does:
+
+1. Enrolls with the core and calibrates as any core app does. The Safe screen holds the backend URL and the Safe. Both phones save the same two once. A guest refuses a session for any other Safe.
+2. Host: builds the `safe_tx`, a native transfer or a listed token's `transfer`, runs the allowlist on the phone, then `POST /v1/spends` and checks the answer against its own hash.
+3. Host: creates the core session with the plain context `{chain_id, consumer: <safe, lowercase>, ctx_hash}`.
+4. Guest: joins, takes `ctx_hash` from the session's context, then `GET /v1/spends/{ctx_hash}`. The core doesn't carry `safe_tx`.
+5. Guest: recomputes the `safeTxHash` and runs the allowlist on the phone, and refuses the session if either fails. The allowlist in `chain/Allowlist.kt` is a port of `allowlist()` in `backend/safe_tx.py`, with its own token table, so the backend's `what` is never what's shown.
+6. Confirm shows what the transaction does: for a token transfer the token, amount, recipient and token contract. It also says a spend doesn't prove two different humans.
+7. At Confirm each phone signs and sends `owner-sig` to this backend. Once both confirmed, each recomputes the PopCtx nonce before any audio.
+8. Runs the session through the core as usual.
+9. After a NEAR, each phone takes `presence` from `GET /v1/session/{id}/result`, unchanged, and sends it to `POST /v1/spends/{ctx_hash}/presence`. It retries on `owner_sigs_missing`, a 5xx or no network, and keeps what's pending in Prefs, so a restart picks it up. Any other refusal is final and shown. `unattested_device` says plainly this phone can't spend.
+10. Shows the status from `GET /v1/spends/{ctx_hash}/relay`.
+
+Calls for the spend go only to this backend (`SafeBackend.kt`, unsigned, its own URL). The app doesn't call any core Safe route, there are none left.
+
+**Left out:** `app/prover`, `app/zkprove` and every built binary. They come from the core's `app/`, copy them to `examples/safe/app/` if you ever build this. Without them the app builds without on-phone proofs (`ProverLib.available = false`), as the core's does. A spend doesn't need a phone proof when the guard takes the attestation.
+
+### If someone compiles it
+
+Expect to fix:
+
+- **Compile errors from the trim.** Hand-edited with no compiler: `PopController.kt`, `App.kt`, `PopApi.kt`, `SafeBackend.kt` and `chain/`. Look for missing or unused imports, and types around the new `spend` and `safe` state. The tests in `commonTest/.../chain/` have never run either, though their hash and nonce vectors are copied from checked ones.
+- **Gradle and Xcode versions.** As they stood at `1e80216`. JDK 21 for Gradle. The Xcode project has never been opened at this path.
+- **Reaching the backend.** The default URL `http://10.0.2.2:8200` only works from the Android emulator. Real phones need the LAN address on the Safe screen and uvicorn with `--host 0.0.0.0`.
+- **Web and CORS.** The backend has no CORS middleware, so a page on another origin can't call it. Web devices are unattested and can't spend anyway, they end at `unattested_device`.
+- **iOS App Attest.** The core's `POP_IOS_APP_ID` must become `TEAMID.com.enconomy.pop.safe`. It holds one app id, so a core can't serve both this and the core app attested.
+- **Android, next to the core app on one phone.** Both claim the same NFC AID `F0454E434F504F50`, so a tap may reach the wrong app. Install one, or change the AID in both this app's `apduservice.xml` and `Invite.kt` or `Pairing.android.kt`, wherever the reader sends it.
+- **Paths.** `scripts/build_web.sh` writes to `app/build/web/`, and it no longer takes the repo's heavy-job lock, so on a small machine wrap it yourself. The generators under `commonTest/resources/zk/tools/` still assume the core's layout. `app/README.md` below its first lines describes the core.
+- **Keys.** Device keys are per application id, so this app needs a new Safe, as above.
 
 ## Security checks that stayed
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- §3.2: AID F0 "ENCOPOP", category other -->
+<host-apdu-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/pop_hce_description"
+    android:requireDeviceUnlock="false">
+    <aid-group
+        android:category="other"
+        android:description="@string/pop_hce_aid_group">
+        <aid-filter android:name="F0454E434F504F50" />
+    </aid-group>
+</host-apdu-service>
