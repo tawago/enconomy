@@ -14,17 +14,17 @@ A Safe 1.5.0 (SafeL2) that only moves money when its two phone owners are physic
 ## Pieces
 
 ```
-phone A + phone B ── PoP session (context kind "safe-tx", ctx_hash = safeTxHash) ──► server/
-   each phone at Confirm: POST /v1/session/<sid>/safe/owner-sig  (P-256 over "pop-safe-owner-v1" ‖ safeTxHash)
-server/  NEAR ─► GET /v1/session/<sid>/attestation ─► att.tail_hex (172 B POP2, "pop-safe-v2", signed by data/attest*.pem)
-relayer/ relay.mjs (job from the backend) ─► checks hash/nonce/guard/devices on chain ─► execTransaction(…, ownerSigs ‖ POP2 ‖ 000000ac ‖ "POPV")
+phone A + phone B ── core session (plain context, ctx_hash = safeTxHash) ──► core server, signed presence record
+   each phone: POST /v1/spends/<safeTxHash>/owner-sig on the backend  (P-256 over "pop-safe-owner-v1" ‖ safeTxHash)
+../backend  record + both owner sigs ─► att.tail_hex (172 B POP2, "pop-safe-v2", signed with SAFE_ATTEST_KEY_FILE)
+../relayer  relay.mjs (job from the backend) ─► checks hash/nonce/guard/devices on chain ─► execTransaction(…, ownerSigs ‖ POP2 ‖ 000000ac ‖ "POPV")
 Safe ─► PopSafeGuard.checkTransaction ─► IPopPresenceVerifier.verifyPresence(safe, safeTxHash, qx, qy, presence)
 ```
 
 - `src/PopSafeGuard.sol`: the tx guard, plus `PopSafeSetup`, which sets the guard inside `Safe.setup`. Each Safe has its own issuer key (qx, qy) and a device registry (`sha256(pub65)` → owner). Escape hatch: `announce`, wait `delay`, then execute within `grace`. Only recovery calls are allowed there. `cancel`/`cancelAll` exist too. The guard refuses delegatecall, `gasPrice > 0`, `enableModule`, `setFallbackHandler`, `setModuleGuard`, threshold < 2, and `setGuard` to a guard that hasn't run `initSafe`.
 - `src/P256Owner.sol`: an EIP-1271 owner for one phone P-256 key (uses the `0x100` precompile), plus a CREATE2 factory. The phone signs `"pop-safe-owner-v1" ‖ safeTxHash` with SHA256withECDSA, as raw r‖s. High s is accepted.
 - `src/interfaces/IPopPresenceVerifier.sol`: `verifyPresence(safe, safeTxHash, qx, qy, presence) → (devA, devB)`. It reverts if the proof is invalid. The verifier is **immutable per guard**. To switch verifiers, deploy a new guard, run a PoP tx `newGuard.initSafe(...)`, then a PoP tx `setGuard(newGuard)`. No timelock is needed, since both steps need presence.
-- `src/verifiers/PopAttestationVerifier.sol`: checks the server's P-256 `pop-safe-v2` attestation (spec 01 §8.2). **Live now.**
+- `src/verifiers/PopAttestationVerifier.sol`: checks the backend's P-256 `pop-safe-v2` attestation (spec 01 §8.2). **Live now.**
 - `src/verifiers/NoirPresenceVerifier.sol`: the Noir option A adapter over the bb UltraHonk verifiers. Built and gas-tested, **not deployed**.
 - `src/lib/PopCtx.sol`, `src/lib/PopAttest.sol`: implement spec 01 §5 and §8.2. Golden vectors are in `test/PopCtx.t.sol`.
 
@@ -41,14 +41,14 @@ Signature layout: `execTransaction.signatures` = `ownerSigs ‖ presence ‖ u32
 | demo Safe (2-of-4, **test** phone keys) | `0x1399D5F9B91B92EF8220E9328743Ac5F370Ed6d4` |
 | SafeL2 1.5.0 / SafeProxyFactory 1.5.0 (canonical) | `0xEdd160fEBBD92E350D4D398fb636302fccd67C7e` / `0x14F2982D601c9458F93bd70B218933A6f8165e7b` |
 
-The demo Safe's issuer is a dev key: X `0xe456d477…8242`, Y `0x08f1c0b3…60e8`. The same key is at `server/data/attest-demo.pem` (gitignored, 0600, derived from `ISSUER_KEY` in `.env.demo`). The server's default `data/attest.pem` is a **different** key, so run the server with `POP_ATTEST_KEY_FILE=data/attest-demo.pem`. Otherwise every spend reverts with `BadAttestation`.
+The demo Safe's issuer is a dev key: X `0xe456d477…8242`, Y `0x08f1c0b3…60e8`. The same key is at `server/data/attest-demo.pem` (gitignored, 0600, derived from `ISSUER_KEY` in `.env.demo`). Point the backend's `SAFE_ATTEST_KEY_FILE` at it, or every spend reverts with `BadAttestation`.
 
 ## Run the demo
 
 **A. Chain-only replay (no phones, no server).** This already ran on Sepolia; see `DEPLOYMENTS.md`.
 
 ```sh
-cd contracts && SALT=$(date +%s) script/sepolia_demo.sh   # reuses deployments/11155111.json; new Safe + spend + guardian no-presence revert
+cd examples/safe/contracts && SALT=$(date +%s) script/sepolia_demo.sh   # reuses deployments/11155111.json; new Safe + spend + guardian no-presence revert
 ```
 
 **B. Real phones → server → relayer → Sepolia.**
@@ -56,7 +56,7 @@ cd contracts && SALT=$(date +%s) script/sepolia_demo.sh   # reuses deployments/1
 1. Enroll both phones on the server as usual. Read their pubkeys: `sqlite3 server/data/pop.sqlite "select device_id, display_name, '0x'||pubkey from devices"`.
 2. Create a Safe for those phones. The demo Safe holds test keys, so real phones would get `UnknownDevice`.
    ```sh
-   cd contracts; set -a; . ./.env; set +a     # SAFE_KEY_FILE
+   cd examples/safe/contracts; set -a; . ./.env; set +a     # SAFE_KEY_FILE
    PRIVATE_KEY=$(cat ${SAFE_KEY_FILE/#\~/$HOME}) PUB_A=0x04… PUB_B=0x04… \
    GUARDIAN_1=0x1291992a1BE4e3b37e1fB5423a22dC2379b94FDb GUARDIAN_2=0xD2f5b64C51369E1158cD6ad56d6358407Bc3D3De \
    ISSUER_X=0xe456d477fdff5a857ea08d43beaf5a342675d558321930a44c610b75944d8242 \
@@ -67,19 +67,7 @@ cd contracts && SALT=$(date +%s) script/sepolia_demo.sh   # reuses deployments/1
    cast send <safe> --value 0.002ether --rpc-url sepolia --private-key …
    ```
    Don't broadcast while the ENS example's `ens.sh` runs, because the deployer key is shared.
-3. Start the server: `cd server && POP_ATTEST_KEY_FILE=data/attest-demo.pem POP_CHAIN_ID=11155111 POP_UNATTESTED_ALLOW=<iphone device_ids> uv run python -m pop`. `GET /v1/config` → `attest.qx/qy` must equal ISSUER_X/Y.
-4. The app creates a session with `context = {kind: "safe-tx", chain_id: 11155111, consumer: <safe lowercase>, ctx_hash: safeTxHash, safe_tx: {to, value, data, operation, safe_tx_gas, base_gas, gas_price, gas_token, refund_receiver, nonce}}`. The allowlist accepts a native transfer, or Sepolia USDC `transfer`. Each phone posts its owner sig at Confirm, and then they run the PoP session.
-5. Relay:
-   ```sh
-   cd relayer && npm ci
-   RELAYER_PK=0x… EXPECT_SAFE=<safe> POP_SERVER_URL=http://127.0.0.1:8000 node relay.mjs <sid> --wait
-   # or keep it running: RELAYER_PK=… ./watch.sh   (polls server/data/pop.sqlite every 1 s)
-   ```
-   The output is one JSON line with `status`, `tx_hash` and an Etherscan link. Refusals come back as short user-facing texts (`TEXT` in `relay.mjs`).
-
-The server only signs `pop-safe-v2` when both humans have **production** World ID (`nonprod_humans` otherwise). It also needs NEAR, both owner sigs, and attested devices, or devices listed in `POP_UNATTESTED_ALLOW`. The attestation lives 15 min (`POP_ATT_TTL_S`).
-
-Recovery: `script/Recover.s.sol` (`MODE=announce`, wait `DELAY`, then `MODE=exec`). The guardian keys are in `.env.guardians`. The hatch can remove the guard, reinstall a phone, or rotate the issuer.
+3. Run the backend, see [`../README.md`](../README.md). The rest of the flow and what it does and doesn't prove are there.
 
 ## Tests
 
