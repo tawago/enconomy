@@ -22,6 +22,10 @@ Hackathon build. Happy path only, no tests of its own. `contracts/test` still ex
 - **That the new key works.** `finishRotation` isn't signed by the new key and anyone can call it. A wrong Y still hashes to an address, and that address becomes a dead owner.
 - **Silence and tone.** Open since FV v1: a silent recording and a pure tone aren't ruled out.
 
+## Which sidecar
+
+The backend sends through `EVP_SIDECAR`. The default is our own on `:14337`. The public one, `https://altmempool.forshtat.com/rpc`, took the start tx once its gas cap was lifted. Its explorer record lives on that node: a link with `node=` set to the public gateway says it hasn't seen the tx. The finish tx is a plain tx, so no sidecar sees it.
+
 ## The signature list
 
 The start tx has one real signature, L's. It still has two entries, because ethrex's default code reads index 1 for a payment-only frame, so L can't sit at index 0. Entry 0 is an empty ARBITRARY entry that costs 100 gas and that nothing reads.

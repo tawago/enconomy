@@ -71,7 +71,7 @@
 const $ = (id) => document.getElementById(id);
 const STEPS = [["s-a", "1 Key"], ["s-b", "2 Chirp"], ["s-c", "3 Proofs"], ["s-d", "4 Start tx"], ["s-e", "5 Finish tx"]];
 const EXPLORER = "https://explorer.altmempool.wtf/tx/";
-const EXPLORER_NODE = "https://altmempoolgateway.forshtat.com/rpc";
+const EXPLORER_NODE = "https://altmempool.forshtat.com/rpc"; // the sidecar we send through; the gateway has no record of it
 const open_ = new Set(["s-a"]), done = new Set();
 function renderTabs(active) {
   const nav = $("tabs");
@@ -94,7 +94,7 @@ function txBox(el, title, r) {
   const hash = r.hash ?? r.tx;
   const ok = r.status === "0x1" || r.status === 1 || r.status === undefined;
   let html = `<div class="tx"><b>${title}</b>${r.block ? `, block ${r.block}` : ""}, ${ok ? "success" : "failed"}<br>`;
-  if (hash) html += `<code>${hash}</code><br><a target="_blank" href="${EXPLORER}${hash}?node=${encodeURIComponent(EXPLORER_NODE)}">View on the explorer</a>`;
+  if (hash) html += `<code>${hash}</code><br>` + (r.frames ? `<a target="_blank" href="${EXPLORER}${hash}?node=${encodeURIComponent(EXPLORER_NODE)}">View on the explorer</a>` : "A plain tx. It skips the mempool, so the explorer's sidecar has no record of it.");
   if (r.frames) html += `<table><tr><th>Frame</th><th>Status</th><th>Gas</th></tr>${r.frames.map((f, i) =>
     `<tr><td>${["0 expiry", "1 proofs", "2 laptop pays", "3 email + rotate"][i] ?? i}</td><td>${f.status === "0x1" ? "ok" : "reverted"}</td><td>${Number(f.gasUsed).toLocaleString()}</td></tr>`).join("")}</table>`;
   el.innerHTML = html + "</div>";
