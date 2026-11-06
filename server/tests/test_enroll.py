@@ -1,8 +1,17 @@
+import base64
+import json
+from pathlib import Path
+
 import pytest
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 
-from pop.attestation import parse_key_description
-from tests.phones import Phone, key_description, make_chain
+from pop.attestation import GOOGLE_ANDROID_ROOTS, device_attested, parse_key_description, roots_from_pem, spki_sha256
+from pop.main import Settings
+from tests.phones import TEST_ANDROID_ROOTS, TEST_ROOT_SK, Phone, _cert, b64_cert, key_description, make_chain
+
+ROOTS_JSON = Path(__file__).parent / "fixtures" / "google-attestation-roots.json"
 
 
 def _nonce(client):
@@ -120,3 +129,149 @@ def test_reenroll_same_key_replaces(client, clock):
 def test_display_name_bounds(client, clock, name):
     r = Phone(client, clock, name=name).enroll()
     assert r.status_code == 400 and r.json()["error"] == "bad_request"
+
+
+# -- Google root pin
+
+def _pem(chain: list[str]) -> str:
+    certs = [x509.load_der_x509_certificate(base64.b64decode(c)) for c in chain]
+    return "".join(c.public_bytes(serialization.Encoding.PEM).decode() for c in certs)
+
+
+def _refused(client, p, n, chain, detail):
+    r = client.post("/v1/enroll", json=p.enroll_body(n, chain))
+    assert r.status_code == 400 and r.json()["error"] == "enroll_bad_chain" and detail in r.json()["detail"], r.text
+    assert client.app.state.store.get_device(p.device_id) is None
+
+
+def test_pins_are_the_published_roots():
+    pems = json.loads(ROOTS_JSON.read_text())
+    assert len(pems) == 2
+    for pem in pems:
+        c = x509.load_pem_x509_certificate(pem.encode())
+        c.verify_directly_issued_by(c)
+    assert frozenset().union(*(roots_from_pem(p.encode()) for p in pems)) == GOOGLE_ANDROID_ROOTS
+
+
+def test_unknown_root_refused(client, clock):
+    p = Phone(client, clock)
+    n = _nonce(client)
+    chain = make_chain(p.sk.public_key(), bytes.fromhex(n), root_sk=ec.generate_private_key(ec.SECP256R1()))
+    _refused(client, p, n, chain, "not pinned")
+
+
+@pytest.mark.parametrize("allow", [False, True])
+def test_google_pins_refuse_test_chain(make_client, clock, allow):
+    c = make_client(allow_unattested=allow, android_roots=GOOGLE_ANDROID_ROOTS)
+    p = Phone(c, clock)
+    n = _nonce(c)
+    _refused(c, p, n, make_chain(p.sk.public_key(), bytes.fromhex(n)), "not pinned")
+
+
+def test_google_pins_keep_unattested_path(make_client, clock):
+    c = make_client(allow_unattested=True, android_roots=GOOGLE_ANDROID_ROOTS)
+    r = Phone(c, clock).enroll(attested=False)
+    assert r.status_code == 200 and r.json()["attested"] is False
+
+
+def test_pinned_key_in_a_cert_signed_by_someone_else_refused(client, clock):
+    """Only the last cert's key is pinned, so its own signature doesn't matter: nothing below it can verify."""
+    p = Phone(client, clock)
+    n = _nonce(client)
+    evil = ec.generate_private_key(ec.SECP256R1())
+    root = _cert("Fake Root", TEST_ROOT_SK.public_key(), "Fake Root", evil, ca=True)
+    inter_sk = ec.generate_private_key(ec.SECP256R1())
+    inter = _cert("Fake Inter", inter_sk.public_key(), "Fake Root", evil, ca=True)
+    leaf = _cert("Android Keystore Key", p.sk.public_key(), "Fake Inter", inter_sk, ext=key_description(bytes.fromhex(n)))
+    _refused(client, p, n, [b64_cert(x) for x in (leaf, inter, root)], "signature")
+
+
+def test_forged_child_under_a_real_leaf_refused(client, clock):
+    """A real phone signs a cert for another key with its own attested key, which the app controls."""
+    real = Phone(client, clock, "real")
+    fake = Phone(client, clock, "fake")
+    n = _nonce(client)
+    nb = bytes.fromhex(n)
+    chain = make_chain(real.sk.public_key(), nb)
+    child = _cert("Forged", fake.sk.public_key(), "Android Keystore Key", real.sk, ext=key_description(nb))
+    _refused(client, fake, n, [b64_cert(child), *chain], "not a CA")
+
+
+@pytest.mark.parametrize("kw,detail", [
+    ({"inter_ca": False}, "not a CA"),
+    ({"inter_ca": None}, "not a CA"),
+    ({"inter_ext": key_description(b"\x01" * 32)}, "KeyDescription above the leaf"),
+])
+def test_bad_intermediate_refused(client, clock, kw, detail):
+    p = Phone(client, clock)
+    n = _nonce(client)
+    _refused(client, p, n, make_chain(p.sk.public_key(), bytes.fromhex(n), **kw), detail)
+
+
+@pytest.mark.parametrize("level", [0, 3])
+def test_non_hardware_level_refused(client, clock, level):
+    p = Phone(client, clock)
+    n = _nonce(client)
+    _refused(client, p, n, make_chain(p.sk.public_key(), bytes.fromhex(n), level=level), "attestation level")
+
+
+def test_android_root_pem_override(tmp_path, monkeypatch):
+    sk = ec.generate_private_key(ec.SECP256R1())
+    cert = _cert("Other Root", sk.public_key(), "Other Root", sk, ca=True)
+    path = tmp_path / "root.pem"
+    path.write_bytes(cert.public_bytes(serialization.Encoding.PEM))
+    monkeypatch.delenv("POP_ANDROID_ROOT_PEM", raising=False)
+    assert Settings().android_roots == GOOGLE_ANDROID_ROOTS
+    monkeypatch.setenv("POP_ANDROID_ROOT_PEM", str(path))
+    assert Settings().android_roots == frozenset({spki_sha256(cert)})
+
+
+# -- stored rows
+
+def _row(client, clock):
+    p = Phone(client, clock)
+    assert p.enroll().status_code == 200
+    return p, client.app.state.store.get_device(p.device_id)
+
+
+def test_row_enrolled_under_the_pin_is_attested(client, clock):
+    _, row = _row(client, clock)
+    assert row["attested"] is True and device_attested(row, TEST_ANDROID_ROOTS)
+
+
+def test_old_row_from_before_the_pin_not_attested(client, clock):
+    """attested=1 in an old pop.sqlite, chain from a root nobody pinned, read back through the store."""
+    p, row = _row(client, clock)
+    store = client.app.state.store
+    chain = make_chain(p.sk.public_key(), b"\x00" * 32, root_sk=ec.generate_private_key(ec.SECP256R1()))
+    store.put_device({**row, "chain_pem": _pem(chain)})
+    old = store.get_device(p.device_id)
+    assert old["attested"] is True and not device_attested(old, TEST_ANDROID_ROOTS)
+
+
+def test_row_under_test_root_not_attested_under_google_pins(client, clock):
+    _, row = _row(client, clock)
+    assert not device_attested(row, GOOGLE_ANDROID_ROOTS)
+
+
+def test_old_row_with_forged_child_not_attested(client, clock):
+    real, row = _row(client, clock)
+    fake = Phone(client, clock, "fake")
+    chain = make_chain(real.sk.public_key(), b"\x00" * 32)
+    child = _cert("Forged", fake.sk.public_key(), "Android Keystore Key", real.sk, ext=key_description(b"\x00" * 32))
+    forged = {**row, "pubkey": fake.pub.hex(), "chain_pem": _pem([b64_cert(child), *chain])}
+    assert not device_attested(forged, TEST_ANDROID_ROOTS)
+
+
+@pytest.mark.parametrize("change,want", [
+    ({"pubkey": "04" + "00" * 64}, False),
+    ({"attested": False}, False),
+    ({"chain_pem": None}, False),
+    ({"chain_pem": "not a cert"}, False),
+    ({"platform": "web"}, False),
+    ({"platform": "ios", "chain_pem": None}, True),
+    ({"platform": "ios", "attested": False}, False),
+])
+def test_device_attested_table(client, clock, change, want):
+    _, row = _row(client, clock)
+    assert device_attested({**row, **change}, TEST_ANDROID_ROOTS) is want

@@ -264,7 +264,7 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`c
 - **Evidence base.** The field data is 12 JBL250 sessions in one quiet room, with one Mac + Android pair. iPhones and noisy venues have not been tested.
 - **Margin.** Pairs at 30 cm read at most 35 cm, and pairs at 100 cm read at least 95 cm. Handheld runs at 60 cm read 60 to 90 cm.
 - **ZK.** Proofs work only at 48 kHz, so 44.1 kHz sessions skip the proof. The phone downloads about 82 MB of proving files first. The Noir presence adapter for the Safe is built and gas-tested but not deployed.
-- **Server.** The Android attestation chain is not pinned to Google's root. The server must run as a single uvicorn worker.
+- **Server.** The Android attestation chain is pinned to Google's roots, but revocation and the app's identity are not checked, so any app on a real phone can attest. The server must run as a single uvicorn worker.
 - **Docs.** The "Option A proofs" section of `server/README.md` still describes the retired circom/Spartan2 prover.
 
 ## Further reading

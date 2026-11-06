@@ -35,6 +35,7 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` (Android) or `app_attest: null` (iOS) at enroll and stores the device as `attested: false`. Use it for emulators, the iOS simulator, a free Apple personal team and fake phones. |
 | `POP_IOS_APP_ID` | unset | App Attest appId, `TEAMID.<BUNDLE_ID>` (e.g. `ABCDE12345.com.enconomy.pop`; must match the iOS build's `TEAM_ID` and `BUNDLE_ID`). Unset = every iOS attestation is refused. |
 | `POP_IOS_ROOT_PEM` | Apple root | Path to a PEM that replaces the embedded Apple App Attestation Root CA (tests pass their own root through `Settings`). |
+| `POP_ANDROID_ROOT_PEM` | Google roots | Path to a PEM whose certs' public keys replace the pinned Google attestation roots (tests pass their own pins through `Settings`). |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |
 | `POP_ISSUER_KEY` | unset | SBcred3 issuer private key, P-256: PEM, or 64 hex (the scalar). Wins over the file. |
@@ -132,7 +133,7 @@ uv run pytest -q
 | File | Covers |
 |---|---|
 | `test_public.py` | `/health`, `/v1/time`, `/v1/config`, error shape |
-| `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
+| `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; unknown root, Google pins refusing the test chain, forged child under a real leaf, non-CA intermediate, software level, old rows no longer attested; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
 | `test_enroll_ios.py` | embedded Apple root self-verifies; App Attest with a self-made root/intermediate (real Apple vectors need a paid team): good (dev and prod aaguid), wrong nonce, other pubkey, tampered credCert nonce, wrong appId, bad aaguid, counter != 0, fmt, credentialId, keyId, foreign intermediate, missing extension, garbage, fake chain vs the real Apple root, no `POP_IOS_APP_ID`; unattested SE key only with the flag; `platform` default and unknown; old sqlite migrates |
 | `test_auth.py` | good, missing headers, unknown device, stale (±61 s), replay, wrong key, tampered body, query covered by the signature |
 | `test_sbcred3.py` | SBcred3 bytes and signature vs every `fixtures/popt_v2` credential (read-only); enrolling a fixture key with the spike's dev issuer reproduces its 111 bytes; issue + store; v1 enroll without `holder_commit`; bad `holder_commit` (>= p, length, hex); expired and foreign-issuer credentials; key from env hex/PEM, autogen file; `popzk.verify_phone` (read-only import) accepts our issuer when pinned, `issuer_unknown` otherwise, `validAt` mismatch for an expired credential. `POP_ZK_CHECK=1` also runs the real `oa2t_s48` circuit (`oa2zk check` under `tools/heavy.sh`, ~15 s) on a spike witness with a credential this server issued: accepted, and refused when expired or under the dev issuer. |
@@ -161,13 +162,17 @@ Goldens: `research/proximity-echo/.venv/bin/python3 server/tests/golden/make_gol
 Verified at `POST /v1/enroll`:
 - The nonce exists, is unused and unexpired. It is consumed on first use, even if the enroll fails.
 - The chain has at least 2 certs, and each cert is signed by the next.
+- The last cert's public key is a pinned Google attestation root (sha256 of SubjectPublicKeyInfo, see `pop/attestation.py`).
+- Every cert above the leaf has BasicConstraints `ca=true` and no KeyDescription. The leaf key is app-controlled, so otherwise a real phone could sign a forged child under its own leaf.
 - The leaf public key equals `pubkey`.
-- The leaf carries the KeyDescription extension (`1.3.6.1.4.1.11129.2.1.17`), and its `attestationChallenge` equals the nonce.
+- The leaf carries the KeyDescription extension (`1.3.6.1.4.1.11129.2.1.17`), `attestationSecurityLevel` is `tee` or `strongbox`, and `attestationChallenge` equals the nonce.
 - `device_id == sha256(pubkey)[:16]`.
 
 `security_level` is taken from `attestationSecurityLevel`. The level the app reports is stored separately, and a mismatch is only logged.
 
-NOT verified: the root pinned to Google's roots (its sha256 is stored as `root_sha256` for later), revocation / RKP, `attestationApplicationId` (package + signing digest), verified-boot state, a minimum security level, and cert validity dates. So a self-made chain passes today. It proves only possession of the key and freshness of the nonce.
+A chain that fails any of these is a 400, also with `POP_ALLOW_UNATTESTED=1`, which only opens the `chain: null` path. So an emulator or non-Google device that sends its own chain is refused, and has to send none. Rows from before the pin may still say `attested=1`. `attestation.device_attested(row, roots)` rechecks a stored chain under the pins, except the challenge, whose nonce isn't kept.
+
+NOT verified: revocation / RKP, `attestationApplicationId` (package + signing digest), so any app on a real phone can attest, verified-boot state, and cert validity dates (Google's first root cert expired 2026-05-24, but its key is still a live anchor). No real phone chain has run against the pins yet: there is no recorded chain in `tests/fixtures`.
 
 ### iOS (contract §2.2.1)
 

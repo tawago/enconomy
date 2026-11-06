@@ -7,6 +7,7 @@ Run: uv run python -m pop            (0.0.0.0:8000)
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
 sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_TUNE_DB (0, tune-only boost, bed level fixed), POP_UPLOAD_RECORDINGS (1),
 POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
+POP_ANDROID_ROOT_PEM (path, its certs replace the pinned Google attestation roots),
 POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
 POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkprove host build, default
 ~/.enconomy/zk/android/target/release/zkprove; delegated proving), POP_ZK_DIR (served / used circuit artifacts
@@ -48,7 +49,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pop import calibration as CAL
 from pop import constants as K
 from pop.appattest import APPLE_ROOT_PEM, verify_app_attest
-from pop.attestation import AttestationError, verify_chain
+from pop.attestation import GOOGLE_ANDROID_ROOTS, AttestationError, roots_from_pem, verify_chain
 from pop.auth import Authenticator
 from pop.crypto import device_id as derive_device_id, load_pub, verify_raw
 from pop import issuer as sbcred
@@ -98,6 +99,7 @@ class Settings:
     data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
     ios_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_IOS_APP_ID") or None)
     ios_root_pem: bytes = field(default_factory=lambda: _read_root(os.environ.get("POP_IOS_ROOT_PEM")))
+    android_roots: frozenset = field(default_factory=lambda: _android_roots(os.environ.get("POP_ANDROID_ROOT_PEM")))
     issuer_key: str | None = field(default_factory=lambda: os.environ.get("POP_ISSUER_KEY") or None)
     issuer_key_file: str = field(default_factory=lambda: os.environ.get(
         "POP_ISSUER_KEY_FILE", str(SERVER_DIR / "data" / "issuer.pem")))
@@ -137,6 +139,10 @@ class Settings:
 
 def _read_root(path: str | None) -> bytes:
     return Path(path).read_bytes() if path else APPLE_ROOT_PEM
+
+
+def _android_roots(path: str | None) -> frozenset:
+    return roots_from_pem(Path(path).read_bytes()) if path else GOOGLE_ANDROID_ROOTS
 
 
 def _hex(s: str, nbytes: int) -> bytes | None:
@@ -430,7 +436,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 attested = False
             else:
                 try:
-                    att = verify_chain(req.chain, pub, nonce)
+                    att = verify_chain(req.chain, pub, nonce, cfg.android_roots)
                 except AttestationError as e:
                     raise PopError(400, e.code, e.detail) from None
                 attested = True

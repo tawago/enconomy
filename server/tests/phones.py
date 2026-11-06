@@ -10,7 +10,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.x509.oid import NameOID
 
-from pop.attestation import KEY_DESCRIPTION_OID
+from pop.attestation import KEY_DESCRIPTION_OID, spki_sha256
 from pop.auth import request_message
 from pop.crypto import device_id, pub_bytes, sign_raw
 
@@ -42,27 +42,42 @@ def key_description(challenge: bytes, level: int = 1) -> bytes:
                 + _der(0x04, challenge) + _der(0x04, b"") + _der(0x30, b"") + _der(0x30, b""))
 
 
-def _cert(subject: str, pub, issuer: str, issuer_sk, ext: bytes | None = None, ca: bool = False) -> x509.Certificate:
+def _cert(subject: str, pub, issuer: str, issuer_sk, ext: bytes | None = None, ca: bool | None = False) -> x509.Certificate:
+    """ca=None leaves BasicConstraints out."""
     now = dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)
     b = (x509.CertificateBuilder()
          .subject_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, subject)]))
          .issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, issuer)]))
          .public_key(pub).serial_number(x509.random_serial_number())
-         .not_valid_before(now).not_valid_after(now + dt.timedelta(days=3650))
-         .add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True))
+         .not_valid_before(now).not_valid_after(now + dt.timedelta(days=3650)))
+    if ca is not None:
+        b = b.add_extension(x509.BasicConstraints(ca=ca, path_length=None), critical=True)
     if ext is not None:
         b = b.add_extension(x509.UnrecognizedExtension(KEY_DESCRIPTION_OID, ext), critical=False)
     return b.sign(issuer_sk, hashes.SHA256())
 
 
-def make_chain(leaf_pub, challenge: bytes, level: int = 1, with_ext: bool = True, break_link: bool = False) -> list[str]:
-    """leaf (attested key) <- intermediate <- self-signed root, base64 DER, leaf first."""
-    root_sk, inter_sk, other_sk = (ec.generate_private_key(ec.SECP256R1()) for _ in range(3))
+# the one root tests pin: Settings(android_roots=TEST_ANDROID_ROOTS), see conftest
+TEST_ROOT_SK = ec.generate_private_key(ec.SECP256R1())
+TEST_ANDROID_ROOTS = frozenset({spki_sha256(_cert("Fake Root", TEST_ROOT_SK.public_key(), "Fake Root", TEST_ROOT_SK, ca=True))})
+
+
+def make_chain(leaf_pub, challenge: bytes, level: int = 1, with_ext: bool = True, break_link: bool = False,
+               root_sk=None, inter_ca: bool | None = True, inter_ext: bytes | None = None) -> list[str]:
+    """leaf (attested key) <- intermediate <- self-signed root, base64 DER, leaf first.
+    root_sk: default the pinned test root; pass another key for an unknown root."""
+    root_sk = root_sk or TEST_ROOT_SK
+    inter_sk, other_sk = (ec.generate_private_key(ec.SECP256R1()) for _ in range(2))
     root = _cert("Fake Root", root_sk.public_key(), "Fake Root", root_sk, ca=True)
-    inter = _cert("Fake Inter", inter_sk.public_key(), "Fake Root", other_sk if break_link else root_sk, ca=True)
+    inter = _cert("Fake Inter", inter_sk.public_key(), "Fake Root", other_sk if break_link else root_sk,
+                  ext=inter_ext, ca=inter_ca)
     leaf = _cert("Android Keystore Key", leaf_pub, "Fake Inter", inter_sk,
                  ext=key_description(challenge, level) if with_ext else None)
-    return [base64.b64encode(c.public_bytes(serialization.Encoding.DER)).decode() for c in (leaf, inter, root)]
+    return [b64_cert(c) for c in (leaf, inter, root)]
+
+
+def b64_cert(c: x509.Certificate) -> str:
+    return base64.b64encode(c.public_bytes(serialization.Encoding.DER)).decode()
 
 
 class Phone:
