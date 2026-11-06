@@ -1,0 +1,375 @@
+=== dig +dnssec TXT _email-verification.gmail.com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline TXT _email-verification.gmail.com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 31059
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;_email-verification.gmail.com. IN TXT
+
+;; ANSWER SECTION:
+_email-verification.gmail.com. 3600 IN TXT "iss=accounts.google.com"
+
+;; Query time: 7 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:50 JST 2026
+;; MSG SIZE  rcvd: 94
+
+=== dig +dnssec DS enconomy.dev
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS enconomy.dev @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 31644
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 0, AUTHORITY: 4, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;enconomy.dev.		IN DS
+
+;; AUTHORITY SECTION:
+dev.			300 IN SOA ns-tld1.charlestonroadregistry.com. cloud-dns-hostmaster.google.com. (
+				1          ; serial
+				21600      ; refresh (6 hours)
+				3600       ; retry (1 hour)
+				259200     ; expire (3 days)
+				300        ; minimum (5 minutes)
+				)
+dev.			300 IN RRSIG SOA 8 1 21600 (
+				20261122023031 20261031023031 59746 dev.
+				WWtgzjTzSkrb3dmxcCIIKNO9hYP9gjcjjRge2bZFDf30
+				jUKM6oo8DvroviQA3frQxuOEi0LqX11T4TygYhmIA4u+
+				cSEYnk41Dqnm3O4zmS55xM7DGU89CE6fMowOz2Qg2vxs
+				FGHkfKeTsrRdEMCSmBqUKPH2SdHKPxaLdAHYPXE= )
+80o14hv713aslvki9ia6vtcahbbkijk9.dev. 300 IN NSEC3 1 0 1 B7B0891083980E59 (
+				80O1NAHR4OS7M2K7VA03814AREP6S6AK
+				NS )
+80o14hv713aslvki9ia6vtcahbbkijk9.dev. 300 IN RRSIG NSEC3 8 2 300 (
+				20261122023031 20261031023031 59746 dev.
+				rWspx7mKTeZRfb1F442+28sda9K/c4k6leMaXfWOIRGQ
+				eKBGEq4eZJEAANcpsbcHeYV2rm+ptnHdU2uokbrTP5RP
+				qlpTpySWvkSXYzX+lqxNxt72dI0eMVsrHPmHdUrynD/N
+				WGh9jJoIwuESvS/2a/JZJuZU7b1yCXmhRM0k3+4= )
+
+;; Query time: 18 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:50 JST 2026
+;; MSG SIZE  rcvd: 547
+
+=== dig +dnssec DNSKEY enconomy.dev
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY enconomy.dev @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 23752
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;enconomy.dev.		IN DNSKEY
+
+;; AUTHORITY SECTION:
+enconomy.dev.		1800 IN	SOA fay.ns.cloudflare.com. dns.cloudflare.com. (
+				2416267876 ; serial
+				10000      ; refresh (2 hours 46 minutes 40 seconds)
+				2400       ; retry (40 minutes)
+				604800     ; expire (1 week)
+				1800       ; minimum (30 minutes)
+				)
+
+;; Query time: 26 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:50 JST 2026
+;; MSG SIZE  rcvd: 102
+
+=== dig +dnssec DS tawago.com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS tawago.com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 8957
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 6, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;tawago.com.		IN DS
+
+;; AUTHORITY SECTION:
+com.			900 IN SOA a.gtld-servers.net. nstld.verisign-grs.com. (
+				1793558906 ; serial
+				1800       ; refresh (30 minutes)
+				900        ; retry (15 minutes)
+				604800     ; expire (1 week)
+				900        ; minimum (15 minutes)
+				)
+com.			900 IN RRSIG SOA 13 1 900 (
+				20261108184826 20261101173826 65344 com.
+				pSt9tbxFZJkORn9B6VV0bvlWhUj1m7xTKuEwk5pDuQYf
+				oQ9nrpxv6+FyP5fb/YQLdrS1Kw9KBNt52cQgu8RU1Q== )
+VH3D05PA3N37JCA4VUHEAS6C3LCQGLD0.com. 900 IN NSEC3 1 1 0 - (
+				VH3DE2EESRPDIV7EUUH8IA9UETS5IASV
+				NS DS RRSIG )
+VH3D05PA3N37JCA4VUHEAS6C3LCQGLD0.com. 900 IN RRSIG NSEC3 13 2 900 (
+				20261108010408 20261031235408 65344 com.
+				xx3TBSsEF38ycENOSjjka/LDdT7/Zjwdf+STGHkByy2z
+				tcnXmHID9YsAb+hCHMhEHoMYaeefJmkT6qQX2z301w== )
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. 900 IN NSEC3 1 1 0 - (
+				CK0Q35HRS4H76G6CHNB9414CJN6S5UPL
+				NS SOA RRSIG DNSKEY NSEC3PARAM )
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. 900 IN RRSIG NSEC3 13 2 900 (
+				20261106002605 20261029231605 65344 com.
+				gqGWA+ranKXAjWFTm7EAd9DjJXK3LwDLhNYPCIOcuzAn
+				TIESYDCiqh3U2oQDgJr1GhfVFW8Z7REuUUXfOac9jg== )
+
+;; Query time: 9 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:50 JST 2026
+;; MSG SIZE  rcvd: 568
+
+=== dig +dnssec DNSKEY tawago.com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY tawago.com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 33966
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;tawago.com.		IN DNSKEY
+
+;; AUTHORITY SECTION:
+tawago.com.		1800 IN	SOA fay.ns.cloudflare.com. dns.cloudflare.com. (
+				2417235575 ; serial
+				10000      ; refresh (2 hours 46 minutes 40 seconds)
+				2400       ; retry (40 minutes)
+				604800     ; expire (1 week)
+				1800       ; minimum (30 minutes)
+				)
+
+;; Query time: 18 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:50 JST 2026
+;; MSG SIZE  rcvd: 97
+
+=== dig +dnssec DS dev
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS dev @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 41857
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;dev.			IN DS
+
+;; ANSWER SECTION:
+dev.			86400 IN DS 60074 8 2 (
+				B942E2CE5AEBF62FCA59D05707E6DBB795211D540D8A
+				DBA02E9E89E833424785 )
+dev.			86400 IN RRSIG DS 8 1 86400 (
+				20261114050000 20261101040000 8763 .
+				iiZuU+7Sd+SpWFNR5t9Zzk1YS4RVEPUW2Th+kMZFZyCG
+				CJCDLBbR6wQECLuq79NWMThkby2X7pKRD+z2P7N3ZbJP
+				wmAd3R0N52kfCrxyYTwAdrcgoctAokgP5dy3rkJ4NzkT
+				OWUH2ocRyRlwuoRvtHcjtMAoHMmgZ3L2II2x9Ur2WCQ7
+				8PdPOVt3c/J09HBPxjRqNPZQsx26iEt7boFRJZSu3/dP
+				0ACTRrKTWFeyzLy1T4rG86NdbuFb1UgEJ0Xbr3H4Kgi3
+				dt5OEQag/q5KiRuPUSqXMJ4CwrQByueESDz1ornci4dx
+				SgCsOoRQ5YqkideuO/SEDJpabCLcPcg9UQ== )
+
+;; Query time: 365 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:51 JST 2026
+;; MSG SIZE  rcvd: 367
+
+=== dig +dnssec DS com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 3375
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;com.			IN DS
+
+;; ANSWER SECTION:
+com.			75926 IN DS 19718 13 2 (
+				8ACBB0CD28F41250A80A491389424D341522D946B0DA
+				0C0291F2D3D771D7805A )
+com.			75926 IN RRSIG DS 8 1 86400 (
+				20261114050000 20261101040000 8763 .
+				LwWT/HPTQsBaXaLEKvg+daR3Z+uu/WVKSO/0xsKNk014
+				DVCn0/GdgMVo81fG7CJ/yydGdzya22fMyWkiprFSdXZc
+				2mlKxcX9ogPUocwxTuUUYLcmQQfO1gIGJRjnKeupDTS8
+				oo1fg5ZEzb+GVig5DeqbMFBpQ1FIg1HkQnPc9RERnkHX
+				YxpXFgperMZhbXJ8o46N5MUBdtMvbbTUv1Sxq6MuvRwl
+				2hkeXHY39Ah7FJlUrNT7+vxfBp5CXPDPcQt/38HBHEuX
+				r5DpKJcOdZXwG6v9SmaZk1iyfEwIidozNHNchr83qA4g
+				ayP6OlMgbPeNrshHH0xR3+2Bh+TCgPg1Fw== )
+
+;; Query time: 10 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:51 JST 2026
+;; MSG SIZE  rcvd: 367
+
+=== dig +dnssec DNSKEY gmail.com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY gmail.com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 54883
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;gmail.com.		IN DNSKEY
+
+;; AUTHORITY SECTION:
+gmail.com.		60 IN SOA ns1.google.com. dns-admin.google.com. (
+				1011121533 ; serial
+				900        ; refresh (15 minutes)
+				900        ; retry (15 minutes)
+				1800       ; expire (30 minutes)
+				60         ; minimum (1 minute)
+				)
+
+;; Query time: 8 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:51 JST 2026
+;; MSG SIZE  rcvd: 95
+
+=== dig +dnssec DS gmail.com
+
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS gmail.com @1.1.1.1
+;; global options: +cmd
+;; Got answer:
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 29929
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 6, ADDITIONAL: 1
+
+;; OPT PSEUDOSECTION:
+; EDNS: version: 0, flags: do; udp: 1232
+;; QUESTION SECTION:
+;gmail.com.		IN DS
+
+;; AUTHORITY SECTION:
+com.			900 IN SOA a.gtld-servers.net. nstld.verisign-grs.com. (
+				1793558906 ; serial
+				1800       ; refresh (30 minutes)
+				900        ; retry (15 minutes)
+				604800     ; expire (1 week)
+				900        ; minimum (15 minutes)
+				)
+com.			900 IN RRSIG SOA 13 1 900 (
+				20261108184826 20261101173826 65344 com.
+				pSt9tbxFZJkORn9B6VV0bvlWhUj1m7xTKuEwk5pDuQYf
+				oQ9nrpxv6+FyP5fb/YQLdrS1Kw9KBNt52cQgu8RU1Q== )
+6QIO48H06NGDCEIRPP6I86HFMGSU2PK1.com. 900 IN NSEC3 1 1 0 - (
+				6QIO59CGUTBEL9V5I871J5LF85JHRMAS
+				NS DS RRSIG )
+6QIO48H06NGDCEIRPP6I86HFMGSU2PK1.com. 900 IN RRSIG NSEC3 13 2 900 (
+				20261106025815 20261030014815 65344 com.
+				Hbawvio9PsIWFGG+uvRhcTDu7aDMlgg2gSkZUjP3EYth
+				UPa4x5kiivcpchyGiMQI+hEl4AOSKwadSIJGC/Uh4w== )
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. 900 IN NSEC3 1 1 0 - (
+				CK0Q35HRS4H76G6CHNB9414CJN6S5UPL
+				NS SOA RRSIG DNSKEY NSEC3PARAM )
+CK0POJMG874LJREF7EFN8430QVIT8BSM.com. 900 IN RRSIG NSEC3 13 2 900 (
+				20261106002605 20261029231605 65344 com.
+				gqGWA+ranKXAjWFTm7EAd9DjJXK3LwDLhNYPCIOcuzAn
+				TIESYDCiqh3U2oQDgJr1GhfVFW8Z7REuUUXfOac9jg== )
+
+;; Query time: 11 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Mon Nov 02 03:48:51 JST 2026
+;; MSG SIZE  rcvd: 567
+
+=== dig +dnssec DNSKEY com
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY com @1.1.1.1
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
+; EDNS: version: 0, flags: do; udp: 1232
+;com.			IN DNSKEY
+com.			5099 IN	DNSKEY 256 3 13 (
+				) ; ZSK; alg = ECDSAP256SHA256 ; key id = 65344
+com.			5099 IN	DNSKEY 257 3 13 (
+				) ; KSK; alg = ECDSAP256SHA256 ; key id = 19718
+com.			5099 IN	RRSIG DNSKEY 13 1 86400 (
+=== dig +dnssec DNSKEY .
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY . @1.1.1.1
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 1
+; EDNS: version: 0, flags: do; udp: 1232
+;.			IN DNSKEY
+.			1888 IN	DNSKEY 256 3 8 (
+				) ; ZSK; alg = RSASHA256 ; key id = 8763
+.			1888 IN	DNSKEY 257 3 8 (
+				) ; KSK; alg = RSASHA256 ; key id = 20326
+.			1888 IN	DNSKEY 257 3 8 (
+				) ; KSK; alg = RSASHA256 ; key id = 38696
+.			1888 IN	RRSIG DNSKEY 8 0 172800 (
+=== dig +dnssec DNSKEY cloudflare.com
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY cloudflare.com @1.1.1.1
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
+; EDNS: version: 0, flags: do; udp: 1232
+;cloudflare.com.		IN DNSKEY
+cloudflare.com.		2120 IN	DNSKEY 256 3 13 (
+				) ; ZSK; alg = ECDSAP256SHA256 ; key id = 34505
+cloudflare.com.		2120 IN	DNSKEY 257 3 13 (
+				) ; KSK; alg = ECDSAP256SHA256 ; key id = 2371
+cloudflare.com.		2120 IN	RRSIG DNSKEY 13 2 3600 (
+=== dig +dnssec DS cloudflare.com
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DS cloudflare.com @1.1.1.1
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+; EDNS: version: 0, flags: do; udp: 1232
+;cloudflare.com.		IN DS
+cloudflare.com.		86400 IN DS 2371 13 2 (
+cloudflare.com.		86400 IN RRSIG DS 13 2 86400 (
+=== dig +dnssec DNSKEY dev
+; <<>> DiG 9.10.6 <<>> +dnssec +multiline DNSKEY dev @1.1.1.1
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
+; EDNS: version: 0, flags: do; udp: 1232
+;dev.			IN DNSKEY
+dev.			171 IN DNSKEY 256 3 8 (
+				) ; ZSK; alg = RSASHA256 ; key id = 59746
+dev.			171 IN DNSKEY 257 3 8 (
+				) ; KSK; alg = RSASHA256 ; key id = 60074
+dev.			171 IN RRSIG DNSKEY 8 1 300 (
+=== NS
+santino.ns.cloudflare.com.
+fay.ns.cloudflare.com.
+fay.ns.cloudflare.com.
+santino.ns.cloudflare.com.
+=== auth DS from dev TLD
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 10857
+;; flags: qr aa; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 24429
+;; flags: qr aa; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+=== auth DNSKEY
+; <<>> DiG 9.10.6 <<>> +norec +dnssec DNSKEY enconomy.dev @fay.ns.cloudflare.com
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 18944
+;; flags: qr aa; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+;enconomy.dev.			IN	DNSKEY
+; <<>> DiG 9.10.6 <<>> +norec +dnssec DNSKEY tawago.com @fay.ns.cloudflare.com
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 35550
+;; flags: qr aa; QUERY: 1, ANSWER: 0, AUTHORITY: 1, ADDITIONAL: 1
+;tawago.com.			IN	DNSKEY
+=== delv
+;; none:29: no crypto support
+delv: No trusted keys were loaded
+;; none:29: no crypto support
+delv: No trusted keys were loaded
+;; none:29: no crypto support
+delv: No trusted keys were loaded

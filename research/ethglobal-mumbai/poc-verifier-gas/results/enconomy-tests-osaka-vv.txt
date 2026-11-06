@@ -1,0 +1,159 @@
+No files changed, compilation skipped
+
+Ran 1 test for test/PopSafe.t.sol:PopSafeForkTest
+[SKIP: skipped] setUp() (gas: 0)
+Suite result: ok. 0 passed; 0 failed; 1 skipped; finished in 591.38µs (0.00ns CPU time)
+
+Ran 8 tests for test/PopCtx.t.sol:PopCtxTest
+[PASS] test_attest_digest_vector() (gas: 1170)
+[PASS] test_domain() (gas: 123)
+[PASS] test_golden_G() (gas: 1540)
+[PASS] test_golden_N() (gas: 1336)
+[PASS] test_p256_precompile() (gas: 15254)
+[PASS] test_pool_and_action() (gas: 8751)
+[PASS] test_split() (gas: 261)
+[PASS] test_traps() (gas: 2111)
+Suite result: ok. 8 passed; 0 failed; 0 skipped; finished in 940.42µs (752.58µs CPU time)
+
+Ran 19 tests for test/PopSafe.t.sol:PopSafeTest
+[PASS] test_announce_griefing_does_not_block_presence_path() (gas: 254497)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_announce_window_and_grace() (gas: 374560)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_call_rules() (gas: 894158)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_cancelAll_presence_path() (gas: 285762)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_digest_vector() (gas: 6936)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_guardian_1271_permit_blocked() (gas: 975264)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_guardians_cannot_spend() (gas: 340553)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_hatch_reinstall_A() (gas: 910842)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_hatch_remove_guard() (gas: 199776)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_hatch_rotate_issuer() (gas: 387237)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_invalid_presence() (gas: 756070)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_missing_presence() (gas: 123058)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_phone_signature_parity() (gas: 35801)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_replay() (gas: 291600)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_setGuard_to_uninitialized_guard_refused() (gas: 2186379)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_setup_state() (gas: 47366)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_spend_two_phone_owners() (gas: 364546)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+  spend: 2x P256Owner sigs + POP2 verifier + guard, gas 195365
+
+[PASS] test_threshold_floor_and_min_delay() (gas: 518110)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+[PASS] test_wrong_safeTxHash() (gas: 739045)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491444
+
+Suite result: ok. 19 passed; 0 failed; 0 skipped; finished in 72.64ms (76.53ms CPU time)
+
+Ran 7 tests for test/NoirPresence.t.sol:NoirPresenceTest
+[PASS] test_noir_code_attest() (gas: 633000)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+
+[PASS] test_noir_device_owners_must_sign() (gas: 499090)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+
+[PASS] test_noir_freshness() (gas: 503914)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+
+[PASS] test_noir_gas_budget_mock() (gas: 7990539)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+  guard path, mock verifiers burning 2x2.73M + 2.23M, gas 7927580
+
+[PASS] test_noir_linking_rejections() (gas: 1427854)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+
+[PASS] test_noir_proof_rejected() (gas: 375001)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+
+[PASS] test_spend_noir() (gas: 254456)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491147
+  spend via Noir adapter (mock verifiers), gas 250655
+
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 72.65ms (82.57ms CPU time)
+
+Ran 4 tests for test/NoirRealGas.t.sol:NoirRealGasTest
+[PASS] test_real_adapter_linking() (gas: 11544510)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491730
+
+[PASS] test_real_adapter_rejects_tampered() (gas: 4356450)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491730
+
+[PASS] test_real_guard_path_fits_one_tx() (gas: 18750246)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491730
+  signatures bytes 29898
+  execTransaction execution gas 11947942
+  est. tx gas (incl. 21k + calldata) 12419370
+
+[PASS] test_real_verifiers_each() (gas: 11514060)
+Logs:
+  create 2-of-4 Safe + guard slot + 2 devices, gas 491730
+  PhoneVerifier A execution gas 4083276
+  PhoneVerifier B execution gas 4069887
+  PairVerifier execution gas 3320074
+  sum 11473237
+  PhoneVerifier runtime bytes 17337
+  PairVerifier runtime bytes 16901
+
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 81.08ms (212.15ms CPU time)
+
+Ran 5 test suites in 81.64ms (227.90ms CPU time): 38 tests passed, 0 failed, 1 skipped (39 total tests)

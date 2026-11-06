@@ -1,0 +1,22 @@
+{
+  "note": "Canonical ctx for EVP recovery. See DESIGN.md section 3. Computed with cast 1.4.3: cast keccak / cast abi-encode. Replaces proximity-sigcheck/vectors.json's layered ctxHash/sessionNonce/D.",
+  "domainString": "enconomy.EvpRecover.v1",
+  "DOMAIN": "0x3ced9c60f4b427def1b0a2d7585279e5ea811b83e43b1c5208e29c2e975e2ddc",
+  "layout": "keccak256(abi.encode(bytes32 DOMAIN, uint256 chainId, address account, address newKey, uint256 recoveryNonce, bytes32 transcriptHash, uint256 deadline))",
+  "inputs": {
+    "chainId": 1337,
+    "account": "0xacacacacacacacacacacacacacacacacacacacac",
+    "newKey": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "recoveryNonce": 7,
+    "transcriptHash": "0x7777777777777777777777777777777777777777777777777777777777777777",
+    "deadline": 1793000900
+  },
+  "preimage": "0x3ced9c60f4b427def1b0a2d7585279e5ea811b83e43b1c5208e29c2e975e2ddc0000000000000000000000000000000000000000000000000000000000000539000000000000000000000000acacacacacacacacacacacacacacacacacacacac000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee00000000000000000000000000000000000000000000000000000000000000077777777777777777777777777777777777777777777777777777777777777777000000000000000000000000000000000000000000000000000000006adf05c4",
+  "preimageLen": 224,
+  "ctx": "0x22cbad28b2d580114630eb65e51e47305a5d6efbbb8c6d48fca64bd7d4b5655a",
+  "evpNonce": "0x22cbad28b2d580114630eb65e51e47305a5d6efbbb8c6d48fca64bd7d4b5655a",
+  "phoneEntry": { "scheme": 2, "signer": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "msg": "0x22cbad28b2d580114630eb65e51e47305a5d6efbbb8c6d48fca64bd7d4b5655a" },
+  "frame0Data": "0x000000006adf05c4",
+  "audHash": { "origin": "https://recover.tawago.com", "keccak": "0x40a200302bc729ecd1978338601741801f5a8c0d8b981a0c2af99ca739b006d0" },
+  "emailHash": { "email": "alice@tawago.com", "keccak": "0x9e2c0cedad43a65e524ec636197b290e6d3b38ac6eb7dbf4d492b656021d2db8" }
+}

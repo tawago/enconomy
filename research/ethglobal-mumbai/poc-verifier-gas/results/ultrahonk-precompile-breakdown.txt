@@ -1,0 +1,10 @@
+# osaka: precompile calls across 3 UltraHonk verifies (A, B, pair): name count total_gas
+ecadd 178 26700
+ecmul 178 1068000
+ecpairing 3 339000
+modexp 1410 5697036
+# prague: precompile calls across 3 UltraHonk verifies (A, B, pair): name count total_gas
+ecadd 178 26700
+ecmul 178 1068000
+ecpairing 3 339000
+modexp 1410 1898643

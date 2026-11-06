@@ -1,0 +1,24 @@
+{
+ "tokenBytes": 870,
+ "evtHeader": "{\"alg\":\"ES256\",\"typ\":\"evt+jwt\",\"kid\":\"tawago-1\"}",
+ "evtPayload": "{\"iss\":\"https://tawago.test\",\"iat\":1793692936,\"exp\":1793693236,\"cnf\":{\"jwk\":{\"kty\":\"EC\",\"crv\":\"P-256\",\"x\":\"JFi3FzW31rk90nVHQYHf00iVA45-SeQwfPrTBWzzrmo\",\"y\":\"Bmqj1yE_Zs-fZMOibnRv3YXuTCnRuGMcWtdWfycpx2k\"}},\"email\":\"alice@tawago.test\",\"email_verified\":true}",
+ "evtSig": {
+  "sigLen": 64,
+  "highS": false,
+  "ok": true
+ },
+ "kbHeader": "{\"alg\":\"ES256\",\"typ\":\"kb+jwt\"}",
+ "kbPayload": "{\"aud\":\"https://recover.tawago.test\",\"iat\":1793692936,\"nonce\":\"0x22cbad28b2d580114630eb65e51e47305a5d6efbbb8c6d48fca64bd7d4b5655a\",\"sd_hash\":\"m-74TJoXj-MpwYMOvL2mIA3Rj4M1Bbw0sPUxZ7hEED4\"}",
+ "kbClaimOrder": [
+  "aud",
+  "iat",
+  "nonce",
+  "sd_hash"
+ ],
+ "kbSig": {
+  "sigLen": 64,
+  "highS": false,
+  "okWithCnf": true
+ },
+ "sdHashOk": true
+}

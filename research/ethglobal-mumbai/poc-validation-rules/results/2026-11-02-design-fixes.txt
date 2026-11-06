@@ -1,0 +1,76 @@
+# 2026-11-02 after 04-refuter fixes. forge 1.4.3, solc 0.8.28, cancun pricing + modeled ethrex charges
+Ran 1 test for test/GoldenVector.t.sol:GoldenVectorTest
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 5.11ms (1.58ms CPU time)
+Ran 1 test for test/GasBenchProbe.t.sol:GasBenchProbeTest
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 5.11ms (21.96µs CPU time)
+Ran 2 tests for test/Probe.t.sol:ProbeTest
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 5.19ms (1.64ms CPU time)
+Ran 15 tests for test/Designs.t.sol:DesignsTest
+Suite result: ok. 15 passed; 0 failed; 0 skipped; finished in 5.69ms (2.70ms CPU time)
+Ran 25 tests for test/ChirpGas.t.sol:ChirpGasTest
+Suite result: ok. 25 passed; 0 failed; 0 skipped; finished in 6.79ms (8.41ms CPU time)
+Ran 17 tests for test/Recoverable.t.sol:RecoverableTest
+Suite result: ok. 17 passed; 0 failed; 0 skipped; finished in 6.79ms (6.51ms CPU time)
+Ran 11 tests for test/GasBench.t.sol:GasBenchTest
+Suite result: ok. 11 passed; 0 failed; 0 skipped; finished in 58.88ms (1.05ms CPU time)
+Ran 7 test suites in 64.07ms (93.56ms CPU time): 72 tests passed, 0 failed, 0 skipped (72 total tests)
+  root: 0xbd4d0291d7facd023cb78e3f96a05836812a61f9df3afea5c21870c1126fae29
+  D: 0xc92b1c7e0e47f9efad074c2b4aaf7ce3f4fec289bd518400fc2b4dbca6c27c30
+  epochKey: 0xded4aa22228aa96a6c03053ec60a5dedaadbb9b58997b15f5ef54e6ca757b48d
+  keySetHash: 0x801dcd21fff0ff8597967dfd2638b2b8b6c4f4e3ad1ec7ab7e996c3d1b936794
+  deadlineFor(T): 1793560702
+  probe: 0x100 absent on this evm_version; run FOUNDRY_PROFILE=osaka
+  frame1 modeled ethrex use (limit 12000): 8661
+  frame2 modeled ethrex use, first tx of epoch (limit 60000): 52992
+  sidecar verify sum (limits 0..2 + 2 P256 entries), cap 100000: 89400
+  frame2 ChirpGasSponsor.pay (1 mux helper): 29143
+  frame2 ChirpGasSponsorSixHelpers.pay (6 helpers): 50912
+  frame1 P256Account (6 helpers): 14599
+  frame1 P256AccountMux (1 mux helper): 5261
+  frame0 RecoverableP256Account normal (self_verify, 1 sig): 7887
+  frame1 RecoverableP256Account recovery (self_verify, 3 sigs): 20513
+
+# node poc/clients/build-frame-tx.cjs selftest (offline)
+golden vector vs forge (GoldenVector.t.sol): match
+deadline clipped to epoch end: true
+deviceA 0x480f4ae4f4a6d6e84f2efb66282b3aea92dd09d2 deviceB 0x325b2bdd219bdebff680c8d869410841283784d5
+sigHash 0x2d1693b4b333d1932f980375a5099153c192395cd5e62d5e98144d82b6ca6f8c D 0xcfc0073422d28b317b07fe32f1e11caeb2ba900c09b20a36efef422ac87161f1
+entry0 (msg empty, over sig hash): ok | entry1 (msg = D): ok
+entry0 bytes elided from sig hash: true | entry1 bytes committed: true
+low-s: true,true | rawLen 846 | txHash 0x9cd8a5c165504170e748d267ddff51eff367e4c65fe2c8fc5e6653e3f8c6fe60
+sidecar verify sum: 89400 / 100000
+
+# node poc/clients/build-frame-tx.cjs regress (read-only, live)
+0x578d67aa… rawLen 171 hashMatch true sigHash 0xf19a75f89a90e4f497c0a4b20a96e79d4fbd9165aafb27765b315a32332c2389
+0x4670c63e… rawLen 1158 hashMatch true sigHash 0x9083f8ee823e8937fe394b09c360a27b2abc60489aacc29272987fc52a7fd4c9
+
+# node poc/clients/dryrun-s2-fees.cjs (read-only, live)
+head 349464 slot 349988 baseFee 7 blockGasLimit 60000000
+
+== S2a fees omitted (signed over the sidecar default 1/1/0)
+  sidecar estimate: {"message":"Vm execution error: Invalid Transaction: Insufficient max fee per gas","code":-32500}
+
+== S2b maxFee = 9 (>= base fee), same tx otherwise
+  sidecar estimate: {"message":"validation frame 1: the frame's default code reported failure","code":-32500}
+
+== S2c one-sig: real send copy with 10M body limits, maxFee 9
+  sidecar estimate: {"message":"validation frame 1: the frame's default code reported failure","code":-32500}
+
+# node poc/clients/dryrun-chirpgas-shape.cjs (read-only, live), first 260 chars per line
+head 349464 slot 349988 ts 1793564548 baseFee 7
+
+== A full shape, fake root ref (expect recent-root fail)  localSigCheck=ok,ok
+  sidecar estimate: {"message":"validation frame 1: the frame's default code reported failure","code":-32500}
+  ethrex simulate : {"canonicalMempoolValid":false,"canonicalMempoolViolation":"EIP-8272 recent-root reference is not committed in the RECENT_ROOT_ADDRESS predeploy at head state","erc7562Trace":null,"erc7562TraceError":null,"executionError":"Invalid Transacti
+
+== A0 frame 0 at the plan's 1,000 gas (expect OOG: cold entry charge)  localSigCheck=ok,ok
+  sidecar estimate: {"message":"validation frame 0: ran out of gas (the frame's gas limit 1000 cannot cover its entry charge of 3000 gas)","code":-32500}
+  ethrex simulate : {"canonicalMempoolValid":false,"canonicalMempoolViolation":"validation prefix frame reverted","erc7562Trace":null,"erc7562TraceError":null,"executionError":"Invalid Transaction: Invalid frame transaction: VERIFY frame 1 (target 0x36bcb3532d
+
+== B no root ref, pinned deadline T+900 (expect frame 1 fail: no code at sender)  localSigCheck=ok,ok
+  sidecar estimate: {"message":"validation frame 1: the frame's default code reported failure","code":-32500}
+  ethrex simulate : {"canonicalMempoolValid":false,"canonicalMempoolViolation":"validation prefix frame reverted","erc7562Trace":null,"erc7562TraceError":null,"executionError":"Invalid Transaction: Invalid frame transaction: VERIFY frame 1 (target 0x36bcb3532d
+
+== C no root ref, deadline in the past (expect frame 0 fail)  localSigCheck=ok,ok
+  sidecar estimate: {"message":"validation frame 0: reverted","code":-32500}
+  ethrex simulate : {"canonicalMempoolValid":false,"canonicalMempoolViolation":"validation prefix frame reverted","erc7562Trace":null,"erc7562TraceError":null,"executionError":"Invalid Transaction: Invalid frame transaction: VERIFY frame 0 (target 0x0000000000

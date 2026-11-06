@@ -1,0 +1,138 @@
+Tue Nov  3 17:05:19 JST 2026
+forge Version: 1.4.3-stable
+No files changed, compilation skipped
+
+Ran 2 tests for test/EvpRecovery.t.sol:EvpVectorTest
+[PASS] test_vector_ctxMatchesFile() (gas: 22928)
+[PASS] test_vector_liveCtx() (gas: 9581)
+Suite result: ok. 2 passed; 0 failed; 0 skipped; finished in 656.08µs (299.96µs CPU time)
+
+Ran 10 tests for test/EvpRecovery.t.sol:EvpFinishCancelTest
+[PASS] test_cancel_byOwner() (gas: 278123)
+[PASS] test_cancel_nothingPending() (gas: 15222)
+[PASS] test_finish_afterDelay() (gas: 26402)
+[PASS] test_finish_early_bodyReverts() (gas: 15570)
+[PASS] test_finish_strangerCannotPassVerify() (gas: 244062)
+[PASS] test_finish_verifyPassesForPendingKey() (gas: 268217)
+[PASS] test_guardianPath_stillGreen() (gas: 552659)
+[PASS] test_laptopAloneIsNotOwner() (gas: 86526)
+[PASS] test_normalOwnerPath() (gas: 135337)
+[PASS] test_pendingKey_cannotCancelOrCallOther() (gas: 294522)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 1.44ms (457.50µs CPU time)
+
+Ran 31 tests for test/EvpRecovery.t.sol:EvpStartVerifyTest
+[PASS] test_bodyMustBeSelf() (gas: 49192)
+[PASS] test_bodyMustBeSenderMode() (gas: 41836)
+[PASS] test_bodyMustBeStartRotationEvp() (gas: 71091)
+[PASS] test_deadlineMismatch() (gas: 57492)
+[PASS] test_deadlineStretchedBoth() (gas: 86770)
+[PASS] test_expiryFrameNotVerifyMode() (gas: 22277)
+[PASS] test_frameCountPinned() (gas: 20318)
+[PASS] test_grief_accountNeverPaysStart() (gas: 32172)
+[PASS] test_grief_freshKeyWithoutLaptop() (gas: 130825)
+[PASS] test_grief_junkTokenIsPaidByLaptop() (gas: 203255)
+[PASS] test_happy_verifyApprovesExecutionOnly() (gas: 87015)
+[PASS] test_mustBeFrameOne() (gas: 20038)
+[PASS] test_newKeyDirtyHighBits() (gas: 53042)
+[PASS] test_newKeyIsOwner() (gas: 124094)
+[PASS] test_newKeyZero() (gas: 112724)
+[PASS] test_noExpiryFrame() (gas: 24635)
+[PASS] test_noLaptopEnrolled() (gas: 35358)
+[PASS] test_payerFrameNotLaptop() (gas: 35628)
+[PASS] test_payerFrameNotPaying() (gas: 37503)
+[PASS] test_payerFrameNotVerifyMode() (gas: 28513)
+[PASS] test_payerSigExplicitMsg() (gas: 63571)
+[PASS] test_payerSigNotLaptop() (gas: 46959)
+[PASS] test_payerSigNotSecp256k1() (gas: 46206)
+[PASS] test_phoneEntryNotP256() (gas: 71114)
+[PASS] test_phoneSignedSigHashNotCtx() (gas: 66362)
+[PASS] test_phoneSignerIsNotNewKey() (gas: 71430)
+[PASS] test_relayerSwapsNewKey() (gas: 85209)
+[PASS] test_relayerSwapsTranscript() (gas: 82541)
+[PASS] test_replay_afterCancel_freshTokenWorks() (gas: 420333)
+[PASS] test_replay_sameTxAfterStart() (gas: 193722)
+[PASS] test_wrongPhoneMsg() (gas: 71536)
+Suite result: ok. 31 passed; 0 failed; 0 skipped; finished in 4.52ms (6.87ms CPU time)
+
+Ran 28 tests for test/EvpRecovery.t.sol:EvpStartBodyTest
+[PASS] test_audPrefixOrigin() (gas: 70038)
+[PASS] test_badHint() (gas: 69579)
+[PASS] test_bodyOnlySelf() (gas: 11397)
+[PASS] test_bodyRejectsOwnerAsNewKey() (gas: 13680)
+[PASS] test_checkEvp_offline() (gas: 72826)
+[PASS] test_checkEvp_offline_otherOrigin() (gas: 66025)
+[PASS] test_expired() (gas: 12353)
+[PASS] test_futureIat() (gas: 44722)
+[PASS] test_goodToken_otherNewKey() (gas: 70110)
+[PASS] test_goodToken_otherTranscript() (gas: 70523)
+[PASS] test_happy_body() (gas: 110399)
+[PASS] test_highS_issuerAccepted() (gas: 106955)
+[PASS] test_highS_kbAccepted() (gas: 107199)
+[PASS] test_highS_malleatedTwinCannotReplay() (gas: 164620)
+[PASS] test_iatWindowEdgeEqualsDeadline() (gas: 105996)
+[PASS] test_kbNotByCnfKey() (gas: 61127)
+[PASS] test_otherEmail() (gas: 38800)
+[PASS] test_replay_sameTokenTwice() (gas: 164532)
+[PASS] test_setConfig_changesPin() (gas: 18085)
+[PASS] test_setters_onlySelf() (gas: 11047)
+[PASS] test_staleIat() (gas: 44976)
+[PASS] test_tamperedKbPayload() (gas: 61508)
+[PASS] test_wrongAud() (gas: 69048)
+[PASS] test_wrongIssuer_cfgSwap() (gas: 11343)
+[PASS] test_wrongIssuer_tokenFromOtherKey() (gas: 29189)
+[PASS] test_wrongNonce_notACtx() (gas: 70014)
+[PASS] test_wrongNonce_otherKeysCtx() (gas: 70212)
+[PASS] test_wrongNonce_tokenForNextAttempt() (gas: 70432)
+Suite result: ok. 28 passed; 0 failed; 0 skipped; finished in 4.43ms (16.21ms CPU time)
+
+Ran 10 tests for test/GasBench.t.sol:EvpGasBench
+[PASS] test_budget_cancel() (gas: 18472)
+Logs:
+  cancel VERIFY modeled use (limit 12000): 10729
+
+[PASS] test_budget_finish() (gas: 24890)
+Logs:
+  finish VERIFY modeled use (recommended limit 18000): 14886
+  finish VERIFY margin under DESIGN's 15000: 114
+
+[PASS] test_budget_start_body() (gas: 192172)
+Logs:
+  start body modeled use (proposed limit 110000, state gas not modeled): 100424
+
+[PASS] test_budget_start_frame1() (gas: 27148)
+Logs:
+  start frame1 modeled use (limit 25000): 21441
+
+[PASS] test_budget_start_prefixSum() (gas: 2617)
+Logs:
+  start prefix sum: limits 0..2 + P-256 + secp256k1 entries (cap 100000): 46500
+
+[PASS] test_gas_cancel() (gas: 32371)
+Logs:
+  cancel frame0 VERIFY measured: 7329
+  cancel frame0 VERIFY modeled (+entry +AMS): 10729
+  cancel body measured (pre-refund): 11717
+
+[PASS] test_gas_finish() (gas: 38918)
+Logs:
+  finish frame0 VERIFY measured: 11486
+  finish frame0 VERIFY modeled (+entry +AMS): 14886
+  finish body measured (pre-refund): 13729
+
+[PASS] test_gas_start_body() (gas: 381783)
+Logs:
+  start body token bytes: 871
+  start body calldata bytes: 1220
+  start body calldata gas (EIP-2028, intrinsic): 17864
+  start body execution measured (forge, cold slots): 97424
+  start body modeled ethrex (+entry): 100424
+
+[PASS] test_gas_start_frame1_verify() (gas: 29195)
+Logs:
+  start frame1 VERIFY measured (forge, cold): 18041
+  start frame1 VERIFY modeled ethrex (+entry +AMS helper): 21441
+
+[PASS] test_stub_deadlineReadIsLive() (gas: 101194113)
+Suite result: ok. 10 passed; 0 failed; 0 skipped; finished in 158.69ms (59.50ms CPU time)
+
+Ran 5 test suites in 159.21ms (169.74ms CPU time): 81 tests passed, 0 failed, 0 skipped (81 total tests)

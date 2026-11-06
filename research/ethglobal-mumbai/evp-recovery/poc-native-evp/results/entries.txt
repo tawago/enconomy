@@ -1,0 +1,37 @@
+
+== EVT (issuer key): signing input 395 B, signer 0xb98560b735d0f34439b2ef7157746534e7c8550f
+EVT (issuer key): JWS s is high-s?                             false
+EVT (issuer key): high-s form, plain ECDSA (P256VERIFY math)   true
+EVT (issuer key): high-s form, sidecar port                    false
+EVT (issuer key): high-s form, frame-lib p256Check             range/high-s
+EVT (issuer key): normalized (n-s), plain ECDSA                true
+EVT (issuer key): normalized, sidecar port                     true
+EVT (issuer key): normalized, frame-lib p256Check              ok
+EVT (issuer key): msg = sha256(tampered input)                 false
+EVT (issuer key): msg double-hashed (prehash mistake)          false
+EVT (issuer key): signer != keccak(qx||qy)[12:]                false
+
+== KB-JWT (Chrome cnf key): signing input 291 B, signer 0xb4d5889bd58bb39a69fe07c22786d78844694577
+KB-JWT (Chrome cnf key): JWS s is high-s?                      true
+KB-JWT (Chrome cnf key): high-s form, plain ECDSA (P256VERIFY math) true
+KB-JWT (Chrome cnf key): high-s form, sidecar port             false
+KB-JWT (Chrome cnf key): high-s form, frame-lib p256Check      range/high-s
+KB-JWT (Chrome cnf key): normalized (n-s), plain ECDSA         true
+KB-JWT (Chrome cnf key): normalized, sidecar port              true
+KB-JWT (Chrome cnf key): normalized, frame-lib p256Check       ok
+KB-JWT (Chrome cnf key): msg = sha256(tampered input)          false
+KB-JWT (Chrome cnf key): msg double-hashed (prehash mistake)   false
+KB-JWT (Chrome cnf key): signer != keccak(qx||qy)[12:]         false
+
+== full tx, sig hash 0x1fed952259ddea400b9b50aee022ef6a95276c9beaacf59242fb65d77048afa0
+entry[0] sidecar port                                          true
+entry[0] frame-lib checkEntry                                  ok
+entry[1] sidecar port                                          true
+entry[1] frame-lib checkEntry                                  ok
+entry[2] sidecar port                                          true
+entry[2] frame-lib checkEntry                                  ok
+sidecar FRA-040 sum: prefix limits + 3 x 6,700                 79900 + 20100 = 100000 (cap 100000)
+frame 1 data bytes (token + offs + newKey, ABI)                1092
+raw tx bytes                                                   1755
+
+all checks pass

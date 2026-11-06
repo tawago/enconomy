@@ -1,0 +1,12 @@
+# SUPERSEDED by 2026-11-02-design-fixes.txt (D gained sender+seq; budgets with modeled ethrex charges)
+# forge test --offline --match-contract GasBench -vv, 2026-11-02, forge 1.4.3, solc 0.8.28, cancun pricing
+  frame2 ChirpGasSponsor.pay (1 mux helper): 28731
+  frame2 ChirpGasSponsorSixHelpers.pay (6 helpers): 50543
+  frame1 P256Account (6 helpers): 14599
+  frame1 P256AccountMux (1 mux helper): 5261
+  frame0 RecoverableP256Account normal (self_verify, 1 sig): 7887
+  frame1 RecoverableP256Account recovery (self_verify, 3 sigs): 20513
+# FOUNDRY_PROFILE=osaka forge test --offline --match-contract GasBenchProbe -vv
+  frame0 ProbeAccount (self_verify + STATICCALL 0x100): 20536
+# probe-p256verify.sh (read-only eth_call to 0x100), 2026-11-02
+{"jsonrpc":"2.0","id":1,"result":"0x0000000000000000000000000000000000000000000000000000000000000001"}  <- https://altmempool.forshtat.com/rpc
