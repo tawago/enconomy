@@ -180,7 +180,7 @@ Design impact: SAFE/POOL must treat "NOT_NEAR" as the default and demo-safe path
 Status: partially resolved (server frozen now; app freezes on one pending commit). Checked 2026-09-26 16:11 JST.
 
 ### What the other workflow is and where it stands
-- It is `pop-zk-readiness`, run from the "EthGlobal hackathon project" session (tmux 0:@0.%2). Script: `~/.claude/projects/-Users-takahiro-ogawa-dev-enconomy/055795ca-.../workflows/scripts/pop-zk-readiness-wf_e80a3322-982.js`. VERIFIED (read script + journal.jsonl).
+- It is `pop-zk-readiness`, run from the "EthGlobal hackathon project" session (tmux 0:@0.%2). Script: `~/.claude/projects/-Users-me-dev-enconomy/055795ca-.../workflows/scripts/pop-zk-readiness-wf_e80a3322-982.js`. VERIFIED (read script + journal.jsonl).
 - Chunks and owners (script lines 108-131): S5, S6, S7 own `server/`; K1, A5, A6 own `app/composeApp/src/`; P1 owns `app/prover/`; **P2 owns all of `app/`**. Measure and Integration phases must not edit files (lines 148, 154). VERIFIED.
 - Done and committed: S5 2d70342, S6 c9fa84a, K1 38cc0ad, A5 46d0d0c, P1 d275938, A6 ce03696, **S7 ba81f84 (last server chunk)**. VERIFIED (`git log`, journal).
 - Still open: P2 "prover integration in app". Built 15:18-16:02; `review:P2#0` started 16:02 and is running. Then optional fix + re-review, then commit with message `app: on-device proving after near`, then Measure (phones are plugged in), then Integration (read-only). VERIFIED (journal, tmux pane).
@@ -468,7 +468,7 @@ H10 WQ watches LeafInserted(pc) → status=received. Withdraw later from WQ.
 
 Status: RESOLVED (design + fork-tested prototype). Needs one server change (attestation carries device ids) and one demo-ops rule (never re-enroll / wipe the server DB after Safe creation without running the rotate path).
 
-Prototype (scratchpad, temporary; copy before it's gone): `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/devreg/` — `src/PopSafeGuard.sol` (guard + `PopSafeSetup`), `test/DeviceRegistry.t.sol`, `test/Vector.t.sol`, `script/CreatePopSafe.s.sol`. `forge test` → 5/5 PASS on forks of 4801 (SafeL2 1.4.1, Safe 1.5.0) and 480 (SafeL2 1.5.0). VERIFIED(forge 1.4.3, solc 0.8.28 via-IR, osaka).
+Prototype (scratchpad, temporary; copy before it's gone): `/tmp/scratch/devreg/` — `src/PopSafeGuard.sol` (guard + `PopSafeSetup`), `test/DeviceRegistry.t.sol`, `test/Vector.t.sol`, `script/CreatePopSafe.s.sol`. `forge test` → 5/5 PASS on forks of 4801 (SafeL2 1.4.1, Safe 1.5.0) and 480 (SafeL2 1.5.0). VERIFIED(forge 1.4.3, solc 0.8.28 via-IR, osaka).
 
 ### Answer in one paragraph
 
@@ -867,7 +867,7 @@ Other measured facts:
 - Gas inside a forge test (linked public library call): `PoseidonT3.hash` 22,810, `PoseidonT4.hash` 39,589. V
 - Constants source of truth: circomlibjs 0.1.7 `src/poseidon_constants.json` (sha256 `354f31bb…3f2c`). Extracted t2..t4 subset `pp/poseidon_bn254_t2_t4.json` is 42 KB (C: 128/195/256 entries; M: 2x2/3x3/4x4). poseidon-lite ships the same values base64-packed. V
 
-Artifacts (scratchpad `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pp/`):
+Artifacts (scratchpad `/tmp/scratch/pp/`):
 - `golden.json` (18 cases + LeanIMT roots), `gen.mjs` (poseidon-lite vs circomlibjs wasm/reference/opt), `circ.cjs` + `h{1,2,3}.circom` (circom witness), `maci.cjs`, `forge/test/Golden.t.sol` (reads `../golden.json`), `poseidon_bn254.py` + `poseidon_bn254_t2_t4.json`, `kt/PoseidonBn254.kt` + generated `kt/PoseidonBn254Params.kt` (built on a copy of `app/.../zk/BigNat.kt`), `ci.sh` runs all of them.
 
 What implementers must do:
@@ -1433,7 +1433,7 @@ With 3 cm legs, about **1.5 ms of electronic latency still passes**. The only vi
 
 **Answer: yes, it works end to end with real Groth16 proofs on a 480 fork.** I wrote and ran it: deposit (fixed DENOM, label auto-inserted into an onchain ASP LeanIMT), then `postPresence(leaf)` into an onchain presence LeanIMT, then `transfer` (PresenceTransfer proof, 2 inserts: change first, then payee), then a payee withdraw with 0xbow's **unchanged production `withdraw.zkey`** against a *historical* ASP root, then the payer's change withdraw, then a ragequit of an untouched deposit. All green. V(forge test + anvil broadcast, below)
 
-Code, all in the scratchpad (`$S/ppe2e`, `$S` = `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad`). Copy it as the starting point:
+Code, all in the scratchpad (`$S/ppe2e`, `$S` = `/tmp/scratch`). Copy it as the starting point:
 
 - `src/PresencePool.sol` (234 lines): one contract, native ETH, no Entrypoint. Fork of 0xbow `State.sol` + `PrivacyPool.sol` + `PrivacyPoolSimple` @ `d494b63`.
 - `src/{WithdrawalVerifier,CommitmentVerifier}.sol`: 0xbow's, byte-for-byte. `src/TransferVerifier.sol`: snarkjs 0.7.5 export, contract renamed, pragma 0.8.28.
@@ -1983,7 +1983,7 @@ real phones. Agents wrote most implementation code from specs I wrote.
 ```
 
 **Action items for the design doc**
-- Before submitting, copy the workflow scripts and prompts into the repo (for example `ai/`). The rules require it. They currently live only in Claude Code session folders (6 session dirs under ~/.claude/projects/-Users-takahiro-ogawa-dev-enconomy/).
+- Before submitting, copy the workflow scripts and prompts into the repo (for example `ai/`). The rules require it. They currently live only in Claude Code session folders (6 session dirs under ~/.claude/projects/-Users-me-dev-enconomy/).
 - The track radio lives in the submission form. The human flips it. Agents must not.
 - Demo video: no AI voiceover and no TTS. Record it with a human voice.
 
@@ -2311,7 +2311,7 @@ jq -c 'select(.status=="confirmed").result' out.txt | curl -s -XPOST localhost:8
 
 What stays unproven: the **final signal and action formulas with real proofs**. The only real proofs we have were made with signal `"spike"` and two different actions, so the test guard overrides those two functions (details below). Every other line of the guard is the production code.
 
-Prototype (scratchpad, temporary, copy before it's gone): `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/guardu/`
+Prototype (scratchpad, temporary, copy before it's gone): `/tmp/scratch/guardu/`
 - `src/PopSafeGuardU.sol`: the devreg `PopSafeGuard` (POP2 + registry + hatch) plus `_verifyHumans`.
 - `test/GuardU.t.sol`: 11 tests, 11 PASS.
 - `script/Anvil.s.sol`: the anvil broadcast run.

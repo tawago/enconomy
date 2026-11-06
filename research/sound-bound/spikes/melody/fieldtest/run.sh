@@ -11,7 +11,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON="/Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3"
+PYTHON="$HOME/dev/enconomy/research/proximity-echo/.venv/bin/python3"
 
 check() {
   [ -x "$PYTHON" ] || { echo "missing python at $PYTHON" >&2; return 1; }

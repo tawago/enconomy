@@ -4,7 +4,7 @@ Date: 2026-09-26. Scope: how a contract (Safe guard/module, or a privacy pool) c
 
 Tags: **V(source)** = verified by me, with the URL or the command. **U** = unverified. **E** = my estimate.
 
-Scratchpad with everything I ran: `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/bridge/` (`popv/` = the forge prototype below, `live.txt` = precompile vectors from real Secure Enclave fixtures). The scratchpad is temporary, so the core contract code is copied into §6.
+Scratchpad with everything I ran: `/tmp/scratch/bridge/` (`popv/` = the forge prototype below, `live.txt` = precompile vectors from real Secure Enclave fixtures). The scratchpad is temporary, so the core contract code is copied into §6.
 
 ## TL;DR
 

@@ -1,9 +1,9 @@
 import { createRequire } from "module";
-const require = createRequire("/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/ppe2e/js/");
+const require = createRequire("/tmp/scratch/ppe2e/js/");
 const { LeanIMT } = require("@zk-kit/lean-imt");
 const { poseidon2, poseidon3 } = require("poseidon-lite");
 const snarkjs = require("snarkjs");
-const K = "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/ppe2e/keys/";
+const K = "/tmp/scratch/ppe2e/keys/";
 const P = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
 const h=(a,b)=>poseidon2([a,b]); const pad=(s,n)=>{const a=s.map(String);while(a.length<n)a.push('0');return a;};
 const TAG_PAYER=0x706f702d7061796572n, TAG_PRES=0x706f702d70726573n, LT=0x706f702d7472616e73666572n;

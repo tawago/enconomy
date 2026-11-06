@@ -1,6 +1,6 @@
 # POOL: presence-gated private transfer, research note
 
-2026-09-26. Scope: which privacy-pool design to fork for "a private payment only goes through if payer and payee (two World ID humans) physically met", where the presence condition enters, and the exact circuits. Everything built lives in the scratchpad (`$S` = `/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool`), nothing in the repo was touched except this file.
+2026-09-26. Scope: which privacy-pool design to fork for "a private payment only goes through if payer and payee (two World ID humans) physically met", where the presence condition enters, and the exact circuits. Everything built lives in the scratchpad (`$S` = `/tmp/scratch/pool`), nothing in the repo was touched except this file.
 
 Tags: **V(src)** = verified, with the source or command. **U** = unverified. **E** = estimate.
 

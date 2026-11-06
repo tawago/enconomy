@@ -9,8 +9,8 @@ import { fileURLToPath } from "url";
 import path from "path";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const K = "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/ppe2e/keys";
-const ART = "/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/pool/privacy-pools-core/packages";
+const K = "/tmp/scratch/ppe2e/keys";
+const ART = "/tmp/scratch/pool/privacy-pools-core/packages";
 const WITHDRAW_WASM = path.join(ART, "circuits/build/withdraw/withdraw_js/withdraw.wasm");
 const WITHDRAW_ZKEY = path.join(ART, "circuits/trusted-setup/final-keys/withdraw.zkey"); // 0xbow production, unchanged
 const COMMIT_WASM = path.join(ART, "contracts/node_modules/@0xbow/privacy-pools-core-sdk/dist/node/artifacts/commitment.wasm");

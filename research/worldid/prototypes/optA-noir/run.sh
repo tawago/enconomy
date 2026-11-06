@@ -6,8 +6,8 @@ set -e
 FX=${1:-180ca04b_48k}; ROLE=${2:-A}
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../../../.." && pwd)
-S=${S:-/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/optA}
-BIN=${BIN:-/private/tmp/claude-501/-Users-takahiro-ogawa-dev-enconomy/3d9dd236-bf59-4c81-91f5-6bb7c5ebc6e3/scratchpad/onchain-zk/opt3-nonnative-p256/bin}
+S=${S:-/tmp/scratch/optA}
+BIN=${BIN:-/tmp/scratch/onchain-zk/opt3-nonnative-p256/bin}
 H=$ROOT/research/sound-bound/spikes/zk/tools/heavy.sh
 PY=${PY:-python3}   # needs numpy + soundfile (the old research/proximity-echo/.venv is gone)
 B=$S/noir; mkdir -p $B $S/logs

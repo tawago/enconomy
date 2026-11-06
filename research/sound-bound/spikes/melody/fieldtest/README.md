@@ -100,7 +100,7 @@ lies inside its own code.
 Across runs:
 
 ```
-PY=/Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3
+PY=~/dev/enconomy/research/proximity-echo/.venv/bin/python3
 $PY compare.py                        # field runs, data/sessions (e2e-labelled runs skipped)
 $PY compare.py --by probe,room        # pooled over distances
 $PY compare.py --by probe,label_cm,noise

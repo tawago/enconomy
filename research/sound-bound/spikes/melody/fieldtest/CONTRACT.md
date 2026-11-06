@@ -10,7 +10,7 @@ Hard rules (both builders):
 
 - Write only inside `research/sound-bound/spikes/melody/fieldtest/`. Everything above it is read-only. Importing from it is fine.
 - Do not commit.
-- Python: `/Users/takahiro_ogawa/dev/enconomy/research/proximity-echo/.venv/bin/python3` (numpy, scipy, soundfile, flask, flask_socketio are present).
+- Python: `~/dev/enconomy/research/proximity-echo/.venv/bin/python3` (numpy, scipy, soundfile, flask, flask_socketio are present).
 - The browser never does DSP. It plays float32 buffers the server gives it and records.
 - Every threshold lives as a named constant at the top of its module, with a one-line reason.
 

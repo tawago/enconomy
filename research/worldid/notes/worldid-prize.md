@@ -130,7 +130,7 @@ VERIFIED(https://ethglobal.com/events/tokyo2026/info/details, https://ethglobal.
 
 ### D. Pre-existing work in this repo (facts for disclosure)
 
-VERIFIED(`git log` in /Users/takahiro_ogawa/dev/enconomy; `ls -la ~/dev/worldid-spike`):
+VERIFIED(`git log` in ~/dev/enconomy; `ls -la ~/dev/worldid-spike`):
 
 - `c9c36f6 2026-09-26 02:52 +0900 Initial commit: research prototypes and docs`: 151 files, +50,783 lines. Contents: research/sound-bound, proximity-echo, fuzzy-commitment, ZK spikes. Memory notes date this work to 2026-09-22…25, before kickoff.
 - Everything after that (from 03:23 JST): the app/, server/, contract, iOS/Android and ZK integration commits are on 2026-09-26, during the event. It is incremental history (~28 commits).
