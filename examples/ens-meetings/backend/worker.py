@@ -1,6 +1,7 @@
 """One thread does everything onchain, in the backend process, so the shared key sends serially.
 
 It sleeps until woken: at startup (a crash can leave pending rows) and on each claim or presence record. No poll.
+A pass registers pending claims, then hands each undone presence record to the bridge.
 """
 from __future__ import annotations
 
@@ -13,8 +14,8 @@ log = logging.getLogger("ens")
 
 
 class Worker:
-    def __init__(self, store: Store, chain):
-        self.store, self.chain = store, chain
+    def __init__(self, store: Store, chain, bridge):
+        self.store, self.chain, self.bridge = store, chain, bridge
         self._wake = threading.Event()
         self._stop = False
         self._thread = None
@@ -47,6 +48,7 @@ class Worker:
 
     def run_pass(self) -> None:
         self.register_claims()
+        self.bridge.once(stop=lambda: self._stop)
 
     def register_claims(self) -> None:
         for c in self.store.names_with_status("pending"):

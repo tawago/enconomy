@@ -60,6 +60,10 @@ uv run python -m backend.import_names <old pop.sqlite> [ens.sqlite]
 
 Opens the source read-only and copies `ens_names` with status, tx, error and claimed_at unchanged. Run it again and nothing changes. Imported rows have no statement or pubkey. **Imported `pending` rows go on chain when the backend starts**, and those phones aren't rechecked, so look at the warning it prints.
 
+## Meetings
+
+A delivered record goes to the worker, which runs the bridge: a NEAR between two named phones becomes one `record` on `MeetResolver`, and when the signed `zk.status` is `verified` it fetches the core's public ZK bundle, verifies and marks. Status lives in `presence_records`. Details, including when ZK gets marked with no on-chain verify, in [bridge/README.md](bridge/README.md).
+
 ## Contracts
 
 `contracts/`, see its README. Addresses come from `contracts/deployments/sepolia.json`. Never rerun the `ens.sh` bootstrap.

@@ -23,6 +23,7 @@ from backend.core import (STATEMENT_FORMAT, TAG_RECORD, TAG_STATEMENT, canonical
 from backend.errors import ApiError
 from backend.store import Store, view
 from backend.worker import Worker
+from bridge.bridge import Bridge, Cfg
 
 log = logging.getLogger("ens")
 
@@ -102,14 +103,15 @@ class DeviceAuth:
         return b
 
 
-def create_app(settings: Settings | None = None, chain=None, now_ms=None) -> FastAPI:
+def create_app(settings: Settings | None = None, chain=None, now_ms=None, http_get=None) -> FastAPI:
     settings = settings or Settings.from_env()
     now_ms = now_ms or (lambda: int(time.time() * 1000))
+    cfg = Cfg(rpc=settings.rpc, keyFile=settings.key_file, deployments=settings.deployments,
+              zkDeployments=settings.zk_deployments, db=settings.db, coreUrl=settings.core_url, log=settings.log)
     if chain is None:
-        dep = settings.deployed()
-        chain = Chain(settings.rpc, settings.key_file, dep["meetResolver"], dep["registry"])
+        chain = Chain(cfg["rpc"], cfg["keyFile"], cfg.resolver, cfg.registry)
     store = Store(settings.db)
-    worker = Worker(store, chain)
+    worker = Worker(store, chain, Bridge(store, chain, cfg, http_get))
     auth = DeviceAuth(settings.core_pubkey, settings.statement_max_age_s, now_ms)
 
     @asynccontextmanager
@@ -160,7 +162,8 @@ def create_app(settings: Settings | None = None, chain=None, now_ms=None) -> Fas
         if (problem := record_problem(rec["body"])) is not None:
             raise ApiError(400, "bad_record", problem)
         status = store.put_record(rec["body"], rec["sig_b64"], _iso(now_ms()))
-        if status != "unchanged":
+        # a redelivery changes nothing, but it's also the retry for a record a chain or network error left undone
+        if status != "unchanged" or store.is_undone(rec["body"]["session_id"]):
             worker.wake()
         return {"session_id": rec["body"]["session_id"], "status": status}
 

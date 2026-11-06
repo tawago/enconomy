@@ -1,0 +1,7 @@
+{
+ "_comment": "Copy to config.json (all keys optional; env wins, see README). zk addresses come from ../contracts/deployments/zk-sepolia.json when it exists.",
+ "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
+ "coreUrl": "http://127.0.0.1:8000",
+ "phoneVerifier": null,
+ "verifyLog": null
+}

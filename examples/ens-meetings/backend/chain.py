@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 TX_BASE = "https://sepolia.etherscan.io/tx/"
+RECORD_SIG = "record(bytes32,bytes32,bytes32,uint32,bytes32)"
 NAME_TTL = 90 * 86400   # same as contracts/script/ens.sh claim
 ERRORS = {}  # selector -> name, filled lazily
 
@@ -95,11 +96,45 @@ class Chain:
             break
         raise RuntimeError(last.splitlines()[-1] if last else "send failed")
 
+    def keccak_hex(self, hexdata: str) -> str:
+        return self.cast("keccak", "0x" + hexdata.removeprefix("0x"))
+
+    def keccak_str(self, s: str) -> str:
+        """Always as hex: given the raw text, cast decodes a label like 0xab and takes --foo for a flag."""
+        return self.keccak_hex(s.encode().hex())
+
     # -- MeetResolver reads
     def counts(self, label: str) -> tuple[bool, int, int, int]:
-        out = self.call(self.resolver, "countsOf(bytes32)(bool,uint32,uint32,uint32)", self.cast("keccak", label))
+        out = self.call(self.resolver, "countsOf(bytes32)(bool,uint32,uint32,uint32)", self.keccak_str(label))
         v = out.split()
         return v[0] == "true", int(v[1]), int(v[2]), int(v[3])
+
+    def meeting(self, mid: str) -> dict:
+        out = self.call(self.resolver, "meetingOf(bytes32)(uint256,uint256,bool,bool,bool)", mid).split("\n")
+        vals = [l.split()[0] for l in out]
+        return {"exists": vals[2] == "true", "zk": vals[3] == "true", "voided": vals[4] == "true"}
+
+    # -- meetings
+    def record_would(self, mid: str, lha: str, lhb: str, tb: int, ev: str) -> str:
+        """eth_call of record: "true" if these two meet for the first time. Raises RuntimeError on a revert."""
+        self.load_key()
+        return self.call(self.resolver, RECORD_SIG + "(bool)", mid, lha, lhb, str(tb), ev, frm=self.me)
+
+    def record(self, mid: str, lha: str, lhb: str, tb: int, ev: str) -> dict:
+        return self.send(self.resolver, RECORD_SIG, mid, lha, lhb, str(tb), ev)
+
+    def mark_zk(self, mid: str) -> dict:
+        return self.send(self.resolver, "markZkVerified(bytes32)", mid)
+
+    # -- proofs. proof: 0x hex, inputs: "[0x..,0x..]"
+    def verify_call(self, verifier: str, proof: str, inputs: str) -> str:
+        return self.call(verifier, "verify(bytes,bytes32[])(bool)", proof, inputs)
+
+    def verify_send(self, verifier: str, verify_log: str | None, proof: str, inputs: str) -> dict:
+        """Through VerifyLog when there is one, it emits Verified. Else a plain tx to the verifier."""
+        if verify_log:
+            return self.send(verify_log, "verifyAndLog(address,bytes,bytes32[])", verifier, proof, inputs)
+        return self.send(verifier, "verify(bytes,bytes32[])", proof, inputs)
 
     # -- claims: register(label, admin, no subregistry, resolver, 0, now + 90 d) then touch (= ens.sh claim)
     def register(self, label: str) -> str:

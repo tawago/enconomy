@@ -21,8 +21,15 @@ CREATE TABLE IF NOT EXISTS ens_names (
   pubkey TEXT, trust_tier TEXT, statement TEXT);
 CREATE TABLE IF NOT EXISTS presence_records (
   session_id TEXT PRIMARY KEY, body TEXT NOT NULL, sig_b64 TEXT NOT NULL, verdict TEXT,
-  received_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+  received_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+  status TEXT, reason TEXT, meeting_id TEXT, labels TEXT, tx TEXT, first_time INTEGER, time_bucket INTEGER, gas INTEGER,
+  zk_done INTEGER NOT NULL DEFAULT 0, verify_tx TEXT, zk_tx TEXT);
 """
+
+# What the bridge keeps per session. status: recorded, duplicate, skipped or ignored; null until first handled.
+SESSION_COLUMNS = {"status", "reason", "meeting_id", "labels", "tx", "first_time", "time_bucket", "gas", "zk_done",
+                   "verify_tx", "zk_tx"}
+UNDONE = "zk_done = 0 AND COALESCE(status, '') <> 'ignored'"
 
 
 def view(row: dict | None) -> dict:
@@ -107,6 +114,30 @@ class Store:
             self.db.execute("UPDATE presence_records SET body = ?, sig_b64 = ?, updated_at = ? WHERE session_id = ?",
                             (text, sig_b64, now_iso, sid))
             return "updated"
+
+    def set_session(self, session_id: str, **fields) -> None:
+        """No-op without a record: a manual rehearsal has nothing to keep it on."""
+        if not fields.keys() <= SESSION_COLUMNS:
+            raise ValueError(f"unknown columns {sorted(fields.keys() - SESSION_COLUMNS)}")
+        vals = [json.dumps(v) if isinstance(v, (dict, list)) else v for v in fields.values()]
+        with self.lock:
+            self.db.execute(f"UPDATE presence_records SET {', '.join(k + ' = ?' for k in fields)} WHERE session_id = ?",
+                            (*vals, session_id))
+
+    def undone_records(self) -> list[dict]:
+        """Not recorded yet, skipped ones included so a later claim records them, or recorded with the zk step left."""
+        with self.lock:
+            return [dict(r) for r in self.db.execute(f"SELECT * FROM presence_records WHERE {UNDONE} ORDER BY received_at")]
+
+    def is_undone(self, session_id: str) -> bool:
+        with self.lock:
+            return self.db.execute(f"SELECT 1 FROM presence_records WHERE session_id = ? AND {UNDONE}",
+                                   (session_id,)).fetchone() is not None
+
+    def session_counts(self) -> dict:
+        with self.lock:
+            return {r[0]: r[1] for r in self.db.execute("SELECT COALESCE(status, 'new'), COUNT(*) FROM presence_records "
+                                                        "GROUP BY 1 ORDER BY 1")}
 
 
 def _fixed(body: dict) -> bytes:

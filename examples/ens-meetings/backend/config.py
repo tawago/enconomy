@@ -20,6 +20,8 @@ class Settings:
     core_url: str
     deployments: Path
     statement_max_age_s: int = 3600
+    zk_deployments: Path | None = None   # None: the bridge's default next to deployments
+    log: Path | None = None              # None: the bridge's default
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -34,7 +36,9 @@ class Settings:
                    rpc=os.environ.get("ETH_RPC", "https://ethereum-sepolia-rpc.publicnode.com"),
                    core_url=os.environ.get("ENS_CORE_URL", "http://127.0.0.1:8000").rstrip("/"),
                    deployments=Path(os.environ.get("ENS_DEPLOYMENTS", HERE / "contracts/deployments/sepolia.json")),
-                   statement_max_age_s=int(os.environ.get("ENS_STATEMENT_MAX_AGE_S", "3600")))
+                   statement_max_age_s=int(os.environ.get("ENS_STATEMENT_MAX_AGE_S", "3600")),
+                   zk_deployments=Path(os.environ.get("ENS_ZK_DEPLOYMENTS", HERE / "contracts/deployments/zk-sepolia.json")),
+                   log=Path(os.environ["BRIDGE_LOG"]) if os.environ.get("BRIDGE_LOG") else None)
 
     def deployed(self) -> dict:
         return json.loads(self.deployments.read_text())

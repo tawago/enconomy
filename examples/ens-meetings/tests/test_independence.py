@@ -26,3 +26,12 @@ def test_scan_would_catch_it():
     assert FORBIDDEN[0].search("import pop\n")
     assert FORBIDDEN[1].search('Path("../../server/data")')
     assert not FORBIDDEN[0].search("from popper import x\n")
+
+
+def test_nothing_reads_core_data():
+    """No path or setting of the old bridge that reached into the core's files. import_names is the one exception:
+    an old database, given by hand, is its whole job."""
+    gone = re.compile(r"pop\.sqlite|sessions/|POP_DATA_DIR|POP_DB|dataDir|popDb|find_proof|sessions_dir")
+    hits = [str(p.relative_to(ROOT)) for p in python_files()
+            if p.name != "import_names.py" and p.parent.name != "tests" and gone.search(p.read_text())]
+    assert not hits, hits

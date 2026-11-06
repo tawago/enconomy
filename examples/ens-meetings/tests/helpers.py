@@ -41,11 +41,116 @@ class Clock:
         return self.ms
 
 
+def keccak256(data: bytes) -> bytes:
+    """Keccak-f[1600] with rate 136, the original padding: hashlib's sha3_256 isn't this. Golden values in test_bridge."""
+    def rol(a, n):
+        n %= 64
+        return ((a << n) | (a >> (64 - n))) & (2 ** 64 - 1)
+
+    def f(A):
+        R = 1
+        for _ in range(24):
+            C = [A[x][0] ^ A[x][1] ^ A[x][2] ^ A[x][3] ^ A[x][4] for x in range(5)]
+            D = [C[(x + 4) % 5] ^ rol(C[(x + 1) % 5], 1) for x in range(5)]
+            A = [[A[x][y] ^ D[x] for y in range(5)] for x in range(5)]
+            x, y = 1, 0
+            cur = A[x][y]
+            for t in range(24):
+                x, y = y, (2 * x + 3 * y) % 5
+                cur, A[x][y] = A[x][y], rol(cur, (t + 1) * (t + 2) // 2)
+            for y in range(5):
+                T = [A[x][y] for x in range(5)]
+                for x in range(5):
+                    A[x][y] = T[x] ^ (~T[(x + 1) % 5] & T[(x + 2) % 5])
+            for j in range(7):
+                R = ((R << 1) ^ ((R >> 7) * 0x71)) % 256
+                if R & 2:
+                    A[0][0] ^= 1 << ((1 << j) - 1)
+        return A
+
+    pad = 136 - len(data) % 136
+    msg = bytearray(data) + b"\x00" * pad
+    msg[len(data)] ^= 0x01
+    msg[-1] ^= 0x80
+    A = [[0] * 5 for _ in range(5)]
+    for off in range(0, len(msg), 136):
+        for i in range(17):
+            A[i % 5][i // 5] ^= int.from_bytes(msg[off + 8 * i:off + 8 * i + 8], "little")
+        A = f(A)
+    return b"".join(A[i % 5][i // 5].to_bytes(8, "little") for i in range(4))
+
+
+class FakeHttp:
+    """url -> (status, json); anything else answers 404, like the bundle before the pair proof."""
+
+    def __init__(self):
+        self.routes, self.calls = {}, []
+
+    def __call__(self, url):
+        self.calls.append(url)
+        got = self.routes.get(url, (404, None))
+        if isinstance(got, Exception):
+            raise got
+        return got
+
+
 class FakeChain:
+    """MeetResolver as far as the bridge can see it. calls: every tx, in order."""
+
     def __init__(self):
         self.calls, self.onchain = [], set()
         self.fail = None
         self.busy = self.overlapped = False
+        self.meetings, self.would_revert, self.send_revert = {}, None, None
+        self.verify_result = "true"
+        self.me = "0x" + "aa" * 20
+
+    def keccak_hex(self, hexdata):
+        return "0x" + keccak256(bytes.fromhex(hexdata.removeprefix("0x"))).hex()
+
+    def keccak_str(self, s):
+        return self.keccak_hex(s.encode().hex())
+
+    def is_fork(self):
+        return False
+
+    def tx_link(self, h):
+        return h
+
+    def revert_name(self, msg):
+        return msg
+
+    def meeting(self, mid):
+        return self.meetings.get(mid, {"exists": False, "zk": False, "voided": False})
+
+    def _tx(self, what, args):
+        self.calls.append((what, args))
+        if self.fail:
+            raise RuntimeError(self.fail)
+        return {"transactionHash": f"0x{what}{len(self.calls)}", "gasUsed": "0x10"}
+
+    def record_would(self, mid, lha, lhb, tb, ev):
+        if self.would_revert:
+            raise RuntimeError(self.would_revert)
+        return "true"
+
+    def record(self, mid, lha, lhb, tb, ev):
+        if self.send_revert:
+            raise RuntimeError(self.send_revert)
+        rc = self._tx("record", (mid, lha, lhb, tb, ev))
+        self.meetings[mid] = {"exists": True, "zk": False, "voided": False}
+        return rc
+
+    def verify_call(self, verifier, proof, inputs):
+        return self.verify_result
+
+    def verify_send(self, verifier, verify_log, proof, inputs):
+        return self._tx("verify", (verifier, verify_log, proof, inputs))
+
+    def mark_zk(self, mid):
+        rc = self._tx("mark", mid)
+        self.meetings[mid]["zk"] = True
+        return rc
 
     def counts(self, label):
         return label in self.onchain, 0, 0, 0
@@ -76,6 +181,7 @@ class Phone:
         self.pub = self.sk.public_key().public_bytes(serialization.Encoding.X962,
                                                      serialization.PublicFormat.UncompressedPoint)
         self.device_id = device_id(self.pub)
+        self.transcript_sigs = {}
 
     def statement(self, **over) -> dict:
         body = {"format": STATEMENT_FORMAT, "device_id": self.device_id, "pubkey": self.pub.hex(),
@@ -94,6 +200,22 @@ class Phone:
 
     def read(self):
         return self.client.post("/v1/names/read", json=self.signed(None))
+
+
+def near_record(a: Phone, b: Phone, sid: str, t0_ms=1_790_000_003_000, verdict="NEAR", zk=None) -> dict:
+    """A record two test phones could really have: both signed their transcript, the core key signed the body."""
+    def half(p, name):
+        raw = f"transcript {sid} {name}".encode()
+        # ECDSA is randomized, and a later record of a session must match outside zk: sign once
+        sig = p.transcript_sigs.setdefault(raw, sign_raw(p.sk, raw))
+        return {"transcript_b64": base64.b64encode(raw).decode(), "sha256": hashlib.sha256(raw).hexdigest(),
+                "sig_b64": base64.b64encode(sig).decode()}
+
+    return sign_record({"format": "pop-presence-v1", "session_id": sid, "t0_ms": t0_ms, "verdict": verdict,
+                        "transcripts": {"A": half(a, "A"), "B": half(b, "B")},
+                        "devices": {"A": {"device_id": a.device_id, "pubkey": a.pub.hex()},
+                                    "B": {"device_id": b.device_id, "pubkey": b.pub.hex()}},
+                        "zk": zk or {"status": "none", "A": None, "B": None, "pair": None}})
 
 
 def wait_for(cond, timeout=3.0) -> None:

@@ -145,7 +145,10 @@ def test_intake_wakes_the_worker(client):
     assert post(client, RECORD).status_code == 200
     assert woken == [1]
     assert post(client, RECORD).status_code == 200
-    assert woken == [1]     # nothing new, nothing to do
+    assert woken == [1, 1]  # nothing new, but still undone: a redelivery is its retry
+    client.app.state.store.set_session(SID, status="ignored")
+    assert post(client, RECORD).status_code == 200
+    assert woken == [1, 1]  # done: nothing to do
 
 
 def test_oversized_body_refused(client):
