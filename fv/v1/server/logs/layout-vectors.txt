@@ -1,0 +1,12 @@
+# 2026-11-06. From fv/v1/server:
+# bash -c 'PYTHONPATH=../../../server python spec-checks/layout_vectors.py logs/lean-verdict.txt'
+# Bytes on four samples only. Proves nothing about the codec, says nothing about the air (CN1).
+commit1: 71 bytes, Lean same
+commit2: 71 bytes, Lean same
+tx1: 269 bytes, Lean same
+tx2: 311 bytes, Lean same
+33-byte nonce in, width out: 32
+commit of 70 bytes: refused
+commit of 72 bytes: refused
+rc 0
+run: 8 s, rc=0

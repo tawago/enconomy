@@ -101,7 +101,7 @@ Trusted, built into the model rather than named:
 | `Bar.lean` | BAR 1 | Fable | pass | 48 kHz constant +1, and 44.1 kHz bound widened to the outer value. Both stopped proving. The unchanged control proved. | `g_range_*_sufficient` are now mutation-tested. |
 | `Arrival.lean` | D | Fable | pass | Dropped `u[K-1] = 0`. `self_side_arrival_sound` stopped proving. | Assumes block C. |
 | `PartnerGlue.lean` | E, F | Fable | pass | Dropped `u[K-1] = 0`. `sod_small` and `phone_core_glue` stopped proving. | |
-| `AppPasses.lean` | app row 1 | Fable | pass, after one fix round | Dropped the carry. Changed `≥` to `>` in the tie. Both stopped proving. | The first review returned fail only because its build was stuck behind the machine lock. No defect was found. |
+| `AppPasses.lean` | app row 1 | Fable | pass, after one fix round | Dropped the carry. Changed `≥` to `>` in the tie. Both stopped proving. | The first review returned fail only because its build never got to run. No defect was found. |
 | `AppParity.lean` | app row 2 | Fable, mutant by Opus | pass | Weakened the role tie (`lib.nr` 233). `transcript_parity` stopped proving, `sorryAx` in its axioms. Ran 2026-11-06, not in the Fable audit. | The error is a tactic failing. `role_mutant_refuted` compiled clean: the weakened statement is false, role byte `'A'`, circuit told role B. |
 | `Commit.lean` | B, H | **Opus only** | **Last review: fail, unfinished. No defect found.** A separate recheck agent then finished its open checks and passed them. | Removed the 8-bit check (`lib.nr` 109). `phone_core_windows_are_recording`, `phone_core_one_recording` and `open_leaves_ties` picked up `sorryAx`. | Non-vacuity: the recheck's witness holds every hypothesis at once, `CodeBinds` and `OpeningsBind` included. It lives in a temporary scratch file, not the repo. It uses honest openings, so it shows consistency, not collision resistance. |
 | `Freivalds.lean` | C | **Opus only** | pass, on the second review | Replaced `r * rinv = 1` with `True` (`lib.nr` 371). `fooled_count` and the `arrival_bad_*` theorems picked up `sorryAx`. A failed proof, not a proved refutation. | Non-vacuity witnesses are degenerate: silence, flat templates. The absorption audit is partly a source reading. |
@@ -418,6 +418,17 @@ Verdict from reading source only. **Nothing built, nothing extracted, no Lean ca
 - PR #310, unmerged: `for i in a..=b` extracts without its last iteration. `oalib` has no such loop. The `sha256` dependency does.
 
 Rough guess, from the reviewer: a day or two for `pair`, weeks for all blocks. So the hand model stays, and it is still the weakest link. The owner decides whether to allow the build for a #311 try.
+
+## Server side (2026-11-07)
+
+Everything above is about the circuits, which run after the verdict. The verdict itself is decided by the server, and that now has its own results: [`../server/README.md`](../server/README.md).
+
+- Lean: `Verdict.lean` and `Machine.lean` build, no `sorry`, standard axioms only, on a hand-written model. 21 of 21 mutants broke a proof on `Machine.lean`.
+- Walk on the real routes: 59 passed, 1000 sessions. Replay of the Lean table on real traces: 6016 sessions, 0 mismatches on the compared fields. Those two are testing on samples.
+- Seven low-severity code reports, no wrong verdict found.
+- **The last review of every track failed.** `X1`'s docstring overclaims and the replay has a false pass on one record field. Both are open. No general Lean theorem for M14, X2, or V7 on a final record.
+
+This shows the server follows its rules on signed numbers. A phone can still sign a false half (CN1, X1). Sessions with `context=None` and `human=none`, pinned to `9db1490`, not rerun on later code.
 
 ## What was NOT done
 

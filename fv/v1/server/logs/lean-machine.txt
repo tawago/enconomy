@@ -1,0 +1,117 @@
+# 2026-11-06. ServerFv/Machine.lean, from fv/v1/server/lean.
+# These results show the server follows its rules on signed numbers. They do not show a phone told
+# the truth about the air (CN1).
+# Job sfv-machine: lake build
+# Local grep for sorry, admit, native_decide, ^axiom in Machine.lean: no hits.
+ℹ [18185/18189] Built ServerFv.Machine (13s)
+info: ServerFv/Machine.lean:3525:0: 'ServerFv.Machine.M9' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3526:0: 'ServerFv.Machine.M9_table' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3527:0: 'ServerFv.Machine.M9_confirmed' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3528:0: 'ServerFv.Machine.M1_terminal' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3529:0: 'ServerFv.Machine.M1_edges' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3530:0: 'ServerFv.Machine.M2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3531:0: 'ServerFv.Machine.M3' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3532:0: 'ServerFv.Machine.M3_signed' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3533:0: 'ServerFv.Machine.combine_guard_unreachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3534:0: 'ServerFv.Machine.M4' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3535:0: 'ServerFv.Machine.M5_codes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3536:0: 'ServerFv.Machine.M5_partner_code' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3537:0: 'ServerFv.Machine.M5_no_strings' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3538:0: 'ServerFv.Machine.M5_create_token' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3539:0: 'ServerFv.Machine.M6' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3540:0: 'ServerFv.Machine.M6_view_ignores' depends on axioms: [propext, Quot.sound]
+info: ServerFv/Machine.lean:3541:0: 'ServerFv.Machine.M7' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3542:0: 'ServerFv.Machine.M8_retry_wipes' does not depend on any axioms
+info: ServerFv/Machine.lean:3543:0: 'ServerFv.Machine.M8_pins' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3544:0: 'ServerFv.Machine.M8_stale_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3545:0: 'ServerFv.Machine.M8_stale_fail' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3546:0: 'ServerFv.Machine.M8_old_commit' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3547:0: 'ServerFv.Machine.M8_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3548:0: 'ServerFv.Machine.M10_stays' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3549:0: 'ServerFv.Machine.M10_commit_repeat' depends on axioms: [propext, Quot.sound]
+info: ServerFv/Machine.lean:3550:0: 'ServerFv.Machine.M10_commit_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3551:0: 'ServerFv.Machine.M10_tx_repeat' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3552:0: 'ServerFv.Machine.M10_tx_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3553:0: 'ServerFv.Machine.M10_not_started' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3554:0: 'ServerFv.Machine.M11' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3555:0: 'ServerFv.Machine.M12_no_auth' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3556:0: 'ServerFv.Machine.M12_bad_json' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3557:0: 'ServerFv.Machine.M12_bad_shape' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3558:0: 'ServerFv.Machine.M12_non_member' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3559:0: 'ServerFv.Machine.M12_noauth_load' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3560:0: 'ServerFv.Machine.M12_roles' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3561:0: 'ServerFv.Machine.M12_member' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3562:0: 'ServerFv.Machine.M13' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3563:0: 'ServerFv.Machine.Witness.reaches_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3564:0: 'ServerFv.Machine.Witness.reaches_too_far' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3565:0: 'ServerFv.Machine.Witness.retries' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3566:0: 'ServerFv.Machine.Witness.retry_shows_reason' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3567:0: 'ServerFv.Machine.Witness.retry_then_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3568:0: 'ServerFv.Machine.Witness.toy_unforgeable' depends on axioms: [propext]
+✔ [18187/18189] Built ServerFv (2.6s)
+Build completed successfully (18189 jobs).
+run: 29 s, rc=0
+
+# Job sfv-machine-mut: each mutant is a one-place change to a copy of Machine.lean at /tmp/mut.lean,
+# then lake env lean on that copy. rc=1 means the proofs broke, as they should.
+# The file in the repo was not changed. first= is the first error line in the copy.
+# The MUTANT lines are copied by hand from the job's output, seen to the end.
+MUTANT no commit gate: rc=1 errors=1 first=line 1569:4
+MUTANT retry without attempt limit: rc=1 errors=2 first=line 1008:4
+MUTANT bad transcript writes NEAR: rc=1 errors=1 first=line 1715:67
+MUTANT deadline one ms later: rc=1 errors=1 first=line 1070:12
+MUTANT retry keeps per_role: rc=1 errors=3 first=line 945:10
+MUTANT arm hands out partner code: rc=1 errors=1 first=line 2757:24
+MUTANT self join allowed: rc=1 errors=2 first=line 1157:4
+MUTANT commit signature not checked: rc=1 errors=1 first=line 1568:70
+run: 118 s, rc=0
+
+# 2026-11-06, review fixes to Machine.lean. The lines above are from before these fixes, so their line
+# numbers and the name M8_old_commit are old. The definitions (step and the rest) did not change.
+# The eight mutants above were not run again.
+# These results show the server follows its rules on signed numbers. They do not show a phone told
+# the truth about the air (CN1).
+# Changes: M8_old_commit split into M8_old_commit_started and M8_old_commit_not_started. New:
+# M10_commit_repeat_answer, M10_commit_resend, M10_tx_repeat_answer, M10_not_started_commit,
+# M10_not_started_transcript, M10_over_transcript, M12_member_load. Docstrings and header only otherwise.
+# Job sfv-machine-fix: lake build
+Build completed successfully (18189 jobs).
+run: 37 s, rc=0
+# Local grep for sorry, admit, native_decide, axiom, unsafe, partial and one banned test-name word: only the word "partial" in the header's prose.
+# Job sfv-machine-fix2: fresh `lake env lean ServerFv/Machine.lean`, then five new mutants on /tmp/fixmut.lean.
+fresh rc=0
+# 52 '#print axioms' lines. 0 lines with sorryAx, ofReduceBool or trustCompiler.
+'ServerFv.Machine.M8_old_commit_started' depends on axioms: [propext]
+'ServerFv.Machine.M8_old_commit_not_started' depends on axioms: [propext]
+'ServerFv.Machine.M10_stays' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_commit_repeat' depends on axioms: [propext, Quot.sound]
+'ServerFv.Machine.M10_commit_repeat_answer' depends on axioms: [propext]
+'ServerFv.Machine.M10_commit_resend' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_commit_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_tx_repeat' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_tx_repeat_answer' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_tx_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_not_started' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_not_started_commit' depends on axioms: [propext]
+'ServerFv.Machine.M10_not_started_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M10_over_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+'ServerFv.Machine.M12_member_load' depends on axioms: [propext, Classical.choice, Quot.sound]
+MUTANT repeat transcript refused: rc=1 errors=2 first=3224:97 touches=['M10_tx_repeat_answer']
+MUTANT repeat commit refused: rc=1 errors=3 first=2704:38 touches=['M10_commit_repeat', 'M10_commit_repeat_answer', 'M10_commit_resend']
+MUTANT stale check ignores state: rc=1 errors=3 first=3093:4 touches=['M10_over_transcript']
+MUTANT commit not started is 400: rc=1 errors=1 first=3116:92 touches=['M10_not_started_commit', 'M8_old_commit_not_started']
+MUTANT old commit other code: rc=1 errors=1 first=3110:84 touches=['M8_old_commit_started']
+run: 94 s, rc=0
+
+# 2026-11-06, second review. The earlier reviewer could not finish its runs, so every check was run again here.
+# Full output, seen to the end: logs/lean-machine-checks.txt (job machfix-all4, rc=0). Machine.lean sha1 a7aaff7a.
+# Command, from fv/v1/server/lean: bash checks/machine_all.sh
+# Result: lake build ok. Fresh lean rc=0, 55 of 55 '#print axioms' lines, 0 with sorryAx, ofReduceBool or trustCompiler.
+# Traces rc=0. 21 mutants, each a one-place change to a copy: all 21 broke a proof, none survived.
+# New theorems: M13_t0, afterStore_accepted, combine_guard_on_request. step and the other definitions did not change.
+# Line numbers and names in the sections above this one are old.
+# The traces were read by eye. About ten lines were checked against sessions.py: the E1 and E3 edges, the commit gate at 4210 and 4211,
+# join after abort, a commit signed by the wrong key, stale and refused fails. The rest match the table in spec.md 3.5 but were not
+# compared line by line. The Lean table has still not been run against the Python.
+# These results show the server follows its rules on signed numbers. They do not show a phone told the truth about
+# the air (CN1). This is not a proof of proximity.

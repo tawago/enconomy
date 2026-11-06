@@ -1,0 +1,48 @@
+# Do the check scripts report failure in their exit code? Job rfx-exit, then rfx-exit2. Testing, not proof.
+# Shows the server follows its rules on signed numbers, not that a phone told the truth about the air (CN1). Not a proof of proximity.
+# Reading note: the first wrapper test in rfx-exit found no 200 view to change in directed.jsonl, printed no MISMATCH, and exited 3 on the session floor. It shows nothing about a mismatch. rfx-exit2 below repeats it on a confirm line, and that one exits 1.
+# Also in the first job: last lines of the three walks of job rfx-gen.
+== walk logs of job rfx-gen, last lines
+rfx1.txt:
+  view_shows_seed: wanted M5, caught by M5,M6 at session 1 step 2 now 528, after 5 steps
+59 passed, 1 warning in 1281.12s (0:21:21)
+all-tests rc=0
+rfx2.txt:
+  view:not_member: 142
+1 passed, 1 warning in 1024.31s (0:17:04)
+walk7001 rc=0
+rfx3.txt:
+  view:not_member: 146
+1 passed, 1 warning in 1097.12s (0:18:17)
+walk7002 rc=0
+== wrapper on a trace with one changed fact: must exit 1
+replay rc=3
+== end of replay_all, rc=3
+wrapper exit code: 3
+== wrapper on directed alone, floor 1000: no mismatch, must exit 3
+wrapper exit code: 3
+== machine_mutants on a bad pattern: must exit 1
+MUTANT no such text: BAD PATTERN count=0
+mutants total 1 survived 0 bad pattern 1
+mutants done
+bad-pattern exit code: 1
+== replay_checks with a mutant that changes nothing: must exit 1
+MUTANT no change: SURVIVED rc=3 at 
+tamper total 0 missed 0
+mutants total 1 caught 0 survived 1 other 0
+replay_checks rc 1
+no-change-mutant exit code: 1
+== machine_mutants, real list: must exit 0
+MUTANT both transcripts in answers an error: broke rc=1 errors=1 in=['afterStore_accepted']
+mutants total 21 survived 0 bad pattern 0
+mutants done
+real exit code: 0
+== pin
+dda3ca675585c4492ecb4bb2c1cf881fe7a04c656ff60f079a7d49a803ff6505  server/pop/sessions.py
+run: 184 s, rc=0
+lines changed: 1
+wrapper exit code: 1
+MISMATCH bad.jsonl session 0 step 2 now 0 op "confirm" tag "directed": at after.seq: lean 3, trace 4
+replay rc=1
+== end of replay_all, rc=1
+run: 20 s, rc=0

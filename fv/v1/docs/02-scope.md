@@ -13,6 +13,8 @@
 
 Everything below covers steps 4 and 5.
 
+Step 3 has its own work now: [`../server/README.md`](../server/README.md), basic flow only, `context=None`, `human=none`, pinned to `9db1490`. This shows the server follows its rules on signed numbers. A phone can still sign a false half (CN1, X1).
+
 When a proof is made, the circuit doesn't trust the app's search. It rechecks the answer against the signed
 recording, so a wrong arrival on that recording gets rejected. Without a proof, nothing rechecks the app. And even
 with one, this is not "if the app lies, the circuit rejects":

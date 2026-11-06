@@ -13,6 +13,7 @@ what we say they accept. These run after the verdict. Live NEAR doesn't depend o
 | [04-plan.md](04-plan.md) | Hackathon plan: what to do first given the spike, fix bundle, open questions |
 | [05-spike-results.md](05-spike-results.md) | Spike results in plain English: audit verdicts, what got proven, findings with severity, what's left |
 | [06-app-invariants.md](06-app-invariants.md) | What the phone code must get right: table of invariants, what's proven |
+| [../server/README.md](../server/README.md) | The server's verdict and session rules: results, gaps, how to reproduce |
 
 ## Code under study
 

@@ -61,6 +61,21 @@ No credential, signature or curve check on it. Only "X differs from own X" is en
 
 `issuer` and `code_commit` are whatever the public inputs say, and `valid_at` is only an upper bound against expiry. `pair` ties nothing across phones and doesn't link its commitments to a `phone` proof. Unpinned `code_commit` plus all-128 `c_i` passes on any audio: `WitnessChain.all128_self`. This sharpens fix 3.
 
+## Server concerns
+
+From the server FV work, `fv/v1/server/spec.md` section 6, with repros. All at `9db1490`, low severity, no wrong verdict, not fixed. Later commits changed `sessions.py` and `main.py`, and nothing was rerun, so check each one still applies.
+
+- **R1-gap.** Key the replay cache on something canonical, not the signature's base64 string, and consider requiring low-s (`auth.py:45-46`, `crypto.py:32`).
+- **R1-edge.** The 120 s forget window ends just as a ts 60 s ahead is still in range (`auth.py:36, 44`).
+- **E500s.** Five inputs give 500 where a refusal is meant: `X-Pop-Ts` digits (`auth.py:36`), `reason` as a list (`sessions.py:465`), non-ASCII join token (`sessions.py:181`), deep create body (`main.py:155-158`), deep `meta` (`sessions.py:441-444`). The last one lets a member stall a session for up to about 600 s.
+- **One worker.** Nothing enforces it for a `uvicorn --factory` start, and the session model and the replay cache need it.
+- **`verify_record`.** Its docstring says "every check". It can't check timing, order, armed rate or `code_commit`, and doesn't compare the stored verdict. `cal_us` is under no signature.
+- **`decide`.** NaN gives NEAR. No caller passes a float today.
+- **`FINAL_REASONS`.** Dead code.
+- **`combine`.** Rate 0 raises. Only a direct call reaches it.
+
+None of this touches the main limit. The server follows its rules on signed numbers, and a phone can still sign a false half (CN1, X1).
+
 ## After the change
 
 - Redo `Bar.lean`, `Arrival.lean` and `PartnerGlue.lean`. The silence and tone witnesses should stop working, and those theorems should flip.

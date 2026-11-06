@@ -1,0 +1,693 @@
+sessions: 500
+# job fx-final-walk500, seed 20261106 (default). Result: 1 failed, 58 passed, rc=1. The failure is coverage only: test_walk misses cal_moved:outcome_differs (need 30, got 27) and code:join:not_found. test_walk.py's header says targets are sized for 2000 sessions.
+# Shows the server follows its rules on signed numbers. Does not show a phone told the truth about the air (CN1). Not proven proximity.
+..F........................................................              [100%]
+=================================== FAILURES ===================================
+__________________________________ test_walk ___________________________________
+
+env = <test_walk.Env object at 0x7ab3e7afc320>
+request = <FixtureRequest for <Function test_walk>>
+
+    def test_walk(env, request):
+        logging.disable(logging.CRITICAL)
+        sessions = request.config.getoption("--walk-sessions")
+        seed = request.config.getoption("--walk-seed")
+        out = request.config.getoption("--trace-out")
+        cov = Counter()
+        LAST["coverage"] = cov
+        trace = open(out, "w") if out else None
+        try:
+            if trace:
+                trace.write(json.dumps({"format": "pop-walk-trace-3", "seed": seed, "sessions": sessions}) + "\n")
+            run_walk(env, sessions, seed, cov, trace, shrink=True)
+        finally:
+            if trace:
+                trace.close()
+        missing = unreached(cov)
+>       assert not missing, f"targets never reached in {sessions} sessions: {missing}"
+E       AssertionError: targets never reached in 500 sessions: ['cal_moved:outcome_differs (need 30, got 27)', 'code:join:not_found']
+E       assert not ['cal_moved:outcome_differs (need 30, got 27)', 'code:join:not_found']
+
+test_walk.py:2890: AssertionError
+=============================== warnings summary ===============================
+<venv>/lib/python3.12/site-packages/fastapi/testclient.py:1
+  <venv>/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+
+direct random inputs:
+  V1 clause broken alone: attempt: 1685
+  V1 clause broken alone: nonce: 1625
+  V1 clause broken alone: partner_a: 1666
+  V1 clause broken alone: partner_b: 1684
+  V1 clause broken alone: role_a: 1722
+  V1 clause broken alone: role_b: 1693
+  V1 clause broken alone: same_key: 1698
+  V1 not a pair: rejected: 13361
+  V1 pair: impossible_flight: 870
+  V1 pair: near: 3019
+  V1 pair: self_timestamp_mismatch: 1884
+  V1 pair: too_far: 866
+  V2 decide: 20000
+  V3 integer form: 20000
+  V4 self check: 20000
+  V5 combine swapped: 1588
+  V5 record: swap_all: 235
+  V5 record: swap_tx: 253
+  V7 refused: attempt: 259
+  V7 refused: bad_sig: 254
+  V7 refused: no_commit: 234
+  V7 refused: no_transcript: 269
+  V7 refused: nonce: 249
+  V7 refused: swap_all: 235
+  V7 refused: swap_tx: 253
+  V7 replay: impossible_flight: 142
+  V7 replay: near: 581
+  V7 replay: self_timestamp_mismatch: 403
+  V7 replay: too_far: 121
+
+walk coverage. These show the server follows its rules on signed numbers, not that a phone told the truth about the air (CN1).
+sessions:
+  sessions: 500
+sessions, retries:
+  retried: 145
+steps:
+  steps: 6800
+sessions that reached a state:
+  aborted: 110
+  confirmed: 431
+  created: 500
+  done: 390
+  joined: 457
+  started: 414
+sessions by verdict:
+  NEAR: 235
+  NOT_NEAR: 155
+sessions by ending:
+  aborted:aborted:attempt0: 3
+  aborted:aborted:attempt1: 3
+  aborted:timeout:attempt0: 88
+  aborted:timeout:attempt1: 16
+  failed:capture_failed:attempt1: 1
+  failed:glitch:attempt1: 1
+  failed:impossible_flight:attempt1: 15
+  failed:partner_mismatch:attempt0: 4
+  failed:partner_mismatch:attempt1: 2
+  failed:partner_not_heard:attempt1: 3
+  failed:self_timestamp_mismatch:attempt1: 12
+  failed:timeout:attempt1: 19
+  rejected:signature_invalid:attempt0: 8
+  rejected:signature_invalid:attempt1: 4
+  rejected:transcript_mismatch:attempt0: 17
+  rejected:transcript_mismatch:attempt1: 9
+  verdict:near:attempt0: 190
+  verdict:near:attempt1: 45
+  verdict:too_far:attempt0: 45
+  verdict:too_far:attempt1: 15
+NEAR, by version:
+  popt1+1: 148
+  popt1+2: 40
+  popt2+1: 37
+  popt2+2: 10
+retries, by reason:
+  capture_failed: 2
+  glitch: 4
+  impossible_flight: 48
+  partner_not_heard: 1
+  self_not_heard: 6
+  self_timestamp_mismatch: 36
+  timeout: 48
+timeouts fired:
+  E1: 43
+  E2: 61
+  E3: 54
+  E3:by=A: 16
+  E3:by=B: 13
+  E3:by=None: 25
+exact edges hit:
+  E1_one_ms_late: 19
+  E2_one_ms_late: 36
+  E3_one_ms_late: 35
+  auth_edge_new_passes: 11
+  auth_edge_old_passes: 6
+  commit_at_gate: 432
+  flight_exactly_60: 26
+  flight_exactly_minus_20: 13
+  join_at_token_expiry: 12
+  near_at_deadline: 31
+  near_at_max_age: 23
+  too_early_at_gate_minus_1: 28
+auth refusals:
+  auth_bad_signature: 49
+  auth_replay: 20
+  auth_stale: 32
+  auth_unknown_device: 13
+V2 to V4 runs:
+  on_session_numbers: 402
+V5 runs:
+  live: 4
+  record: 320
+V7 rows:
+  NEAR: 235
+  NOT_NEAR: 60
+  impossible: 15
+  raises: 70
+  self: 10
+older-attempt refusals:
+  fail: 7
+  transcript: 17
+combine runs, by version:
+  popt1+1: 235
+  popt1+2: 80
+  popt2+1: 64
+  popt2+2: 23
+calibration moved after arm, and the live value would change the outcome:
+  outcome_differs: 27
+live, partner's half stored, by the other phone:
+  arm_repeat: 71
+  commit_first: 59
+  commit_repeat: 61
+  error: 168
+  view: 71
+the errors among those:
+  arm:bad_attempt: 12
+  arm:bad_request: 24
+  arm:bad_sample_rate: 17
+  arm:bad_state: 11
+  commit:already_committed: 7
+  commit:signature_invalid: 15
+  commit:transcript_mismatch: 36
+  confirm:bad_state: 17
+  fail:bad_attempt: 10
+  fail:bad_reason: 13
+  result:no_result: 6
+steps by op and answer:
+  abort:200: 17
+  abort:auth_bad_signature: 2
+  abort:not_found: 1
+  abort:not_member: 12
+  arm:200: 1168
+  arm:auth_bad_signature: 11
+  arm:auth_replay: 6
+  arm:auth_stale: 1
+  arm:auth_unknown_device: 4
+  arm:bad_attempt: 19
+  arm:bad_request: 45
+  arm:bad_sample_rate: 24
+  arm:bad_state: 169
+  arm:not_found: 4
+  arm:not_member: 42
+  commit:200: 1065
+  commit:already_committed: 10
+  commit:auth_bad_signature: 8
+  commit:auth_replay: 1
+  commit:auth_stale: 7
+  commit:auth_unknown_device: 2
+  commit:bad_request: 15
+  commit:bad_state: 264
+  commit:not_found: 8
+  commit:not_member: 78
+  commit:signature_invalid: 33
+  commit:too_early: 69
+  commit:transcript_mismatch: 74
+  confirm:200: 893
+  confirm:auth_bad_signature: 1
+  confirm:auth_stale: 6
+  confirm:bad_state: 111
+  confirm:not_found: 7
+  confirm:not_member: 29
+  create:200: 500
+  create:auth_bad_signature: 64
+  create:auth_stale: 9
+  create:auth_unknown_device: 10
+  create:bad_policy: 68
+  create:bad_request: 120
+  fail:200: 28
+  fail:already_submitted: 2
+  fail:auth_bad_signature: 2
+  fail:auth_replay: 3
+  fail:auth_stale: 3
+  fail:auth_unknown_device: 1
+  fail:bad_attempt: 36
+  fail:bad_reason: 45
+  fail:bad_request: 8
+  fail:bad_state: 65
+  fail:not_found: 3
+  fail:not_member: 32
+  fail:stale_attempt: 7
+  join:200: 457
+  join:already_joined: 69
+  join:auth_replay: 2
+  join:auth_stale: 3
+  join:bad_request: 5
+  join:bad_token: 7
+  join:self_join: 41
+  join:token_expired: 24
+  result:200: 47
+  result:auth_bad_signature: 6
+  result:auth_replay: 2
+  result:auth_stale: 3
+  result:auth_unknown_device: 2
+  result:no_result: 40
+  result:not_found: 6
+  result:not_member: 26
+  transcript:200: 856
+  transcript:already_submitted: 13
+  transcript:auth_bad_signature: 12
+  transcript:auth_replay: 4
+  transcript:auth_stale: 6
+  transcript:auth_unknown_device: 3
+  transcript:bad_request: 16
+  transcript:bad_state: 262
+  transcript:not_found: 6
+  transcript:not_member: 95
+  transcript:signature_invalid: 12
+  transcript:stale_attempt: 17
+  transcript:transcript_mismatch: 26
+  view:200: 207
+  view:auth_bad_signature: 7
+  view:auth_replay: 2
+  view:auth_stale: 3
+  view:auth_unknown_device: 1
+  view:bad_request: 31
+  view:not_found: 6
+  view:not_member: 34
+steps by generator intent and answer:
+  abort:200: 17
+  abort:auth_bad_signature: 2
+  abort:not_found: 1
+  abort:not_member: 12
+  arm:again:200: 3
+  arm:again:auth_bad_signature: 2
+  arm:again:bad_request: 1
+  arm:again:bad_state: 16
+  arm:again:not_member: 3
+  arm:attempt:auth_replay: 1
+  arm:attempt:auth_unknown_device: 1
+  arm:attempt:bad_attempt: 2
+  arm:attempt:bad_request: 4
+  arm:attempt:bad_state: 9
+  arm:attempt:not_member: 6
+  arm:attempt_type:auth_bad_signature: 1
+  arm:attempt_type:bad_attempt: 1
+  arm:attempt_type:bad_request: 1
+  arm:attempt_type:bad_state: 5
+  arm:attempt_type:not_found: 1
+  arm:attempt_type:not_member: 2
+  arm:null_popt:auth_bad_signature: 1
+  arm:null_popt:bad_request: 1
+  arm:null_popt:bad_state: 12
+  arm:null_popt:not_found: 3
+  arm:null_popt:not_member: 4
+  arm:other_popt:auth_unknown_device: 1
+  arm:other_popt:bad_request: 1
+  arm:other_popt:bad_state: 18
+  arm:other_popt:not_member: 3
+  arm:other_rate:auth_bad_signature: 1
+  arm:other_rate:bad_state: 8
+  arm:other_rate:not_member: 8
+  arm:popt:auth_bad_signature: 1
+  arm:popt:bad_request: 2
+  arm:popt:bad_state: 14
+  arm:popt:not_member: 3
+  arm:popt_type:auth_replay: 1
+  arm:popt_type:auth_stale: 1
+  arm:popt_type:bad_request: 6
+  arm:popt_type:bad_state: 13
+  arm:popt_type:not_member: 2
+  arm:rate_high:auth_bad_signature: 1
+  arm:rate_high:auth_replay: 2
+  arm:rate_high:auth_unknown_device: 1
+  arm:rate_high:bad_state: 6
+  arm:rate_high:not_member: 3
+  arm:rate_low:auth_bad_signature: 2
+  arm:rate_low:auth_replay: 1
+  arm:rate_low:auth_unknown_device: 1
+  arm:rate_low:bad_attempt: 1
+  arm:rate_low:bad_sample_rate: 7
+  arm:rate_low:bad_state: 9
+  arm:rate_low:not_member: 1
+  arm:rate_type:auth_replay: 1
+  arm:rate_type:bad_state: 13
+  arm:rate_type:not_member: 2
+  arm:rtt:auth_bad_signature: 1
+  arm:rtt:bad_request: 1
+  arm:rtt:bad_state: 5
+  arm:rtt:not_member: 4
+  arm:rtt_type:auth_bad_signature: 1
+  arm:rtt_type:bad_request: 6
+  arm:rtt_type:bad_state: 14
+  arm:rtt_type:not_member: 1
+  cm:attempt_next:bad_request: 1
+  cm:attempt_next:bad_state: 15
+  cm:attempt_next:not_found: 1
+  cm:attempt_next:not_member: 5
+  cm:attempt_next:transcript_mismatch: 2
+  cm:attempt_old:200: 7
+  cm:attempt_old:auth_bad_signature: 1
+  cm:attempt_old:auth_stale: 1
+  cm:attempt_old:bad_state: 15
+  cm:attempt_old:not_found: 2
+  cm:attempt_old:not_member: 3
+  cm:attempt_old:transcript_mismatch: 3
+  cm:bad_b64:bad_state: 16
+  cm:bad_b64:not_member: 4
+  cm:bad_b64:transcript_mismatch: 5
+  cm:bad_layout:bad_request: 1
+  cm:bad_layout:bad_state: 12
+  cm:bad_layout:not_member: 4
+  cm:bad_layout:transcript_mismatch: 3
+  cm:bad_sig_b64:bad_request: 2
+  cm:bad_sig_b64:bad_state: 13
+  cm:bad_sig_b64:not_found: 2
+  cm:bad_sig_b64:not_member: 7
+  cm:bad_sig_b64:transcript_mismatch: 6
+  cm:different:200: 5
+  cm:different:already_committed: 4
+  cm:different:auth_stale: 1
+  cm:different:bad_state: 15
+  cm:different:not_member: 4
+  cm:different:too_early: 1
+  cm:flip:200: 6
+  cm:flip:auth_replay: 1
+  cm:flip:bad_request: 1
+  cm:flip:bad_state: 14
+  cm:flip:not_found: 1
+  cm:flip:not_member: 6
+  cm:nonce:auth_stale: 1
+  cm:nonce:bad_state: 16
+  cm:nonce:not_member: 5
+  cm:nonce:transcript_mismatch: 6
+  cm:nothing_to_resend:200: 17
+  cm:nothing_to_resend:auth_bad_signature: 3
+  cm:nothing_to_resend:bad_request: 4
+  cm:nothing_to_resend:bad_state: 31
+  cm:nothing_to_resend:not_found: 2
+  cm:nothing_to_resend:not_member: 14
+  cm:nothing_to_resend:too_early: 3
+  cm:resend:200: 2
+  cm:resend:auth_bad_signature: 1
+  cm:resend:bad_state: 10
+  cm:resend:transcript_mismatch: 1
+  cm:resend_flip:200: 2
+  cm:resend_flip:auth_bad_signature: 1
+  cm:resend_flip:auth_stale: 1
+  cm:resend_flip:bad_request: 2
+  cm:resend_flip:bad_state: 10
+  cm:resend_flip:transcript_mismatch: 3
+  cm:resend_fresh:200: 1
+  cm:resend_fresh:auth_bad_signature: 1
+  cm:resend_fresh:bad_state: 13
+  cm:resend_fresh:transcript_mismatch: 4
+  cm:role:bad_request: 2
+  cm:role:bad_state: 11
+  cm:role:not_member: 8
+  cm:role:transcript_mismatch: 3
+  cm:sig_garbage:auth_unknown_device: 1
+  cm:sig_garbage:bad_request: 1
+  cm:sig_garbage:bad_state: 16
+  cm:sig_garbage:not_member: 4
+  cm:sig_garbage:signature_invalid: 8
+  cm:sig_short:auth_bad_signature: 1
+  cm:sig_short:bad_state: 10
+  cm:sig_short:not_member: 5
+  cm:sig_short:signature_invalid: 5
+  cm:signer_other:auth_stale: 1
+  cm:signer_other:auth_unknown_device: 1
+  cm:signer_other:bad_state: 10
+  cm:signer_other:not_member: 4
+  cm:signer_other:signature_invalid: 6
+  cm:stale_resend:auth_stale: 1
+  cm:stale_resend:bad_state: 2
+  cm:stale_resend:transcript_mismatch: 1
+  cm:version:auth_stale: 1
+  cm:version:bad_request: 1
+  cm:version:bad_state: 11
+  cm:version:not_member: 5
+  cm:version:transcript_mismatch: 3
+  confirm:200: 20
+  confirm:auth_bad_signature: 1
+  confirm:auth_stale: 6
+  confirm:bad_state: 74
+  confirm:not_found: 7
+  confirm:not_member: 29
+  fail:attempt_next:200: 1
+  fail:attempt_next:auth_stale: 1
+  fail:attempt_next:bad_attempt: 4
+  fail:attempt_next:bad_request: 2
+  fail:attempt_next:bad_state: 11
+  fail:attempt_next:not_member: 5
+  fail:attempt_old:auth_bad_signature: 1
+  fail:attempt_old:auth_replay: 1
+  fail:attempt_old:bad_request: 1
+  fail:attempt_old:bad_state: 17
+  fail:attempt_old:not_found: 1
+  fail:attempt_old:not_member: 4
+  fail:attempt_old:stale_attempt: 6
+  fail:attempt_type:auth_replay: 1
+  fail:attempt_type:bad_attempt: 22
+  fail:attempt_type:not_member: 1
+  fail:good_retry:200: 13
+  fail:good_retry:already_submitted: 2
+  fail:good_retry:auth_bad_signature: 1
+  fail:good_retry:auth_unknown_device: 1
+  fail:good_retry:bad_request: 3
+  fail:good_retry:bad_state: 25
+  fail:good_retry:not_found: 1
+  fail:good_retry:not_member: 10
+  fail:good_retry:stale_attempt: 1
+  fail:mismatch:200: 6
+  fail:mismatch:auth_replay: 1
+  fail:mismatch:auth_stale: 2
+  fail:mismatch:bad_state: 12
+  fail:mismatch:not_member: 4
+  fail:reason:bad_reason: 22
+  fail:reason:bad_request: 1
+  fail:reason:not_found: 1
+  fail:reason:not_member: 5
+  fail:reason_type:bad_reason: 12
+  fail:reason_type:bad_request: 1
+  fail:reason_type:not_member: 3
+  good:200: 4215
+  good:bad_state: 57
+  good:stale_attempt: 15
+  good:token_expired: 20
+  good:too_early: 65
+  join:200: 3
+  join:already_joined: 64
+  join:auth_replay: 2
+  join:auth_stale: 3
+  join:bad_request: 5
+  join:bad_token: 7
+  join:self_join: 37
+  join:token_expired: 4
+  peek:arm:200: 71
+  peek:arm:bad_attempt: 2
+  peek:arm:bad_state: 2
+  peek:arm_attempt:bad_attempt: 12
+  peek:arm_low:bad_attempt: 1
+  peek:arm_low:bad_sample_rate: 17
+  peek:arm_popt:bad_request: 15
+  peek:arm_rate:bad_state: 10
+  peek:arm_rtt:bad_request: 7
+  peek:commit_b64:bad_state: 2
+  peek:commit_b64:transcript_mismatch: 18
+  peek:commit_first:200: 9
+  peek:commit_other:already_committed: 6
+  peek:commit_other:transcript_mismatch: 2
+  peek:commit_repeat:200: 59
+  peek:commit_repeat:bad_state: 4
+  peek:commit_repeat:signature_invalid: 5
+  peek:commit_role:transcript_mismatch: 14
+  peek:commit_sig:bad_state: 1
+  peek:commit_sig:signature_invalid: 9
+  peek:confirm:bad_state: 17
+  peek:fail_attempt:bad_attempt: 10
+  peek:fail_reason:bad_reason: 11
+  peek:join:already_joined: 5
+  peek:join:self_join: 4
+  peek:result:no_result: 7
+  peek:view:200: 73
+  phone_fail:200: 8
+  result:200: 47
+  result:auth_bad_signature: 6
+  result:auth_replay: 2
+  result:auth_stale: 3
+  result:auth_unknown_device: 2
+  result:no_result: 33
+  result:not_found: 6
+  result:not_member: 26
+  tx:attempt_next:bad_state: 10
+  tx:attempt_next:not_member: 8
+  tx:attempt_next:transcript_mismatch: 2
+  tx:attempt_old:200: 2
+  tx:attempt_old:bad_state: 9
+  tx:attempt_old:not_member: 3
+  tx:bad_b64:already_submitted: 1
+  tx:bad_b64:bad_request: 2
+  tx:bad_b64:bad_state: 10
+  tx:bad_b64:not_found: 1
+  tx:bad_b64:not_member: 2
+  tx:bad_b64:transcript_mismatch: 2
+  tx:bad_layout:auth_stale: 1
+  tx:bad_layout:bad_request: 1
+  tx:bad_layout:bad_state: 10
+  tx:bad_layout:not_found: 1
+  tx:bad_layout:not_member: 5
+  tx:bad_layout:transcript_mismatch: 2
+  tx:bad_sig_b64:bad_state: 6
+  tx:bad_sig_b64:not_found: 1
+  tx:bad_sig_b64:not_member: 1
+  tx:commit:auth_bad_signature: 1
+  tx:commit:bad_state: 6
+  tx:commit:not_member: 5
+  tx:commit:transcript_mismatch: 2
+  tx:flip:200: 4
+  tx:flip:bad_state: 12
+  tx:flip:not_found: 1
+  tx:flip:not_member: 1
+  tx:nonce:auth_stale: 1
+  tx:nonce:bad_state: 10
+  tx:nonce:not_member: 2
+  tx:nonce:transcript_mismatch: 3
+  tx:nothing_to_resend:200: 10
+  tx:nothing_to_resend:auth_bad_signature: 1
+  tx:nothing_to_resend:bad_request: 2
+  tx:nothing_to_resend:bad_state: 22
+  tx:nothing_to_resend:not_member: 15
+  tx:other_half:200: 3
+  tx:other_half:already_submitted: 1
+  tx:other_half:auth_bad_signature: 1
+  tx:other_half:auth_stale: 1
+  tx:other_half:bad_request: 1
+  tx:other_half:bad_state: 23
+  tx:other_half:not_found: 1
+  tx:other_half:not_member: 8
+  tx:pk_partner:auth_bad_signature: 2
+  tx:pk_partner:auth_stale: 1
+  tx:pk_partner:bad_request: 2
+  tx:pk_partner:bad_state: 10
+  tx:pk_partner:not_member: 3
+  tx:pk_partner:transcript_mismatch: 4
+  tx:pk_self:bad_request: 1
+  tx:pk_self:bad_state: 11
+  tx:pk_self:not_member: 3
+  tx:pk_self:signature_invalid: 2
+  tx:rec:already_submitted: 1
+  tx:rec:bad_state: 11
+  tx:rec:not_member: 3
+  tx:rec:transcript_mismatch: 1
+  tx:resend_flip:auth_replay: 1
+  tx:resend_flip:bad_state: 2
+  tx:resend_flip:not_member: 1
+  tx:resend_fresh:bad_state: 4
+  tx:resend_own:bad_state: 6
+  tx:resend_own:not_member: 1
+  tx:role:auth_bad_signature: 1
+  tx:role:auth_replay: 1
+  tx:role:auth_stale: 1
+  tx:role:auth_unknown_device: 1
+  tx:role:bad_request: 4
+  tx:role:bad_state: 9
+  tx:role:not_member: 7
+  tx:role:transcript_mismatch: 4
+  tx:second_different:already_submitted: 9
+  tx:sig_garbage:auth_bad_signature: 2
+  tx:sig_garbage:auth_replay: 1
+  tx:sig_garbage:bad_state: 13
+  tx:sig_garbage:not_member: 7
+  tx:sig_garbage:signature_invalid: 3
+  tx:sig_short:auth_unknown_device: 1
+  tx:sig_short:bad_state: 10
+  tx:sig_short:not_member: 4
+  tx:sig_short:signature_invalid: 1
+  tx:signer_other:already_submitted: 1
+  tx:signer_other:bad_state: 9
+  tx:signer_other:not_member: 3
+  tx:signer_other:signature_invalid: 2
+  tx:sr:auth_bad_signature: 1
+  tx:sr:bad_request: 1
+  tx:sr:bad_state: 8
+  tx:sr:not_member: 3
+  tx:sr:transcript_mismatch: 1
+  tx:stale_resend:bad_state: 3
+  tx:stale_resend:stale_attempt: 1
+  tx:swap:auth_bad_signature: 1
+  tx:swap:auth_unknown_device: 1
+  tx:swap:bad_request: 1
+  tx:swap:bad_state: 3
+  tx:swap:not_member: 3
+  tx:swap:signature_invalid: 4
+  tx:v2_cc:auth_bad_signature: 1
+  tx:v2_cc:bad_state: 14
+  tx:v2_cc:not_member: 3
+  tx:v2_cc:transcript_mismatch: 1
+  tx:v2_delta:bad_request: 1
+  tx:v2_delta:bad_state: 16
+  tx:v2_delta:not_member: 2
+  tx:v2_delta:stale_attempt: 1
+  tx:v2_delta:transcript_mismatch: 1
+  tx:version:auth_bad_signature: 1
+  tx:version:auth_replay: 1
+  tx:version:auth_stale: 1
+  tx:version:bad_state: 10
+  tx:version:not_found: 1
+  tx:version:not_member: 2
+  tx:version:transcript_mismatch: 3
+  view:200: 134
+  view:auth_bad_signature: 7
+  view:auth_replay: 2
+  view:auth_stale: 3
+  view:auth_unknown_device: 1
+  view:bad_request: 31
+  view:not_found: 6
+  view:not_member: 34
+
+mutations (each must be caught):
+  abort_a_finished_session: wanted M2, caught by M1,M14,M2,M9,TABLE at session 1 step 25 now 17841, after 28 steps
+  arm_shows_partner_code_to_v1: wanted M5, caught by M5,M6 at session 1 step 5 now 1650, after 8 steps
+  arm_shows_partner_half: wanted M6, caught by M6 at session 8 step 14 now 56172, after 98 steps
+  combine_reads_live_calibration: wanted V1, caught by M1,V1 at session 10 step 13 now 8480, after 135 steps
+  combine_sorts_roles: wanted V5, caught by V5 at session 1 step 21 now 15007, after 24 steps
+  commit_shows_partner_half: wanted M6, caught by M6 at session 1 step 14 now 12760, after 17 steps
+  created_ms_moved_when_started: wanted M1, caught by M1 at session 1 step 6 now 2337, after 9 steps
+  deadline_40s: wanted M11, caught by M1,M11,M3,M4,M8,TABLE at session 9 step 13 now 25168, after 127 steps
+  decide_le_60: wanted V1, caught by M1,M3,V1,V2 at session 13 step 18 now 32666, after 180 steps
+  drop_commit_gate: wanted M5, caught by M1,M14,M5,TABLE at session 13 step 8 now 6785, after 170 steps
+  error_detail_shows_partner_half: wanted M6, caught by M6 at session 1 step 17 now 13337, after 20 steps
+  error_number_is_partner_half: wanted M6, caught by M6 at session 81 step 20 now 13557, after 1126 steps
+  invite_hint_is_part_of_the_seed: wanted M5, caught by M5 at create: the invite holds something other than session id, token, expiry and host hint, after 0 steps
+  invite_holds_seed_in_base64: wanted M5, caught by M5 at seed in the create response, after 0 steps
+  invite_holds_seed_in_base64url: wanted M5, caught by M5 at seed in the create response, after 0 steps
+  join_token_rewritten_at_join: wanted M1, caught by M1 at session 1 step 2 now 528, after 5 steps
+  near_whatever_the_numbers: wanted M3, caught by M1,M3,TABLE,V1 at session 10 step 13 now 8480, after 135 steps
+  no_signature_check_in_sessions: wanted M1, caught by M1,M14,TABLE at session 72 step 14 now 104052, after 1002 steps
+  nonce_rewritten_at_confirm: wanted M1, caught by M1,TABLE at session 1 step 4 now 1551, after 7 steps
+  partner_bed_at_arm: wanted M5, caught by M5,M6 at session 1 step 5 now 1650, after 8 steps
+  record_created_at_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_device_name_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_finished_at_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_proto_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_session_id_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_transcript_hash_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  record_user_text_wrong: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  retry_keeps_old_data: wanted M8, caught by M1,M8,M9,TABLE at session 1 step 7 now 6537, after 10 steps
+  second_transcript_replaces_first: wanted M10, caught by M1,M10,M14,TABLE at session 1 step 16 now 13041, after 19 steps
+  seed_rewritten_at_finalize: wanted M1, caught by M1 at session 1 step 21 now 15007, after 24 steps
+  self_check_strict_edge: wanted V4, caught by M1,TABLE,V1,V4 at session 84 step 10 now 5915, after 1174 steps
+  skip_stale_check: wanted M8, caught by M8,TABLE at session 8 step 20 now 65219, after 104 steps
+  stored_code_commit_wrong: wanted M1, caught by M1 at session 7 step 7 now 7088, after 83 steps
+  stored_commit_hash_wrong: wanted M1, caught by M1 at session 1 step 11 now 11976, after 14 steps
+  stored_extra_field: wanted M1, caught by M1 at session 0 step 4 now 2679, after 1 steps
+  stored_rec_wrong: wanted M1, caught by M1 at session 1 step 11 now 11976, after 14 steps
+  stored_transcript_hash_wrong: wanted M1, caught by M1 at session 1 step 13 now 12363, after 16 steps
+  three_attempts: wanted M7, caught by M1,M7,M9,TABLE at session 8 step 21 now 120001, after 105 steps
+  view_self_shows_partner_half: wanted M6, caught by M6 at session 1 step 15 now 12881, after 18 steps
+  view_shows_join_token: wanted M5, caught by M5,M6 at session 1 step 2 now 528, after 5 steps
+  view_shows_per_role: wanted M6, caught by M6 at session 1 step 2 now 528, after 5 steps
+  view_shows_seed: wanted M5, caught by M5,M6 at session 1 step 2 now 528, after 5 steps
+=========================== short test summary info ============================
+FAILED test_walk.py::test_walk - AssertionError: targets never reached in 500...
+1 failed, 58 passed, 1 warning in 485.21s (0:08:05)
+run: 490 s, rc=1

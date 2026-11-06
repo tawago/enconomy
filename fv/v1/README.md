@@ -8,6 +8,8 @@ The proofs also found real gaps in the circuit. Read the results and findings be
 
 **Notes:** the longer write-ups are in `docs/` next to this file, and they travel with a clone. `zkp/` holds the circuit proofs and test cases.
 
+**Server side, added 2026-11-07.** The live verdict comes from the server, with no circuit. `server/` now holds a spec, Lean proofs of the verdict and the session table (`Verdict.lean`, `Machine.lean`), a walk on the real routes (59 tests, final run 1000 sessions), and a replay comparing the two (6016 sessions, 0 mismatches on the compared fields). This shows the server follows its rules on signed numbers. A phone can still sign a false half (CN1, X1). Every review track there ended on a fail, some fixed afterwards and not re-reviewed, some still open. Pinned to `9db1490`, not rerun on later server code. Details and how to reproduce: [server/README.md](server/README.md).
+
 ## Reproduce from zero on a Mac
 
 ```bash
@@ -38,7 +40,7 @@ LEAN_NUM_THREADS=2 lake build Popfv.Pair   # one file
 LEAN_NUM_THREADS=2 lake build              # all of them
 ```
 
-Mathlib is heavy. With 8 GB of RAM, build one file at a time first, and don't run Lean jobs side by side.
+Mathlib is heavy. On a small machine, build one file at a time first, and don't run Lean jobs side by side.
 
 To check one file without saving a build result: `lake env lean Popfv/Pair.lean`.
 
@@ -118,7 +120,7 @@ Rough numbers. They vary with the machine.
 
 | Step | Cost |
 |---|---|
-| Disk, `popfv/.lake` | 7.3 GB, plus the Lean toolchain in `~/.elan` |
+| Disk, `popfv/.lake` | 7.3 GB, plus the Lean toolchain that `elan` installs |
 | Toolchain and Mathlib download | a few minutes (from file times, not timed) |
 | One proof file, nothing else running | 2-3 min, mostly loading Mathlib |
 | All files, one at a time | about 15 min |
@@ -139,7 +141,7 @@ Rough numbers. They vary with the machine.
 | BAR layer 2 | `scripts/bar_check.py` | none, 60-digit numeric check | ALL OK, not a Lean proof | Fable: recompute matched | n/a | 0 |
 | D arrival | `Arrival.lean` | `self_side_arrival_sound`, `self_side_arrival_complete` | proved, assuming the curve is true | Fable: pass | dropped `u[K-1] = 0`: stopped proving | 1 |
 | E partner, F glue | `PartnerGlue.lean` | `partner_loud`, `phone_core_glue`, `half_commit_binds` | proved | Fable: pass | dropped `u[K-1] = 0`: `sod_small` stopped proving | 2 |
-| App vs circuit | `AppPasses.lean` | `passes_correct_real`, `passes_iff_partner_fits` | proved | Fable: pass, second review. The first failed only because its build was stuck behind the lock. | dropped carry, and `≥` to `>`: both stopped proving | 1 |
+| App vs circuit | `AppPasses.lean` | `passes_correct_real`, `passes_iff_partner_fits` | proved | Fable: pass, second review. The first failed only because its build never got to run. | dropped carry, and `≥` to `>`: both stopped proving | 1 |
 | App vs circuit | `AppParity.lean` | `transcript_parity`, `encoder_to_circuit` | proved | Fable: pass. Role mutant by Opus, 2026-11-06. | weakened role tie: stopped proving, and `role_mutant_refuted` shows it false | 0 |
 | B samples, H code | `Commit.lean` | `phone_core_windows_are_recording`, `open_leaves_ties`, `code_commitment_binds` | proved, under named hash hypotheses | Opus only: **last review failed as unfinished, no defect found.** A separate recheck finished its checks and passed them. | removed the 8-bit check: `sorryAx` on the window theorems | 2 |
 | C spot check | `Freivalds.lean` | `fooled_count`, `arrival_bad_pairs_count` | proved, needs p prime. Random-oracle step is an assumption. | Opus only: pass | `r * rinv = 1` to `True`: `sorryAx` on the counts | 1 |

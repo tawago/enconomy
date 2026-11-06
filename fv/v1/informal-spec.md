@@ -166,6 +166,7 @@ Two-party, against one dishonest device, with no trusted server:
 | Row 10 (order) | Rests on trusting the server | Becomes FP1, a two-party model |
 | Row 11 (freshness) | Rests on trusting the server | Becomes FP4 |
 | Row 14 (attestation) | See Part 4 | Moves to each verifier |
+| Server rules, C6 to C22, CP1 to CP5 (`fv/v1/server/`, last reviews failed, see its README) | Lean on a hand-written table, plus a walk and a sampled replay, for `context=None`, `human=none`, at `9db1490`. Shows the server follows its rules on signed numbers. A phone can still sign a false half (CN1, X1) | Falls away with the server. Verdict math (`V1` to `V4`) carries over only if the same rule is kept |
 | Gaps 1, 2, 3, 6 | Open | Unchanged. They are circuit gaps. Gap 2 also needs the app rule changed (`Popt2Rule.kt:99,171`) |
 | Gap 5 | Refuted because the server pins the code | Reopens unless codes are derived as in F3 |
 | Gap 7 | Open. The low rating is about gain. It closes with gaps 1 and 2 only on the proof path; on the plaintext path the half is free anyway | Unchanged |
@@ -192,6 +193,8 @@ Items marked resolved were fixed in `fv/v1/docs/` on 2026-11-06. The text keeps 
 11. **Resolved. Gap 2's severity.** Medium, from one quiet real recording plus simulation (`logs/tone-room-2.txt`, `logs/tone-distortion-sim.txt`). Not demonstrated in a real room.
 12. **Resolved. Where these notes live.** The FV notes moved to `fv/v1/docs/`. The images in `docs/generated/` stay in the gitignored folder.
 13. **Open. New gaps between server and circuit.** C17 and C19 read whole keys and `commit_hash`. The circuit never reads partner Y or `commit_hash` (`Signed.junk_accepted`). So on the proof path those two rest on the server having checked them. A window past the end of the capture also passes C23's partner test (`Commit.past_capture_witness`), because the transcript has no capture length. Not in `next-version-fixes.md` yet.
+
+14. **Open. Server spec against this file.** C6 is lazy, not a clock on the session. The C14 and C15 gate is "sounds over by schedule", not "capture over". C18 is right for that session only, and a phone can force that read. CP2 understates a retry report: it also shows `by` and flags, and `/fail` gives the same report as `combine`. Details in `fv/v1/server/spec.md` section 6. Not changed in Part 1.
 
 ## Not checked
 

@@ -19,6 +19,7 @@ The current circuit stays frozen while this list finishes. Circuit fixes wait fo
 | 8 | **Done: C** (`Freivalds.lean`). Review passed, Opus only. The random-oracle step stays an assumption. | | done |
 | 9 | **Done: A** (`Signed.lean`). Review passed, Opus only. BAR layer 3 not started: it's false until gaps 1 and 2 are fixed. | | done for A |
 | 10 | **Join: `Chain.lean`** (`phone_sound`, `presence_sound`). Builds, and three mutants in a finished review stopped proving. Wording fixes are in, the last three by hand and not re-reviewed. Every chain-level witness is silent audio. | Done. | done |
+| 11 | **Server side: built, last reviews failed.** Spec, Lean, walk and replay in [`../server/README.md`](../server/README.md). This shows the server follows its rules on signed numbers. A phone can still sign a false half (CN1, X1). Open items are listed there. | Owner decides which to close before a commit. | owner |
 
 Demo minimum: `lake build`, one theorem in plain English, and one gap. A proof that found a hole in its own subject is a better story than a green check.
 
