@@ -1,0 +1,5 @@
+# os_proc_available_memory (iOS 13+): bytes this process can still allocate before jetsam.
+package = com.enconomy.pop.zk.mem
+---
+#include <os/proc.h>
+static inline unsigned long long pop_avail_mem(void) { return (unsigned long long)os_proc_available_memory(); }

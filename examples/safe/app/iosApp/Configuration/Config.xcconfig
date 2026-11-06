@@ -1,0 +1,25 @@
+// Shared settings. Per-machine overrides go in Local.xcconfig (gitignored), e.g.
+//   TEAM_ID = ABCDE12345
+//   POP_PAID = 1
+//   POP_SERVER_URL = http:/$()/192.168.0.34:8000
+
+TEAM_ID =
+BUNDLE_ID = com.enconomy.pop
+APP_NAME = pop
+
+// 0 = free personal team: no entitlements, QR only, unattested key.
+// 1 = paid account: NFC tag reading + App Attest (iosApp-paid.entitlements).
+POP_PAID = 0
+POP_ENTITLEMENTS_0 = iosApp/iosApp.entitlements
+POP_ENTITLEMENTS_1 = iosApp/iosApp-paid.entitlements
+POP_NFC_READER_0 = NO
+POP_NFC_READER_1 = YES
+POP_APPATTEST_ENV = development
+
+// Read by :composeApp:genPopBuildConfig (env POP_SERVER_URL). Simulator reaches the Mac at localhost.
+POP_SERVER_URL = http:/$()/localhost:8000
+
+#include? "Local.xcconfig"
+
+CODE_SIGN_ENTITLEMENTS = $(POP_ENTITLEMENTS_$(POP_PAID))
+POP_NFC_READER = $(POP_NFC_READER_$(POP_PAID))
