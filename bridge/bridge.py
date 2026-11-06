@@ -38,8 +38,8 @@ NAME_TTL = 90 * 86400   # app-claimed names, same as ens.sh claim
 DEFAULTS = {
     "rpc": "https://ethereum-sepolia-rpc.publicnode.com",
     "keyFile": "~/.enconomy/ens-sepolia.key",
-    "deployments": str(REPO / "contracts/deployments/sepolia.json"),
-    "zkDeployments": str(REPO / "contracts/deployments/zk-sepolia.json"),
+    "deployments": str(REPO / "examples/ens-meetings/contracts/deployments/sepolia.json"),
+    "zkDeployments": str(REPO / "examples/ens-meetings/contracts/deployments/zk-sepolia.json"),
     "dataDir": "~/dev/enconomy/server/data",
     "popDb": None,             # server sqlite with ens_names; default <dataDir>/pop.sqlite
     "state": str(HERE / "state.json"),

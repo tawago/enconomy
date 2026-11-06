@@ -1,0 +1,29 @@
+{
+  "chainId": 11155111,
+  "bbVersion": "v5.0.0-nightly.20260522 (AztecProtocol/barretenberg, -t evm, ZK UltraHonk, keccak transcript)",
+  "deployer": "0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860",
+  "phoneVerifier": "0x5b69C5a7D3e5A56D33809b9B95d02984D4aFa791",
+  "pairVerifier": "0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7",
+  "libs": {
+    "PhoneVerifier.RelationsLib": "0x03466C22217467D90B1463D33525dC67FBab254F",
+    "PhoneVerifier.ZKTranscriptLib": "0x69b3296fd2F165a2a6a9e1Ce6a3e70B004524b01",
+    "PairVerifier.RelationsLib": "0x088efB29335bE34Fe8326e9948DE786b5f9FE742",
+    "PairVerifier.ZKTranscriptLib": "0xE3c86aAeBF123B361754305863587b40f77Feba3"
+  },
+  "verifyLog": "0x53D6DB2580466FeE5F07c4Bb7b4c07C41797B996",
+  "vkHashPhone": "0x2991b4b80fba7cab1645dd154c75dfb0a9440f9c3f582d5df967b11b7c311aba",
+  "vkHashPair": "0x11efaefb263436dd19d71a689210a8975c5db080705877b310dec96f56c5b50a",
+  "fixture": "180ca04b_48k",
+  "fixtureTxs": {
+    "A": "0xdfcf35fac50c90c2a84e071e7ff780221304b495e7a8f047050e846340cd9774",
+    "B": "0x081a3b2300619eece6774069bde33b7de4cafcc8aa6c47ea816f2327275f1968",
+    "pair": "0xb065f2ff3324d288631067c36198f6ed08ebd3142167f91954859eb8e695c5a8"
+  },
+  "gas": {
+    "phoneVerifyExecution": 4077544,
+    "phoneVerifyLogTx": 4270503,
+    "pairVerifyExecution": 3318020,
+    "pairVerifyLogTx": 3456918
+  },
+  "tamperedPublicInputRevert": "0x9fc3a218"
+}

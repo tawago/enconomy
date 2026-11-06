@@ -212,14 +212,14 @@ preflight() {
         else ok "$addr has $bal Sepolia ETH"; fi
       else warn "could not derive the key's address (need cast)"; fi
     else
-      bad "no $KEY_FILE (attester + relayer gas key; see contracts/script/ens.sh)"
+      bad "no $KEY_FILE (attester + relayer gas key; see examples/ens-meetings/contracts/script/ens.sh)"
     fi
   fi
 
   if enabled bridge; then
     echo "ENS bridge"
-    if [ -f "$ROOT/contracts/deployments/sepolia.json" ]; then ok "contracts/deployments/sepolia.json"
-    else bad "contracts/deployments/sepolia.json missing (bridge exits)"; fi
+    if [ -f "$ROOT/examples/ens-meetings/contracts/deployments/sepolia.json" ]; then ok "examples/ens-meetings/contracts/deployments/sepolia.json"
+    else bad "examples/ens-meetings/contracts/deployments/sepolia.json missing (bridge exits)"; fi
     n=$(sqlite3 "$DB" "select count(*) from ens_names where status = 'registered'" 2>/dev/null)
     if [ "${n:-0}" -gt 0 ] 2>/dev/null; then
       ok "ens_names: $n registered"

@@ -33,7 +33,7 @@ Fallback handler: `address(0)` at setup. The compat handler validates EIP-1271 s
 
 Reuse the funded ENS key by path, not by copy: `SAFE_KEY_FILE=~/.enconomy/ens-sepolia.key` in `contracts/.env` (gitignored).
 Address `0x7Dc35E0c67Bd247f61f3cc5053a16E4FC94e8860`, 0.966 ETH at preflight, nonce 32.
-Same key as the ENS lane: do not broadcast while an ENS script is running (nonce clash).
+Same key as the ENS example (`examples/ens-meetings/contracts`): do not broadcast while an ENS script is running (nonce clash).
 
 ## Presence verifier (pluggable)
 

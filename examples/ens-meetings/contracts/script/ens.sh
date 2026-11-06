@@ -108,6 +108,7 @@ reg_state() {  # reg_state <registry> <labelhash>  -> sets S_STATUS S_EXPIRY S_O
 
 # ------------------------------------------------------------------ bootstrap
 
+# Not on real Sepolia: a fresh build predicts a new resolver address and this would repoint the 2LD. See ../README.md.
 cmd_bootstrap() {
   load_key
   local label lh pnode pdns chain
