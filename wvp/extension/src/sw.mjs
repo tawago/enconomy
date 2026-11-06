@@ -1,6 +1,6 @@
 // Service worker: the only place that decides anything. Holds K through IndexedDB and takes the site's origin from the browser
-// (port.sender.origin). It does not read an origin from any message, on purpose. No popup and no wallet here: a login that can go
-// ahead just goes, and one that can't sends the user to enrollment once.
+// (port.sender.origin). It does not read an origin from any message, on purpose. No wallet here: a login that can go ahead just
+// goes, and one that can't opens the approval window once.
 import { createSiweMessage } from "viem/siwe";
 import { recoverMessageAddress, getAddress, isAddressEqual } from "viem";
 import { thumbprint, directStatement, issueBytes, loginBytes } from "../../lib/direct.mjs";
@@ -124,22 +124,37 @@ async function sendToEnrollment(tabId, typedName) {
   const cfg = await config();
   const r = await getResume();
   if (r && await tabAlive(r.enrollTabId)) {
-    // One enrollment tab, ever. The newest login is the one that resumes.
-    await chrome.storage.session.set({ resume: { ...r, tabId } });
-    await chrome.tabs.update(r.enrollTabId, { active: true });
+    // One approval window, ever. The newest login is the one that resumes.
+    const originWindowId = (await chrome.tabs.get(tabId).catch(() => null))?.windowId ?? r.originWindowId;
+    await chrome.storage.session.set({ resume: { ...r, tabId, originWindowId } });
+    if (r.enrollWindowId != null) await chrome.windows.update(r.enrollWindowId, { focused: true }).catch(() => {});
+    else await chrome.tabs.update(r.enrollTabId, { active: true });
     return;
   }
   // The site's origin stays out of this URL. A fragment doesn't reach the issuer's server.
   const url = `${cfg.approveOrigin}/enroll${typedName ? `#name=${encodeURIComponent(typedName)}` : ""}`;
-  const tab = await chrome.tabs.create({ url, active: true });
-  await chrome.storage.session.set({ resume: { tabId, enrollTabId: tab.id } });
+  // A small window over the site, like a browser's question. Placed from the browser's own numbers, nothing from the page. A plain tab if that fails.
+  const originWindowId = (await chrome.tabs.get(tabId).catch(() => null))?.windowId;
+  try {
+    const o = await chrome.windows.get(originWindowId);
+    const width = 440, height = 540;
+    const at = { width, height, left: Math.max(0, Math.round(o.left + (o.width - width) / 2)), top: Math.max(0, o.top + 96) };
+    const win = await chrome.windows.create({ url, type: "popup", focused: true, ...at });
+    // A --window-size switch overrides what was asked for above. Set it again.
+    await chrome.windows.update(win.id, at).catch(() => {});
+    await chrome.storage.session.set({ resume: { tabId, enrollTabId: win.tabs[0].id, enrollWindowId: win.id, originWindowId } });
+  } catch {
+    const tab = await chrome.tabs.create({ url, active: true });
+    await chrome.storage.session.set({ resume: { tabId, enrollTabId: tab.id, originWindowId } });
+  }
 }
 async function resumeAfterEnroll() {
   const r = await getResume();
   if (!r) return;
   await chrome.storage.session.remove("resume");
+  if (r.originWindowId != null) await chrome.windows.update(r.originWindowId, { focused: true }).catch(() => {});
   await chrome.tabs.update(r.tabId, { active: true }).catch(() => {});
-  await chrome.tabs.remove(r.enrollTabId).catch(() => {});
+  await (r.enrollWindowId != null ? chrome.windows.remove(r.enrollWindowId) : chrome.tabs.remove(r.enrollTabId)).catch(() => {});
   resumeGrants.add(r.tabId);
   setTimeout(() => resumeGrants.delete(r.tabId), 5000); // Same life as a real gesture. Unused, it must not wait for a later page in this tab.
   await chrome.tabs.sendMessage(r.tabId, { to: "wvp-login", kind: "resume" }).catch(() => {});
@@ -148,6 +163,7 @@ chrome.tabs.onRemoved.addListener(async (closed) => {
   const r = await getResume();
   if (!r || (closed !== r.enrollTabId && closed !== r.tabId)) return;
   await chrome.storage.session.remove("resume");
+  if (closed === r.enrollTabId && r.originWindowId != null) await chrome.windows.update(r.originWindowId, { focused: true }).catch(() => {});
   if (closed === r.enrollTabId) await chrome.tabs.sendMessage(r.tabId, { to: "wvp-login", kind: "enroll-closed" }).catch(() => {});
 });
 
@@ -160,7 +176,7 @@ const resumeGrants = new Set(); // A login already gated before it went to enrol
 async function prove(args, origin, tabId, say) {
   const tAll = now_();
   await bump("requests");
-  const { mode, typed, nonce } = args ?? {};
+  const { mode, typed, nonce, confirmed } = args ?? {};
   if (mode !== "name" && mode !== "anon") throw new Refuse("bad_request", "mode");
   if (!/^[0-9a-f]{64}$/.test(nonce ?? "")) throw new Refuse("bad_nonce", "nonce must be 32 bytes of hex");
   const id = mode === "name" ? parseIdentifier(typed) : null;
@@ -174,7 +190,10 @@ async function prove(args, origin, tabId, say) {
   }
   let h = await dbGet("holder");
   const now = Math.floor(Date.now() / 1000);
-  if (!h || h.exp <= now) {
+  const approved = !!h && h.exp > now;
+  // A name goes to a site only after Verify on that site, under this approval. That includes the wallet window: no Verify, no window.
+  if (mode === "name" && confirmed !== true && !(approved && await siteVerified(origin, h))) throw new Refuse("needs_confirm", "this site needs Verify first");
+  if (!approved) {
     await sendToEnrollment(tabId, id?.kind === "name" ? id.claim : null);
     return { enroll: true };
   }
@@ -183,11 +202,11 @@ async function prove(args, origin, tabId, say) {
   if (mode === "name") return directLogin(id, nonce, origin, h, tAll);
 
   if (!(h.credExp > now)) {
-    say("Getting anonymous login ready in this browser. It runs once, about a minute. Your wallet won't ask.");
+    say("Getting anonymous sign-in ready. About a minute, once. Your wallet won't ask.");
     try { await startPrepare(); }
-    catch (e) { throw new Refuse("not_ready", `Anonymous isn't ready: ${e.code ? `the issuer said ${e.code}` : "the issuer can't be reached"}. Try again later. Your wallet won't ask.`); }
+    catch (e) { throw new Refuse("not_ready", `Anonymous sign-in isn't ready: ${e.code ? `the issuer said ${e.code}` : "the issuer can't be reached"}. Try again later. Your wallet won't ask.`); }
     h = await dbGet("holder");
-    if (!(h?.credExp > now)) throw new Refuse("not_ready", "Anonymous isn't ready. Try again later. Your wallet won't ask.");
+    if (!(h?.credExp > now)) throw new Refuse("not_ready", "Anonymous sign-in isn't ready. Try again later. Your wallet won't ask.");
   }
   if (busy) throw new Refuse("busy", "another proof is running");
   busy = true;
@@ -205,7 +224,21 @@ async function prove(args, origin, tabId, say) {
     return { token, revealed: null };
   } finally { busy = false; }
 }
-// Named login. K signs this site and this challenge. No issuer and no prover. The site sees the wallet address. The notice after login says so.
+// Named login. K signs this site and this challenge. No issuer and no prover. The site sees the wallet address. The form says so before the click, and the toolbar popup after.
+// Sites the user pressed Verify for, tied to this K. A new approval is a new K, maybe a new wallet, so every site asks again.
+const siteVerified = async (origin, h) => { const { verified } = await chrome.storage.local.get("verified"); return verified?.key === h.jwk.x && verified.origins.includes(origin); };
+async function markVerified(origin, h) {
+  const { verified } = await chrome.storage.local.get("verified");
+  const origins = verified?.key === h.jwk.x ? verified.origins : [];
+  if (!origins.includes(origin)) await chrome.storage.local.set({ verified: { key: h.jwk.x, origins: [...origins, origin] } });
+}
+// Does this typed value need the question here? Reads only. Never says which name is approved: login.js has no need for it, and the page must not learn it.
+async function siteStatus(args, origin) {
+  const id = parseIdentifier(args?.typed);
+  if (!id) return { valid: false };
+  const h = await dbGet("holder"), approved = !!h && h.exp > Math.floor(Date.now() / 1000);
+  return { valid: true, kind: id.kind, claim: id.claim, mismatch: approved && id.claim !== h.name && id.claim !== h.address.toLowerCase(), verified: approved && await siteVerified(origin, h) };
+}
 async function directLogin(id, nonce, origin, h, tAll) {
   if (id.claim !== h.name && id.claim !== h.address.toLowerCase()) throw new Refuse("no_match", "typed value isn't this browser's");
   const shows = `${h.name} and wallet ${h.address}`;
@@ -213,6 +246,7 @@ async function directLogin(id, nonce, origin, h, tAll) {
   const t = now_(), now = Math.floor(Date.now() / 1000);
   const loginSig = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, h.K, loginBytes(origin, nonce, now, id.claim)));
   await record(origin, shows, { cred: "direct", signMs: ms(t), swTotalMs: ms(tAll) });
+  await markVerified(origin, h);
   return { token: JSON.stringify({ v: 2, kind: "direct", challenge: nonce, now, claim: id.claim, message: h.message, walletSig: h.walletSig, key: h.jwk, loginSig }), revealed: shows };
 }
 // A list the page can't touch, and a badge the page can't draw over.
@@ -222,8 +256,19 @@ async function record(origin, revealed, timing) {
   await chrome.storage.local.set({ proofs: proofs.slice(0, 20) });
   const { unseen = 0 } = await chrome.storage.session.get("unseen");
   await chrome.storage.session.set({ unseen: unseen + 1, lastTiming: { origin, revealed, ...timing } });
-  await chrome.action.setBadgeBackgroundColor({ color: "#15803d" });
+  await chrome.action.setBadgeBackgroundColor({ color: "#1A1A18" });
+  await chrome.action.setBadgeTextColor({ color: "#F6F6F4" });
   await chrome.action.setBadgeText({ text: String(unseen + 1) });
+  await chrome.action.setTitle({ title: `${new URL(origin).hostname} saw ${revealed ? "your name and wallet" : "a valid approval, nothing else"}` });
+}
+
+// A site said ENS no longer points this name at the approved wallet. We can't check that here, and we don't need to: the worst a false
+// report does is make the holder approve again, and that takes a wallet signature. Next Sign in goes to enrollment.
+async function siteRefused(args) {
+  const id = parseIdentifier(args?.typed), h = await dbGet("holder");
+  if (args?.reason !== "not_owner" || id?.kind !== "name" || h?.name !== id.claim) return { cleared: false };
+  await dbDel("holder");
+  return { cleared: true, name: h.name };
 }
 
 // ---- action popup ----
@@ -231,9 +276,10 @@ async function revoke() {
   await dbDel("holder"); await dbDel("pending");
   if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
   await new Promise((ok) => { const d = indexedDB.deleteDatabase("wvp-prover"); d.onsuccess = d.onerror = d.onblocked = () => ok(); });
-  await chrome.storage.local.remove("proofs");
+  await chrome.storage.local.remove(["proofs", "verified"]);
   await chrome.storage.session.set({ unseen: 0 });
   await chrome.action.setBadgeText({ text: "" });
+  await chrome.action.setTitle({ title: "WVP" });
 }
 chrome.runtime.onMessage.addListener((m, sender, reply) => {
   if (m.to !== "sw") return;
@@ -264,7 +310,9 @@ chrome.runtime.onConnect.addListener((port) => {
       if (sender.id !== chrome.runtime.id || sender.frameId !== 0) throw new Refuse("bad_sender", "top frames only");
       const origin = sender.origin;
       if (!origin || origin === "null" || !/^https?:\/\//.test(origin)) throw new Refuse("bad_origin", `no usable origin: ${origin}`);
+      if (method === "siteStatus") return answer({ ok: await siteStatus(args, origin) });
       if (method === "prove") return answer({ ok: await prove(args, origin, sender.tab?.id, (text) => answer({ progress: text })) });
+      if (method === "siteRefused") return answer({ ok: await siteRefused(args) });
       if (method === "enrollBegin") return answer({ ok: await enrollBegin(args, origin) });
       if (method === "enrollFinish") { answer({ ok: await enrollFinish(args, origin) }); return await resumeAfterEnroll(); }
       throw new Refuse("bad_method", method);

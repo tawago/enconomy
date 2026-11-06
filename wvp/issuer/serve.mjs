@@ -1,5 +1,5 @@
 // Issuer. Logic in issuer.mjs. 127.0.0.1 only. Throwaway key, made fresh each start.
-// Usage: node issuer/serve.mjs --port 8801 --name alice.eth --owner 0x...
+// Usage: node issuer/serve.mjs --port 8801 --name alice.eth --owner 0x... [--table file.json]
 import { createServer } from "node:http";
 import { createIssuer, newIssuerKey, Refusal } from "./issuer.mjs";
 import { tableLookup } from "../lib/ens-lookup.mjs";
@@ -9,7 +9,7 @@ if (!owner) throw new Error("--owner is required");
 const origin = `http://issuer.test:${port}`;
 // The wallet signs on the approval page, so that's the domain to pin, the same one sites pin. The issuer has no page of its own now.
 const approve = opt("approve-domain", "enroll.test:8806");
-const issuer = createIssuer({ key: await newIssuerKey(), lookup: tableLookup({ [name]: owner }), domain: approve, uri: `http://${approve}/`, issuerUrl: `${origin}/`, origin });
+const issuer = createIssuer({ key: await newIssuerKey(), lookup: tableLookup(opt("table") ?? { [name]: owner }), domain: approve, uri: `http://${approve}/`, issuerUrl: `${origin}/`, origin });
 const log = (o) => console.log(JSON.stringify({ t: Date.now(), ...o }));
 const cors = { "access-control-allow-origin": "*", "cross-origin-resource-policy": "cross-origin" };
 createServer((req, res) => {

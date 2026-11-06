@@ -10,7 +10,8 @@ const isHex = (s) => typeof s === "string";
 const fromB64 = (s) => Buffer.from(s, "base64url");
 
 // tok: { message, walletSig, key, loginSig, challenge, now, claim }. The caller has checked the challenge is live and unused, and `now` is near its clock.
-export async function verifyDirect({ tok, origin, lookup, approveDomains, nowSec }) {
+// nameOnly: refuse a typed address. An address login reads no ENS, so it would still work after the name moves to another wallet.
+export async function verifyDirect({ tok, origin, lookup, approveDomains, nowSec, nameOnly = false }) {
   const { message, walletSig, key, loginSig, challenge, now, claim } = tok;
   if (![message, walletSig, loginSig, claim].every(isHex) || key?.kty !== "EC" || key.crv !== "P-256") return no("bad_token");
 
@@ -42,6 +43,7 @@ export async function verifyDirect({ tok, origin, lookup, approveDomains, nowSec
   const id = parseIdentifier(claim);
   if (!id || id.claim !== claim) return no("bad_claim");
   if (id.kind === "address") {
+    if (nameOnly) return no("name_only");
     if (claim !== m.address.toLowerCase()) return no("wrong_wallet");
     return { accepted: true, reason: "ok", mode: "direct", kind: "address", name: claim, address: m.address };
   }
