@@ -31,7 +31,7 @@ If attested keygen fails (some emulators), the app makes a plain key and sends `
 
 ```
 cd app
-cp ~/dev/worldid-spike/app/local.properties .     # sdk.dir, gitignored
+echo "sdk.dir=$HOME/Library/Android/sdk" > local.properties  # gitignored
 export JAVA_HOME=$(/usr/libexec/java_home -v 21)  # JDK 26 is too new for Gradle 8.14
 ../research/sound-bound/spikes/zk/tools/heavy.sh pop-app ./gradlew :composeApp:assembleDebug :composeApp:testDebugUnitTest
 # APK: composeApp/build/outputs/apk/debug/composeApp-debug.apk
@@ -168,8 +168,6 @@ This build talks to the origin that served `/app/` (`-Ppop.webSameOrigin=true`),
 Build by hand: `./gradlew :composeApp:wasmJsBrowserDistribution -Ppop.serverUrl=https://pop.enconomy.dev`, output in `composeApp/build/dist/wasmJs/productionExecutable/` (~13 MB: app wasm 4.5 MB + Skiko 8 MB).
 
 Dev: `./gradlew :composeApp:wasmJsBrowserDevelopmentRun -Ppop.serverUrl=http://localhost:8000` (serves `localhost:8080`), server started with `POP_ALLOW_WEB=1 POP_CORS_ORIGINS=http://localhost:8080`.
-
-Workers alternative (`ens.enconomy.dev/app/`): `app/scripts/build_web.sh --workers` copies into `examples/ens-meetings/web/app/` (gitignored); set `appUrl` in its `config.json` to `/app/` if the landing page should link it; server needs `POP_CORS_ORIGINS=https://ens.enconomy.dev`; deploy is `npx wrangler deploy` from `examples/ens-meetings/` (not run by the script).
 
 Server env: `POP_ALLOW_WEB` (web enroll), `POP_WEB_DIR` (serve `/app/`, index and `.js` sent `no-cache`), `POP_CORS_ORIGINS` (other origins only). See `server/README.md`.
 
