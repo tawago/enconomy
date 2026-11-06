@@ -36,7 +36,7 @@ button{font:inherit;cursor:pointer;max-width:100%}
 <p class="fine">Sites you sign in to see your name and wallet address.</p>
 ${anonymous ? `<p class="fine">You can also sign in without showing a name. To set that up, our sign-in service sees your name and address once.</p>` : ""}
 <div id="out" role="status"></div>
-<button id="go" type="button">Continue with wallet</button>
+<button id="go" type="button" disabled>Continue with wallet</button>
 <button id="no" type="button">Not now</button>
 </div></main><script src="/enroll.js"></script></html>`;
 const JS = `
@@ -48,6 +48,7 @@ const title = () => { for (const id of ["t", "t2"]) document.getElementById(id).
 input.oninput = title; title();
 const short = (a) => a.slice(0, 6) + "\\u2026" + a.slice(-4);
 document.getElementById("no").onclick = () => window.close();
+go.disabled = false; // Off until this script has loaded. Over a slow link a click could land first, and do nothing.
 go.onclick = async () => {
   go.disabled = true;
   out.textContent = "";

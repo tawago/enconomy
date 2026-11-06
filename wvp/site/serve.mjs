@@ -180,6 +180,10 @@ const enter = async (r) => {
   const view = $("view"); view.style.animation = "none"; void view.offsetWidth; view.style.animation = "";
   view.innerHTML = html; document.body.dataset.view = "in";
 };
+// The extension marks the token at once on a real press. No mark means it isn't in this tab, and nothing else would tell the user.
+const noExtension = (e) => { if (e.isTrusted) setTimeout(() => { if (!tok.hasAttribute("data-wvp-state")) say("This site needs the WVP browser extension. If you just added it, reload this page."); }, 1000); };
+$("go").addEventListener("click", noExtension);
+who.addEventListener("keydown", (e) => { if (e.key === "Enter") noExtension(e); });
 // Page-only hint when leaving the field. Starts nothing: leaving a field isn't asking to sign in.
 who.addEventListener("blur", () => { if (who.value.startsWith("0x")) say(SITE + " signs in by name. Addresses won't work here.", true); });
 who.addEventListener("input", () => { if (status.className === "hint") say(""); if (form.dataset.state === "error") { form.dataset.state = ""; say(""); } });

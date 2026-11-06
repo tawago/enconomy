@@ -54,7 +54,7 @@ A site calls nothing:
 </form>
 ```
 
-The extension fills the hidden field with JSON. A named token is `{v: 2, kind: "direct", challenge, now, claim, message, walletSig, key, loginSig}`. An anonymous one is `{v: 1, challenge, now, claim: null, bundle}`. The page can follow progress through `data-wvp-state` on the hidden field and a `wvp-state` event. It draws its own spinner and check from that. `done` means a token was made, not that the site accepted it.
+The extension fills the hidden field with JSON. A named token is `{v: 2, kind: "direct", challenge, now, claim, message, walletSig, key, loginSig}`. An anonymous one is `{v: 1, challenge, now, claim: null, bundle}`. The page can follow progress through `data-wvp-state` on the hidden field and a `wvp-state` event. It draws its own spinner and check from that. `done` means a token was made, not that the site accepted it. A real press on Sign in or Enter sets the state at once, `idle` if there's none yet, so a page that sees no state a moment later knows the extension isn't in this tab and can say so.
 
 `data-wvp-status` is optional. The extension writes reasons the page must not learn into a closed shadow root there, one line at a time, in a fixed font and height. With no such element, the page gets state only. Besides that line, the extension draws one thing on a page, the Verify bubble. No other overlay and no toast.
 

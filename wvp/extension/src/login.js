@@ -121,6 +121,8 @@
   function signIn(form, btn) {
     const tok = form?.querySelector(TOKEN), sw = form?.querySelector(SWITCH), f = form?.querySelector(FIELD);
     if (!tok || working.has(tok)) return;
+    // A first real press says we're here, so a page with no extension can say so. A page could already see the bubble's element.
+    if (!tok.hasAttribute("data-wvp-state")) setState(tok, "idle");
     // Anonymous shows no name, so there's nothing to ask about.
     if (sw?.checked) { start({ mode: "anon", tok, field: f, sw }); holdSubmit(tok, btn); } else if (f) named(f, btn);
   }
@@ -191,8 +193,9 @@
   const fail = (job, msg) => { if (job.gen !== gen) return; finish(job.tok, false); setState(job.tok, "none"); line(job.tok, msg); };
 
   const ask = (method, args, onProgress) => new Promise((ok, no) => {
-    let answered = false;
-    const port = chrome.runtime.connect({ name: "wvp" });
+    let answered = false, port;
+    // The extension was reloaded and this tab wasn't. This script is cut off from it for good.
+    try { port = chrome.runtime.connect({ name: "wvp" }); } catch { return no(new Error("The WVP extension was reloaded. Reload this page.")); }
     port.onMessage.addListener((m) => { if (m.progress) return onProgress?.(m.progress); answered = true; port.disconnect(); if (m.err) no(Object.assign(new Error(m.err.message), { code: m.err.code })); else ok(m.ok); });
     port.onDisconnect.addListener(() => { if (!answered) no(Object.assign(new Error("Your browser's sign-in restarted. Try again."), { code: "extension_restarted" })); });
     port.postMessage({ method, args });
