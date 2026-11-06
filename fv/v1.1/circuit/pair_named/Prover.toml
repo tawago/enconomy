@@ -1,0 +1,13 @@
+nonce_hi = "0x1111"
+nonce_lo = "0x2222"
+attempt = "1"
+commit_a = "0x066c534f5ef9ed9443020da6bbd76f5c5d996efa6bd6e59cd7a1143efaa81bbb"
+commit_b = "0x1b927e50b48b892d17d20be5b53ded3456607d307b14f1f269ef40360c28384f"
+sr_a = "48000"
+sr_b = "48000"
+half_a = "110"
+salt_a = "0x7777"
+half_b = "10"
+salt_b = "0x9999"
+xa = ["0x0123456789abcdef0123456789abcdef", "0x89abcdef0123456789abcdef01234567"]
+xb = ["0xfedcba9876543210fedcba9876543210", "0x76543210fedcba9876543210fedcba98"]

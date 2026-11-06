@@ -1,0 +1,1140 @@
+# lake build Evpfv, run 2026-11-07, Lean 4.36.0-rc2, exit code 0. Runner lines removed.
+ℹ [4086/4932] Built Evpfv.Adapter (575ms)
+info: Evpfv/Adapter.lean:201:0: 'Evpfv.Adapter.split_join' depends on axioms: [propext]
+info: Evpfv/Adapter.lean:202:0: 'Evpfv.Adapter.adapter_pins' depends on axioms: [propext]
+info: Evpfv/Adapter.lean:203:0: 'Evpfv.Adapter.adapter_accepts_example' depends on axioms: [propext]
+⚠ [18181/18205] Replayed Popfv.Field
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: Popfv/Field.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Field.lean:150:0: 'Popfv.fits_intCast_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:151:0: 'Popfv.fits_intCast_iff_of_abs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:152:0: 'Popfv.intCast_inj_of_abs_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:153:0: 'Popfv.intCast_inj_of_small' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:154:0: 'Popfv.fits_natCast' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18182/18205] Ran Popfv.Field:irArts
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [18183/18205] Replayed Popfv.PartnerGlue
+warning: Popfv/PartnerGlue.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/PartnerGlue.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:16:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:18:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:20:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+info: Popfv/PartnerGlue.lean:882:0: 'Popfv.PartnerGlue.signed32_eq' depends on axioms: [propext, Quot.sound]
+info: Popfv/PartnerGlue.lean:883:0: 'Popfv.PartnerGlue.half_is_gap' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:884:0: 'Popfv.PartnerGlue.os_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:885:0: 'Popfv.PartnerGlue.op_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:886:0: 'Popfv.PartnerGlue.partner_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:887:0: 'Popfv.PartnerGlue.sod_small' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:888:0: 'Popfv.PartnerGlue.beF32_wraps' depends on axioms: [propext, Quot.sound]
+info: Popfv/PartnerGlue.lean:889:0: 'Popfv.PartnerGlue.prun_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:890:0: 'Popfv.PartnerGlue.partner_loud' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:891:0: 'Popfv.PartnerGlue.partner_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:892:0: 'Popfv.PartnerGlue.zero_template_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:893:0: 'Popfv.PartnerGlue.partner_accepts_nonsilent' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:894:0: 'Popfv.PartnerGlue.partner_rejects' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:895:0: 'Popfv.PartnerGlue.phone_core_glue' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:896:0: 'Popfv.PartnerGlue.phone_glue_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:897:0: 'Popfv.PartnerGlue.half_commit_binds' depends on axioms: [propext, Quot.sound]
+⚠ [18185/18205] Replayed Popfv.Signed
+warning: Popfv/Signed.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Signed.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:15:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:24:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:35:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:37:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:44:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:45:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:46:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:47:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:50:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:51:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:55:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:57:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:59:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:60:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:61:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:62:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:64:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:65:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:67:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:68:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:69:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:75:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:76:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:77:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:484:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.a_self`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:488:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.half`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:482:10: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.mk`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:489:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.x_own`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:486:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.a_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:487:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.p_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:482:10: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:483:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.rec_root`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:485:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.p_self`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:490:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.x_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:616:4: `push_neg` has been deprecated. Prefer using `push Not` instead.
+If you'd rather continue using `push_neg` in your project, you can implement it as follows:
+```
+open Lean.Parser.Tactic in
+macro "push_neg" cfg:optConfig loc:(location)? : tactic =>
+  `(tactic| push $cfg:optConfig Not $[$loc]?)
+```
+warning: Popfv/Signed.lean:628:4: `push_neg` has been deprecated. Prefer using `push Not` instead.
+If you'd rather continue using `push_neg` in your project, you can implement it as follows:
+```
+open Lean.Parser.Tactic in
+macro "push_neg" cfg:optConfig loc:(location)? : tactic =>
+  `(tactic| push $cfg:optConfig Not $[$loc]?)
+```
+warning: Popfv/Signed.lean:937:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:940:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:948:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:950:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1001:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1154:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1159:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1190:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1194:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1200:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1204:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1264:17: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1265:18: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1266:16: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1267:22: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1317:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:6: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:25: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:44: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+info: Popfv/Signed.lean:1344:0: 'Popfv.Signed.Layout.offsets' does not depend on any axioms
+info: Popfv/Signed.lean:1345:0: 'Popfv.Signed.credTag_is_SBcred3' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1346:0: 'Popfv.Signed.cred_list' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1347:0: 'Popfv.Signed.asserted_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1348:0: 'Popfv.Signed.role_iff' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1349:0: 'Popfv.Signed.nonce_limbs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1350:0: 'Popfv.Signed.nonce_determines_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1351:0: 'Popfv.Signed.x_limbs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1352:0: 'Popfv.Signed.x_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1353:0: 'Popfv.Signed.rec_root_canonical' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1354:0: 'Popfv.Signed.rec_root_injective' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1355:0: 'Popfv.Signed.wrapped_root_rejected' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1356:0: 'Popfv.Signed.alias_without_canonical' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1357:0: 'Popfv.Signed.code_commit_signed' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1358:0: 'Popfv.Signed.expiry_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1359:0: 'Popfv.Signed.unpack_issuer_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1360:0: 'Popfv.Signed.issuer_key_unique' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1361:0: 'Popfv.Signed.signed_fields' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1362:0: 'Popfv.Signed.one_key' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1363:0: 'Popfv.Signed.chain_of_trust' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1364:0: 'Popfv.Signed.digest_only_free' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1365:0: 'Popfv.Signed.only_read_bytes_matter' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1366:0: 'Popfv.Signed.holder_commit_free' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1367:0: 'Popfv.Signed.check_signed_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1368:0: 'Popfv.Signed.fx_byteChecks' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1369:0: 'Popfv.Signed.fx_values' depends on axioms: [propext]
+info: Popfv/Signed.lean:1370:0: 'Popfv.Signed.chain_hypotheses_consistent' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1371:0: 'Popfv.Signed.chain_of_trust_size' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1372:0: 'Popfv.Signed.fx_types' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1373:0: 'Popfv.Signed.fx_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1374:0: 'Popfv.Signed.fx_rejects_role' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1375:0: 'Popfv.Signed.fx_rejects_expiry' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1376:0: 'Popfv.Signed.fx_rejects_same_x' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1377:0: 'Popfv.Signed.junk_accepted' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1378:0: 'Popfv.Signed.bad_keys_pass_byteChecks' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18187/18205] Replayed Evpfv.Limbs
+info: Evpfv/Limbs.lean:81:0: 'Evpfv.limb_cast_inj' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Evpfv/Limbs.lean:82:0: 'Evpfv.own_key_split' depends on axioms: [propext]
+info: Evpfv/Limbs.lean:83:0: 'Evpfv.limbs_pin_key' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Evpfv/Limbs.lean:84:0: 'Evpfv.pairPublicInputs_keys' depends on axioms: [propext, Quot.sound]
+⚠ [18189/18205] Replayed Popfv.Pair
+warning: Popfv/Pair.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Pair.lean:227:0: 'Popfv.pair_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:228:0: 'Popfv.pair_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:229:0: 'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:230:0: 'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18191/18205] Replayed Popfv.Arrival
+warning: Popfv/Arrival.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Arrival.lean:12:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:279:54: The following tactic starts with 2 goals and ends with 1 goal, 1 of which is not operated on.
+  exact Or.inl h0
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+warning: Popfv/Arrival.lean:286:54: The following tactic starts with 2 goals and ends with 1 goal, 1 of which is not operated on.
+  exact Or.inl h0
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+warning: Popfv/Arrival.lean:630:16: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Arrival.lean:653:16: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Arrival.lean:663:22: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Arrival.lean:665:22: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+info: Popfv/Arrival.lean:897:0: 'Popfv.Arrival.prefix_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:898:0: 'Popfv.Arrival.arrival_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:899:0: 'Popfv.Arrival.arrival_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:900:0: 'Popfv.Arrival.ring_read' depends on axioms: [propext, Quot.sound]
+info: Popfv/Arrival.lean:901:0: 'Popfv.Arrival.dF_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:902:0: 'Popfv.Arrival.DI_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:903:0: 'Popfv.Arrival.bit96_is_sign_check' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:904:0: 'Popfv.Arrival.self_side_arrival_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:905:0: 'Popfv.Arrival.self_side_arrival_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:906:0: 'Popfv.Arrival.silence_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:907:0: 'Popfv.Arrival.click_picks_any_lag' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:908:0: 'Popfv.Arrival.click_instance' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:909:0: 'Popfv.Arrival.flat_template_any_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:910:0: 'Popfv.Arrival.dc_strict_pass' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:911:0: 'Popfv.Arrival.floor_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:912:0: 'Popfv.Arrival.floor_blocks_silence' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:913:0: 'Popfv.Arrival.dc_passes_floor' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18193/18205] Replayed Popfv.Bar
+warning: Popfv/Bar.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Bar.lean:10:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:14:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:30:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+info: Popfv/Bar.lean:314:0: 'Popfv.bar_iff_ratio' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:315:0: 'Popfv.bar_iff_sqrt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:316:0: 'Popfv.below_bar_iff_sqrt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:317:0: 'Popfv.bar_iff_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:318:0: 'Popfv.T0eff_close' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:319:0: 'Popfv.T0eff_close_round' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:320:0: 'Popfv.round_eq_iff_g2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:321:0: 'Popfv.g_range_48k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:322:0: 'Popfv.g_range_44k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:323:0: 'Popfv.g_range_48k_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:324:0: 'Popfv.g_range_44k_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:325:0: 'Popfv.inv_sqrt_4474747' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:326:0: 'Popfv.inv_sqrt_3792174' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:327:0: 'Popfv.T0eff_48k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:328:0: 'Popfv.T0eff_44k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:329:0: 'Popfv.partner_bar_of_fits' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:330:0: 'Popfv.fits_of_partner_bar' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:331:0: 'Popfv.self_before_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:332:0: 'Popfv.self_at_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:333:0: 'Popfv.partner_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:334:0: 'Popfv.self_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:335:0: 'Popfv.silence_score_below_bar' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18195/18205] Replayed Popfv.Commit
+warning: Popfv/Commit.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:11:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:18:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:24:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:27:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:32:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:34:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:206:27: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:214:27: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:238:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:343:45: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:345:45: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:360:37: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:366:37: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:388:26: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:393:26: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:725:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:731:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:735:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:873:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:877:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:929:16: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:938:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:954:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:954:20: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:998:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:1001:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:1001:27: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+info: Popfv/Commit.lean:1009:0: 'Popfv.Commit.sponge_zero_tail_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1010:0: 'Popfv.Commit.chunk_lt_two_pow_248' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1011:0: 'Popfv.Commit.chunk_last_short' depends on axioms: [propext, Quot.sound]
+info: Popfv/Commit.lean:1012:0: 'Popfv.Commit.packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1013:0: 'Popfv.Commit.absorbed_determines_templates' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1014:0: 'Popfv.Commit.code_commitment_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1015:0: 'Popfv.Commit.code_commitment_congr' depends on axioms: [propext, Quot.sound]
+info: Popfv/Commit.lean:1016:0: 'Popfv.Commit.leaf_packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1017:0: 'Popfv.Commit.node_hash_not_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1018:0: 'Popfv.Commit.selector_picks' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1019:0: 'Popfv.Commit.two_openings_agree' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1020:0: 'Popfv.Commit.opening_mismatch_gives_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1021:0: 'Popfv.Commit.merkle_tie' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1022:0: 'Popfv.Commit.open_leaves_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1023:0: 'Popfv.Commit.open_leaves_ties' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1024:0: 'Popfv.Commit.open_leaves_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1025:0: 'Popfv.Commit.honest_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1026:0: 'Popfv.Commit.phone_core_windows_are_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1027:0: 'Popfv.Commit.phone_core_windows_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1028:0: 'Popfv.Commit.phone_core_one_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1029:0: 'Popfv.Commit.past_capture_window_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1030:0: 'Popfv.Commit.past_capture_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18197/18205] Replayed Popfv.Freivalds
+warning: Popfv/Freivalds.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Freivalds.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:9:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:10:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:11:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:14:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:20:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:27:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:28:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:29:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:32:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:33:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:34:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:35:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:36:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:37:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:43:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:44:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:45:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:47:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:48:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:170:12: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:199:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:201:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:203:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:204:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:205:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:209:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:213:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:214:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:216:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:217:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:219:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:243:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:361:2: Try this: 
+  haveI̵
+
+The goal is a proposition, so `have` is preferred over `haveI`.
+The difference between `have` and `haveI` is that `haveI` inlines the value.
+But this is not relevant for proofs because of proof irrelevance.
+
+Note: This linter can be disabled with `set_option linter.style.haveILetI false`
+warning: Popfv/Freivalds.lean:390:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:409:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.eval_polyOf`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:409:8: `eval_polyOf` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:416:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.coeff_polyOf`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:416:8: `coeff_polyOf` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:423:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.natDegree_polyOf_le`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:423:8: `natDegree_polyOf_le` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:549:8: The instance assumption `[IsDomain F]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : IsDomain F := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:561:8: The instance assumption `[IsDomain F]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : IsDomain F := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:579:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:623:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:680:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:693:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:706:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:746:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:752:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:759:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:759:24: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:794:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:797:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:803:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:803:24: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:811:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:815:19: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:820:34: `if_false` has been deprecated: Use `ite_false` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵f̵a̵l̵s̵e̵i̲t̲e̲_̲f̲a̲l̲s̲e̲
+warning: Popfv/Freivalds.lean:820:44: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:856:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:856:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:909:30: This simp argument is unused:
+  List.nil_eq
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [List.cons.injEq, and_true] at h3
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Popfv/Freivalds.lean:994:15: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:997:8: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:1019:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+info: Popfv/Freivalds.lean:1061:0: 'Popfv.Freivalds.run_ring' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1062:0: 'Popfv.Freivalds.inv_all' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1063:0: 'Popfv.Freivalds.run_identity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1064:0: 'Popfv.Freivalds.check_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1065:0: 'Popfv.Freivalds.r_zero_rejected' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1066:0: 'Popfv.Freivalds.freivalds_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1067:0: 'Popfv.Freivalds.honest_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1068:0: 'Popfv.Freivalds.sz_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1069:0: 'Popfv.Freivalds.sz_count_zmod' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1070:0: 'Popfv.Freivalds.fooled_count_dom' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1071:0: 'Popfv.Freivalds.fooled_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1072:0: 'Popfv.Freivalds.fooled_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1073:0: 'Popfv.Freivalds.odds_numeric' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1074:0: 'Popfv.Freivalds.claim_true_of_not_fooled' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1075:0: 'Popfv.Freivalds.self_side_sound_unless_fooled' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1076:0: 'Popfv.Freivalds.arrival_bad_pairs_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1077:0: 'Popfv.Freivalds.arrival_bad_pairs_count_any_flags' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1078:0: 'Popfv.Freivalds.arrival_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1079:0: 'Popfv.Freivalds.known_r_fools' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1080:0: 'Popfv.Freivalds.wrong_curve_moves_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1081:0: 'Popfv.Freivalds.fsInput_length' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1082:0: 'Popfv.Freivalds.fsInput_determines' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1083:0: 'Popfv.Freivalds.window_offset_unique' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1084:0: 'Popfv.Freivalds.absorbed_pins_identity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1085:0: 'Popfv.Freivalds.card_fun_hit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1086:0: 'Popfv.Freivalds.rom_union_bound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1087:0: 'Popfv.Freivalds.odds_2_64_tries' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18199/18205] Replayed Popfv.Chain
+warning: Popfv/Chain.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Chain.lean:12:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:15:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:16:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:26:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:28:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:29:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:37:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:38:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:39:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:44:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:46:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:47:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:48:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:50:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:52:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:54:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:55:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:56:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:58:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:62:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:63:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:64:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:70:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:72:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:74:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:75:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:76:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:77:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:373:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:399:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:403:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:929:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:933:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:990:21: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:991:16: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:992:22: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:994:28: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:995:29: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1000:27: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1001:27: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1064:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1069:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1073:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1152:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1156:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1162:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1168:10: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1168:48: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1168:91: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+info: Popfv/Chain.lean:1177:0: 'Popfv.Chain.tables_agree' depends on axioms: [propext]
+info: Popfv/Chain.lean:1178:0: 'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1179:0: 'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1180:0: 'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1181:0: 'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1182:0: 'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1183:0: 'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1184:0: 'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1185:0: 'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1186:0: 'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1187:0: 'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1188:0: 'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1189:0: 'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1190:0: 'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1191:0: 'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1192:0: 'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1193:0: 'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18201/18205] Built Evpfv.Glue (3.3s)
+warning: Evpfv/Glue.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Evpfv/Glue.lean:8:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Evpfv/Glue.lean:9:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Evpfv/Glue.lean:11:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+info: Evpfv/Glue.lean:258:0: 'Evpfv.evp_presence_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Evpfv/Glue.lean:259:0: 'Evpfv.evp_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+✔ [18203/18205] Built Evpfv (2.9s)
+Build completed successfully (18205 jobs).

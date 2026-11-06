@@ -1,0 +1,15 @@
+# Same build as the bb verifiers in examples/safe/contracts (honk profile).
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc_version = "0.8.30"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 1
+via_ir = false
+fs_permissions = [{ access = "read", path = "./fixtures" }]
+[lint]
+lint_on_build = false
