@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PoP demo stack in one command. bash 3.2 (macOS default) compatible.
 #
-#   ./demo up [flags]     preflight, then run server, sidecar, tunnel (Ctrl-C stops all)
+#   ./demo up [flags]     preflight, then run server, tunnel (Ctrl-C stops all)
 #   ./demo check [flags]  preflight only
 #   ./demo status         what is running
 #   ./demo help
@@ -14,11 +14,9 @@ DEMO_DIR="$ROOT/.demo"
 LOGS="$DEMO_DIR/logs"
 RUN="$DEMO_DIR/run"
 SERVER_DIR="$ROOT/server"
-SIDECAR_DIR="$SERVER_DIR/idkit-sidecar"
 ENVFILE="$SERVER_DIR/.env"
-PIECES="server sidecar tunnel"
+PIECES="server tunnel"
 
-SIDECAR_PORT=8787
 TUNNEL_CONFIG=${DEMO_TUNNEL_CONFIG:-$HOME/.cloudflared/enconomy-pop.yml}
 TUNNEL_NAME=${DEMO_TUNNEL_NAME:-enconomy-pop}
 WEB_ORIGINS="https://webapp.enconomy.dev,https://pop-webapp.pages.dev"
@@ -40,7 +38,7 @@ WARNS=0; FAILS=0
 tag_color() {
   [ -t 1 ] || return 0
   case $1 in
-    server) printf '\033[36m' ;; sidecar) printf '\033[35m' ;;
+    server) printf '\033[36m' ;;
     tunnel) printf '\033[32m' ;;
   esac
 }
@@ -56,13 +54,11 @@ PoP demo stack.
 
 Pieces (start order; the rest start after the server answers /health):
   server   server/        uv run python -m pop        0.0.0.0:\$POP_PORT (default 8001)
-  sidecar  server/idkit-sidecar   node index.mjs      127.0.0.1:8787  (World ID)
   tunnel   cloudflared tunnel --config $TUNNEL_CONFIG run $TUNNEL_NAME
                                                         https://pop.enconomy.dev -> localhost:8001
 
 Flags:
   --no-tunnel    no cloudflared (LAN / local only)
-  --no-worldid   no IDKit sidecar (World ID start answers 503 worldid_unavailable)
   --web          POP_ALLOW_WEB=1 and POP_CORS_ORIGINS=$WEB_ORIGINS
                  (unless already set). Needed by the web app at https://webapp.enconomy.dev.
   --port N       server port (default: \$POP_PORT, else server/.env POP_PORT, else 8001).
@@ -70,16 +66,16 @@ Flags:
 
 Server env: the server reads server/.env itself (real env vars win), so put POP_* there or export
 them before ./demo up. Demo defaults applied only when neither env nor server/.env sets them:
-  POP_WORLDID_SANDBOX=1 POP_ALLOW_UNATTESTED=1
+  POP_ALLOW_UNATTESTED=1
 Web app (https://webapp.enconomy.dev) needs POP_ALLOW_WEB=1 and
   POP_CORS_ORIGINS=$WEB_ORIGINS  (or just --web).
 
 Other env: DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
 
-The ENS and Safe examples run separately, see examples/ens-meetings/README.md and
-examples/safe/README.md.
+The ENS, Safe and World ID examples run separately, see examples/ens-meetings/README.md,
+examples/safe/README.md and examples/world-id/README.md.
 
-If a piece dies, a banner names it and the rest keep running (a dead sidecar should not take down
+If a piece dies, a banner names it and the rest keep running (a dead tunnel should not take down
 the phones' server mid-demo). Fix it in another terminal, then Ctrl-C and ./demo up again.
 ./demo up then exits nonzero. If the server dies before /health answers, nothing else starts.
 Logs: .demo/logs/<piece>.log (appended per run).
@@ -108,12 +104,11 @@ port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 
 # ---------------------------------------------------------------- flags
 
-EN_server=1; EN_sidecar=1; EN_tunnel=1; WEB=0; PORT_FLAG=
+EN_server=1; EN_tunnel=1; WEB=0; PORT_FLAG=
 parse_flags() {
   while [ $# -gt 0 ]; do
     case $1 in
       --no-tunnel) EN_tunnel=0 ;;
-      --no-worldid|--no-sidecar) EN_sidecar=0 ;;
       --web) WEB=1 ;;
       --port) shift; PORT_FLAG=${1-} ;;
       --port=*) PORT_FLAG=${1#--port=} ;;
@@ -143,33 +138,21 @@ preflight() {
   need_tool uv "server" "$EN_server"
   need_tool curl "health checks" 1
   need_tool lsof "port checks" 1
-  need_tool node "sidecar" "$EN_sidecar"
   need_tool cloudflared "tunnel" "$EN_tunnel"
 
   echo "deps"
   if [ -d "$SERVER_DIR/.venv" ]; then ok "server/.venv"
   else warn "server/.venv missing: first run syncs it (slow). Now: (cd server && uv sync)"; fi
-  if enabled sidecar; then
-    if [ -d "$SIDECAR_DIR/node_modules/@worldcoin/idkit-core" ]; then ok "sidecar node_modules"
-    else bad "sidecar node_modules missing. Run: (cd server/idkit-sidecar && npm ci)"; fi
-  fi
 
   echo "server config"
-  if [ -f "$ENVFILE" ]; then ok "server/.env"; else warn "no server/.env (World ID off unless POP_WORLDID_* exported)"; fi
-  for k in POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED POP_ALLOW_WEB POP_CORS_ORIGINS POP_WEB_DIR; do
+  if [ -f "$ENVFILE" ]; then ok "server/.env"; else warn "no server/.env (defaults apply)"; fi
+  for k in POP_ALLOW_UNATTESTED POP_ALLOW_WEB POP_CORS_ORIGINS POP_WEB_DIR; do
     v=$(eff "$k" "")
     [ -n "$v" ] && info "$k=$v"
   done
   d=
-  for k in POP_WORLDID_SANDBOX POP_ALLOW_UNATTESTED; do is_set "$k" || d="$d $k=1"; done
+  is_set POP_ALLOW_UNATTESTED || d=" POP_ALLOW_UNATTESTED=1"
   [ -n "$d" ] && info "demo defaults (not in env or server/.env):$d"
-  if enabled sidecar; then
-    if [ -n "$(eff POP_WORLDID_RP_ID "")" ] && [ -n "$(eff POP_WORLDID_APP_ID "")" ]; then ok "World ID app/rp ids set"
-    else warn "POP_WORLDID_APP_ID / POP_WORLDID_RP_ID empty: World ID start will answer 503"; fi
-    kf=$(abs_server "$(eff POP_WORLDID_SIGNING_KEY_FILE data/worldid-rp.key)")
-    if [ -n "$(eff POP_WORLDID_SIGNING_KEY "")" ] || [ -f "$kf" ]; then ok "World ID RP signing key"
-    else warn "no World ID RP signing key ($kf)"; fi
-  fi
   if [ "$WEB" = 1 ]; then
     info "--web: POP_ALLOW_WEB=$(eff POP_ALLOW_WEB 1) POP_CORS_ORIGINS=$(eff POP_CORS_ORIGINS "$WEB_ORIGINS")"
   elif [ "$(eff POP_ALLOW_WEB 0)" != 1 ]; then
@@ -182,11 +165,6 @@ preflight() {
   p=$(port_pid "$PORT")
   if [ -n "$p" ]; then bad "port $PORT taken by pid $p ($(ps -o comm= -p "$p" 2>/dev/null)). Already running? ./demo status"
   else ok "port $PORT free"; fi
-  if enabled sidecar; then
-    p=$(port_pid "$SIDECAR_PORT")
-    if [ -n "$p" ]; then bad "port $SIDECAR_PORT taken by pid $p ($(ps -o comm= -p "$p" 2>/dev/null))"
-    else ok "port $SIDECAR_PORT free"; fi
-  fi
 
   if enabled tunnel; then
     echo "tunnel"
@@ -301,7 +279,6 @@ cmd_up() {
   trap on_signal INT TERM HUP
 
   # server env: demo defaults only where neither env nor server/.env sets a value
-  is_set POP_WORLDID_SANDBOX || export POP_WORLDID_SANDBOX=1
   is_set POP_ALLOW_UNATTESTED || export POP_ALLOW_UNATTESTED=1
   if [ "$WEB" = 1 ]; then
     is_set POP_ALLOW_WEB || export POP_ALLOW_WEB=1
@@ -318,23 +295,10 @@ cmd_up() {
     *) say "server /health not answering after 120 s; not starting the rest"; stop_all; exit 1 ;;
   esac
 
-  if enabled sidecar; then
-    start_piece sidecar "$SIDECAR_DIR" env PORT="$SIDECAR_PORT" node index.mjs
-    if wait_http "http://127.0.0.1:$SIDECAR_PORT/health" 20 sidecar; then say "sidecar /health ok"
-    else say "${C_YEL}sidecar /health not answering (World ID start will 503)${C_OFF}"; fi
-  fi
   if enabled tunnel; then
     start_piece tunnel "$HOME" cloudflared tunnel --config "$TUNNEL_CONFIG" run "$TUNNEL_NAME"
   fi
 
-  if enabled sidecar; then
-    sleep 2
-    h=$(curl -fsS -m 3 "http://127.0.0.1:$PORT/health" 2>/dev/null)
-    case $h in
-      *'"sidecar_ok":true'*|*'"sidecar_ok": true'*) say "server sees the sidecar (worldid.sidecar_ok)" ;;
-      *) say "${C_YEL}server /health: worldid.sidecar_ok is not true: $h${C_OFF}" ;;
-    esac
-  fi
   say "up:$STARTED   logs .demo/logs/   Ctrl-C stops everything"
 
   while :; do
@@ -359,7 +323,6 @@ cmd_status() {
     else
       case $n in
         server)  p=$(port_pid "$PORT") ;;
-        sidecar) p=$(port_pid "$SIDECAR_PORT") ;;
         tunnel)  p=$(pgrep -f "cloudflared.*$TUNNEL_NAME" | head -1) ;;
       esac
       if [ -n "$p" ]; then st="${C_YEL}running outside ./demo${C_OFF} (pid $p)"; else st="${C_RED}not running${C_OFF}"; fi
@@ -367,7 +330,6 @@ cmd_status() {
     printf '  %-8s %s\n' "$n" "$st"
   done
   h=$(curl -fsS -m 3 "http://127.0.0.1:$PORT/health" 2>/dev/null) && info "server :$PORT /health $h" || info "server :$PORT /health: no answer"
-  curl -fsS -m 3 "http://127.0.0.1:$SIDECAR_PORT/health" >/dev/null 2>&1 && info "sidecar :$SIDECAR_PORT /health ok" || info "sidecar :$SIDECAR_PORT /health: no answer"
   h=$(curl -fsS -m 5 -o /dev/null -w '%{http_code}' https://pop.enconomy.dev/health 2>/dev/null); info "https://pop.enconomy.dev/health: ${h:-no answer}"
 }
 

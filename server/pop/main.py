@@ -53,7 +53,6 @@ from pop.crypto import device_id as derive_device_id, load_pub, verify_raw
 from pop import issuer as sbcred
 from pop import jbl250, popt2, presence, zk
 from pop.errors import PopError
-from pop.human import WorldID
 from pop.sessions import Sessions
 from pop.codec import b64d
 from pop.verdict import Reject
@@ -109,20 +108,6 @@ class Settings:
     chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "11155111")))
     presence_key_file: str = field(default_factory=lambda: os.environ.get(
         "POP_PRESENCE_KEY_FILE", str(SERVER_DIR / "data" / "presence.pem")))
-    worldid_rp_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_RP_ID") or None)
-    worldid_fake: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_FAKE", False))
-    worldid_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_APP_ID") or None)
-    worldid_signing_key: str | None = field(default_factory=lambda: os.environ.get("POP_WORLDID_SIGNING_KEY") or None)
-    worldid_signing_key_file: str = field(default_factory=lambda: os.environ.get(
-        "POP_WORLDID_SIGNING_KEY_FILE", str(SERVER_DIR / "data" / "worldid-rp.key")))
-    worldid_env: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_ENV", "production"))
-    worldid_allow_legacy: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_ALLOW_LEGACY", False))
-    worldid_sidecar: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_SIDECAR", "http://127.0.0.1:8787"))
-    worldid_return_to: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_RETURN_TO", "enconomy://worldid"))
-    worldid_portal: str = field(default_factory=lambda: os.environ.get("POP_WORLDID_PORTAL", "https://developer.world.org"))
-    worldid_poll_s: float = field(default_factory=lambda: float(os.environ.get("POP_WORLDID_POLL_S", "1.5")))
-    worldid_sandbox: bool = field(default_factory=lambda: _env_bool("POP_WORLDID_SANDBOX", False))  # simulator per role
-    worldid_bg_poll: bool = True   # tests turn it off and drive polls through the status long-poll
     now_ms: Callable[[], int] = wall_ms
 
 
@@ -146,21 +131,20 @@ B32_RE = re.compile(r"^0x[0-9a-f]{64}$")
 CONTEXT_KEYS = {"chain_id", "consumer", "ctx_hash"}
 
 
-def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, dict]:
-    """POST /v1/session body -> (context, policy). The context is plain: the core binds it into the nonce and the
-    signed record, what ctx_hash means is the consumer's business. Policy comes only from body.policy."""
+def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, bool]:
+    """POST /v1/session body -> (context, early_nonce). The context is plain: the core binds it into the nonce and the
+    signed record, what ctx_hash means is the consumer's business. early_nonce shows members the nonce before confirm."""
     try:
         body = json.loads(raw) if raw.strip() else {}
     except ValueError:
         raise PopError(400, "bad_request", "body must be JSON") from None
     if not isinstance(body, dict):
         raise PopError(400, "bad_request", "body must be an object")
-    ctx, pol = body.get("context"), body.get("policy")
-    if pol is not None and not (isinstance(pol, dict) and pol.get("human") in ("worldid", "none")):
-        raise PopError(400, "bad_policy", "policy.human must be worldid|none")
-    policy = {"human": pol["human"] if pol else "none"}
+    ctx, early_nonce = body.get("context"), body.get("early_nonce", False)
+    if not isinstance(early_nonce, bool):
+        raise PopError(400, "bad_request", "early_nonce must be a boolean")
     if ctx is None:
-        return None, policy
+        return None, early_nonce
     if not isinstance(ctx, dict):
         raise PopError(400, "bad_request", "context must be an object")
     if set(ctx) != CONTEXT_KEYS:
@@ -176,7 +160,7 @@ def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, dict]:
         presence.canonical(ctx)   # it lands in the signed record
     except ValueError as e:
         raise PopError(400, "bad_request", f"context: {e}") from None
-    return ctx, policy
+    return ctx, early_nonce
 
 
 def _int_strict(x) -> bool:
@@ -237,15 +221,12 @@ class FailIn(BaseModel):
 
 
 def create_app(settings: Settings | None = None, store: Store | None = None, verifier=None,
-               worldid_transport=None, prover=None, pair_prover=None, pair_verifier=None) -> FastAPI:
+               prover=None, pair_prover=None, pair_verifier=None) -> FastAPI:
     """verifier: anything with zk.Verifier's verify(circuit, proof, expected) / available(circuit) (tests fake it).
     prover: anything with zk.Prover's prove(circuit, toml) / available(circuit).
     pair_prover / pair_verifier: the same for the pair statement (default: real zkprove + bb on the pinned pair
-    artifacts, unless a fake verifier is injected, then off unless given).
-    worldid_transport: an httpx transport for the IDKit sidecar + Portal calls (tests pass httpx.MockTransport)."""
+    artifacts, unless a fake verifier is injected, then off unless given)."""
     cfg = settings or Settings()
-    if cfg.worldid_env != "production" and not cfg.worldid_fake:
-        raise RuntimeError("POP_WORLDID_ENV must be production (the staging path is cut, worldid 01 §0.5)")
     db = store or SqliteStore(cfg.db)
     auth = Authenticator(db, cfg.now_ms)
     sessions = Sessions(db, cfg.now_ms, cfg.gain_db, cfg.data_dir, cfg.tune_db)
@@ -260,7 +241,6 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         pair_prover = pair_prover or zk.Prover(cfg.zk_prover, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
         pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
     prove_tasks: set = set()
-    wid = WorldID(cfg, sessions, db, worldid_transport)
     presence_key = presence.load_key(cfg.presence_key_file)
     if presence.public(presence_key)["pubkey"] == issuer.pub.hex():
         raise RuntimeError("POP_PRESENCE_KEY_FILE must not be the issuer key")
@@ -275,7 +255,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                            allow_headers=["X-Pop-Device", "X-Pop-Ts", "X-Pop-Sig", "Content-Type", "Range"],
                            expose_headers=["Content-Range", "Accept-Ranges"])
     app.state.cfg, app.state.store, app.state.sessions, app.state.issuer = cfg, db, sessions, issuer
-    app.state.zk, app.state.zk_prover, app.state.worldid = zkv, zkp, wid
+    app.state.zk, app.state.zk_prover = zkv, zkp
 
     @app.exception_handler(PopError)
     async def _pop_error(req: Request, e: PopError):
@@ -313,8 +293,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     @app.get("/health")
     @app.get("/v1/health")
     async def health():
-        return {"ok": True, "proto": K.PROTO, "server_ms": cfg.now_ms(), "allow_unattested": cfg.allow_unattested,
-                "worldid": await wid.health()}
+        return {"ok": True, "proto": K.PROTO, "server_ms": cfg.now_ms(), "allow_unattested": cfg.allow_unattested}
 
     @app.get("/v1/time")
     async def server_time():
@@ -329,7 +308,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 "zk": {"circuits": {str(sr): c for sr, c in zk.CIRCUITS.items()}, "vk_sha256": dict(zk.VK_PINS),
                        "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR},
                        "delegate": {c: zkp.available(c) for c in zk.CIRCUIT_SR}, "n_public": zk.N_PUBLIC},
-                "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id},
+                "chain": {"chain_id": cfg.chain_id},
                 "presence": presence.public(presence_key)}
 
     # -- option A circuit artifacts (phone.json, CRS, vk): public, static, sha256-pinned, Range for resume
@@ -479,8 +458,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     # -- pairing (§3)
     @app.post("/v1/session")
     async def create_session(request: Request, dev: dict = Depends(device)):
-        context, policy = parse_session_in(await request.body(), cfg)
-        return sessions.create(dev, context, policy)
+        context, early_nonce = parse_session_in(await request.body(), cfg)
+        return sessions.create(dev, context, early_nonce)
 
     @app.post("/v1/session/{sid}/join")
     async def join(sid: str, req: JoinIn, dev: dict = Depends(device)):
@@ -502,25 +481,6 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         s = sessions.load(sid)
         role = sessions.member(s, dev)
         return sessions.view(sessions.confirm(s, role), role)
-
-    # -- World ID (worldid 01 §6, §7.2, §9 rows 4/5)
-    @app.post("/v1/session/{sid}/worldid/start")
-    async def worldid_start(sid: str, request: Request, dev: dict = Depends(device)):
-        s = sessions.load(sid)
-        role = sessions.member(s, dev)
-        body = await request.body()
-        try:
-            b = json.loads(body) if body.strip() else {}
-        except ValueError:
-            raise PopError(400, "bad_request", "body must be JSON") from None
-        env = b.get("env") if isinstance(b, dict) else None
-        return await wid.start(s, role, env)
-
-    @app.get("/v1/session/{sid}/worldid")
-    async def worldid_status(sid: str, timeout_s: float = 0, dev: dict = Depends(device)):
-        s = sessions.load(sid)
-        role = sessions.member(s, dev)
-        return await wid.status(s["session_id"], role, timeout_s)
 
     # -- setup + commit-then-reveal (§4.3, §4.4, §5.2)
     @app.post("/v1/session/{sid}/arm")

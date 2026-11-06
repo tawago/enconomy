@@ -14,7 +14,7 @@ import os
 import time
 from pathlib import Path
 
-from pop.popctx import keccak
+from backend.popctx import keccak
 
 DEFAULT_TTL = 300
 
@@ -112,20 +112,13 @@ def sign_request(key_hex: str, action: str | None = None, ttl: int = DEFAULT_TTL
             "created_at": created_at, "expires_at": expires_at, "msg": msg.hex()}
 
 
-def load_key(path: str | None, env_key: str | None, autogen: bool) -> str | None:
-    """env hex wins; else the file (hex, 0600); autogen (fake mode only) writes a fresh key when missing."""
+def load_key(path: str | None, env_key: str | None) -> str | None:
+    """env hex wins; else the file (hex, 0600)."""
     if env_key:
         _key(env_key)
         return env_key.strip()
     if path and Path(path).is_file():
         k = Path(path).read_text().strip()
         _key(k)
-        return k
-    if autogen and path:
-        k = "0x" + os.urandom(32).hex()
-        Path(path).parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        with os.fdopen(fd, "w") as f:
-            f.write(k + "\n")
         return k
     return None
