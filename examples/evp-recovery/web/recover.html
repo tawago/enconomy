@@ -1,83 +1,201 @@
 <!doctype html>
 <!-- Origin https://recover.tawago.test = the token's aud. Served by web/serve.mjs. -->
+<html lang="en">
 <meta charset="utf-8">
-<title>Recover this account</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recover your account</title>
 <style>
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 44rem; margin: 2rem auto; padding: 0 1rem; }
-  nav { display: flex; gap: .25rem; border-bottom: 1px solid #ccc; flex-wrap: wrap; }
-  nav button { border: 1px solid #ccc; border-bottom: 0; background: #f4f4f4; border-radius: 6px 6px 0 0; padding: .4rem .8rem; font-size: 14px; cursor: pointer; }
-  nav button:disabled { color: #aaa; cursor: default; }
-  nav button.active { background: #fff; font-weight: 600; position: relative; top: 1px; }
-  nav button.done::after { content: " \2713"; color: #17803d; }
-  section { padding: 1rem 0; display: none; }
+  :root { --bg: #0a0c10; --card: #141922; --line: #262d3a; --text: #eef1f6; --dim: #8c95a5; --accent: #6ee7b7; --accent-ink: #06281c; --bad: #f87171; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; color: var(--text); font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         background: radial-gradient(60rem 30rem at 85% -10%, #123a2e 0%, transparent 65%), var(--bg); -webkit-font-smoothing: antialiased; }
+  main { max-width: 42rem; margin: 0 auto; padding: 3rem 1.25rem 4rem; }
+  h1 { margin: 0; font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
+  .lede { margin: .35rem 0 1.5rem; color: var(--dim); }
+  h2 { margin: 0 0 .35rem; font-size: 1.25rem; font-weight: 650; letter-spacing: -.01em; }
+  p { margin: 0 0 1rem; }
+  .dim { color: var(--dim); }
+  .mono { font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 1.5rem; }
+
+  .account { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; padding: 1rem 1.25rem; margin-bottom: 1.5rem; }
+  .account div span { display: block; font-size: 12px; color: var(--dim); }
+  .account div b { font: 500 14px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  nav { display: flex; margin-bottom: 1.5rem; }
+  nav button { flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: 0; border: 0; background: none; color: var(--dim); font: 500 13px inherit; font-family: inherit; cursor: pointer; }
+  nav button:disabled { cursor: default; opacity: .55; }
+  nav i { z-index: 1; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%; border: 1px solid var(--line); background: var(--card); font: 600 13px inherit; font-family: inherit; font-style: normal; transition: .2s; }
+  nav button::before { content: ""; position: absolute; top: 1rem; left: -50%; width: 100%; height: 1px; background: var(--line); }
+  nav button:first-child::before { display: none; }
+  nav button.done::before, nav button.active::before { background: var(--accent); }
+  nav button.done i { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  nav button.active { color: var(--text); }
+  nav button.active i { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 4px rgba(110, 231, 183, .15); }
+  nav button.done.active i { color: var(--accent-ink); }
+
+  section { display: none; animation: rise .25s ease; }
   section.active { display: block; }
-  section h2 { margin-top: 0; }
-  .tx { background: #f4f4f4; padding: .6rem; border-radius: 6px; margin: .5rem 0; }
-  .tx code { word-break: break-all; font-size: 13px; }
-  .tx table { border-collapse: collapse; margin-top: .4rem; font-size: 14px; }
-  .tx td, .tx th { padding: 0 .8rem 0 0; text-align: left; }
-  input[type=text], input[type=email] { width: 100%; font: 14px monospace; padding: .4rem; box-sizing: border-box; }
-  button, a.btn { font: inherit; padding: .4rem 1rem; }
-  pre { background: #f4f4f4; padding: .5rem; overflow-x: auto; font-size: 13px; white-space: pre-wrap; word-break: break-all; }
-  video { width: 16rem; display: none; }
-  .err { color: #b00; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+
+  input { width: 100%; padding: .75rem .9rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; font: 14px ui-monospace, SFMono-Regular, Menlo, monospace; outline: none; }
+  input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(110, 231, 183, .15); }
+  input::placeholder { color: #566072; }
+  .row { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1rem; }
+  button.btn, a.btn { display: inline-block; padding: .65rem 1.2rem; border-radius: 10px; border: 1px solid var(--line); background: #1c2230; color: var(--text); font: 600 15px inherit; font-family: inherit; text-decoration: none; cursor: pointer; transition: .15s; }
+  button.btn:hover, a.btn:hover { border-color: #3b4557; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn.primary:hover { filter: brightness(1.08); border-color: var(--accent); }
+  button.btn:disabled { opacity: .4; cursor: default; filter: none; }
+
+  ol.how { margin: 0 0 1.25rem; padding-left: 1.2rem; color: var(--dim); }
+  ol.how li { margin-bottom: .25rem; }
+  .status { display: flex; align-items: center; gap: .6rem; min-height: 1.5rem; margin: 1rem 0 0; color: var(--dim); }
+  .status:empty { display: none; }
+  .status.busy::before { content: ""; flex: none; width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+  .status.good { color: var(--accent); }
+  .status.bad { color: var(--bad); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .checks { list-style: none; margin: 1rem 0 0; padding: 0; }
+  .checks li { display: flex; align-items: center; gap: .6rem; padding: .55rem 0; border-top: 1px solid var(--line); }
+  .checks li::before { content: "\2713"; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; }
+
+  .kv { margin-top: 1rem; }
+  .kv div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .kv span { color: var(--dim); }
+
+  .tx { margin-top: 1.25rem; padding: 1rem 1.1rem; background: var(--bg); border: 1px solid var(--line); border-radius: 12px; }
+  .tx header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; font-weight: 600; }
+  .pill { padding: .1rem .6rem; border-radius: 99px; font-size: 12px; font-weight: 600; background: rgba(110, 231, 183, .14); color: var(--accent); }
+  .pill.bad { background: rgba(248, 113, 113, .14); color: var(--bad); }
+  .tx code { display: block; font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--dim); word-break: break-all; }
+  .tx a { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+  .tx a:hover { text-decoration: underline; }
+  .tx .links { display: flex; gap: 1rem; align-items: center; margin-top: .5rem; font-size: 14px; }
+  .copy { padding: 0; border: 0; background: none; color: var(--dim); font: inherit; cursor: pointer; }
+  .copy:hover { color: var(--text); }
+  table { width: 100%; margin-top: .9rem; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; font-weight: 500; color: var(--dim); }
+  th, td { padding: .35rem 0; border-top: 1px solid var(--line); }
+  th:last-child, td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+  td.ok { color: var(--accent); }
+  td.no { color: var(--bad); }
+
+  .bigcount { font-size: 3rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .bar { height: 6px; margin: .75rem 0 1.25rem; border-radius: 99px; background: var(--line); overflow: hidden; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width 1s linear; }
+  .recovered { display: none; text-align: center; padding: .5rem 0 0; }
+  .recovered.on { display: block; animation: rise .35s ease; }
+  .recovered .mark { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin: 0 auto .75rem; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 1.75rem; font-weight: 700; }
+  .recovered h3 { margin: 0 0 .25rem; font-size: 1.5rem; }
+  .swap { display: flex; justify-content: center; align-items: center; gap: .6rem; margin-top: .5rem; color: var(--dim); }
+  .swap b { color: var(--text); font-weight: 500; }
+
+  video { display: none; width: 100%; margin-top: 1rem; border-radius: 10px; }
+  pre { margin: 1rem 0 0; padding: .75rem; border-radius: 10px; background: rgba(248, 113, 113, .08); color: var(--bad); font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+  footer { margin-top: 1.5rem; text-align: center; font-size: 12.5px; color: #566072; }
+  @media (max-width: 34rem) { .account { grid-template-columns: 1fr; } nav button { font-size: 11px; } }
 </style>
-<h1>Recover this account</h1>
-<nav id="tabs"></nav>
 
-<section id="s-a">
-  <h2>1. New phone's key</h2>
-  <p>Paste the key the phone shows, or scan its QR. 128 hex characters: qx, then qy.</p>
-  <input type="text" id="key" placeholder="qx qy">
-  <p><button id="scan">Scan</button> <button id="start">Use this key</button></p>
-  <video id="cam" playsinline muted></video>
-  <pre id="start-out" hidden></pre>
-</section>
+<main>
+  <h1>Recover your account</h1>
+  <p class="lede">Lost your phone? Move this account to a new one, using your email and your laptop.</p>
 
-<section id="s-b">
-  <h2>2. Chirp with the phone</h2>
-  <p><a id="open-app" class="btn" target="evp_chirp" href="#">Open the chirp app</a></p>
-  <p>Host the session there and join from the phone. Keep this tab open.</p>
-</section>
+  <div class="card account">
+    <div><span>Account</span><b id="acct">…</b></div>
+    <div><span>Current owner</span><b id="owner">…</b></div>
+    <div><span>Status</span><b id="pending">…</b></div>
+  </div>
 
-<section id="s-c">
-  <h2>3. Proofs</h2>
-  <p id="bundle-status">Waiting for the session.</p>
-  <p>If the chirp app says the proof was skipped or failed, or the session went wrong, chirp again. Nothing has been sent yet.</p>
-  <p><button id="redo">Redo the chirp</button></p>
-</section>
+  <nav id="tabs"></nav>
 
-<section id="s-d">
-  <h2>4. Start the recovery</h2>
-  <p>Type the email, then press Tab. Chrome mints the token when the field loses focus.</p>
-  <form id="f">
-    <input type="email" autocomplete="email" name="email" id="email" placeholder="alice@tawago.test">
-    <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
-  </form>
-  <p id="token-status"></p>
-  <div id="start-tx"></div>
-  <pre id="submit-out" hidden></pre>
-</section>
+  <section id="s-a" class="card">
+    <h2>Add your new phone</h2>
+    <p class="dim">Open the app on your new phone. Scan the QR it shows, or paste its key.</p>
+    <input type="text" id="key" placeholder="Paste the new phone's key" spellcheck="false" autocomplete="off">
+    <div class="row">
+      <button class="btn primary" id="start">Use this key</button>
+      <button class="btn" id="scan">Scan QR</button>
+    </div>
+    <video id="cam" playsinline muted></video>
+    <pre id="start-out" hidden></pre>
+  </section>
 
-<section id="s-e">
-  <h2>5. Finish the recovery</h2>
-  <p id="countdown"></p>
-  <p><button id="finish" disabled>Finish</button></p>
-  <div id="finish-tx"></div>
-  <pre id="state-out" hidden></pre>
-</section>
+  <section id="s-b" class="card">
+    <h2>Bring your phone close to this laptop</h2>
+    <p class="dim">They'll exchange sound to show they're next to each other.</p>
+    <ol class="how">
+      <li>Open the chirp app below and tap to start.</li>
+      <li>On your phone, press Join and scan the QR.</li>
+      <li>Hold them close, and Confirm on both.</li>
+    </ol>
+    <a id="open-app" class="btn primary" target="evp_chirp" href="#">Open the chirp app</a>
+    <p class="status busy" id="chirp-status">Waiting for the session to start.</p>
+    <div class="kv" id="start-out-kv"></div>
+  </section>
+
+  <section id="s-c" class="card">
+    <h2>Checking the proofs</h2>
+    <p class="dim">Each device proves what it heard, and a third proof combines them. No one has to take your word for it.</p>
+    <p class="status busy" id="bundle-status">Waiting for the session.</p>
+    <ul class="checks" id="checks" hidden>
+      <li>Laptop proof</li>
+      <li>Phone proof</li>
+      <li>Pair proof: these two devices were near</li>
+    </ul>
+    <div class="row"><button class="btn" id="redo">Chirp again</button></div>
+    <p class="dim" style="margin:.75rem 0 0;font-size:14px">If the chirp app says a proof was skipped or failed, chirp again. Nothing has been sent yet.</p>
+  </section>
+
+  <section id="s-d" class="card">
+    <h2>Confirm your email</h2>
+    <p class="dim">Type the email on this account, then press Tab. Chrome verifies it, and the recovery starts on chain.</p>
+    <form id="f">
+      <input type="email" autocomplete="email" name="email" id="email" placeholder="you@example.com">
+      <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
+    </form>
+    <p class="status" id="token-status"></p>
+    <div id="start-tx"></div>
+    <pre id="submit-out" hidden></pre>
+  </section>
+
+  <section id="s-e" class="card">
+    <div id="waiting">
+      <h2>Safety window</h2>
+      <p class="dim">The old phone can still cancel during this time. Then you can finish.</p>
+      <div class="bigcount" id="countdown">–</div>
+      <div class="bar"><div id="bar"></div></div>
+      <button class="btn primary" id="finish" disabled>Finish recovery</button>
+    </div>
+    <div class="recovered" id="recovered">
+      <div class="mark">&#10003;</div>
+      <h3>Account recovered</h3>
+      <p class="dim" style="margin:0">Your new phone now owns this account.</p>
+      <div class="swap mono"><span id="old-owner"></span><span>&rarr;</span><b id="new-owner"></b></div>
+    </div>
+    <div id="finish-tx"></div>
+    <pre id="state-out" hidden></pre>
+  </section>
+
+  <footer>Same account, no funds moved. Runs on chain 1337.</footer>
+</main>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const STEPS = [["s-a", "1 Key"], ["s-b", "2 Chirp"], ["s-c", "3 Proofs"], ["s-d", "4 Start tx"], ["s-e", "5 Finish tx"]];
+const STEPS = [["s-a", "New phone"], ["s-b", "Chirp"], ["s-c", "Proofs"], ["s-d", "Email"], ["s-e", "Finish"]];
 const EXPLORER = "https://explorer.altmempool.wtf/tx/";
 const EXPLORER_NODE = "https://altmempool.forshtat.com/rpc"; // the sidecar we send through; the gateway has no record of it
+const DELAY = 120; // s, the account's rotation delay
+const FRAMES = ["Deadline check", "Three proofs", "Laptop pays", "Email and rotate"];
 const open_ = new Set(["s-a"]), done = new Set();
+const short = (a) => a ? `${a.slice(0, 6)}…${a.slice(-4)}` : "–";
 function renderTabs(active) {
-  const nav = $("tabs");
-  nav.replaceChildren(...STEPS.map(([id, label]) => {
+  $("tabs").replaceChildren(...STEPS.map(([id, label], n) => {
     const b = document.createElement("button");
-    b.type = "button"; b.textContent = label; b.disabled = !open_.has(id);
+    const i = document.createElement("i");
+    i.textContent = done.has(id) ? "✓" : n + 1;
+    b.type = "button"; b.append(i, label); b.disabled = !open_.has(id);
     b.className = (id === active ? "active " : "") + (done.has(id) ? "done" : "");
     b.onclick = () => go(id);
     return b;
@@ -90,14 +208,20 @@ function go(id) {
 }
 const on = (id) => { open_.add(id); renderTabs(document.querySelector("section.active")?.id); };
 const finished = (id) => { done.add(id); on(id); };
+function status(id, text, kind = "") { const e = $(id); e.textContent = text; e.className = "status " + kind; }
 function txBox(el, title, r) {
   const hash = r.hash ?? r.tx;
   const ok = r.status === "0x1" || r.status === 1 || r.status === undefined;
-  let html = `<div class="tx"><b>${title}</b>${r.block ? `, block ${r.block}` : ""}, ${ok ? "success" : "failed"}<br>`;
-  if (hash) html += `<code>${hash}</code><br>` + (r.frames ? `<a target="_blank" href="${EXPLORER}${hash}?node=${encodeURIComponent(EXPLORER_NODE)}">View on the explorer</a>` : "A plain tx. It skips the mempool, so the explorer's sidecar has no record of it.");
-  if (r.frames) html += `<table><tr><th>Frame</th><th>Status</th><th>Gas</th></tr>${r.frames.map((f, i) =>
-    `<tr><td>${["0 expiry", "1 proofs", "2 laptop pays", "3 email + rotate"][i] ?? i}</td><td>${f.status === "0x1" ? "ok" : "reverted"}</td><td>${Number(f.gasUsed).toLocaleString()}</td></tr>`).join("")}</table>`;
+  let html = `<div class="tx"><header><span>${title}${r.block ? ` <span class="dim" style="font-weight:400">block ${r.block}</span>` : ""}</span><span class="pill ${ok ? "" : "bad"}">${ok ? "Success" : "Failed"}</span></header>`;
+  if (hash) {
+    html += `<code>${hash}</code><div class="links"><button class="copy" type="button" data-copy="${hash}">Copy hash</button>`;
+    html += r.frames ? `<a target="_blank" href="${EXPLORER}${hash}?node=${encodeURIComponent(EXPLORER_NODE)}">View on the explorer &rarr;</a>` : `<span class="dim">A plain tx, so the explorer's sidecar has no record of it.</span>`;
+    html += `</div>`;
+  }
+  if (r.frames) html += `<table><tr><th>Frame</th><th>Result</th><th>Gas</th></tr>${r.frames.map((f, i) =>
+    `<tr><td>${FRAMES[i] ?? i}</td><td class="${f.status === "0x1" ? "ok" : "no"}">${f.status === "0x1" ? "Passed" : "Reverted"}</td><td>${Number(f.gasUsed).toLocaleString()}</td></tr>`).join("")}</table>`;
   el.innerHTML = html + "</div>";
+  el.querySelectorAll("[data-copy]").forEach((b) => { b.onclick = async () => { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied"; }; });
 }
 const show = (id, v) => { const e = $(id); e.hidden = false; e.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -108,12 +232,23 @@ const post = async (path, body) => {
   if (!r.ok) throw new Error(`${path}: ${r.status} ${t}`);
   return JSON.parse(t);
 };
-let start = null, session = null, sending = false, pollId = 0;
+let start = null, session = null, sending = false, pollId = 0, firstOwner = null;
+
+async function refreshAccount() {
+  try {
+    const s = await (await fetch("/v1/recovery/state")).json();
+    firstOwner ??= s.owner;
+    $("acct").textContent = short(s.account);
+    $("owner").textContent = short(s.owner);
+    $("pending").textContent = Number(s.readyAt) ? "Recovery pending" : "Active";
+    return s;
+  } catch { $("pending").textContent = "Not deployed"; }
+}
 
 // a. key
 function parseKey(text) {
   const h = text.toLowerCase().replace(/0x/g, "").replace(/[^0-9a-f]/g, "");
-  if (h.length !== 128) throw new Error(`need 128 hex characters, got ${h.length}`);
+  if (h.length !== 128) throw new Error(`That key should be 128 hex characters. This one has ${h.length}.`);
   return { qx: "0x" + h.slice(0, 64), qy: "0x" + h.slice(64) };
 }
 
@@ -135,42 +270,48 @@ $("scan").onclick = async () => {
 
 const begin = async () => {
   try {
+    $("start-out").hidden = true;
     localStorage.removeItem("evp_session");
     session = null; sending = false;
     $("tok").removeAttribute("nonce");
     ["s-b", "s-c", "s-d"].forEach((id) => done.delete(id));
     open_.delete("s-d");
     start = await post("/v1/recovery/start", parseKey($("key").value));
-    show("start-out", { newKey: start.newKey, ctx: start.ctx, deadline: new Date(start.deadline * 1000).toLocaleTimeString() });
+    $("start-out-kv").innerHTML = `<div><span>New phone</span><b class="mono">${short(start.newKey)}</b></div><div><span>Complete by</span><b>${new Date(start.deadline * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</b></div>`;
     $("open-app").href = "/app/?context=" + b64url(JSON.stringify(start.context));
     finished("s-a"); on("s-c"); go("s-b");
-    $("bundle-status").textContent = "Waiting for the session.";
+    status("chirp-status", "Waiting for the session to start.", "busy");
+    status("bundle-status", "Waiting for the session.", "busy");
+    $("checks").hidden = true;
     pollBundle();
-  } catch (e) { show("start-out", String(e)); go("s-a"); }
+  } catch (e) { show("start-out", e.message ?? String(e)); go("s-a"); }
 };
 $("start").onclick = begin;
 $("redo").onclick = begin;
 
 // c. bundle. The app writes evp_session to localStorage on this origin.
 async function pollBundle() {
-  const st = $("bundle-status"), me = ++pollId;
+  const me = ++pollId;
   for (;;) {
     await sleep(2000);
     if (me !== pollId) return; // a redo started a newer poll
     const raw = localStorage.getItem("evp_session");
-    if (!raw) { st.textContent = "Waiting for the session."; continue; }
+    if (!raw) continue;
     session = JSON.parse(raw);
     const r = await fetch(`/v1/session/${session.session_id}/zk/bundle`);
     if (me !== pollId) return;
     if (r.ok) {
       const b = await r.json();
-      st.textContent = `Ready. Verdict ${b.verdict}, three proofs for session ${session.session_id}.`;
+      status("bundle-status", `Verified. The verdict is ${b.verdict}.`, "good");
+      status("chirp-status", "Chirp complete.", "good");
+      $("checks").hidden = false;
       done.add("s-b"); finished("s-c");
+      await sleep(1200);
       armToken();
       return;
     }
-    const e = await r.json().catch(() => ({}));
-    st.textContent = `Session ${session.session_id}: ${e.detail ?? r.status}`;
+    status("chirp-status", "Session started. Finish the chirp in the app.", "busy");
+    status("bundle-status", "Waiting for all three proofs. This can take a minute.", "busy");
     done.add("s-b"); if (document.querySelector("section.active")?.id === "s-b") go("s-c");
   }
 }
@@ -185,53 +326,67 @@ function armToken() {
 $("email").addEventListener("blur", async () => {
   if (!$("email").value || sending || !$("tok").getAttribute("nonce")) return;
   sending = true;
-  const st = $("token-status");
-  st.textContent = "Waiting for Chrome's token.";
+  status("token-status", "Chrome is verifying your email.", "busy");
   await sleep(4000); // Chrome mints in the background and fills the field only on submit
   $("f").requestSubmit();
 });
 
 $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
-  const st = $("token-status");
   for (let i = 0; i < 40 && !$("tok").value; i++) await sleep(500);
-  if (!$("tok").value) { sending = false; st.textContent = "No token. Check the sign-in at tawago.test, reload, retype the email."; return; }
-  st.textContent = "Token received. Sending the transaction, this takes a minute.";
+  if (!$("tok").value) { sending = false; status("token-status", "No token from Chrome. Check the sign-in at tawago.test, reload, and retype the email.", "bad"); return; }
+  status("token-status", "Email verified. Sending the transaction, this takes about a minute.", "busy");
   try {
     const r = await post("/v1/recovery/submit", { ...session, token: $("tok").value });
-    txBox($("start-tx"), "Start tx", r);
-    $("token-status").textContent = r.status === "0x1" ? "Mined." : "Not started, see below.";
-    if (r.status !== "0x1") show("submit-out", r);
-    if (r.hash && r.status === "0x1") { finished("s-d"); go("s-e"); countdown(); }
-  } catch (err) { sending = false; $("token-status").textContent = "The transaction was not sent."; show("submit-out", String(err)); }
+    txBox($("start-tx"), "Start transaction", r);
+    if (r.status === "0x1") status("token-status", "Recovery started on chain.", "good");
+    else { status("token-status", "The transaction didn't start the recovery.", "bad"); show("submit-out", r); }
+    refreshAccount();
+    if (r.hash && r.status === "0x1") { finished("s-d"); await sleep(2500); go("s-e"); countdown(); }
+  } catch (err) { sending = false; status("token-status", "The transaction was not sent.", "bad"); show("submit-out", err.message ?? String(err)); }
 });
 
 // e. finish
 async function countdown() {
+  // One read, then count locally: the state route takes a few seconds.
+  const s = await (await fetch("/v1/recovery/state")).json();
+  if (Number(s.readyAt) === 0) { $("countdown").textContent = "–"; return; }
+  const readyAt = Date.now() + (s.readyAt - s.now) * 1000;
   for (;;) {
-    const s = await (await fetch("/v1/recovery/state")).json();
-    show("state-out", s);
-    if (Number(s.readyAt) === 0) { $("countdown").textContent = "No rotation pending."; return; }
-    const left = s.readyAt - Math.floor(Date.now() / 1000);
+    const left = Math.ceil((readyAt - Date.now()) / 1000);
     if (left <= 0) break;
-    $("countdown").textContent = `${left} s until it can finish.`;
-    await sleep(Math.min(left, 5) * 1000);
+    $("countdown").textContent = `${left} s`;
+    $("bar").style.width = `${100 * (1 - left / DELAY)}%`;
+    await sleep(250);
   }
-  $("countdown").textContent = "Ready.";
+  $("countdown").textContent = "Ready";
+  $("bar").style.width = "100%";
   $("finish").disabled = false;
 }
 
 $("finish").onclick = async () => {
   try {
+    $("state-out").hidden = true;
     $("finish").disabled = true;
+    $("finish").textContent = "Finishing…";
     const r = await post("/v1/recovery/finish");
-    show("state-out", r.state ?? r);
-    txBox($("finish-tx"), "Finish tx", r);
+    txBox($("finish-tx"), "Finish transaction", r);
     finished("s-e");
-    const ok = start && r.state.owner.toLowerCase() === start.newKey.toLowerCase();
-    $("countdown").textContent = ok ? "Done. The new phone owns the account." : "Finished, but owner is not the new key.";
-  } catch (e) { $("finish").disabled = false; show("state-out", String(e)); }
+    await refreshAccount();
+    if (start && r.state.owner.toLowerCase() === start.newKey.toLowerCase()) {
+      $("waiting").style.display = "none";
+      $("old-owner").textContent = short(firstOwner);
+      $("new-owner").textContent = short(r.state.owner);
+      $("recovered").classList.add("on");
+    } else show("state-out", "Finished, but the owner is not the new key.");
+  } catch (e) {
+    $("finish").disabled = false;
+    $("finish").textContent = "Finish recovery";
+    show("state-out", "Not finished. If the countdown just ended, the chain clock can run a little behind, so try again in a few seconds. " + (e.message ?? e));
+  }
 };
 
 go("s-a");
+refreshAccount();
 </script>
+</html>
