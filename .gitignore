@@ -55,7 +55,7 @@ node_modules/
 .wrangler/
 
 # web app build copied for Workers hosting (app/scripts/build_web.sh --workers)
-/web/app/
+/examples/ens-meetings/web/app/
 
 # ./demo runtime (logs, pids)
 /.demo/

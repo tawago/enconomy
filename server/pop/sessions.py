@@ -46,6 +46,10 @@ Option A proofs (pop/zk.py), after the verdict:
     salt); credential checks (issuer, validAt <= expiry) run before the SNARK verifier.
   - s["zk"][role] keeps the last outcome; a verified proof is final (same bytes again = idempotent, other = 409),
     a rejected one may be replaced. The record's `zk` block mirrors it (without the salt).
+
+Presence record (pop/presence.py, server/README.md): result["presence"] = {body, sig_b64}, core-signed, exists iff
+the result does and a signer is set (aborted sessions have no result, so no record). The body is fixed at finalize and
+keeps the devices as they were then; later only its zk changes, and it is signed again only when that happens.
 """
 from __future__ import annotations
 
@@ -63,7 +67,7 @@ import numpy as np
 
 from pop import calibration as CAL
 from pop import constants as K
-from pop import human as H, invite, jbl250, popctx, popt2, poseidon2, verdict as V, zk
+from pop import human as H, invite, jbl250, popctx, popt2, poseidon2, presence, verdict as V, zk
 from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
@@ -99,6 +103,8 @@ class Sessions:
         self.store, self.now_ms, self.gain_db, self.tune_db = store, now_ms, gain_db, tune_db
         self.data_dir = None if data_dir is None else Path(data_dir)
         self.code_attester: Callable[[bytes, int, str, bytes], dict] | None = None   # main.py: issuer.attest_code
+        self.presence_signer: Callable[[dict], dict] | None = None   # main.py: presence.sign with the presence key
+        self.android_roots: frozenset = frozenset()                  # main.py: cfg.android_roots
 
     # -- persistence
     def _save(self, s: dict) -> dict:
@@ -347,6 +353,8 @@ class Sessions:
         s["state"], s["error"] = "done", reason
         s["finished_ms"] = self.now_ms()
         s["result"] = self._record(s, verdict, reason, flight)
+        if self.presence_signer is not None:
+            s["result"]["presence"] = self.presence_signer(presence.record_body(s["result"], self._snapshots(s), flight))
         self._save(s)
         self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
         return s
@@ -382,6 +390,19 @@ class Sessions:
                          | ({"verdict": a["verdict"], "flight_cm": a["flight_cm"]} if a.get("outcome") == "verdict" else {})
                          for a in s["attempts"]],
         }
+
+    def _snapshots(self, s: dict) -> dict:
+        devs = {r: self._dev(s, r) for r in ROLES}
+        return {r: presence.device_snapshot(d, self.android_roots) for r, d in devs.items() if d is not None}
+
+    def _result_zk(self, s: dict) -> None:
+        """A proof outcome changed: new zk in the record. The signed body already holds everything else."""
+        res = s["result"]
+        res["zk"] = self.zk_public(s)
+        p = res.get("presence")
+        if p is not None and self.presence_signer is not None and p["body"]["zk"] != res["zk"]:
+            res["presence"] = self.presence_signer({**p["body"], "zk": res["zk"]})
+        self._write(s["session_id"], "result.json", json.dumps(res, indent=1).encode())
 
     @staticmethod
     def _human_record(s: dict) -> dict | None:
@@ -568,8 +589,7 @@ class Sessions:
                      "files": None if p1 is None else {k: f"sessions/{s['session_id']}/{v}" for k, v in names.items()}}
         s.setdefault("zk", {"A": None, "B": None})["pair"] = entry
         if s["result"] is not None:
-            s["result"]["zk"] = self.zk_public(s)
-            self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
+            self._result_zk(s)
         self._save(s)
         return s
 
@@ -646,8 +666,7 @@ class Sessions:
                      "files": None if p1 is None else {k: f"sessions/{s['session_id']}/{v}" for k, v in names.items()}}
         s.setdefault("zk", {"A": None, "B": None})[role] = entry
         if s["result"] is not None:
-            s["result"]["zk"] = self.zk_public(s)
-            self._write(s["session_id"], "result.json", json.dumps(s["result"], indent=1).encode())
+            self._result_zk(s)
         self._save(s)
         return s
 

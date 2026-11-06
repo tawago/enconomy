@@ -1,6 +1,6 @@
 # ENS: Met on ENS (PR #1)
 
-Every meeting proven by the PoP server becomes onchain ENS records on Ethereum Sepolia (ENSv2).
+Every meeting delivered to this example's backend, with the core's signed presence record, becomes onchain ENS records on Ethereum Sepolia (ENSv2).
 
 ## Live
 
@@ -26,6 +26,9 @@ Fixture `180ca04b_48k`, UltraHonk (bb v5 nightly, keccak transcript):
 
 ## Where things live
 
-- `contracts/` — MeetResolver, `script/ens.sh` bootstrap/ops, `deployments/sepolia.json`, `deployments/zk-sepolia.json`
-- `bridge/` — watcher: PoP server results -> MeetResolver + verifier txs
-- `web/` — the page; `npx wrangler deploy` from the repo root (`wrangler.jsonc`)
+Paths are relative to this folder, unless they say otherwise.
+
+- `contracts/` — MeetResolver, `script/ens.sh` ops (never rerun bootstrap), `deployments/sepolia.json`, `deployments/zk-sepolia.json`
+- `backend/` — name claims and presence record intake
+- `bridge/` — presence records -> MeetResolver + verifier txs, run by the backend's worker
+- `web/` — the page; `npx wrangler deploy` from this folder (`wrangler.jsonc`)

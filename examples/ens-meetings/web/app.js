@@ -481,7 +481,7 @@ function renderProfileMeets(animate) {
   pMeetIds = new Set(list.map((m) => m.id))
 }
 
-// ---------- snapshot (optional web/snapshot.json)
+// ---------- snapshot (optional snapshot.json)
 async function loadSnapshot() {
   let snap
   try {

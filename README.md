@@ -6,7 +6,7 @@
 
 Proof of presence: two phones use sound to prove they were physically close.
 
-Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. A NEAR result can unlock a 2-of-4 Safe spend, or it can be recorded as a meeting under `enconomy.eth` on ENS. Both run on Ethereum Sepolia.
+Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. A NEAR result can unlock a 2-of-4 Safe spend, or it can be recorded as a meeting under `enconomy.eth` on ENS. Both run on Ethereum Sepolia. ENS is now a separate example, [`examples/ens-meetings`](examples/ens-meetings/README.md), and the current app's ENS screen has no backend until that example gets its own app.
 
 ```mermaid
 flowchart LR
@@ -16,7 +16,8 @@ flowchart LR
     W["World ID"] -. "two distinct humans" .-> S
     S -- "NEAR attestation" --> R["Relayer"]
     R -- "execTransaction" --> G["Safe + PopSafeGuard<br/>Sepolia"]
-    S -- "NEAR result" --> E["Bridge"]
+    S -- "signed presence record" --> A
+    A -. "presence record" .-> E["ENS example backend<br/>examples/ens-meetings"]
     E --> M["MeetResolver<br/>*.enconomy.eth"]
 ```
 
@@ -101,15 +102,15 @@ cd relayer && RPC=http://127.0.0.1:8612 test/dryrun.sh
 **Static ENS site**
 
 ```sh
-cd web && python3 -m http.server 8080    # preview
-npx wrangler deploy                      # from repo root
+cd examples/ens-meetings/web && python3 -m http.server 8080    # preview
+npx wrangler deploy                      # from examples/ens-meetings/
 ```
 
 Each component README has more detail.
 
 ## Demo stack
 
-One command runs the whole demo. It starts five processes: the server (:8001), the World ID sidecar (:8787), the ENS bridge, the Safe relayer and the `pop.enconomy.dev` tunnel. Log lines are prefixed `[server]`, `[sidecar]` and so on, and are also saved in `.demo/logs/`.
+One command runs the whole demo. It starts four processes: the server (:8001), the World ID sidecar (:8787), the Safe relayer and the `pop.enconomy.dev` tunnel. The ENS example isn't one of them, it runs on its own: see [`examples/ens-meetings`](examples/ens-meetings/README.md). Log lines are prefixed `[server]`, `[sidecar]` and so on, and are also saved in `.demo/logs/`.
 
 First-time setup:
 
@@ -124,11 +125,11 @@ echo 'POP_ATTEST_KEY_FILE=data/attest-demo.pem' >> server/.env   # key the demo 
 Set `POP_ATTEST_KEY_FILE`, or every Safe spend reverts with `BadAttestation`. The default `data/attest.pem` is a different key. `attest-demo.pem` is gitignored. [`contracts/README.md`](contracts/README.md) explains how to derive it.
 
 ```sh
-./demo check          # preflight: tools, node_modules, key + Sepolia balance, registered ens_names, ports, tunnel
-./demo up             # all five; Ctrl-C stops everything
+./demo check          # preflight: tools, node_modules, key + Sepolia balance, ports, tunnel
+./demo up             # all four; Ctrl-C stops everything
 ./demo up --web       # also sets POP_ALLOW_WEB=1 and POP_CORS_ORIGINS for the web app
-./demo up --no-tunnel --no-ens --no-safe --no-worldid   # skip pieces
-./demo status         # what is running, plus bridge status
+./demo up --no-tunnel --no-safe --no-worldid   # skip pieces
+./demo status         # what is running
 ```
 
 Server config lives in `server/.env`, and real environment variables override it. The demo sets `POP_TEST_KINDS=1`, `POP_WORLDID_SANDBOX=1` and `POP_ALLOW_UNATTESTED=1`, unless you set them yourself. If one process dies, a banner names it and the others keep running. `./demo up` then exits nonzero when it stops. Run `./demo help` for details.
@@ -213,7 +214,7 @@ Each phone proves its own half with Noir and Barretenberg UltraHonk (BN254). The
 ### On chain (Ethereum Sepolia, 11155111)
 
 - **Safe.** A Safe 1.5.0 with 2-of-4 owners: phone A, phone B and two guardians. The phone owners are P-256 keys, checked through the RIP-7212 P-256 verify precompile at `0x100`. `PopSafeGuard` requires three things on every normal transaction: proof of presence, signatures from both phones, and registered devices. Guardians on their own get only a time-locked recovery path. The live verifier, `PopAttestationVerifier`, checks a P-256 attestation from the server. The server signs it only after a NEAR verdict with two distinct World ID humans. The relayer then submits `execTransaction`.
-- **ENS "Met on ENS".** `MeetResolver` is a wildcard resolver for `*.enconomy.eth` on ENSv2 Sepolia. It serves live meeting counters as text records. The bridge writes each NEAR result to it.
+- **ENS "Met on ENS".** `MeetResolver` is a wildcard resolver for `*.enconomy.eth` on ENSv2 Sepolia. It serves live meeting counters as text records. The ENS example's backend writes each delivered NEAR record to it, in [`examples/ens-meetings`](examples/ens-meetings/README.md).
 - **ZK verifiers.** `PhoneVerifier`, `PairVerifier` and `VerifyLog` are deployed, and they verify a real fixture.
 
 World ID is checked only on the server, never on chain.
@@ -226,22 +227,22 @@ World ID is checked only on the server, never on chain.
 | `app/zkprove/` | Rust native prover (Barretenberg + ACVM), exposed over JNI and a C ABI. |
 | [`server/`](server/README.md) | FastAPI PoP server: enroll, sessions, verdict, World ID gate, ZK verify and delegated proving, Safe attestation. |
 | `server/idkit-sidecar/` | Node sidecar for World ID IDKit, on port 8787. |
-| [`contracts/`](contracts/README.md) | Foundry: `PopSafeGuard`, `P256Owner`, verifiers, `MeetResolver`, ZK verifiers in [`contracts/zk/`](contracts/zk/README.md). |
+| [`contracts/`](contracts/README.md) | Foundry: `PopSafeGuard`, `P256Owner`, verifiers, ZK verifiers in [`contracts/zk/`](contracts/zk/README.md). |
 | `relayer/` | Submits Safe transactions for NEAR Safe-spend sessions (viem). |
-| [`bridge/`](bridge/README.md) | Writes NEAR results to the ENS `MeetResolver` (Python + `cast`). |
-| [`web/`](web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into `web/app/`. |
+| [`examples/ens-meetings/`](examples/ens-meetings/README.md) | ENS example, independent of the core: name claims, [bridge](examples/ens-meetings/bridge/README.md) to `MeetResolver`, [contracts](examples/ens-meetings/contracts/README.md). |
+| [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into its `app/`. |
 | `zkmobile/` | Spikes behind the Noir port: Android and iOS prove runs, hash vectors, toolchain pin. |
 | [`research/sound-bound/`](research/sound-bound/README.md) | Acoustic prototype, field tests, melody bakeoff, ZK spikes. |
 | `research/*.md` | Decision notes and threat model. |
 | [`tools/dsp-fixtures/`](tools/dsp-fixtures/README.md) | Parity fixtures that tie the Kotlin receiver to the Python reference. |
 | `demo` | One-command launcher for the demo stack. |
-| `wrangler.jsonc` | Cloudflare Worker deploy config for `web/`. |
+| `examples/ens-meetings/wrangler.jsonc` | Cloudflare Worker deploy config for that page. |
 
 `app/prover/` is the old circom/Spartan2 prover. The app no longer uses it.
 
 ## Deployments
 
-Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`contracts/DEPLOYMENTS.md`](contracts/DEPLOYMENTS.md) and [`ENS.md`](ENS.md).
+Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`contracts/DEPLOYMENTS.md`](contracts/DEPLOYMENTS.md) and [`examples/ens-meetings/ENS.md`](examples/ens-meetings/ENS.md).
 
 | Contract | Address |
 |---|---|
@@ -249,7 +250,7 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`c
 | PopAttestationVerifier | `0xD9E2F407424a7422E195d034ECc4fC932120d96F` |
 | PopSafeSetup | `0x3d4e549F13CCee540884481b35Fd1CA42A9E0707` |
 | P256OwnerFactory | `0x99565991Ec5414Ee2d3A2fA48Ab4d92efBd2466e` |
-| MeetResolver | `0xfc300a640ccdEFF0e61f7875D55A9Cd22eb51346` |
+| [MeetResolver](examples/ens-meetings/contracts/README.md) | `0xfc300a640ccdEFF0e61f7875D55A9Cd22eb51346` |
 | PhoneVerifier | `0x5b69C5a7D3e5A56D33809b9B95d02984D4aFa791` |
 | PairVerifier | `0xfFA0cf3d79E2a27bC11b9E67eDB979a9b5BE3Fd7` |
 | VerifyLog | `0x53D6DB2580466FeE5F07c4Bb7b4c07C41797B996` |
@@ -264,7 +265,7 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`c
 - **Evidence base.** The field data is 12 JBL250 sessions in one quiet room, with one Mac + Android pair. iPhones and noisy venues have not been tested.
 - **Margin.** Pairs at 30 cm read at most 35 cm, and pairs at 100 cm read at least 95 cm. Handheld runs at 60 cm read 60 to 90 cm.
 - **ZK.** Proofs work only at 48 kHz, so 44.1 kHz sessions skip the proof. The phone downloads about 82 MB of proving files first. The Noir presence adapter for the Safe is built and gas-tested but not deployed.
-- **Server.** The Android attestation chain is not pinned to Google's root. The server must run as a single uvicorn worker.
+- **Server.** The Android attestation chain is pinned to Google's roots, but revocation and the app's identity are not checked, so any app on a real phone can attest. The server must run as a single uvicorn worker.
 - **Docs.** The "Option A proofs" section of `server/README.md` still describes the retired circom/Spartan2 prover.
 
 ## Further reading

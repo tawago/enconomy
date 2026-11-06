@@ -35,6 +35,7 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_ALLOW_UNATTESTED` | off | `1` accepts `chain: null` (Android) or `app_attest: null` (iOS) at enroll and stores the device as `attested: false`. Use it for emulators, the iOS simulator, a free Apple personal team and fake phones. |
 | `POP_IOS_APP_ID` | unset | App Attest appId, `TEAMID.<BUNDLE_ID>` (e.g. `ABCDE12345.com.enconomy.pop`; must match the iOS build's `TEAM_ID` and `BUNDLE_ID`). Unset = every iOS attestation is refused. |
 | `POP_IOS_ROOT_PEM` | Apple root | Path to a PEM that replaces the embedded Apple App Attestation Root CA (tests pass their own root through `Settings`). |
+| `POP_ANDROID_ROOT_PEM` | Google roots | Path to a PEM whose certs' public keys replace the pinned Google attestation roots (tests pass their own pins through `Settings`). |
 | `POP_GAIN_DB` | `0` | Play gain, reported in `/v1/config`. |
 | `POP_UPLOAD_RECORDINGS` | `1` | Reported in `/v1/config`. |
 | `POP_ISSUER_KEY` | unset | SBcred3 issuer private key, P-256: PEM, or 64 hex (the scalar). Wins over the file. |
@@ -58,10 +59,11 @@ cloudflared tunnel --config ~/.cloudflared/enconomy-pop.yml run enconomy-pop   #
 | `POP_TEST_KINDS` | `0` | Enables `context.kind == "test"`. |
 | `POP_CHAIN_ID` | `11155111` | The only accepted `context.chain_id` (Ethereum Sepolia). |
 | `POP_ATTEST_KEY_FILE` | `data/attest.pem` | Chain attester, P-256 PEM (not the issuer key). Loaded if present, else created 0600. A Safe pins its qx/qy (`/v1/config` `attest`): back it up, never regenerate. |
+| `POP_PRESENCE_KEY_FILE` | `data/presence.pem` | Signs device statements and presence records, P-256 PEM. Loaded if present, else created 0600. The server refuses to start if it is the issuer or attest key. Outside parties pin the public key (`/v1/config` `presence`): back it up, never regenerate. |
 | `POP_ATT_TTL_S` | `900` | Attestation `expiry = finished_s + TTL`. |
 | `POP_UNATTESTED_ALLOW` | empty | Comma list of device_ids that may be unattested and still get a chain attestation (the free-team iPhone). |
 | `POP_ALLOW_WEB` | `0` | `1` accepts `platform: "web"` at enroll (the browser build, `app/README.md` "Web"): software P-256 key, `key_kind` / `security_level` `software`, `attested: false`, no chain / app_attest. `POP_ALLOW_UNATTESTED=1` also lets web in. Web devices get no chain attestation unless listed in `POP_UNATTESTED_ALLOW` or `POP_ATTEST_ALLOW_WEB=1`. |
-| `POP_ATTEST_ALLOW_WEB` | `0` | Demo only: `1` lets `platform: "web"` devices through the chain attestation check (ENS / World ID flows with a browser on one side). Software keys, so this attests nothing about the device. |
+| `POP_ATTEST_ALLOW_WEB` | `0` | Demo only: `1` lets `platform: "web"` devices through the chain attestation check (World ID flows with a browser on one side). Software keys, so this attests nothing about the device. |
 | `POP_WEB_DIR` | unset | Directory with the web build (`app/scripts/build_web.sh` fills `server/web-app/`, gitignored), served at `/app/` after every API route (`.wasm` as `application/wasm`). Relative paths are from `server/`. Refused (exit 2) if it is missing or inside `server/data`. Same origin as the API, so no CORS. |
 | `POP_CORS_ORIGINS` | empty | Comma list of origins allowed to call the API from a browser (e.g. `http://localhost:8080` for `wasmJsBrowserDevelopmentRun`, `https://ens.enconomy.dev` for the Workers-hosted app). Methods GET/POST/OPTIONS; headers `X-Pop-Device`, `X-Pop-Ts`, `X-Pop-Sig`, `Content-Type`, `Range`; exposes `Content-Range`, `Accept-Ranges`. Off by default. |
 
@@ -114,7 +116,7 @@ cd server && POP_DATA_DIR=/tmp/pop-live POP_DB=/tmp/pop-live/pop.sqlite POP_ISSU
 
 In fake mode the RP key file is generated if missing, and the log says `*** FAKE WORLD ID: TEST IDENTITIES, NO REAL HUMANS ***`.
 
-Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call, ENS fixed actions.
+Not built (cut, 01 §0.5): the laptop IDKit page routes (`/human/context`, `POST /human`), staging eth_call.
 
 ## SAFE: safe-tx consumer + chain attestation
 
@@ -132,7 +134,7 @@ uv run pytest -q
 | File | Covers |
 |---|---|
 | `test_public.py` | `/health`, `/v1/time`, `/v1/config`, error shape |
-| `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
+| `test_enroll.py` | synthetic attestation chain (root, intermediate, leaf with KeyDescription): good, wrong challenge, wrong leaf key, broken link, missing extension, leaf-only chain, garbage; unknown root, Google pins refusing the test chain, forged child under a real leaf, non-CA intermediate, software level, old rows no longer attested; reused/expired/unknown nonce; unattested accepted only with the flag; re-enroll; display_name bounds |
 | `test_enroll_ios.py` | embedded Apple root self-verifies; App Attest with a self-made root/intermediate (real Apple vectors need a paid team): good (dev and prod aaguid), wrong nonce, other pubkey, tampered credCert nonce, wrong appId, bad aaguid, counter != 0, fmt, credentialId, keyId, foreign intermediate, missing extension, garbage, fake chain vs the real Apple root, no `POP_IOS_APP_ID`; unattested SE key only with the flag; `platform` default and unknown; old sqlite migrates |
 | `test_auth.py` | good, missing headers, unknown device, stale (±61 s), replay, wrong key, tampered body, query covered by the signature |
 | `test_sbcred3.py` | SBcred3 bytes and signature vs every `fixtures/popt_v2` credential (read-only); enrolling a fixture key with the spike's dev issuer reproduces its 111 bytes; issue + store; v1 enroll without `holder_commit`; bad `holder_commit` (>= p, length, hex); expired and foreign-issuer credentials; key from env hex/PEM, autogen file; `popzk.verify_phone` (read-only import) accepts our issuer when pinned, `issuer_unknown` otherwise, `validAt` mismatch for an expired credential. `POP_ZK_CHECK=1` also runs the real `oa2t_s48` circuit (`oa2zk check` under `tools/heavy.sh`, ~15 s) on a spike witness with a credential this server issued: accepted, and refused when expired or under the dev issuer. |
@@ -146,6 +148,7 @@ uv run pytest -q
 | `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
 | `test_flow_fake_phones.py` | two fake phones (`tests/sim.py`, software keys, `dsp_ref` as DSP) over HTTP: NEAR at 0/30 cm, NOT_NEAR `too_far` at 100/200 cm with no retry, glitch (20 ms zero block) -> retry -> NEAR, two failures -> final, timeout -> retry, stale transcript/fail after a retry, swapped role (sign flip), relayed partner transcript, tampered bytes, every field check, replay from another session, transcript before commit, impossible flight and self-timestamp retries, `/fail` checks, result access, offline `verify_record` on swapped records, recording upload hash check, and a real field recording as room background (skipped without the wavs) |
 | `test_worldid.py` | rp_context vectors (§6.3), nonce is a field element, pairTag vectors; fake-mode happy path (sidecar request body, reuse < 240 s, `human_missing` arm gate, statuses, pair_tag, `already_verified`); sim2 fake phones with a context + World ID -> NEAR, record has humans + pair_tag; `same_human` then retry with another human; same proof again = idempotent, A's nullifier for B = `same_human`; proof replayed into another session; bad signal / action / nonce / two responses / schema 128 / `orb` -> `human_invalid` / `human_level`; `user_rejected`; expiry (240 s re-sign, 300 s `human_expired`, restart); `not_joined`, no-policy and aborted sessions refused, non-member 403; sidecar down 503; no key 503; fake needs `POP_TEST_KINDS`; Portal path: signal overwrite, 503×2 then ok, 400 releases the nullifier, wrong environment, staging result; concurrent verifies + confirm |
+| `test_presence.py` | presence key, canonical bytes, device statement; presence record from real flows: verify, tamper, stable across GET, members only, evidence, late ZK signing, re-enroll, failed and aborted sessions, the test vector |
 | `test_pairing.py` | create + invite decode + host key hint; join; 404 / self_join / bad_token / token_expired / already_joined / not_member; confirm (nonce appears only after both confirm); long-poll wake-up and timeout; abort; 10-min expiry; seed never in a response |
 
 Tests use a fake clock and `SqliteStore(":memory:")`. The fake phones in `tests/phones.py` hold software P-256 keys and sign exactly like the app will.
@@ -161,17 +164,73 @@ Goldens: `research/proximity-echo/.venv/bin/python3 server/tests/golden/make_gol
 Verified at `POST /v1/enroll`:
 - The nonce exists, is unused and unexpired. It is consumed on first use, even if the enroll fails.
 - The chain has at least 2 certs, and each cert is signed by the next.
+- The last cert's public key is a pinned Google attestation root (sha256 of SubjectPublicKeyInfo, see `pop/attestation.py`).
+- Every cert above the leaf has BasicConstraints `ca=true` and no KeyDescription. The leaf key is app-controlled, so otherwise a real phone could sign a forged child under its own leaf.
 - The leaf public key equals `pubkey`.
-- The leaf carries the KeyDescription extension (`1.3.6.1.4.1.11129.2.1.17`), and its `attestationChallenge` equals the nonce.
+- The leaf carries the KeyDescription extension (`1.3.6.1.4.1.11129.2.1.17`), `attestationSecurityLevel` is `tee` or `strongbox`, and `attestationChallenge` equals the nonce.
 - `device_id == sha256(pubkey)[:16]`.
 
 `security_level` is taken from `attestationSecurityLevel`. The level the app reports is stored separately, and a mismatch is only logged.
 
-NOT verified: the root pinned to Google's roots (its sha256 is stored as `root_sha256` for later), revocation / RKP, `attestationApplicationId` (package + signing digest), verified-boot state, a minimum security level, and cert validity dates. So a self-made chain passes today. It proves only possession of the key and freshness of the nonce.
+A chain that fails any of these is a 400, also with `POP_ALLOW_UNATTESTED=1`, which only opens the `chain: null` path. So an emulator or non-Google device that sends its own chain is refused, and has to send none. Rows from before the pin may still say `attested=1`. `attestation.device_attested(row, roots)` rechecks a stored chain under the pins, except the challenge, whose nonce isn't kept.
+
+NOT verified: revocation / RKP, `attestationApplicationId` (package + signing digest), so any app on a real phone can attest, verified-boot state, and cert validity dates (Google's first root cert expired 2026-05-24, but its key is still a live anchor). No real phone chain has run against the pins yet: there is no recorded chain in `tests/fixtures`.
 
 ### iOS (contract §2.2.1)
 
 `platform: "ios"` takes `app_attest: {key_id, attestation}` instead of `chain`. The App Attest key is not the Secure Enclave signing key; the signing key is bound by `clientDataHash = sha256(nonce || sha256(pubkey65))`, which the app passes to `attestKey`. Verified: `fmt`, x5c chain to the pinned Apple App Attestation Root CA, the credCert nonce extension (`1.2.840.113635.100.8.2`) == `sha256(authData || clientDataHash)`, `sha256(credCert key) == keyId == credentialId`, `rpIdHash == sha256(POP_IOS_APP_ID)`, `signCount == 0`, aaguid `appattestdevelop` / `appattest`. NOT verified: cert validity dates, the receipt, revocation. `key_kind` (`secure_enclave` / `software`) is only reported and becomes `security_level`. Without App Attest (free team, simulator) the app sends `app_attest: null`, which needs `POP_ALLOW_UNATTESTED=1`.
+
+## Device statement (`pop/presence.py`)
+
+The core's signed word about one device, for a service with no device table of its own. `POST /v1/enroll` returns it as `device_statement`; `GET /v1/device/statement` (signed request) returns a fresh one. Shape: `{"body": {...}, "sig_b64": "..."}`.
+
+Body: `format` (`pop-device-statement-v1`), `device_id`, `pubkey` (hex65), `attested`, `platform`, `trust_tier`, `issued_at_ms`.
+
+`attested` is rechecked against the pinned roots on every statement, so an old row from before the Android pin says false. `trust_tier`:
+
+| Device | `trust_tier` |
+|---|---|
+| Android, attested | its attested level, `strongbox` or `tee` |
+| iOS, attested | `app_attest` (App Attest binds the key; the key kind is only reported) |
+| Web | `software` |
+| Anything else unattested | `unattested`, whatever level it reported |
+
+To verify: take the P-256 key from `/v1/config` `presence.pubkey` once and pin it, don't fetch it at runtime. Check SHA256withECDSA, raw `r||s` base64, over `b"pop-device-statement-v1\n" + canonical(body)`. Then check `device_id == sha256(pubkey)[:16]` as hex and that `issued_at_ms` is fresh enough for you.
+
+`canonical(body)` is `json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)` as ASCII bytes. Values are strings, ints, bools, null, lists and objects only; a float raises. Keys sort by code point. Tags differ per format, so a statement can't pass as a presence record.
+
+The signature means this core saw that key and its attestation evidence. It doesn't say who holds the phone; see "Attestation" above for what the evidence doesn't cover.
+
+## Presence record (`pop/presence.py`)
+
+The core's signed word that two devices did, or didn't, end up near each other in one session. It is `presence` in the result, `{"body": {...}, "sig_b64": "..."}`, delivered by the member-only `GET /v1/session/{sid}/result` (the view's `result` carries the same). Whoever needs it, a phone hands over; the core pushes nothing.
+
+Body:
+
+| Field | Value |
+|---|---|
+| `format` | `pop-presence-v1` |
+| `session_nonce`, `session_id`, `attempt`, `t0_ms` | hex, hex, int, int or null (the final attempt) |
+| `context`, `not_before` | the session's context or null, unix seconds |
+| `verdict`, `reason` | `NEAR` / `NOT_NEAR`, null or the reason |
+| `flight_cm` | string with two decimals like `"30.37"`, or null. Never a float |
+| `finished_at` | ISO 8601 UTC |
+| `transcripts` | per role `{transcript_b64, sig_b64, sha256}`; `sig_b64` is the device's signature over the transcript bytes |
+| `devices` | per role `{device_id, pubkey, attested, platform, security_level, trust_tier, key_kind, chain_pem, root_sha256, attest_key_id}` |
+| `zk` | same as the result's `zk` block (no salts) |
+
+No World ID data, no pair tag, no display name, no policy: those aren't this record's business.
+
+To verify: pin `/v1/config` `presence.pubkey` once, don't fetch it at runtime. Check SHA256withECDSA, raw `r||s` base64, over `b"pop-presence-v1\n" + canonical(body)`, with `canonical` as under "Device statement". Then, if you don't want to take the core's word, redo the rest yourself: `sha256(pubkey)[:16] == device_id`, the transcript's `sha256`, each device's signature over its transcript, and the certificate chain. `tests/fixtures/presence_vector.json` has a throwaway key, a NEAR record from a real flow, the statement format and both canonical byte strings (`uv run python -m tests.make_presence_vector` rebuilds it). Signatures are randomized, so verify them rather than compare them.
+
+What the signature means: this core ran the session, checked both transcripts and reached this verdict, and it held this evidence for these devices at the end of the session. It doesn't say who held the phones. `security_level` is self-reported unless `attested`; read `trust_tier` (table under "Device statement"). `attested` is rechecked against the pinned roots when the record is made. `chain_pem` and `root_sha256` are null for an unattested or web device. On iOS they are the App Attest certificates and `attest_key_id` is the App Attest key id; on Android `attest_key_id` is null.
+
+Rules:
+
+- A record exists for every result. So verdicts, rejected transcripts and final failures all get one with whatever they have: `transcripts` holds only the transcripts accepted, and `flight_cm` and `t0_ms` can be null. A rejected transcript is never in it.
+- An aborted session, expired ones included, has no result and no record (`/result` 404 `no_result`). A result from before this feature stays without one.
+- The body is fixed when the session finishes. Devices are as they were then, so a later re-enroll changes nothing. Only `zk` changes as proofs come in, and each change gets a new signature; all other fields stay byte-identical. So the same session can have several valid records: take the one with the most advanced `zk`. Between changes, repeated GETs return the same bytes.
+- `chain_pem` lets a session partner see your attestation chain, as they could already see your key.
 
 ## Notes and choices the contract leaves open
 

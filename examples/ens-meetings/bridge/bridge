@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Runs from the example root, so relative ENS_DB and .env mean the same as for the backend.
+cd "$(dirname "$0")/.." || exit 1
+if [ -f .env ]; then
+  exec uv run --env-file .env python -m bridge.bridge "$@"
+fi
+exec uv run python -m bridge.bridge "$@"

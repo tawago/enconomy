@@ -7,6 +7,7 @@ Run: uv run python -m pop            (0.0.0.0:8000)
 Env: POP_DB (default data/pop.sqlite), POP_DATA_DIR (default data/; result.json + recordings under
 sessions/<id>/), POP_ALLOW_UNATTESTED=1, POP_GAIN_DB (0), POP_TUNE_DB (0, tune-only boost, bed level fixed), POP_UPLOAD_RECORDINGS (1),
 POP_IOS_APP_ID (TEAMID.com.enconomy.pop, App Attest), POP_IOS_ROOT_PEM (path, overrides the Apple root),
+POP_ANDROID_ROOT_PEM (path, its certs replace the pinned Google attestation roots),
 POP_ISSUER_KEY (PEM or hex) / POP_ISSUER_KEY_FILE (default data/issuer.pem), POP_ISSUER_AUTOGEN (1), POP_CRED_TTL_S,
 POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkprove host build, default
 ~/.enconomy/zk/android/target/release/zkprove; delegated proving), POP_ZK_DIR (served / used circuit artifacts
@@ -15,6 +16,7 @@ POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md i
 Chain (worldid 01 §4, 02 §7): POP_CHAIN_ID (11155111, Ethereum Sepolia), POP_ATTEST_KEY_FILE (data/attest.pem, chain
 attester, autogen if missing), POP_ATT_TTL_S (900), POP_UNATTESTED_ALLOW (comma list of device_ids),
 POP_RELAYER_OUT (relayer/out, read by GET /v1/session/{sid}/relay).
+POP_PRESENCE_KEY_FILE (data/presence.pem, signs device statements and presence records, autogen if missing).
 Web app (app/composeApp wasmJs): POP_ALLOW_WEB=1 (enroll platform "web", software key, unattested), POP_WEB_DIR
 (serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin), POP_ATTEST_ALLOW_WEB (demo: web devices
 may get chain attestations).
@@ -48,11 +50,11 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from pop import calibration as CAL
 from pop import constants as K
 from pop.appattest import APPLE_ROOT_PEM, verify_app_attest
-from pop.attestation import AttestationError, verify_chain
+from pop.attestation import GOOGLE_ANDROID_ROOTS, AttestationError, roots_from_pem, verify_chain
 from pop.auth import Authenticator
-from pop.crypto import device_id as derive_device_id, load_pub, verify_raw
+from pop.crypto import device_id as derive_device_id, load_pub, pub_bytes, verify_raw
 from pop import issuer as sbcred
-from pop import attest, chainatt, consumers, ens, jbl250, popt2, zk
+from pop import attest, chainatt, consumers, jbl250, popt2, presence, zk
 from pop.consumers import safe_tx
 from pop.errors import PopError
 from pop.human import WorldID
@@ -98,6 +100,7 @@ class Settings:
     data_dir: str | None = field(default_factory=lambda: os.environ.get("POP_DATA_DIR", str(SERVER_DIR / "data")))
     ios_app_id: str | None = field(default_factory=lambda: os.environ.get("POP_IOS_APP_ID") or None)
     ios_root_pem: bytes = field(default_factory=lambda: _read_root(os.environ.get("POP_IOS_ROOT_PEM")))
+    android_roots: frozenset = field(default_factory=lambda: _android_roots(os.environ.get("POP_ANDROID_ROOT_PEM")))
     issuer_key: str | None = field(default_factory=lambda: os.environ.get("POP_ISSUER_KEY") or None)
     issuer_key_file: str = field(default_factory=lambda: os.environ.get(
         "POP_ISSUER_KEY_FILE", str(SERVER_DIR / "data" / "issuer.pem")))
@@ -110,6 +113,8 @@ class Settings:
     chain_id: int = field(default_factory=lambda: int(os.environ.get("POP_CHAIN_ID", "11155111")))
     attest_key_file: str = field(default_factory=lambda: os.environ.get(
         "POP_ATTEST_KEY_FILE", str(SERVER_DIR / "data" / "attest.pem")))
+    presence_key_file: str = field(default_factory=lambda: os.environ.get(
+        "POP_PRESENCE_KEY_FILE", str(SERVER_DIR / "data" / "presence.pem")))
     att_ttl_s: int = field(default_factory=lambda: int(os.environ.get("POP_ATT_TTL_S", "900")))
     unattested_allow: frozenset = field(default_factory=lambda: frozenset(
         x.strip().lower() for x in os.environ.get("POP_UNATTESTED_ALLOW", "").split(",") if x.strip()))
@@ -137,6 +142,10 @@ class Settings:
 
 def _read_root(path: str | None) -> bytes:
     return Path(path).read_bytes() if path else APPLE_ROOT_PEM
+
+
+def _android_roots(path: str | None) -> frozenset:
+    return roots_from_pem(Path(path).read_bytes()) if path else GOOGLE_ANDROID_ROOTS
 
 
 def _hex(s: str, nbytes: int) -> bytes | None:
@@ -185,6 +194,10 @@ def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, dict]:
         raise PopError(400, "context_mismatch", str(e)[:200]) from None
     if want != bytes.fromhex(ctx["ctx_hash"][2:]):
         raise PopError(400, "context_mismatch", "ctx_hash does not match the kind fields")
+    try:
+        presence.canonical(ctx)   # it lands in the signed record
+    except ValueError as e:
+        raise PopError(400, "bad_request", f"context: {e}") from None
     if not cfg.worldid_rp_id and not cfg.worldid_fake:
         raise PopError(503, "worldid_unavailable", "POP_WORLDID_RP_ID is not set")
     return ctx, {"human": "worldid"}
@@ -281,8 +294,12 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
         pair_verifier = pair_verifier or zk.Verifier(cfg.zk_verifier, pair_art, cfg.zk_wrap, pins=zk.PAIR_PINS)
     prove_tasks: set = set()
     wid = WorldID(cfg, sessions, db, worldid_transport)
-    names = ens.Names(db)
     att_key = attest.load_key(cfg.attest_key_file)
+    presence_key = presence.load_key(cfg.presence_key_file)
+    if presence.public(presence_key)["pubkey"] in (issuer.pub.hex(), pub_bytes(att_key.public_key()).hex()):
+        raise RuntimeError("POP_PRESENCE_KEY_FILE must not be the issuer or chain attest key")
+    sessions.presence_signer = lambda body: presence.sign(presence_key, presence.TAG_RECORD, body)
+    sessions.android_roots = cfg.android_roots
 
     web_dir = _web_dir(cfg.web_dir)
 
@@ -347,6 +364,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                        "keys": "/v1/zk/keys", "verifier": {c: zkv.available(c) for c in zk.CIRCUIT_SR},
                        "delegate": {c: zkp.available(c) for c in zk.CIRCUIT_SR}, "n_public": zk.N_PUBLIC},
                 "worldid": wid.config(), "chain": {"chain_id": cfg.chain_id}, "attest": attest.public(att_key),
+                "presence": presence.public(presence_key),
                 "safe": {"owner_msg_tag": safe_tx.OWNER_MSG_TAG.decode(),
                          "tokens": {a: {"symbol": t[0], "decimals": t[1]}
                                     for a, t in safe_tx.TOKENS.get(cfg.chain_id, {}).items()}}}
@@ -430,7 +448,7 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                 attested = False
             else:
                 try:
-                    att = verify_chain(req.chain, pub, nonce)
+                    att = verify_chain(req.chain, pub, nonce, cfg.android_roots)
                 except AttestationError as e:
                     raise PopError(400, e.code, e.detail) from None
                 attested = True
@@ -451,7 +469,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                  att["security_level"])
         out = {"device_id": dev_id, "attested": attested, "security_level": att["security_level"],
                "platform": req.platform, "key_kind": key_kind, "enrolled_at": _iso(now),
-               "calibration": CAL.public(db.get_device(dev_id))}
+               "calibration": CAL.public(db.get_device(dev_id)),
+               "device_statement": presence.device_statement(presence_key, db.get_device(dev_id), cfg.android_roots, now)}
         if cred:
             out["credential"] = {"format": "SBcred3", "cred_b64": base64.b64encode(cred["cred"]).decode(),
                                  "sig_b64": base64.b64encode(cred["sig"]).decode(), "expiry": cred["expiry"],
@@ -489,20 +508,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
                  cal["sample_rate"], cal["route"], cal["backend"])
         return {"device_id": dev["device_id"], "calibration": CAL.public(db.get_device(dev["device_id"]))}
 
-    # -- ENS name: one per device, no renames (pop/ens.py); the bridge registers it onchain
-    @app.get("/v1/device/ens")
-    async def ens_get(dev: dict = Depends(device)):
-        return ens.view(names.get(dev["device_id"]))
-
-    @app.post("/v1/device/ens")
-    async def ens_claim(request: Request, dev: dict = Depends(device)):
-        try:
-            body = json.loads(await request.body() or b"{}")
-        except ValueError:
-            raise PopError(400, "bad_request", "json body with a label") from None
-        row = names.claim(dev, body.get("label") if isinstance(body, dict) else None, _iso(cfg.now_ms()))
-        log.info("ens claim %s -> %s", dev["device_id"], row["label"])
-        return ens.view(row)
+    # -- core-signed statement about the signed-in device (pop/presence.py)
+    @app.get("/v1/device/statement")
+    async def device_statement(dev: dict = Depends(device)):
+        return presence.device_statement(presence_key, dev, cfg.android_roots, cfg.now_ms())
 
     # -- pairing (§3)
     @app.post("/v1/session")
@@ -604,7 +613,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
             salt = zk.parse_salt(meta.get("salt"))
         except ValueError as e:
             raise PopError(400, "bad_request", str(e)) from None
-        return salt, meta.get("attempt", s["attempt"]), meta.get("circuit")
+        circuit = meta.get("circuit")
+        if circuit is not None and not isinstance(circuit, str):   # it lands in the signed record's zk block
+            raise PopError(400, "bad_request", "circuit must be a string")
+        return salt, meta.get("attempt", s["attempt"]), circuit
 
     def _verified(sid: str, role: str, entry: dict, proof: bytes, want: list[int], salt: int) -> dict:
         s = sessions.zk_record(sid, role, {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(),

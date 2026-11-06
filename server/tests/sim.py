@@ -158,10 +158,10 @@ class World:
     def phones(self):
         return self.a, self.b
 
-    def pair(self):
+    def pair(self, attested: bool = False):
         a, b = self.phones
         for p in self.phones:
-            assert p.enroll(attested=False).status_code == 200
+            assert p.enroll(attested=attested).status_code == 200
         c = a.post("/v1/session").json()
         sid = c["session_id"]
         assert b.post(f"/v1/session/{sid}/join", {"join_token": c["join_token"]}).status_code == 200

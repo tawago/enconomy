@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build and export ABIs to contracts/out-abi/ (consumed by web/ and server/).
+# Build and export the MeetResolver ABI to out-abi/.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 forge build --silent
