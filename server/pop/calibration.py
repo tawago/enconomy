@@ -1,7 +1,7 @@
 """Enrollment calibration: a per-device self_os offset (cal_us), circuit-agnostic.
 
 The app runs its audio check CAL_N times (same self_os_delta math as a run), takes the median in µs and
-rejects when max - min > CAL_SPREAD_MAX_US or the median is outside 0..CAL_MAX_US; a median in
+rejects when max - min > CAL_SPREAD_MAX_US or the median is outside 0..max_us(platform); a median in
 [-CAL_NEG_CLAMP_US, 0) is clamped to 0. from_samples() is that rule; the app's Calibration.fromSamples
 must agree (tests on both sides pin the same vectors).
 
@@ -30,7 +30,12 @@ def _int(x) -> bool:
     return isinstance(x, int) and not isinstance(x, bool)
 
 
-def from_samples(samples_us: list[int]) -> int:
+def max_us(platform: str | None) -> int:
+    """Upper limit for cal_us: CAL_MAX_US_WEB for platform web, CAL_MAX_US for everything else."""
+    return K.CAL_MAX_US_WEB if platform == "web" else K.CAL_MAX_US
+
+
+def from_samples(samples_us: list[int], limit_us: int = K.CAL_MAX_US) -> int:
     """CAL_N offsets (µs) -> cal_us, or CalError."""
     if not isinstance(samples_us, list) or len(samples_us) != K.CAL_N or not all(_int(v) for v in samples_us):
         raise CalError(f"need {K.CAL_N} integer samples_us")
@@ -38,18 +43,18 @@ def from_samples(samples_us: list[int]) -> int:
     if s[-1] - s[0] > K.CAL_SPREAD_MAX_US:
         raise CalError(f"spread {s[-1] - s[0]} us > {K.CAL_SPREAD_MAX_US}")
     med = s[len(s) // 2]
-    if med < -K.CAL_NEG_CLAMP_US or med > K.CAL_MAX_US:
-        raise CalError(f"median {med} us outside -{K.CAL_NEG_CLAMP_US}..{K.CAL_MAX_US}")
+    if med < -K.CAL_NEG_CLAMP_US or med > limit_us:
+        raise CalError(f"median {med} us outside -{K.CAL_NEG_CLAMP_US}..{limit_us}")
     return max(0, med)
 
 
-def parse(cal) -> dict:
+def parse(cal, limit_us: int = K.CAL_MAX_US) -> dict:
     """Request object -> stored dict {cal_us, sample_rate, route, backend, samples_us?}. CalError on anything off."""
     if not isinstance(cal, dict):
         raise CalError("calibration must be an object")
     cal_us, sr = cal.get("cal_us"), cal.get("sample_rate")
-    if not _int(cal_us) or not 0 <= cal_us <= K.CAL_MAX_US:
-        raise CalError(f"cal_us must be 0..{K.CAL_MAX_US}")
+    if not _int(cal_us) or not 0 <= cal_us <= limit_us:
+        raise CalError(f"cal_us must be 0..{limit_us}")
     if not _int(sr) or not K.SR_MIN <= sr <= K.SR_MAX:
         raise CalError(f"sample_rate must be {K.SR_MIN}..{K.SR_MAX}")
     out = {"cal_us": cal_us, "sample_rate": sr}
@@ -59,7 +64,7 @@ def parse(cal) -> dict:
             raise CalError(f"{f} must be a string up to {ROUTE_MAX} chars, no newline")
         out[f] = v
     if cal.get("samples_us") is not None:
-        if from_samples(cal["samples_us"]) != cal_us:
+        if from_samples(cal["samples_us"], limit_us) != cal_us:
             raise CalError("cal_us is not the rule applied to samples_us")
         out["samples_us"] = list(cal["samples_us"])
     return out

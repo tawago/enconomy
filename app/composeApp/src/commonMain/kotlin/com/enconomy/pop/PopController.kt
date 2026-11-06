@@ -809,13 +809,20 @@ class PopController(
     /**
      * Enrollment calibration: CAL_N audio checks on the speaker, each self offset (same self_os_delta math as a
      * run) in µs, median by [Calibration.fromSamples]. Throws [CalibrationException] when a check misses its own
-     * sound or the rule rejects.
+     * sound or the rule rejects. Web: one extra check first, thrown away (a browser's first check can read 30 ms
+     * high, which fails the spread rule), and the web limit CAL_MAX_US_WEB.
      */
     private suspend fun measureCalibration(): CalibrationReq {
+        val web = keystore.platform == "web"
         val us = mutableListOf<Long>()
         var sr = 0
         var route = ""
         try {
+            if (web) {
+                _state.update { it.copy(status = "calibrating: warm-up") }
+                val warm = checkWithRetry()
+                println("POPCAL warm-up discarded: frames=${warm.offset?.frames} sr=${warm.offset?.sr}")
+            }
             for (i in 1..PopConstants.CAL_N) {
                 _state.update { it.copy(status = "calibrating $i/${PopConstants.CAL_N}") }
                 val r = checkWithRetry()
@@ -830,7 +837,7 @@ class PopController(
             runCatching { engine.release() }
             engine.setForceSpeaker(true)
         }
-        val cal = Calibration.fromSamples(us)
+        val cal = Calibration.fromSamples(us, if (web) PopConstants.CAL_MAX_US_WEB else PopConstants.CAL_MAX_US)
         println("POPCAL cal_us=$cal samples=$us sr=$sr route=$route backend=${backendName()}")
         return CalibrationReq(cal, sr, route.take(64), backendName(), us.toList())
     }

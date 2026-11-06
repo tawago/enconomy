@@ -9,7 +9,7 @@ import kotlin.math.roundToLong
 /**
  * Enrollment calibration (server pop/calibration.py): the audio check runs [PopConstants.CAL_N] times, each
  * self offset (same self_os_delta math as a v2 run, [SelfOffset]) in µs; the median is the device's cal_us.
- * Rejected when max − min > CAL_SPREAD_MAX_US or the median is outside −CAL_NEG_CLAMP_US..CAL_MAX_US;
+ * Rejected when max − min > CAL_SPREAD_MAX_US or the median is outside −CAL_NEG_CLAMP_US..maxUs (CAL_MAX_US, on web CAL_MAX_US_WEB);
  * a median in [−CAL_NEG_CLAMP_US, 0) becomes 0. The run's self check is then
  * |self_os_delta − cal_frames| ≤ SELF_OS_TOL_MS, exact as the server: |d·1e6 − cal_us·sr| ≤ tol·1000·sr.
  * Circuit inputs and SBcred3 do not change.
@@ -40,14 +40,14 @@ class CalibrationException(msg: String) : Exception(msg)
 
 object Calibration {
     /** CAL_N offsets in µs -> cal_us; throws [CalibrationException] on spread / range. */
-    fun fromSamples(samplesUs: List<Long>): Long {
+    fun fromSamples(samplesUs: List<Long>, maxUs: Long = PopConstants.CAL_MAX_US): Long {
         if (samplesUs.size != PopConstants.CAL_N) throw CalibrationException("need ${PopConstants.CAL_N} samples, got ${samplesUs.size}")
         val s = samplesUs.sorted()
         val spread = s.last() - s.first()
         if (spread > PopConstants.CAL_SPREAD_MAX_US) throw CalibrationException("spread $spread µs > ${PopConstants.CAL_SPREAD_MAX_US}")
         val med = s[s.size / 2]
-        if (med < -PopConstants.CAL_NEG_CLAMP_US || med > PopConstants.CAL_MAX_US) {
-            throw CalibrationException("median $med µs outside -${PopConstants.CAL_NEG_CLAMP_US}..${PopConstants.CAL_MAX_US}")
+        if (med < -PopConstants.CAL_NEG_CLAMP_US || med > maxUs) {
+            throw CalibrationException("median $med µs outside -${PopConstants.CAL_NEG_CLAMP_US}..$maxUs")
         }
         return maxOf(0L, med)
     }
