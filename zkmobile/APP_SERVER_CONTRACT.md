@@ -86,7 +86,14 @@ code_attest = {"code_commit": hex, "msg_hex", "sig_hex", "issuer_pubkey": "04…
 ```
 Per verified proof, `zk.<role>.code_attest` signs exactly that proof's public input #5. A verifier checks: sig over msg under the issuer key in public #6..9; msg nonce = public #1 || #2 (16 B each), attempt = #3, role = #4 (0 → 'A', 1 → 'B'), code_commit = #5.
 
-## Onchain bridge (laptop, reads the server's files)
+## Onchain bridge (now in examples/ens-meetings)
+
+The bridge moved to `examples/ens-meetings/bridge` and reads none of the server's files. What it uses:
+
+- `zk` inside the signed presence record (`GET /v1/session/{id}/result` → `presence.body.zk`, handed over by a phone). It trusts `status`, `proof_sha256` and `public_inputs` from there.
+- The public `GET /v1/session/{id}/zk/bundle` for the proof bytes, each checked against `proof_sha256`. See "Presence bundle" below.
+
+The on-disk layout is the server's own business, outsiders shouldn't read it:
 
 - `result.json` at `$POP_DATA_DIR/sessions/<session_id>/result.json` (default `POP_DATA_DIR` = `server/data`).
 - Per verified role: `zk.<role>.files.proof` and `.public_inputs` are paths **relative to `POP_DATA_DIR`**:
@@ -115,7 +122,7 @@ Circuit `noir/pair` (`~/.enconomy/zk/optA/noir/pair`): opens both halfCommits wi
 
 ## Presence bundle (relayer / Safe guard)
 
-`GET /v1/session/{id}/zk/bundle`, signed like every session read (a member device; there is no unauthenticated session read). `404 {"error": "not_ready", "detail": "pair proof <status>"}` until `zk.pair.status == "verified"`. Then:
+`GET /v1/session/{id}/zk/bundle`, no auth: everything in it goes on chain anyway. `404 {"error": "not_ready", "detail": "pair proof <status>"}` until `zk.pair.status == "verified"`. Then:
 ```
 {"format": "pop-zk-bundle-1",
  "session_id": "<32 hex>", "sid": "0x<32 hex>",            # bytes16 sid of PopCtx

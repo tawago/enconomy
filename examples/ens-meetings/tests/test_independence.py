@@ -35,3 +35,11 @@ def test_nothing_reads_core_data():
     hits = [str(p.relative_to(ROOT)) for p in python_files()
             if p.name != "import_names.py" and p.parent.name != "tests" and gone.search(p.read_text())]
     assert not hits, hits
+
+
+def test_env_example_has_no_keys():
+    env = dict(line.split("=", 1) for line in (ROOT / ".env.example").read_text().splitlines()
+               if line and not line.startswith("#"))
+    assert env["ENS_CORE_PRESENCE_PUBKEY"] == ""
+    assert env["ENS_KEY_FILE"].startswith("~/")     # a path outside this folder, never the key
+    assert not any(re.search(r"(0x)?[0-9a-fA-F]{40,}", v) for v in env.values())

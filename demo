@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # PoP demo stack in one command. bash 3.2 (macOS default) compatible.
 #
-#   ./demo up [flags]     preflight, then run server, sidecar, bridge, relayer, tunnel (Ctrl-C stops all)
+#   ./demo up [flags]     preflight, then run server, sidecar, relayer, tunnel (Ctrl-C stops all)
 #   ./demo check [flags]  preflight only
-#   ./demo status         what is running + `bridge status`
+#   ./demo status         what is running
 #   ./demo help
 #
 # See `./demo help` and README.md "Demo stack".
@@ -16,10 +16,10 @@ RUN="$DEMO_DIR/run"
 SERVER_DIR="$ROOT/server"
 SIDECAR_DIR="$SERVER_DIR/idkit-sidecar"
 ENVFILE="$SERVER_DIR/.env"
-PIECES="server sidecar bridge relayer tunnel"
+PIECES="server sidecar relayer tunnel"
 
 SIDECAR_PORT=8787
-KEY_FILE=${ENS_KEY_FILE:-$HOME/.enconomy/ens-sepolia.key}
+KEY_FILE=${RELAYER_KEY_FILE:-$HOME/.enconomy/ens-sepolia.key}
 ADDR_FILE=$HOME/.enconomy/ens-sepolia.addr
 ETH_RPC_EFF=${ETH_RPC:-https://ethereum-sepolia-rpc.publicnode.com}
 TUNNEL_CONFIG=${DEMO_TUNNEL_CONFIG:-$HOME/.cloudflared/enconomy-pop.yml}
@@ -44,7 +44,7 @@ WARNS=0; FAILS=0
 tag_color() {
   [ -t 1 ] || return 0
   case $1 in
-    server) printf '\033[36m' ;; sidecar) printf '\033[35m' ;; bridge) printf '\033[34m' ;;
+    server) printf '\033[36m' ;; sidecar) printf '\033[35m' ;;
     relayer) printf '\033[33m' ;; tunnel) printf '\033[32m' ;;
   esac
 }
@@ -54,14 +54,13 @@ usage() {
 PoP demo stack.
 
   ./demo up [flags]      preflight, then start everything in the foreground; Ctrl-C stops all
-  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, ens_names, ports, tunnel config)
-  ./demo status          which pieces run (pid files + ports + /health) and \`bridge status\`
+  ./demo check [flags]   preflight only (tools, deps, key + Sepolia balance, ports, tunnel config)
+  ./demo status          which pieces run (pid files + ports + /health)
   ./demo help
 
 Pieces (start order; the rest start after the server answers /health):
   server   server/        uv run python -m pop        0.0.0.0:\$POP_PORT (default 8001)
   sidecar  server/idkit-sidecar   node index.mjs      127.0.0.1:8787  (World ID)
-  bridge   bridge/        ./bridge run                 NEAR results -> ENS MeetResolver (Sepolia)
   relayer  relayer/       ./watch.sh                   safe-tx sessions -> Safe (Sepolia)
   tunnel   cloudflared tunnel --config $TUNNEL_CONFIG run $TUNNEL_NAME
                                                         https://pop.enconomy.dev -> localhost:8001
@@ -69,7 +68,6 @@ Pieces (start order; the rest start after the server answers /health):
 Flags:
   --no-tunnel    no cloudflared (LAN / local only)
   --no-worldid   no IDKit sidecar (World ID start answers 503 worldid_unavailable)
-  --no-ens       no bridge (meetings never reach ENS)
   --no-safe      no relayer (Safe spends never get sent)
   --web          POP_ALLOW_WEB=1 and POP_CORS_ORIGINS=$WEB_ORIGINS
                  (unless already set). Needed by the web app at https://webapp.enconomy.dev.
@@ -82,10 +80,12 @@ them before ./demo up. Demo defaults applied only when neither env nor server/.e
 Web app (https://webapp.enconomy.dev) needs POP_ALLOW_WEB=1 and
   POP_CORS_ORIGINS=$WEB_ORIGINS  (or just --web).
 
-Other env: ETH_RPC (Sepolia RPC for balance/bridge), ENS_KEY_FILE (default ~/.enconomy/ens-sepolia.key,
-also the relayer gas key), DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
+Other env: ETH_RPC (Sepolia RPC for the balance check), RELAYER_KEY_FILE (relayer gas key, default
+~/.enconomy/ens-sepolia.key), DEMO_TUNNEL_CONFIG, DEMO_TUNNEL_NAME.
 
-If a piece dies, a banner names it and the rest keep running (a dead bridge should not take down
+The ENS example runs separately, see examples/ens-meetings/README.md.
+
+If a piece dies, a banner names it and the rest keep running (a dead relayer should not take down
 the phones' server mid-demo). Fix it in another terminal, then Ctrl-C and ./demo up again.
 ./demo up then exits nonzero. If the server dies before /health answers, nothing else starts.
 Logs: .demo/logs/<piece>.log (appended per run).
@@ -114,13 +114,12 @@ port_pid() { lsof -nP -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null | head -1; }
 
 # ---------------------------------------------------------------- flags
 
-EN_server=1; EN_sidecar=1; EN_bridge=1; EN_relayer=1; EN_tunnel=1; WEB=0; PORT_FLAG=
+EN_server=1; EN_sidecar=1; EN_relayer=1; EN_tunnel=1; WEB=0; PORT_FLAG=
 parse_flags() {
   while [ $# -gt 0 ]; do
     case $1 in
       --no-tunnel) EN_tunnel=0 ;;
       --no-worldid|--no-sidecar) EN_sidecar=0 ;;
-      --no-ens|--no-bridge) EN_bridge=0 ;;
       --no-safe|--no-relayer) EN_relayer=0 ;;
       --web) WEB=1 ;;
       --port) shift; PORT_FLAG=${1-} ;;
@@ -153,8 +152,7 @@ preflight() {
   need_tool curl "health checks" 1
   need_tool lsof "port checks" 1
   need_tool node "sidecar, relayer" "$( { enabled sidecar || enabled relayer; } && echo 1 || echo 0)"
-  need_tool python3 "bridge" "$EN_bridge"
-  need_tool cast "bridge, balance check" "$EN_bridge"
+  need_tool cast "relayer balance check" "$EN_relayer"
   need_tool sqlite3 "relayer" "$EN_relayer"
   need_tool cloudflared "tunnel" "$EN_tunnel"
 
@@ -194,12 +192,12 @@ preflight() {
   bb=$(eff POP_ZK_VERIFIER "$HOME/.enconomy/zk/pinned/bin/bb")
   if [ -x "$(abs_server "$bb")" ]; then ok "zk verifier bb"; else warn "zk verifier missing ($bb): proof routes answer 503 zk_unavailable"; fi
 
-  if enabled bridge || enabled relayer; then
+  if enabled relayer; then
     echo "Sepolia key"
     if [ -f "$KEY_FILE" ]; then
       ok "key file $KEY_FILE"
       addr=
-      [ -f "$ADDR_FILE" ] && [ -z "${ENS_KEY_FILE-}" ] && addr=$(tr -d '[:space:]' <"$ADDR_FILE")
+      [ -f "$ADDR_FILE" ] && [ -z "${RELAYER_KEY_FILE-}" ] && addr=$(tr -d '[:space:]' <"$ADDR_FILE")
       if [ -z "$addr" ] && command -v cast >/dev/null 2>&1; then
         pk=$(tr -d '[:space:]' <"$KEY_FILE"); case $pk in 0x*) ;; *) pk=0x$pk ;; esac
         addr=$(cast wallet address --private-key "$pk" 2>/dev/null); pk=
@@ -208,24 +206,11 @@ preflight() {
         bal=$(cast balance --ether --rpc-url "$ETH_RPC_EFF" "$addr" 2>/dev/null)
         if [ -z "$bal" ]; then warn "balance of $addr: RPC $ETH_RPC_EFF did not answer"
         elif awk -v b="$bal" -v m="$MIN_ETH" 'BEGIN{exit !(b+0 < m+0)}'; then
-          warn "$addr has $bal ETH (< $MIN_ETH). ZK verify is ~4.3M gas; top up from a Sepolia faucet"
+          warn "$addr has $bal ETH (< $MIN_ETH). Top up from a Sepolia faucet"
         else ok "$addr has $bal Sepolia ETH"; fi
       else warn "could not derive the key's address (need cast)"; fi
     else
-      bad "no $KEY_FILE (attester + relayer gas key; see examples/ens-meetings/contracts/script/ens.sh)"
-    fi
-  fi
-
-  if enabled bridge; then
-    echo "ENS bridge"
-    if [ -f "$ROOT/examples/ens-meetings/contracts/deployments/sepolia.json" ]; then ok "examples/ens-meetings/contracts/deployments/sepolia.json"
-    else bad "examples/ens-meetings/contracts/deployments/sepolia.json missing (bridge exits)"; fi
-    n=$(sqlite3 "$DB" "select count(*) from ens_names where status = 'registered'" 2>/dev/null)
-    if [ "${n:-0}" -gt 0 ] 2>/dev/null; then
-      ok "ens_names: $n registered"
-    else
-      warn "no registered ens_names: every NEAR is skipped as 'unmapped device', meetings won't reach ENS"
-      info "claim a name in the app (Tools > ENS name), or: cd bridge && POP_DB=$DB ./bridge import-names map.json"
+      bad "no $KEY_FILE (relayer gas key: a funded Sepolia key, RELAYER_KEY_FILE overrides the path)"
     fi
   fi
 
@@ -375,9 +360,6 @@ cmd_up() {
     if wait_http "http://127.0.0.1:$SIDECAR_PORT/health" 20 sidecar; then say "sidecar /health ok"
     else say "${C_YEL}sidecar /health not answering (World ID start will 503)${C_OFF}"; fi
   fi
-  if enabled bridge; then
-    start_piece bridge "$ROOT/bridge" env POP_DATA_DIR="$DATA_DIR" POP_DB="$DB" ./bridge run
-  fi
   if enabled relayer; then
     start_piece relayer "$ROOT/relayer" env POP_DB="$DB" POP_SERVER_URL="http://127.0.0.1:$PORT" ./watch.sh
   fi
@@ -418,7 +400,6 @@ cmd_status() {
       case $n in
         server)  p=$(port_pid "$PORT") ;;
         sidecar) p=$(port_pid "$SIDECAR_PORT") ;;
-        bridge)  p=$(pgrep -f 'bridge.py run' | head -1) ;;
         relayer) p=$(pgrep -f 'relayer/watch.sh|[.]/watch.sh' | head -1) ;;
         tunnel)  p=$(pgrep -f "cloudflared.*$TUNNEL_NAME" | head -1) ;;
       esac
@@ -429,11 +410,6 @@ cmd_status() {
   h=$(curl -fsS -m 3 "http://127.0.0.1:$PORT/health" 2>/dev/null) && info "server :$PORT /health $h" || info "server :$PORT /health: no answer"
   curl -fsS -m 3 "http://127.0.0.1:$SIDECAR_PORT/health" >/dev/null 2>&1 && info "sidecar :$SIDECAR_PORT /health ok" || info "sidecar :$SIDECAR_PORT /health: no answer"
   h=$(curl -fsS -m 5 -o /dev/null -w '%{http_code}' https://pop.enconomy.dev/health 2>/dev/null); info "https://pop.enconomy.dev/health: ${h:-no answer}"
-  echo
-  say "bridge status"
-  if command -v cast >/dev/null 2>&1; then
-    (cd "$ROOT/bridge" && POP_DATA_DIR="$DATA_DIR" POP_DB="$DB" ./bridge status 2>&1) | sed 's/^/  /'
-  else info "cast not on PATH"; fi
 }
 
 cmd=${1:-help}; [ $# -gt 0 ] && shift

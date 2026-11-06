@@ -84,7 +84,7 @@ Recovery: `script/Recover.s.sol` (`MODE=announce`, wait `DELAY`, then `MODE=exec
 ## Tests
 
 ```sh
-forge build && forge test                                   # 37 pass, fork suite skipped
+forge build && forge test                                   # 38 pass, fork suite skipped
 FORK=1 forge test --match-contract PopSafeForkTest          # 19/19 against Sepolia's canonical Safe 1.5.0
 anvil --fork-url https://sepolia.gateway.tenderly.co --hardfork osaka --port 8612 --silent &
 RPC=http://127.0.0.1:8612 script/anvil_smoke.sh             # deploy, create, spend, forced revert, hatch
