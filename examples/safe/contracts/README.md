@@ -17,7 +17,7 @@ A Safe 1.5.0 (SafeL2) that only moves money when its two phone owners are physic
 phone A + phone B ── PoP session (context kind "safe-tx", ctx_hash = safeTxHash) ──► server/
    each phone at Confirm: POST /v1/session/<sid>/safe/owner-sig  (P-256 over "pop-safe-owner-v1" ‖ safeTxHash)
 server/  NEAR ─► GET /v1/session/<sid>/attestation ─► att.tail_hex (172 B POP2, "pop-safe-v2", signed by data/attest*.pem)
-relayer/ relay.mjs <sid> ─► checks hash/nonce/guard/devices on chain ─► execTransaction(…, ownerSigs ‖ POP2 ‖ 000000ac ‖ "POPV")
+relayer/ relay.mjs (job from the backend) ─► checks hash/nonce/guard/devices on chain ─► execTransaction(…, ownerSigs ‖ POP2 ‖ 000000ac ‖ "POPV")
 Safe ─► PopSafeGuard.checkTransaction ─► IPopPresenceVerifier.verifyPresence(safe, safeTxHash, qx, qy, presence)
 ```
 

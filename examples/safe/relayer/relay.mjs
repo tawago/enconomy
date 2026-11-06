@@ -1,15 +1,14 @@
-// One-shot SAFE relayer (Ethereum Sepolia). Reads a PoP attestation, assembles execTransaction, sends it.
-//   node relay.mjs <sid> [--wait]        GET $POP_SERVER_URL/v1/session/<sid>/attestation (--wait: poll until done)
-//   node relay.mjs --fixture <file.json> same, body read from a file (tests; sid taken from the body). A file with
-//                                        format "pop-zk-bundle-1" (GET /zk/bundle) takes the Noir path.
+// One-shot SAFE relayer (Ethereum Sepolia). Assembles execTransaction from a job file and sends it.
+//   node relay.mjs --fixture <job.json>   written by backend/worker.py: the attestation, the safe_tx and both owner sigs.
 // Presence path: PRESENCE=attest|noir|auto (default auto: the Safe guard's verifier has phoneVerifier() -> noir).
-//   attest: GET /attestation, presence = the server's POP2 tail (PopAttestationVerifier).
-//   noir:   GET /zk/bundle (public, 404 until the pair proof verifies), presence = abi.encode(NoirPresenceVerifier.Bundle).
-// env: RELAYER_PK or RELAYER_KEY_FILE (gas key, default ~/.enconomy/ens-sepolia.key; never in server/), RPC (default publicnode Sepolia), POP_SERVER_URL (http://127.0.0.1:8000),
+//   attest: presence = the backend's POP2 tail (PopAttestationVerifier).
+//   noir:   GET $POP_SERVER_URL/v1/session/<sid>/zk/bundle (public, 404 until the pair proof verifies; then exit 3, status
+//           pending, run again), presence = abi.encode(NoirPresenceVerifier.Bundle).
+// env: RELAYER_PK or RELAYER_KEY_FILE (gas key, default ~/.enconomy/ens-sepolia.key; never in this repo), RPC (default publicnode Sepolia), POP_SERVER_URL (http://127.0.0.1:8000),
 //      CHAIN_ID (11155111), OUT_DIR (./out), EXPECT_SAFE (optional: refuse any other Safe), PRINT_SIGS=1 (debug)
 // Idempotent: out/<sid>.json holds the tx hash once sent; a rerun only reads the receipt, never resends.
-// out/<sid>.result.json = the last stdout line (the server serves it at GET /v1/session/<sid>/relay for the phones).
-// stdout: one JSON line {sid, status: success|reverted|skipped|error, error?, text?, tx_hash?, ...}
+// stdout: one JSON line {sid, status: success|reverted|skipped|pending|error, error?, text?, tx_hash?, ...}, which the backend
+// stores and serves at GET /v1/spends/<ctx_hash>/relay. out/<sid>.result.json is a copy.
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { createPublicClient, createWalletClient, http, parseAbi, BaseError, ContractFunctionRevertedError, formatEther,
@@ -50,10 +49,6 @@ export const TEXT = {
   stale_nonce: "Another transaction went first. Start again.",
   context_mismatch: "Transaction changed. Start again.",
   not_near: "Owners weren't together. Nothing was sent.",
-  "att_refused:unattested_device": "POP_UNATTESTED_ALLOW doesn't list this iPhone's device_id. Set it, restart the server, new session",
-  "att_refused:nonprod_humans": "Both people need an Orb-verified World ID (production).",
-  "att_refused:human_missing": "Waiting for the other person's World ID",
-  "att_refused:bad_chain": "Server is on another chain (POP_CHAIN_ID)",
   owner_sigs_missing: "An owner didn't sign at Confirm",
   wrong_safe: "Not the Safe this relayer serves",
   no_guard: "This Safe has no PoP guard",
@@ -140,27 +135,9 @@ async function main(args) {
   const explorer = CHAIN_ID === 11155111 ? "https://sepolia.etherscan.io/tx/" : null;
 
   const SERVER = process.env.POP_SERVER_URL || "http://127.0.0.1:8000";
-  const wait = args.includes("--wait");
-  let att, bundle = null;
-  if (args[0] === "--fixture") {
-    att = JSON.parse(fs.readFileSync(args[1], "utf8"));
-    if (att.format === "pop-zk-bundle-1") {
-      bundle = att;
-      att = { session_id: bundle.session_id, state: "done", verdict: bundle.verdict, context: bundle.context,
-        safe: bundle.safe };
-    }
-  }
-  else if (args[0]) {
-    const url = `${SERVER}/v1/session/${args[0]}/attestation`;
-    const until = Date.now() + (wait ? 180_000 : 0);
-    for (;;) {
-      const r = await fetch(url);
-      if (!r.ok) done(2, { sid: args[0], status: "error", error: `attestation_http_${r.status}` });
-      att = await r.json();
-      if (att.state === "done" || att.state === "aborted" || Date.now() > until) break;
-      await new Promise((ok) => setTimeout(ok, 500));
-    }
-  } else done(2, { status: "error", error: "usage: node relay.mjs <sid> [--wait] | --fixture <file>" });
+  if (args[0] !== "--fixture" || !args[1]) done(2, { status: "error", error: "usage: node relay.mjs --fixture <job.json>" });
+  const att = JSON.parse(fs.readFileSync(args[1], "utf8"));
+  let bundle = null;
   const sid = att.session_id;
   const outFile = `${OUT}/${sid}.json`;
 
@@ -180,7 +157,7 @@ async function main(args) {
   const c = att.context || {};
   if (att.state !== "done") done(3, { sid, status: "pending", error: "not_done", state: att.state });
   if (att.verdict !== "NEAR") skip("not_near");
-  if (c.kind !== "safe-tx" || c.chain_id !== CHAIN_ID) skip("bad_attestation_body");
+  if (c.chain_id !== CHAIN_ID) skip("bad_attestation_body");
   if (process.env.EXPECT_SAFE && c.consumer.toLowerCase() !== process.env.EXPECT_SAFE.toLowerCase()) skip("wrong_safe");
   const safe = c.consumer, t = c.safe_tx;
 
@@ -188,7 +165,7 @@ async function main(args) {
   const slot = await pub.getStorageAt({ address: safe, slot: GUARD_SLOT });
   const guard = "0x" + (slot || "0x").slice(-40);
   if (!slot || BigInt(slot) === 0n) skip("no_guard");
-  path = bundle ? "noir" : (process.env.PRESENCE || "auto");
+  path = process.env.PRESENCE || "auto";
   if (path === "auto") {
     try {
       const v = await pub.readContract({ address: guard, abi: ABI, functionName: "verifier" });
@@ -196,29 +173,20 @@ async function main(args) {
       path = "noir";
     } catch { path = "attest"; }
   }
-  let devs, sigs;
+  let devs;
   if (path === "noir") {
-    if (!bundle) {
-      const url = `${SERVER}/v1/session/${sid}/zk/bundle`;
-      const until = Date.now() + (wait ? 300_000 : 0);
-      for (;;) {
-        const r = await fetch(url);
-        if (r.ok) { bundle = await r.json(); break; }
-        if (r.status !== 404) done(2, { sid, status: "error", error: `bundle_http_${r.status}` });
-        if (Date.now() > until) done(3, { sid, status: "pending", error: "zk_not_ready" });
-        await new Promise((ok) => setTimeout(ok, 1000));
-      }
-    }
+    const r = await fetch(`${SERVER}/v1/session/${sid}/zk/bundle`);
+    if (r.status === 404) done(3, { sid, status: "pending", error: "zk_not_ready" });
+    if (!r.ok) done(2, { sid, status: "error", error: `bundle_http_${r.status}` });
+    bundle = await r.json();
     if (bundle.context?.ctx_hash !== c.ctx_hash) skip("context_mismatch");
     devs = { A: bundle.devices?.A?.device_hash, B: bundle.devices?.B?.device_hash };
-    sigs = bundle.safe?.owner_sigs || {};
   } else {
-    if (att.att_refused) skip("att_refused:" + att.att_refused);
     if (!att.att || att.att.v !== "pop-safe-v2") skip("bad_attestation_body");
     if (att.att.expiry <= Math.floor(Date.now() / 1000) + 30) skip("Expired");
     devs = { A: att.att.dev_a, B: att.att.dev_b };
-    sigs = att.safe?.owner_sigs || {};
   }
+  const sigs = att.safe?.owner_sigs || {};
   if (!sigs.A || !sigs.B) skip("owner_sigs_missing");
 
   // 2. hash + nonce against the live Safe

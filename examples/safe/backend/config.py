@@ -18,6 +18,7 @@ class Settings:
     core_url: str = "http://127.0.0.1:8000"
     rpc: str = "https://ethereum-sepolia-rpc.publicnode.com"
     relayer_key_file: Path | None = None    # None: the relayer's own default
+    relayer_dir: Path = Path(__file__).resolve().parent.parent / "relayer"
 
     @classmethod
     def from_env(cls) -> "Settings":

@@ -34,7 +34,7 @@ def attest_key(tmp_path):
 @pytest.fixture
 def settings(tmp_path, attest_key):
     return Settings(core_pubkey=CORE_PUB, db=tmp_path / "safe.sqlite", attest_key_file=tmp_path / "attest.pem",
-                    core_url="http://core.invalid", rpc="http://no")
+                    core_url="http://core.invalid", rpc="http://no", relayer_key_file=tmp_path / "gas.key")
 
 
 @pytest.fixture

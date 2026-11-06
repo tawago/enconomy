@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import time
+from contextlib import asynccontextmanager
 from datetime import datetime
 
 from fastapi import FastAPI, Request
@@ -20,6 +21,7 @@ from backend.core import ROLES, TAG_RECORD, load_pub, record_problem, verify_raw
 from backend.errors import ApiError
 from backend.safe_tx import ADDR, OWNER_MSG_TAG, TOKENS, allowlist, owner_message, parse_safe_tx, safe_tx_hash
 from backend.store import Store
+from backend.worker import Worker, run_node
 
 log = logging.getLogger("safe")
 
@@ -51,17 +53,27 @@ def _expiry(body: dict, ttl_s: int) -> int:
     return int(finished.timestamp()) + ttl_s
 
 
-def create_app(settings: Settings | None = None, now_ms=None, wake=None) -> FastAPI:
+def create_app(settings: Settings | None = None, now_ms=None, wake=None, runner=None) -> FastAPI:
     settings = settings or Settings.from_env()
     now_ms = now_ms or (lambda: int(time.time() * 1000))
-    wake = wake or (lambda: None)
     key = attester.load_key(settings.attest_key_file)
     if attester.public_bytes(key) == settings.core_pubkey:
         raise ValueError("the attest key is the core's presence key: they must stay separate")
     store = Store(settings.db)
+    worker = Worker(store, settings, runner or run_node)
+    wake = wake or worker.wake
 
-    app = FastAPI(title="safe-example")
-    app.state.store = store
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        worker.start()
+        try:
+            yield
+        finally:
+            worker.stop()
+            store.close()
+
+    app = FastAPI(title="safe-example", lifespan=lifespan)
+    app.state.store, app.state.worker = store, worker
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, e: ApiError):
@@ -160,8 +172,9 @@ def create_app(settings: Settings | None = None, now_ms=None, wake=None) -> Fast
         else:
             expiry = None
         att = store.attest_once(rec, ctx_hash, lambda: attester.attestation(key, want, pubs[0], pubs[1], expiry))
+        store.requeue_job(sid)  # a redelivery is also the retry for a job that failed
         job = store.job(sid)
-        if job["status"] != "success":  # a redelivery is also the retry for a job left pending or failed
+        if job["status"] != "success":
             wake()
         log.info("safe presence %s -> %s", sid, job["status"])
         return {"session_id": sid, "ctx_hash": ctx_hash, "att": att, "relay": job["status"]}

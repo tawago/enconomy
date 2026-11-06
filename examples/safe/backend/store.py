@@ -91,3 +91,18 @@ class Store:
 
     def latest_job(self, ctx_hash: str) -> dict | None:
         return self._one("SELECT * FROM relay_jobs WHERE ctx_hash = ? ORDER BY rowid DESC LIMIT 1", ctx_hash)
+
+    def pending_jobs(self) -> list[dict]:
+        with self.lock:
+            return [dict(r) for r in self.db.execute("SELECT * FROM relay_jobs WHERE status = 'pending' ORDER BY rowid")]
+
+    def set_job(self, session_id: str, status: str, result: str) -> None:
+        with self.lock:
+            self.db.execute("UPDATE relay_jobs SET status = ?, result = ? WHERE session_id = ?",
+                            (status, result, session_id))
+
+    def requeue_job(self, session_id: str) -> None:
+        """A redelivery is the retry for a job that didn't succeed. relay.mjs never sends twice."""
+        with self.lock:
+            self.db.execute("UPDATE relay_jobs SET status = 'pending', result = NULL WHERE session_id = ? AND status != 'success'",
+                            (session_id,))
