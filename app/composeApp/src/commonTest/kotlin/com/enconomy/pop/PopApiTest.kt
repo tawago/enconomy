@@ -138,7 +138,7 @@ class PopApiTest {
     }
 
     /**
-     * Proof upload = server/pop/main.py proof route: multipart, file part "proof" + JSON "meta" {attempt, circuit, salt}.
+     * Proof upload = server/pop/main.py proof route: multipart, file parts "proof" and "public_inputs" + JSON "meta" {attempt, circuit, salt}.
      * POP_API_DUMP=<dir> writes the body + content type (server-side parse check).
      */
     @Test fun proofUploadIsMultipart() = runTest {
@@ -167,15 +167,16 @@ class PopApiTest {
         val text = body.decodeToString(throwOnInvalidSequence = false)
         assertTrue(text.endsWith("--$boundary--\r\n"))
         val heads = Regex("Content-Disposition: form-data; name=\"(\\w+)\"(; filename=\"[^\"]+\")?").findAll(text).map { it.groupValues }.toList()
-        assertEquals(listOf("proof", "meta"), heads.map { it[1] })
+        assertEquals(listOf("proof", "public_inputs", "meta"), heads.map { it[1] })
         assertTrue(heads[0][2].isNotEmpty(), "proof must be a file part")
-        assertTrue(heads[1][2].isEmpty(), "meta must be a plain field")
+        assertTrue(heads[1][2].isNotEmpty(), "public_inputs must be a file part")
+        assertTrue(heads[2][2].isEmpty(), "meta must be a plain field")
         // raw proof bytes between the proof part's header and the next boundary
         val start = indexOf(body, "\r\n\r\n".encodeToByteArray(), indexOf(body, "name=\"proof\"".encodeToByteArray(), 0)) + 4
         assertContentEquals(proof, body.copyOfRange(start, start + proof.size))
         assertEquals("\r\n--$boundary", body.copyOfRange(start + proof.size, start + proof.size + boundary.length + 4).decodeToString())
         val meta = popJson.parseToJsonElement(text.substringAfter("name=\"meta\"\r\n\r\n").substringBefore("\r\n--$boundary")).toString()
-        assertEquals("""{"attempt":2,"circuit":"oa2t_s48","salt":"123456789012345678901234567890"}""", meta)
+        assertEquals("""{"attempt":2,"circuit":"oaN_s48","salt":"123456789012345678901234567890"}""", meta)
         // signature covers the exact multipart bytes
         assertContentEquals(requestMessage("POST", "/v1/session/sid1/proof", body, 9), key.signed.single())
     }
