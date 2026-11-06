@@ -15,7 +15,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi.testclient import TestClient
 
-from pop import jbl250, popt2, zk
+from pop import jbl250, popt2, presence, zk
 from pop import poseidon2 as p2
 from pop.codec import b64d, decode_transcript
 from pop.crypto import pub_bytes, sign_raw
@@ -174,6 +174,45 @@ def _near(w):
     assert out["B"].json()["state"] == "done" and w.result().json()["verdict"] == "NEAR"
 
 
+def _presence_ok(w, signed):
+    pub = bytes.fromhex(w.client.get("/v1/config").json()["presence"]["pubkey"])
+    return presence.verify(pub, presence.TAG_RECORD, signed)
+
+
+def test_presence_signed_again_after_late_proofs(zk_world):
+    w = zk_world()
+    _near(w)
+    first = w.result().json()["presence"]
+    assert _presence_ok(w, first) and first["body"]["zk"]["status"] == "none"
+    assert _send(w, w.a).status_code == 200
+    partial = w.result().json()["presence"]
+    assert _send(w, w.b, salt=99).status_code == 200
+    rec = w.result().json()
+    done = rec["presence"]
+    assert _presence_ok(w, partial) and partial["body"]["zk"]["status"] == "partial"
+    assert _presence_ok(w, done) and done["body"]["zk"] == rec["zk"] and done["body"]["zk"]["status"] == "verified"
+    assert done["body"]["zk"]["A"]["proof_sha256"] and "salt" not in json.dumps(done["body"]["zk"])
+    for later in (partial, done):
+        assert {k: v for k, v in later["body"].items() if k != "zk"} == \
+            {k: v for k, v in first["body"].items() if k != "zk"}
+    assert not presence.verify(bytes.fromhex(w.client.get("/v1/config").json()["presence"]["pubkey"]),
+                               presence.TAG_RECORD, {"body": done["body"], "sig_b64": first["sig_b64"]})
+
+
+def test_circuit_must_be_a_string(zk_world):
+    """A float here used to be stored in a rejected entry, and floats can't be signed."""
+    w = zk_world()
+    _near(w)
+    for bad in (1.5, ["x"], {"a": 1.5}):
+        r = _upload(w.b, w.sid, b"{}", {"attempt": 0, "circuit": bad, "salt": "1"})
+        assert r.status_code == 400 and r.json()["error"] == "bad_request"
+    r = _upload(w.b, w.sid, b"{}", {"attempt": 0, "circuit": "nope", "salt": "1"})
+    assert r.status_code == 400 and r.json()["error"] == "circuit_unknown"
+    rec = w.result().json()
+    assert rec["zk"]["B"]["status"] == "rejected" and _presence_ok(w, rec["presence"])
+    assert rec["presence"]["body"]["zk"] == rec["zk"]
+
+
 def test_proof_before_verdict(zk_world):
     w = zk_world()
     r = _upload(w.a, w.sid, b"x", {"attempt": 0, "circuit": zk.CIRCUIT, "salt": "1"})
@@ -206,6 +245,7 @@ def test_proof_verified_both_roles(zk_world):
     assert verify_record(rec)["verdict"] == "NEAR"
     n = w.fv.calls
     assert _send(w, w.a).status_code == 200 and w.fv.calls == n     # same bytes: idempotent, not re-verified
+    assert w.result().json()["presence"] == rec["presence"]         # nothing changed, nothing signed again
     r = _send(w, w.a, salt=8)
     assert r.status_code == 409 and r.json()["error"] == "already_submitted"
 

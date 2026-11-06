@@ -148,6 +148,7 @@ uv run pytest -q
 | `test_result_math.py` | flight at mixed sample rates, swap flips the sign, -20 / 60 boundaries, self_os tolerance, pinned null-code literals, Gumbel vs scipy, flat runs |
 | `test_flow_fake_phones.py` | two fake phones (`tests/sim.py`, software keys, `dsp_ref` as DSP) over HTTP: NEAR at 0/30 cm, NOT_NEAR `too_far` at 100/200 cm with no retry, glitch (20 ms zero block) -> retry -> NEAR, two failures -> final, timeout -> retry, stale transcript/fail after a retry, swapped role (sign flip), relayed partner transcript, tampered bytes, every field check, replay from another session, transcript before commit, impossible flight and self-timestamp retries, `/fail` checks, result access, offline `verify_record` on swapped records, recording upload hash check, and a real field recording as room background (skipped without the wavs) |
 | `test_worldid.py` | rp_context vectors (§6.3), nonce is a field element, pairTag vectors; fake-mode happy path (sidecar request body, reuse < 240 s, `human_missing` arm gate, statuses, pair_tag, `already_verified`); sim2 fake phones with a context + World ID -> NEAR, record has humans + pair_tag; `same_human` then retry with another human; same proof again = idempotent, A's nullifier for B = `same_human`; proof replayed into another session; bad signal / action / nonce / two responses / schema 128 / `orb` -> `human_invalid` / `human_level`; `user_rejected`; expiry (240 s re-sign, 300 s `human_expired`, restart); `not_joined`, no-policy and aborted sessions refused, non-member 403; sidecar down 503; no key 503; fake needs `POP_TEST_KINDS`; Portal path: signal overwrite, 503×2 then ok, 400 releases the nullifier, wrong environment, staging result; concurrent verifies + confirm |
+| `test_presence.py` | presence key, canonical bytes, device statement; presence record from real flows: verify, tamper, stable across GET, members only, evidence, late ZK signing, re-enroll, failed and aborted sessions, the test vector |
 | `test_pairing.py` | create + invite decode + host key hint; join; 404 / self_join / bad_token / token_expired / already_joined / not_member; confirm (nonce appears only after both confirm); long-poll wake-up and timeout; abort; 10-min expiry; seed never in a response |
 
 Tests use a fake clock and `SqliteStore(":memory:")`. The fake phones in `tests/phones.py` hold software P-256 keys and sign exactly like the app will.
@@ -199,6 +200,37 @@ To verify: take the P-256 key from `/v1/config` `presence.pubkey` once and pin i
 `canonical(body)` is `json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=True)` as ASCII bytes. Values are strings, ints, bools, null, lists and objects only; a float raises. Keys sort by code point. Tags differ per format, so a statement can't pass as a presence record.
 
 The signature means this core saw that key and its attestation evidence. It doesn't say who holds the phone; see "Attestation" above for what the evidence doesn't cover.
+
+## Presence record (`pop/presence.py`)
+
+The core's signed word that two devices did, or didn't, end up near each other in one session. It is `presence` in the result, `{"body": {...}, "sig_b64": "..."}`, delivered by the member-only `GET /v1/session/{sid}/result` (the view's `result` carries the same). Whoever needs it, a phone hands over; the core pushes nothing.
+
+Body:
+
+| Field | Value |
+|---|---|
+| `format` | `pop-presence-v1` |
+| `session_nonce`, `session_id`, `attempt`, `t0_ms` | hex, hex, int, int or null (the final attempt) |
+| `context`, `not_before` | the session's context or null, unix seconds |
+| `verdict`, `reason` | `NEAR` / `NOT_NEAR`, null or the reason |
+| `flight_cm` | string with two decimals like `"30.37"`, or null. Never a float |
+| `finished_at` | ISO 8601 UTC |
+| `transcripts` | per role `{transcript_b64, sig_b64, sha256}`; `sig_b64` is the device's signature over the transcript bytes |
+| `devices` | per role `{device_id, pubkey, attested, platform, security_level, trust_tier, key_kind, chain_pem, root_sha256, attest_key_id}` |
+| `zk` | same as the result's `zk` block (no salts) |
+
+No World ID data, no pair tag, no display name, no policy: those aren't this record's business.
+
+To verify: pin `/v1/config` `presence.pubkey` once, don't fetch it at runtime. Check SHA256withECDSA, raw `r||s` base64, over `b"pop-presence-v1\n" + canonical(body)`, with `canonical` as under "Device statement". Then, if you don't want to take the core's word, redo the rest yourself: `sha256(pubkey)[:16] == device_id`, the transcript's `sha256`, each device's signature over its transcript, and the certificate chain. `tests/fixtures/presence_vector.json` has a throwaway key, a NEAR record from a real flow, the statement format and both canonical byte strings (`uv run python -m tests.make_presence_vector` rebuilds it). Signatures are randomized, so verify them rather than compare them.
+
+What the signature means: this core ran the session, checked both transcripts and reached this verdict, and it held this evidence for these devices at the end of the session. It doesn't say who held the phones. `security_level` is self-reported unless `attested`; read `trust_tier` (table under "Device statement"). `attested` is rechecked against the pinned roots when the record is made. `chain_pem` and `root_sha256` are null for an unattested or web device. On iOS they are the App Attest certificates and `attest_key_id` is the App Attest key id; on Android `attest_key_id` is null.
+
+Rules:
+
+- A record exists for every result. So verdicts, rejected transcripts and final failures all get one with whatever they have: `transcripts` holds only the transcripts accepted, and `flight_cm` and `t0_ms` can be null. A rejected transcript is never in it.
+- An aborted session, expired ones included, has no result and no record (`/result` 404 `no_result`). A result from before this feature stays without one.
+- The body is fixed when the session finishes. Devices are as they were then, so a later re-enroll changes nothing. Only `zk` changes as proofs come in, and each change gets a new signature; all other fields stay byte-identical. So the same session can have several valid records: take the one with the most advanced `zk`. Between changes, repeated GETs return the same bytes.
+- `chain_pem` lets a session partner see your attestation chain, as they could already see your key.
 
 ## Notes and choices the contract leaves open
 

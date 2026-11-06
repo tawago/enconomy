@@ -194,6 +194,10 @@ def parse_session_in(raw: bytes, cfg: Settings) -> tuple[dict | None, dict]:
         raise PopError(400, "context_mismatch", str(e)[:200]) from None
     if want != bytes.fromhex(ctx["ctx_hash"][2:]):
         raise PopError(400, "context_mismatch", "ctx_hash does not match the kind fields")
+    try:
+        presence.canonical(ctx)   # it lands in the signed record
+    except ValueError as e:
+        raise PopError(400, "bad_request", f"context: {e}") from None
     if not cfg.worldid_rp_id and not cfg.worldid_fake:
         raise PopError(503, "worldid_unavailable", "POP_WORLDID_RP_ID is not set")
     return ctx, {"human": "worldid"}
@@ -295,6 +299,8 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
     presence_key = presence.load_key(cfg.presence_key_file)
     if presence.public(presence_key)["pubkey"] in (issuer.pub.hex(), pub_bytes(att_key.public_key()).hex()):
         raise RuntimeError("POP_PRESENCE_KEY_FILE must not be the issuer or chain attest key")
+    sessions.presence_signer = lambda body: presence.sign(presence_key, presence.TAG_RECORD, body)
+    sessions.android_roots = cfg.android_roots
 
     web_dir = _web_dir(cfg.web_dir)
 
@@ -623,7 +629,10 @@ def create_app(settings: Settings | None = None, store: Store | None = None, ver
             salt = zk.parse_salt(meta.get("salt"))
         except ValueError as e:
             raise PopError(400, "bad_request", str(e)) from None
-        return salt, meta.get("attempt", s["attempt"]), meta.get("circuit")
+        circuit = meta.get("circuit")
+        if circuit is not None and not isinstance(circuit, str):   # it lands in the signed record's zk block
+            raise PopError(400, "bad_request", "circuit must be a string")
+        return salt, meta.get("attempt", s["attempt"]), circuit
 
     def _verified(sid: str, role: str, entry: dict, proof: bytes, want: list[int], salt: int) -> dict:
         s = sessions.zk_record(sid, role, {**entry, "proof_sha256": hashlib.sha256(proof).hexdigest(),

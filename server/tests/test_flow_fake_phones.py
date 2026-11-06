@@ -190,6 +190,8 @@ def test_swapped_roles_rejected(pending):
     assert r.status_code == 400 and r.json()["error"] == "transcript_mismatch"
     rec = final(w, "transcript_mismatch")
     assert outcomes(rec) == [(0, "rejected", "transcript_mismatch", "B")]
+    body = rec["presence"]["body"]    # the rejected transcript is not in the signed record, the accepted one is
+    assert set(body["transcripts"]) == {"A"} and body["verdict"] == "NOT_NEAR" and set(body["devices"]) == {"A", "B"}
     assert w.a.post(f"/v1/session/{w.sid}/arm", {"attempt": 1, "sample_rate": 48000, "rtt_min_ms": 1}).status_code == 409
 
 

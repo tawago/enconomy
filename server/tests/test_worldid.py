@@ -251,6 +251,10 @@ def test_full_flow_near_with_worldid(make_client, clock, fw):
     assert res["pair_tag"] == res["human"]["pair_tag"] and res["pair_tag"].startswith("0x")
     assert res["human"]["A"]["status"] == "verified" and res["human"]["B"]["nullifier"]
     assert "connector_uri" not in res["human"]["A"]
+    # the outside record: presence only, no human block even in a World ID session
+    body = res["presence"]["body"]
+    assert not {"human", "pair_tag", "policy"} & set(body) and body["context"] == CTX
+    assert "nullifier" not in json.dumps(body) and "display_name" not in json.dumps(body)
 
 
 # -- nullifier reuse and same_human

@@ -1,7 +1,10 @@
 """Presence key, canonical bytes, device statement."""
 import base64
+import hashlib
+import json
 import os
 import stat
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -9,6 +12,7 @@ from cryptography.hazmat.primitives.asymmetric import ec
 from pop import presence
 from pop.crypto import device_id, pub_bytes, sign_raw, verify_raw
 from tests.phones import Phone, make_chain
+from tests.sim import Knobs, World
 
 
 def _pub(client):
@@ -191,3 +195,239 @@ def test_phone_cannot_sign_its_own_statement(client, clock):
     s = p.enroll().json()["device_statement"]
     own = base64.b64encode(sign_raw(p.sk, presence.TAG_STATEMENT + presence.canonical(s["body"]))).decode()
     assert not _ok(client, {**s, "sig_b64": own})
+
+
+# -- presence record: a real flow through tests/sim.py
+
+VECTOR = json.loads((Path(__file__).parent / "fixtures" / "presence_vector.json").read_text())
+
+
+@pytest.fixture
+def world(make_client, clock):
+    def make(d=30, attested=True, **kw):
+        w = World(make_client(allow_unattested=True, **kw), clock, d, Knobs(),
+                  Knobs(sr=44100, mono_off_ns=9_000_000_000, sync_err_ms=-3, out_lat_ms=25))
+        w.pair(attested=attested)
+        return w
+    return make
+
+
+def _rec_ok(w, signed):
+    return presence.verify(_pub(w.client), presence.TAG_RECORD, signed)
+
+
+def _no_zk(signed):
+    return {k: v for k, v in signed["body"].items() if k != "zk"}
+
+
+def test_near_record_verifies(world):
+    w = world()
+    w.run_attempt(0)
+    rec = w.result().json()
+    signed = rec["presence"]
+    b = signed["body"]
+    assert _rec_ok(w, signed)
+    assert set(b) == set(VECTOR["record"]["body"])   # the vector must follow the format
+    assert b["format"] == "pop-presence-v1" and b["verdict"] == "NEAR" and b["reason"] is None
+    assert b["session_id"] == w.sid and b["session_nonce"] == w.a.nonce.hex() and b["attempt"] == 0
+    assert b["t0_ms"] == rec["t0_ms"] and b["not_before"] == rec["not_before"] and b["finished_at"] == rec["finished_at"]
+    assert b["context"] is None and b["zk"] == rec["zk"] and b["transcripts"] == rec["transcripts"]
+    assert b["flight_cm"] == f"{rec['flight_cm']:.2f}"
+    for p in w.phones:
+        t, d = b["transcripts"][p.role], b["devices"][p.role]
+        raw = base64.b64decode(t["transcript_b64"])
+        assert hashlib.sha256(raw).hexdigest() == t["sha256"]
+        assert d["pubkey"] == p.pub.hex() and d["device_id"] == device_id(p.pub)
+        assert verify_raw(bytes.fromhex(d["pubkey"]), raw, base64.b64decode(t["sig_b64"]))
+    assert not {"human", "pair_tag", "policy", "commits", "attempts"} & set(b)
+    assert "display_name" not in json.dumps(b) and "model" not in b["devices"]["A"]
+
+
+@pytest.mark.parametrize("path,value", [
+    (("verdict",), "NOT_NEAR"), (("flight_cm",), "1.00"), (("session_id",), "00" * 16), (("t0_ms",), 1),
+    (("devices", "A", "attested"), False), (("devices", "B", "pubkey"), "04" + "00" * 64),
+    (("transcripts", "A", "sha256"), "00" * 32), (("zk", "status"), "verified"), (("extra",), 1)])
+def test_tampered_record_fails(world, path, value):
+    w = world()
+    w.run_attempt(0)
+    signed = w.result().json()["presence"]
+    node = signed["body"]
+    for k in path[:-1]:
+        node = node[k]
+    node[path[-1]] = value
+    assert not _rec_ok(w, signed)
+
+
+def test_record_is_not_a_statement_and_not_the_attest_key(world):
+    w = world()
+    w.run_attempt(0)
+    signed = w.result().json()["presence"]
+    assert not presence.verify(_pub(w.client), presence.TAG_STATEMENT, signed)
+    other = pub_bytes(w.client.app.state.attest_key.public_key())
+    assert not presence.verify(other, presence.TAG_RECORD, signed)
+
+
+def test_record_stable_across_get(world):
+    w = world()
+    w.run_attempt(0)
+    first = w.result()
+    assert first.content == w.result().content == w.result(w.b).content
+    assert first.json()["presence"] == w.view()["result"]["presence"]
+
+
+def test_record_only_for_members(world, clock):
+    w = world()
+    w.run_attempt(0)
+    outsider = Phone(w.client, clock, "Eve", "Pixel 8")
+    assert outsider.enroll().status_code == 200
+    r = outsider.get(f"/v1/session/{w.sid}/result")
+    assert r.status_code == 403 and r.json()["error"] == "not_member"
+    assert w.client.get(f"/v1/session/{w.sid}/result").status_code == 401
+
+
+def test_record_carries_attestation_evidence(world):
+    w = world()
+    w.run_attempt(0)
+    for p in w.phones:
+        d = w.result().json()["presence"]["body"]["devices"][p.role]
+        row = w.client.app.state.store.get_device(p.device_id)
+        assert d["attested"] is True and d["platform"] == "android" and d["trust_tier"] == "tee"
+        assert d["security_level"] == "tee" and d["key_kind"] == "android_keystore"
+        assert d["chain_pem"] == row["chain_pem"] and "BEGIN CERTIFICATE" in d["chain_pem"]
+        assert d["root_sha256"] == row["root_sha256"] and len(d["root_sha256"]) == 64 and d["attest_key_id"] is None
+
+
+def test_record_unattested_says_so(world):
+    w = world(attested=False)
+    w.run_attempt(0)
+    signed = w.result().json()["presence"]
+    assert _rec_ok(w, signed)
+    for d in signed["body"]["devices"].values():
+        assert d["attested"] is False and d["trust_tier"] == "unattested" and d["chain_pem"] is None
+
+
+def test_record_old_row_under_no_pin_is_not_attested(world):
+    w = world()
+    w.client.app.state.sessions.android_roots = frozenset({"00" * 32})
+    w.run_attempt(0)
+    for p in w.phones:
+        assert w.client.app.state.store.get_device(p.device_id)["attested"]
+        d = w.result().json()["presence"]["body"]["devices"][p.role]
+        assert d["attested"] is False and d["trust_tier"] == "unattested"
+
+
+def test_late_zk_signs_again_keeping_the_rest(world):
+    w = world()
+    w.run_attempt(0)
+    sessions = w.client.app.state.sessions
+    first = w.result().json()["presence"]
+    entry = {"attempt": 0, "circuit": "x", "status": "rejected", "reason": "proof_invalid", "detail": None, "at_ms": 1}
+    sessions.zk_record(w.sid, "A", entry)
+    second = w.result().json()["presence"]
+    assert _rec_ok(w, second) and second["body"]["zk"]["A"]["status"] == "rejected"
+    assert _no_zk(second) == _no_zk(first)
+    sessions.zk_record(w.sid, "A", entry)    # same outcome: no new signature
+    assert w.result().json()["presence"] == second
+    sessions.zk_pair_record(w.sid, {"attempt": 0, "status": "rejected", "reason": "zk_unavailable", "detail": None})
+    rec = w.result().json()
+    third = rec["presence"]
+    assert _rec_ok(w, third) and third["body"]["zk"]["pair"]["reason"] == "zk_unavailable"
+    assert _no_zk(third) == _no_zk(first) and third["body"]["zk"] == rec["zk"]
+    on_disk = json.loads((Path(w.client.app.state.cfg.data_dir) / "sessions" / w.sid / "result.json").read_text())
+    assert on_disk["presence"] == third
+
+
+def test_reenroll_does_not_alter_the_record(world):
+    w = world()
+    w.run_attempt(0)
+    first = w.result().json()["presence"]
+    assert w.a.enroll(attested=False).status_code == 200
+    assert not w.client.app.state.store.get_device(w.a.device_id)["attested"]
+    assert w.result().json()["presence"] == first
+    w.client.app.state.sessions.zk_record(w.sid, "B", {"attempt": 0, "circuit": "x", "status": "rejected",
+                                                       "reason": "proof_invalid", "detail": None})
+    second = w.result().json()["presence"]
+    assert _rec_ok(w, second) and _no_zk(second) == _no_zk(first)
+    assert second["body"]["devices"]["A"]["attested"] is True and second["body"]["devices"]["A"]["chain_pem"]
+
+
+def test_far_record_verifies(world):
+    w = world(d=200)
+    w.run_attempt(0)
+    rec = w.result().json()
+    b = rec["presence"]["body"]
+    assert _rec_ok(w, rec["presence"]) and b["verdict"] == "NOT_NEAR" and b["reason"] == "too_far"
+    assert b["flight_cm"] == f"{rec['flight_cm']:.2f}" and set(b["transcripts"]) == {"A", "B"}
+
+
+def test_failed_session_gets_a_record_with_what_exists(world):
+    w = world()
+    r = w.a.post(f"/v1/session/{w.sid}/fail", {"attempt": 0, "reason": "partner_mismatch"})
+    assert r.status_code == 200
+    signed = w.result().json()["presence"]
+    b = signed["body"]
+    assert _rec_ok(w, signed) and b["verdict"] == "NOT_NEAR" and b["reason"] == "partner_mismatch"
+    assert b["flight_cm"] is None and b["transcripts"] == {} and b["t0_ms"] is None and set(b["devices"]) == {"A", "B"}
+
+
+def test_aborted_session_has_no_record(world):
+    w = world()
+    assert w.a.post(f"/v1/session/{w.sid}/abort").status_code == 200
+    r = w.result()
+    assert r.status_code == 404 and r.json()["error"] == "no_result"
+
+
+def test_no_signer_no_block(world):
+    """Also how an old result looks: it stays unsigned, a late proof doesn't add a block."""
+    w = world()
+    sessions = w.client.app.state.sessions
+    signer, sessions.presence_signer = sessions.presence_signer, None
+    w.run_attempt(0)
+    assert "presence" not in w.result().json()
+    sessions.presence_signer = signer
+    sessions.zk_record(w.sid, "A", {"attempt": 0, "circuit": "x", "status": "rejected", "reason": "proof_invalid",
+                                    "detail": None})
+    rec = w.result().json()
+    assert "presence" not in rec and rec["zk"]["A"]["status"] == "rejected"
+
+
+def test_context_with_a_float_is_refused(make_client, clock):
+    c = make_client(test_kinds=True, worldid_fake=True, worldid_rp_id="rp_0123456789abcdef", worldid_app_id="app_test")
+    a = Phone(c, clock, "Alice", "Pixel 8")
+    assert a.enroll().status_code == 200
+    ctx = {"kind": "test", "chain_id": 11155111, "consumer": "0x" + "5a" * 20, "ctx_hash": "0x" + "a0" * 32}
+    assert a.post("/v1/session", {"context": ctx}).status_code == 200
+    r = a.post("/v1/session", {"context": {**ctx, "extra": 1.5}})
+    assert r.status_code == 400 and r.json()["error"] == "bad_request"
+
+
+@pytest.mark.parametrize("flight,text", [(None, None), (30.1, "30.10"), (0, "0.00"), (-0.0, "0.00"), (-3.456, "-3.46")])
+def test_flight_text(flight, text):
+    assert presence.flight_text(flight) == text
+
+
+# -- test vector, the same file an outside implementation checks against
+
+def test_vector_verifies():
+    pub = bytes.fromhex(VECTOR["pubkey_hex"])
+    assert VECTOR["record_tag"] == "pop-presence-v1\n" and VECTOR["statement_tag"] == "pop-device-statement-v1\n"
+    assert presence.verify(pub, presence.TAG_RECORD, VECTOR["record"])
+    assert presence.verify(pub, presence.TAG_STATEMENT, VECTOR["statement"])
+    assert presence.canonical(VECTOR["record"]["body"]).hex() == VECTOR["record_canonical_hex"]
+    assert presence.canonical(VECTOR["statement"]["body"]).hex() == VECTOR["statement_canonical_hex"]
+    # by hand, without pop.presence
+    for tag, sig, hx in ((VECTOR["record_tag"], VECTOR["record"]["sig_b64"], VECTOR["record_canonical_hex"]),
+                         (VECTOR["statement_tag"], VECTOR["statement"]["sig_b64"], VECTOR["statement_canonical_hex"])):
+        assert verify_raw(pub, tag.encode() + bytes.fromhex(hx), base64.b64decode(sig))
+
+
+def test_vector_key_and_content():
+    sk = ec.derive_private_key(int(VECTOR["throwaway_private_key_hex"], 16), ec.SECP256R1())
+    assert pub_bytes(sk.public_key()).hex() == VECTOR["pubkey_hex"]
+    # signatures are randomized, so ours differs but still verifies
+    again = presence.sign(sk, presence.TAG_RECORD, VECTOR["record"]["body"])
+    assert presence.verify(bytes.fromhex(VECTOR["pubkey_hex"]), presence.TAG_RECORD, again)
+    b = VECTOR["record"]["body"]
+    assert b["verdict"] == "NEAR" and set(b["transcripts"]) == set(b["devices"]) == {"A", "B"}
+    assert b["devices"]["A"]["attested"] is True and b["devices"]["A"]["chain_pem"]
+    assert VECTOR["statement"]["body"]["device_id"] == b["devices"]["A"]["device_id"]

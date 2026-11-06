@@ -25,6 +25,7 @@ log = logging.getLogger("pop")
 TAG_STATEMENT = b"pop-device-statement-v1\n"
 TAG_RECORD = b"pop-presence-v1\n"
 STATEMENT_FORMAT = "pop-device-statement-v1"
+RECORD_FORMAT = "pop-presence-v1"
 HARDWARE_LEVELS = {"tee", "strongbox"}
 
 
@@ -105,3 +106,25 @@ def device_statement(sk: ec.EllipticCurvePrivateKey, dev: dict, roots: frozenset
     return sign(sk, TAG_STATEMENT, {
         "format": STATEMENT_FORMAT, "device_id": dev["device_id"], "pubkey": dev["pubkey"], "attested": attested,
         "platform": dev["platform"], "trust_tier": trust_tier(dev, attested), "issued_at_ms": now_ms})
+
+
+def device_snapshot(dev: dict, roots: frozenset) -> dict:
+    """One device's entry in a presence record: what the core holds, so an outsider can check the evidence itself."""
+    attested = device_attested(dev, roots)
+    return {"device_id": dev["device_id"], "pubkey": dev["pubkey"], "attested": attested,
+            "platform": dev.get("platform"), "security_level": dev.get("security_level"),
+            "trust_tier": trust_tier(dev, attested), "key_kind": dev.get("key_kind"),
+            "chain_pem": dev.get("chain_pem"), "root_sha256": dev.get("root_sha256"),
+            "attest_key_id": dev.get("attest_key_id")}
+
+
+def flight_text(flight: float | None) -> str | None:
+    """Fixed two decimals, as the verdict rounds them. + 0.0 turns -0.0 into 0.0."""
+    return None if flight is None else f"{flight + 0.0:.2f}"
+
+
+def record_body(result: dict, devices: dict, flight: float | None) -> dict:
+    """result: the session's result record (sessions._record). devices: {role: device_snapshot}."""
+    keep = ("session_nonce", "session_id", "t0_ms", "attempt", "context", "not_before", "verdict", "reason",
+            "finished_at", "transcripts", "zk")
+    return {"format": RECORD_FORMAT, **{k: result[k] for k in keep}, "flight_cm": flight_text(flight), "devices": devices}
