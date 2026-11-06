@@ -130,14 +130,16 @@ function armToken() {
 $("email").addEventListener("blur", async () => {
   const st = $("token-status");
   st.textContent = "Waiting for Chrome's token.";
-  for (let i = 0; i < 40 && !$("tok").value; i++) await sleep(500);
-  if (!$("tok").value) { st.textContent = "No token. Check the sign-in at tawago.test, retype the email."; return; }
-  st.textContent = "Token received. Sending the transaction, this takes a minute.";
+  await sleep(4000); // Chrome mints in the background and fills the field only on submit
   $("f").requestSubmit();
 });
 
 $("f").addEventListener("submit", async (e) => {
   e.preventDefault();
+  const st = $("token-status");
+  for (let i = 0; i < 40 && !$("tok").value; i++) await sleep(500);
+  if (!$("tok").value) { st.textContent = "No token. Check the sign-in at tawago.test, retype the email."; return; }
+  st.textContent = "Token received. Sending the transaction, this takes a minute.";
   try {
     const r = await post("/v1/recovery/submit", { ...session, token: $("tok").value });
     show("submit-out", r);

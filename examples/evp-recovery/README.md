@@ -70,7 +70,7 @@ Everything from step 2 to the mined tx has to fit in 15 minutes. If it runs out,
 3. Press **Open the chirp app**. On the laptop, **Tap to start** to allow the mic.
 4. On the phone, **Join** and scan the laptop's QR. Hold them close. **Confirm** on both.
 5. After NEAR, the proofs need no taps. Go back to the page and wait for "Ready".
-6. Click the email field, type `alice@tawago.test` in lowercase, press Tab. Chrome mints the token and the page sends the tx. The tx hash and frames show when it's mined, usually within a minute.
+6. Click the email field, type `alice@tawago.test` in lowercase, press Tab. Chrome mints the token and the page sends the tx. The tx hash and frames show when it's mined, usually within a minute. Chrome fills the token only on submit, so the page submits about 4 s after Tab.
 7. Wait out the 120 s, press **Finish**. If it errors right at zero, the chain clock is behind: press it again. The page shows owner == new key.
 
 ## Layout
