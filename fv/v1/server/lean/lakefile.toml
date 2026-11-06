@@ -1,0 +1,22 @@
+name = "serverfv"
+version = "0.1.0"
+defaultTargets = ["ServerFv"]
+
+[leanOptions]
+pp.unicode.fun = true
+relaxedAutoImplicit = false
+maxSynthPendingDepth = 3
+
+# Same Mathlib tag as fv/v1/zkp/popfv.
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.36.0-rc2"
+
+# The circuit proofs, so V3 can cite the real Popfv.distance_iff. This path comes with the repo.
+[[require]]
+name = "popfv"
+path = "../../zkp/popfv"
+
+[[lean_lib]]
+name = "ServerFv"

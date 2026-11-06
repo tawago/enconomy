@@ -1,0 +1,22 @@
+a_control              phone A                  SOLVED  as expected   half=45050
+a_control              phone B                  SOLVED  as expected   half=44939
+a_control              pair                     SOLVED  as expected  near pair flight=39.7 cm
+a_control              tamper: sample +1        REJECTED  as expected    [error: Failed constraint in phone_core < open_leaves < merkle_root]
+a_control              tamper: signature byte   REJECTED  as expected    [error: Failed constraint in main < check_signed]
+a_control              tamper: nonce            REJECTED  as expected    [error: Failed constraint in main < check_signed]
+a_control              pair                     REJECTED  as expected  far pair (pair circuit alone) flight=754.2 cm  [error: Assertion failed: call to assert_max_bit_size in main]
+b_silence              phone A                  SOLVED  as expected  all zeros half=45000
+b_silence              phone B                  SOLVED  as expected  all zeros half=45000
+c_click                phone A                  SOLVED  as expected  wanted lag 50, rule found lag 50, cna=10987170 half=45000
+d_tone0                phone A                  SOLVED  as expected  self lag 0, 196/286 partner lags pass half=45001
+d_tone1                phone A                  SOLVED  as expected  self lag 0, 202/286 partner lags pass half=45001
+d_tone2                phone A                  SOLVED  as expected  self lag 0, 227/286 partner lags pass half=45001
+d_tone3                phone A                  SOLVED  as expected  self lag 0, 286/286 partner lags pass half=45001
+d_tone4                phone A                  SOLVED  as expected  self lag 0, 232/286 partner lags pass half=45001
+d_tone5                phone A                  SOLVED  as expected  self lag 0, 226/286 partner lags pass half=45001
+e1_both_silent         phone A                  SOLVED  as expected  both silent half=45000
+e1_both_silent         phone B                  SOLVED  as expected  both silent half=45000
+e1_both_silent         pair                     SOLVED  chosen halves flight=0.0 cm
+e2_one_silent          phone B                  SOLVED  as expected  genuine recording half=44939
+e2_one_silent          phone A                  SOLVED  as expected  silent, half chosen to fit B half=45034
+e2_one_silent          pair                     SOLVED  one side silent flight=33.9 cm

@@ -1,0 +1,257 @@
+# CORRECTIONS after the last review of this replay, which failed. See ../README.md. The raw output below is unchanged.
+# - 'the whole record' below means the compared part of the record. Record policy, human and pair_tag, and view policy and human, are not compared.
+# - Wire, signature and hash labels share one kind in Replay.lean, so a record whose transcript hash holds the transcript string passes the replay. Not fixed.
+# - 'the check scripts exit nonzero' holds for the replay scripts. machine_all.sh exits on the mutants' code only, so read its step lines.
+# - Replay.lean, the check scripts and test_walk.py changed in comment lines after this run. Machine.lean and Verdict.lean did not. See logs/post-run-edits.txt.
+# Replay of the Lean table (ServerFv/Machine.lean, Machine.step) against traces from the real server. Reader's summary first, raw output after.
+#
+# WHAT IT SAYS. On 6016 sessions and 94075 trace lines, the Lean step and the real Python gave the same status and code, the same abstract
+# document and the same response digest, at every compared step. No mismatch remains. "Compared" means the fields listed in ServerFv/Replay.lean, no more.
+# This is testing on sampled runs, not a proof that the two are equal.
+# These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1). Not a proof of proximity.
+# Exit code 0 means: no mismatch, at least 1000 sessions, and the 35 chosen targets reached. It does not mean full coverage. The targets are a short list picked by hand.
+#
+# SCOPE. context=None and human=none only. No World ID, Safe, ENS, bridge, zk route, recording upload, enrolment or DSP.
+# ASSUMPTIONS. Honest server code as written, one worker process, no await between load and save, signature unforgeable, SHA-256 and truncated device_id collision free.
+# PIN. The Lean table and the traces are for server/ at commit 9db1490 (sessions.py sha256 dda3ca67..., checked against git show).
+# The repo's HEAD has moved since: git diff 9db1490 HEAD -- server/pop has 15 files changed, sessions.py among them. Nothing here speaks for the newer code.
+#
+# COMMANDS.
+#   traces, from fv/v1/server/tests, job rfx-gen, three pytest runs side by side, written to traces:
+#     env PYTHONPATH=../../../../server python -m pytest -q -p no:cacheprovider test_walk.py --walk-seed 20261106 --walk-sessions 2000 --trace-out traces/walk-20261106.jsonl    59 passed, rc=0
+#     (same with test_walk.py::test_walk and seeds 7001, 7002.) 1 passed each, rc=0.
+#   directed, job rfx-dir: pytest test_walk.py::test_directed_cases --directed-trace-out traces/directed.jsonl   1 passed
+#   replay, from fv/v1/server/lean: checks/replay_all.sh <the four traces>, which runs lake env lean --run ServerFv/Replay.lean. Job below.
+#   The traces are not kept in the repo, about 68 MB each.
+#
+# WHAT CHANGED SINCE THE LAST VERSION OF THIS LOG, after a review. Machine.lean and Verdict.lean did not change, and no proof was touched. No new mismatch came up.
+# The old compare was thin: 11 of 12 changed Lean rules passed it, because they only moved fields it dropped. Those were changes made to test the check, not bugs in the table.
+# Trace format is now pop-walk-trace-3, with the same operations as before (same line counts). The five decoded time fields of a transcript are now read, not zeroed.
+# Now also compared: session id, seed, nonce and token as "same as at create", host, created time, armed, committed and fail times, record nonce, id, device ids, keys, created and finished,
+# the whole record in a view and in the result route, sounds and code commits by seed, the create's id, token and nonce. Lean's clock starts far from zero, so a hard-coded time shows.
+# A recorded fact about a string can no longer change quietly between lines. A null decode no longer leaves an earlier decode in place.
+#
+# FINDINGS.
+# 1. First full run, 31 of 6000 sessions mismatched (logs/replay-first-run.txt, format 2): resp.cc.sr, Lean 96000, trace 95999. Read the code: neither the model nor the server was wrong.
+#    The real code gives the very same code commit at 95999 and 96000 (also 95998 and 96000; checked with 3 random keys: popt2.code equal. At 47999/48000, 48000/48001, 44100/44101, 36000/36001: not equal).
+#    My label in test_walk.py real_cc took the lowest matching rate, so it named the partner's rate. Fixed the label: it asks about the sender's own rate first. Equal labels still mean equal bytes.
+#    Machine.lean's rules were not changed. The model's Env.code_commit is opaque and no proof assumes it separates rates.
+#    Worth knowing, not a rule break: a code commit does not always pin the exact rate. The transcript has its own sample_rate check.
+# 2. Coverage holes in the random walk, shown by mutants surviving on the default seed:
+#    (a) sending the same transcript again while the session is live (sessions.py:424-425). Default seed and 7001 never do it. Seed 7002 does it once.
+#    (b) both self checks failing in one combine, which decides that A gets the blame (verdict.py loop order, by = A).
+#    test_directed_cases now reaches both, 16 sessions. Both rules agree. That is why "one trace at a time" below shows rc=3: no mismatch, only a target missed, or for directed the session floor.
+# 3. No wrong verdict was found, in the model or the server.
+#
+# THIN SPOTS, read from a review of the earlier traces with the same operations. A repeat live transcript with a nonzero half is hit once; the other 16 have half zero. Both self checks failing comes only from
+# the directed cases. Every create is by phone A at the session's own zero. Isolated v2_delta and v2_cc refusals: 3 each.
+#
+# DOES THE CHECKER BITE? logs/replay-checks.txt: 60 of 60 one-fact changes to a trace caught; 87 of 87 one-rule changes to a definitions-only copy of the Lean table caught; both controls pass.
+# Those changes were chosen by hand, so this doesn't show no blind spot remains. logs/replay-exit-codes.txt: the check scripts exit nonzero when they fail.
+#
+# ONE EDGE ON THE COMPARISON. flight is compared to within 0.005 plus 1e-9: Python rounds to 2 places, Lean is exact. No rule decides on the rounded number.
+#
+# WHAT A TRACE CAN'T COVER.
+# - A sample. A rule never hit with the right inputs is untested, however many runs pass. Findings 2a and 2b are examples of what can hide, and others could remain.
+# - Err.internal was never hit, listed below. The three known 500s (spec.md section 6) aren't generated.
+# - Req.noauth_load: no such request is sent, so bare loads from routes like /relay aren't tested.
+# - Races: one request at a time, so one worker and no await between load and save are not tested.
+# - Several clock reads in one handler: the fake clock holds still during a step, so join's second expiry check can't fire.
+# - Byte parsing and real crypto: b64d, decoder and verify_raw results are recorded bits from the real code. A bug there is recorded as fact and both sides agree on it.
+# - Auth: auth.py isn't in Machine.step. The trace's auth label picks the sender, and the four 401 codes are one Lean code, so only the status is compared there.
+# - Refused creates and unknown session ids don't reach Machine.step. They get a light check, counted under "not a step".
+# - check_commit in Verdict.lean isn't called by Machine.step, so live traces don't test it.
+# - Fields the Lean table doesn't hold, so a wrong value there can't show here. Document: updated_ms, last_flight_cm, last_failure.text, not_before, context, policy, human. Per role: rtt_min_ms,
+#   submitted_ms, meta, code_attest. Record: proto, user_text, context, not_before, zk, display fields. Answers: invite, view constants and display fields, zk_valid_at, arm popt and tune_db, commit code_attest,
+#   error detail, all sound bytes. Real values of ids and secrets: only "same as at create" reaches the trace. test_walk.py checks many of these against its own model; this replay doesn't.
+#
+== lake build (the Machine proofs too, so the Replay reads what was checked)
+Build completed successfully (18189 jobs).
+build rc=0
+== traces
+walk-20261106.jsonl lines=31216 sha256=2787634b3a6a9f77ab00797df8c5c9f0073c29407a20115f2558bd32896d5bfa header={"format": "pop-walk-trace-3", "seed": 20261106, "sessions": 2000}
+walk-7001.jsonl lines=31489 sha256=d9382d4596091deed609a14b44662a718443d33189694477366d1b06b0f2c479 header={"format": "pop-walk-trace-3", "seed": 7001, "sessions": 2000}
+walk-7002.jsonl lines=31149 sha256=8d74eab923b79cdc7a387e12bfaa6122ca0bd2d1083d1290815cce33e50e7545 header={"format": "pop-walk-trace-3", "seed": 7002, "sessions": 2000}
+directed.jsonl lines=225 sha256=14decf3f13303ab177d753cb3fab5158a6da37ad190c32dac0ff6920082e5732 header={"format": "pop-walk-trace-3", "seed": "directed", "sessions": 16}
+== replay, all traces together
+Replay of Machine.step against traces from the real server (test_walk.py --trace-out).
+This is testing on sampled runs. It is not a proof that the Lean table and the Python are equal.
+These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1). Not a proof of proximity.
+Scope: context=None, human=none. Assumptions named in ServerFv/Replay.lean: honest code, one worker, no await between load and save, unforgeable signature, no collisions.
+Signature bits, base64 bits, decoded fields and starting calibration are recorded facts from the real code, read from the trace.
+Compared: status and code, the abstract document and the response digest. Fields outside those are listed in ServerFv/Replay.lean and are not checked here.
+trace traces/walk-20261106.jsonl: {"format":"pop-walk-trace-3","seed":20261106,"sessions":2000}
+trace traces/walk-7001.jsonl: {"format":"pop-walk-trace-3","seed":7001,"sessions":2000}
+trace traces/walk-7002.jsonl: {"format":"pop-walk-trace-3","seed":7002,"sessions":2000}
+trace traces/directed.jsonl: {"format":"pop-walk-trace-3","seed":"directed","sessions":16}
+sessions 6016
+trace lines 94075
+lines skipped, after a mismatch in the same session: 0
+sessions with a mismatch: 0
+  arm answered, a role on popt 2: 4311
+  arm answered, both on popt 1: 10272
+  err seen: already_committed: 137
+  err seen: already_joined: 828
+  err seen: already_submitted: 146
+  err seen: auth_failed: 1530
+  err seen: bad_attempt: 762
+  err seen: bad_reason: 645
+  err seen: bad_request: 1525
+  err seen: bad_sample_rate: 249
+  err seen: bad_state: 11106
+  err seen: bad_token: 54
+  err seen: no_result: 609
+  err seen: not_member: 3990
+  err seen: self_join: 670
+  err seen: signature_invalid: 477
+  err seen: stale_attempt: 371
+  err seen: token_expired: 269
+  err seen: too_early: 731
+  err seen: transcript_mismatch: 1214
+  expiry fired: E1: 447
+  expiry fired: E2: 822
+  expiry fired: E3: 1051
+  flight values compared, within 0.005: 3362
+  not a step: refused create: 3521
+  not a step: set_cal: 944
+  not a step: unknown session id: 425
+  op: abort: 515
+  op: arm: 18844
+  op: commit: 19963
+  op: confirm: 12511
+  op: create: 9537
+  op: fail: 3089
+  op: join: 7564
+  op: result: 1604
+  op: set_cal: 944
+  op: transcript: 15838
+  op: view: 3666
+  resp compared: accepted: 10166
+  resp compared: arm: 14583
+  resp compared: commit: 12911
+  resp compared: record: 550
+  resp compared: view: 19646
+  result: NEAR reason=none: 2750
+  result: NOT_NEAR reason=capture_failed: 21
+  result: NOT_NEAR reason=glitch: 15
+  result: NOT_NEAR reason=impossible_flight: 199
+  result: NOT_NEAR reason=partner_mismatch: 95
+  result: NOT_NEAR reason=partner_not_heard: 16
+  result: NOT_NEAR reason=self_not_heard: 22
+  result: NOT_NEAR reason=self_timestamp_mismatch: 175
+  result: NOT_NEAR reason=signature_invalid: 94
+  result: NOT_NEAR reason=timeout: 351
+  result: NOT_NEAR reason=too_far: 612
+  result: NOT_NEAR reason=transcript_mismatch: 284
+  row: aborted reason=aborted by=A: 56
+  row: aborted reason=aborted by=B: 57
+  row: failed reason=capture_failed by=A: 34
+  row: failed reason=capture_failed by=B: 29
+  row: failed reason=glitch by=A: 37
+  row: failed reason=glitch by=B: 24
+  row: failed reason=impossible_flight by=none: 809
+  row: failed reason=partner_mismatch by=A: 48
+  row: failed reason=partner_mismatch by=B: 47
+  row: failed reason=partner_not_heard by=A: 34
+  row: failed reason=partner_not_heard by=B: 27
+  row: failed reason=self_not_heard by=A: 29
+  row: failed reason=self_not_heard by=B: 27
+  row: failed reason=self_timestamp_mismatch by=A: 339
+  row: failed reason=self_timestamp_mismatch by=B: 302
+  row: failed reason=timeout by=A: 262
+  row: failed reason=timeout by=B: 246
+  row: failed reason=timeout by=none: 543
+  row: rejected reason=signature_invalid by=A: 42
+  row: rejected reason=signature_invalid by=B: 52
+  row: rejected reason=transcript_mismatch by=A: 154
+  row: rejected reason=transcript_mismatch by=B: 130
+  row: verdict reason=none by=none: 2750
+  row: verdict reason=too_far by=none: 612
+  same transcript again, answered 200: 17
+  state after a step: aborted: 4760
+  state after a step: confirmed: 15978
+  state after a step: created: 7404
+  state after a step: done: 15702
+  state after a step: joined: 13035
+  state after a step: started: 32306
+  step code: abort 200 : 353
+  step code: abort 401 auth_failed: 37
+  step code: abort 403 not_member: 109
+  step code: arm 200 : 14583
+  step code: arm 400 bad_attempt: 259
+  step code: arm 400 bad_request: 552
+  step code: arm 400 bad_sample_rate: 249
+  step code: arm 401 auth_failed: 232
+  step code: arm 403 not_member: 634
+  step code: arm 409 bad_state: 2295
+  step code: commit 200 : 12911
+  step code: commit 400 bad_request: 182
+  step code: commit 400 signature_invalid: 383
+  step code: commit 400 transcript_mismatch: 930
+  step code: commit 401 auth_failed: 310
+  step code: commit 403 not_member: 869
+  step code: commit 409 already_committed: 137
+  step code: commit 409 bad_state: 3435
+  step code: commit 409 too_early: 731
+  step code: confirm 200 : 10805
+  step code: confirm 401 auth_failed: 100
+  step code: confirm 403 not_member: 316
+  step code: confirm 409 bad_state: 1231
+  step code: create 200: 6016
+  step code: fail 200 : 407
+  step code: fail 400 bad_attempt: 503
+  step code: fail 400 bad_reason: 645
+  step code: fail 400 bad_request: 92
+  step code: fail 401 auth_failed: 146
+  step code: fail 403 not_member: 381
+  step code: fail 409 already_submitted: 18
+  step code: fail 409 bad_state: 757
+  step code: fail 409 stale_attempt: 110
+  step code: join 200 : 5558
+  step code: join 400 bad_request: 66
+  step code: join 400 self_join: 670
+  step code: join 401 auth_failed: 100
+  step code: join 403 bad_token: 54
+  step code: join 409 already_joined: 828
+  step code: join 410 token_expired: 269
+  step code: result 200 : 550
+  step code: result 401 auth_failed: 102
+  step code: result 403 not_member: 294
+  step code: result 404 no_result: 609
+  step code: transcript 200 : 10166
+  step code: transcript 400 bad_request: 198
+  step code: transcript 400 signature_invalid: 94
+  step code: transcript 400 transcript_mismatch: 284
+  step code: transcript 401 auth_failed: 316
+  step code: transcript 403 not_member: 943
+  step code: transcript 409 already_submitted: 128
+  step code: transcript 409 bad_state: 3388
+  step code: transcript 409 stale_attempt: 261
+  step code: view 200 : 2523
+  step code: view 400 bad_request: 435
+  step code: view 401 auth_failed: 187
+  step code: view 403 not_member: 444
+  steps run through Machine.step: 83169
+  verdict: NEAR: 2750
+  verdict: NOT_NEAR: 1884
+Lean error codes never hit: [internal]
+reasons never seen in an attempts row: []
+chosen coverage targets: 35, missed: []
+session floor: 1000
+RESULT no mismatch in any compared step, on these sampled runs, with 6016 sessions and all 35 chosen targets reached. That is not full coverage. Not a proof of equivalence, and not a proof of proximity.
+replay rc=0
+== replay, one trace at a time
+walk-20261106.jsonl rc=3 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch, but a chosen coverage target was missed 
+walk-7001.jsonl rc=3 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch, but a chosen coverage target was missed 
+walk-7002.jsonl rc=0 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch in any compared step, on these sampled runs, with 2000 sessions and all 35 chosen targets reached. That is not full coverage. Not a proof of equivalence, and not a proof of proximity. 
+directed.jsonl rc=3 sessions 16 sessions with a mismatch: 0 RESULT no mismatch, but only 16 sessions, under the floor of 1000 
+== end of replay_all, rc=0
+dda3ca675585c4492ecb4bb2c1cf881fe7a04c656ff60f079a7d49a803ff6505  server/pop/sessions.py
+.
+..
+machine_all.sh
+machine_mutants.py
+machine_traces.lean
+replay_all.sh
+replay_checks.py
+run: 163 s, rc=0

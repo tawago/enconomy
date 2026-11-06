@@ -1,0 +1,30 @@
+# 2026-11-06 Pixel 6 RawRec, VOICE_RECOGNITION (UNPROCESSED reported unsupported), 16-bit 48 kHz WAV, 500 Hz tone
+samples 864000  peak 1011  rms 588.3  loudest frequency 500 Hz
+filter output rms / 190 (in-band level, in samples): 4.6
+tone amplitude per second: median 835  min 772  max 914
+WARNING: tone amplitude under 5000. A 0 here doesn't rule the tone out: get closer or turn it up.
+RESULT: 0/800 pass (40 fresh codes x 20 spots)
+
+# per-3-second levels, and a simulated digital tone added to this recording's residual
+sec | rms | 500Hz amp | in-band rms(/190) | peak
+0 594 817 8.7 1207
+3 605 854 4.4 965
+6 594 838 4.4 941
+9 589 831 4.4 942
+12 577 814 4.4 913
+15 557 784 4.4 897
+18 538 759 4.3 861
+0 300 band power dB -25.5
+300 700 band power dB 2.0
+700 2000 band power dB -30.0
+2000 6000 band power dB -46.0
+6000 12000 band power dB -45.5
+12000 16000 band power dB -45.8
+16000 24000 band power dB -46.1
+residual rms 53.4
+tone amp 500 on this recording residual: 0 / 160
+tone amp 2000 on this recording residual: 0 / 160
+tone amp 5000 on this recording residual: 58 / 160
+tone amp 10000 on this recording residual: 103 / 160
+tone amp 20000 on this recording residual: 123 / 160
+tone amp 32000 on this recording residual: 124 / 160
