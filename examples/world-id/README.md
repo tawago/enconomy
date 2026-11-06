@@ -4,9 +4,7 @@ Two different humans met. Each phone proves a World ID to this backend before th
 
 An outside developer could build this: it uses only the core's public HTTP routes and its signed presence record. It has its own database and imports nothing from the core. The core stores no human data.
 
-It isn't part of `./demo`, and the core app has no World ID screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
-
-The removed Kotlin app code for this feature (`WorldId.kt`, `PopController.kt` and `App.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
+It isn't part of `./demo`, and the core app has no World ID screen. This example has its own copy of the app, see [App](#app). It has never been compiled.
 
 ## What it proves
 
@@ -18,7 +16,7 @@ Two different World ID proofs, bound to this nonce and role, by the devices that
 - **One human across sessions.** The action is `pop:<session_id>`, per session, so a nullifier limits one human per session. The same two people can meet again, and the same human can be in any number of sessions.
 - **Anything without trusting the core.** The core's signature is trusted for the verdict and `attested`. This backend rechecks the transcript hashes and device signatures, not the distance.
 - **That the app ran the gate.** A patched app can skip it and the core will measure anyway. This backend still answers `met: false`. It doesn't check order either: a World ID finished after the measurement, by the same device key, still counts.
-- **That the core app works with this.** It has no World ID screen.
+- **That the core app works with this.** It has no World ID screen. Only the copy in `app/` runs this flow.
 
 ## Run
 
@@ -77,17 +75,36 @@ The source opens read-only and a second run changes nothing. Old rows have the a
 
 The answer is stored per nonce and carries no nullifiers. A delivery works it out again, so a record that came before World ID finished gets its real answer on the retry.
 
-## What its future app must do
+## App
 
-Nothing is built yet. The app:
+`app/` is this example's own full copy of the mobile and web app (Android, iOS, web), taken from the core's `app/` at commit `1e80216` and trimmed to the proximity flow plus World ID. There's no SDK and it shares no code with the core.
 
-1. Has its own `applicationId`, enrolls with the core and calibrates by itself, as any core app does.
-2. Creates the core session with `early_nonce: true`, so both phones see the nonce before Confirm.
-3. Doesn't treat `nonce != null` as both confirmed. With `early_nonce` it no longer means that. Read the session state.
-4. Runs World ID on both phones **before Arm**, because the iOS app switch can kill audio. Signs with the device key it enrolled with the core, and waits for `verified` on both roles (`partner.status`). This gate is a courtesy: the backend is the real check.
-5. Runs the session through the core as usual.
-6. After the result, takes `presence` from `GET /v1/session/{id}/result` and sends it to `POST /v1/record`. Either phone, both is fine, so both should. Retry from a small queue that survives a restart, until a 200.
-7. Shows `met`, and says plainly why not when `reason` is set.
+**This copy has never been compiled or run, and neither have its tests.** It's reference code, kept as a past example. Nobody built it after the edits, so treat it as a careful draft.
+
+The flow:
+
+1. `applicationId` and iOS bundle id are `com.enconomy.pop.worldid`. It enrolls with the core and calibrates by itself, as any core app does.
+2. Host creates the core session with `{"early_nonce": true}`, so both phones see the nonce from join on.
+3. It doesn't treat `nonce != null` as both confirmed. Confirm waits on the session's `state`.
+4. On the Confirm screen, so before Arm, because the iOS app switch can kill audio, both phones run World ID through this backend: `POST /v1/worldid/start`, open `connector_uri` in World App (or show it as a QR code to another phone, the default on iOS and web), then poll `POST /v1/worldid/status`. Requests are signed with the device key enrolled with the core. World App comes back on `enconomy://worldid`, this example's return link and the backend's `WID_RETURN_TO` default. Confirm stays off until both roles are `verified`. This gate is a courtesy: the backend is the real check.
+5. The core measures as usual.
+6. After NEAR, it takes `presence` from the core's result and sends it to `POST /v1/record`. Both phones do. Records wait in a small queue in Prefs that survives a restart, and retry until a 200. A 4xx drops the record, since a retry can't fix it.
+7. The Result screen shows `met`, and says plainly why not when `reason` is set.
+
+Settings: **World ID backend** under Server on Home, or at build time `-Ppop.worldIdUrl=` or `POP_WORLD_ID_URL`. The default is `http://10.0.2.2:8300`, the host from the Android emulator. The core's URL works as in the core app, and `app/README.md` in the core covers build and install.
+
+Removed from the source: ENS, Safe, `ContextGate`, `PopCtx`, the World ID Simulator switch (this backend only takes production), and the core routes the split removed (`/session/{id}/worldid`, `/attestation`, `/safe`, `/relay`, `/device/ens`). `LiveWorldIdTest` went too, it tested those routes. `WorldIdTest` is rewritten for this backend.
+
+Left out on purpose: `app/prover`, `app/zkprove`, built binaries and build output. If anyone ever builds this, they come from the core's `app/`: copy `app/zkprove` to `examples/world-id/app/zkprove`. Without it the Gradle tasks skip the prover and the app runs without on-phone proofs.
+
+Expected to need fixing if someone builds it:
+
+- **Compile errors.** Imports and small type mismatches, most likely in the new `WorldId.kt`, `PopController.kt` and `App.kt`. `WorldIdApi`'s client setup is the least sure part.
+- **Web and CORS.** The web app is served by the core, so calls to this backend are cross-origin, and the backend has no CORS setting. Add `CORSMiddleware` with the core's origin, or proxy it.
+- **Android.** The Kotlin package and `namespace` stay `com.enconomy.pop`, only `applicationId` changed. The NFC AID is the core app's too, so with both installed the tap can reach the wrong one.
+- **iOS.** Paid builds need the core's `POP_IOS_APP_ID` set to `TEAMID.com.enconomy.pop.worldid` for App Attest, and the core takes one value. Xcode's team and signing are per machine, as in the core. World App once aborted on approve on an iPhone X (iOS 16), and the old answer, the simulator, is gone.
+- **Session age.** A core session lives 600 s from create, World ID included. A slow World ID step aborts it.
+- **Tests.** `LiveServerRunTest` needs a running core, and the fixtures are the core's as of `84f9d71`, so they can go stale.
 
 ## Security checks that stayed
 
