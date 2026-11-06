@@ -17,5 +17,3 @@ export function parseIdentifier(typed) {
 }
 export const addressSlot = (address) => ADDR_PREFIX + address.toLowerCase();
 
-// The text the wallet signs. It names both things the wallet is approving.
-export const siweStatement = (name, address, thumb, expIso) => `Approve browser key ${thumb} for ${name} and ${address} until ${expIso}.`;

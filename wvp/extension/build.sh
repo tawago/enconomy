@@ -15,7 +15,7 @@ for f in sw coordinator offscreen popup pool-worker; do "$ESBUILD" "src/$f.mjs" 
 cp src/static/* "$OUT/"
 cp src/page-api.js src/bridge.js src/login.js "$OUT/"
 cp "$T/p2-threads/openac_plain2.wasm" "$T/sdk-q1/assets/jwt_1k.wasm" "$T/sdk-q1/assets/show.wasm" "$OUT/wasm/"
-echo '{"issuerOrigin":"http://issuer.test:8801","assetBase":"http://keys.test:8804","threads":4}' > "$OUT/config.json"
+echo '{"issuerOrigin":"http://issuer.test:8801","approveOrigin":"http://enroll.test:8806","assetBase":"http://keys.test:8804","threads":4}' > "$OUT/config.json"
 # The fake wallet is for the demo only. It never goes in the extension.
 "$ESBUILD" ../demo/fake-wallet.mjs --bundle --format=iife --platform=browser --target=es2022 --log-level=warning --outfile=build/fake-wallet.js
 du -sh "$OUT"

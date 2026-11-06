@@ -1,6 +1,13 @@
 # WVP Chromium patch
 
-Adds one private API, `wvpPrivate.approve`, for a bundled extension. Through it the browser checks for a real user gesture, reads the tab's real origin and shows a native prompt. The rules are in `SPEC.md`.
+The main way to try WVP is the extension in stock Chrome, see `../wvp/README.md`. This patch adds two things over that:
+
+- **No install.** The extension ships beside the binary and loads by itself.
+- **The browser's own real-click check.** `wvpPrivate.approve` consumes the tab's user activation in the browser process and reads the tab's real origin. In stock Chrome that check is only `login.js`, which is weaker.
+
+The rules are in `SPEC.md`.
+
+The native prompt is off. The patch still holds it: `askUser` and the popup's WVP text are unused. The extension no longer asks for it, so the patch didn't change when the prompt went away.
 
 The patch touches 9 files: 271 lines added, 7 removed. `wvp_private/` holds readable copies of its 4 new files. You don't copy them in, the patch adds them.
 
@@ -45,4 +52,4 @@ Run the demo from `wvp/`, once its servers have what they need (`wvp/README.md`)
 WVP_COMPONENT=1 WVP_CHROME=/path/to/src/out/Demo/chrome WVP_THIRD_PARTY=/path/to/third_party node demo/try-it.mjs
 ```
 
-`--smoke` won't finish on this build. It can't click the native prompt, so a person has to.
+`--smoke` wasn't tried on this build.

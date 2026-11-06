@@ -9,6 +9,8 @@ import { sdk } from "../lib/openac.mjs";
 import { loadFastProver } from "../lib/openac-fast.mjs";
 import { parseIdentifier } from "../lib/identifier.mjs";
 import { thirdParty } from "../lib/third-party.mjs";
+import { verifyDirect } from "./direct-verify.mjs";
+import { tableLookup, mainnetLookup } from "../lib/ens-lookup.mjs";
 const opt = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : process.argv[i + 1]; };
 const origin = opt("origin"), port = Number(opt("port")), issuerUrl = opt("issuer"), title = opt("title", origin), accent = opt("accent", "#2563eb");
 const log = (o) => console.log(JSON.stringify({ t: Date.now(), ...o }));
@@ -22,7 +24,12 @@ const empty = new Uint8Array(0);
 prover.cacheKeys({ prepareProvingKey: empty, showProvingKey: empty, prepareVerifyingKey: readKey(VK.prepare), showVerifyingKey: readKey(VK.show) });
 const openac = await sdk.OpenAC.init({ wasmModule: prover });
 const vks = { prepareVerifyingKey: empty, showVerifyingKey: empty };
-const { keys: [trustedIssuer] } = await (await fetch(`${issuerUrl}/jwks`)).json();
+// The issuer only matters for anonymous proofs. A site must still start and log people in by name with it gone.
+const issuerKey = () => fetch(`${issuerUrl}/jwks`, { signal: AbortSignal.timeout(1000) }).then((r) => r.json()).then((j) => j.keys[0]).catch(() => null);
+let trustedIssuer = await issuerKey();
+// --ens table --name alice.eth --owner 0x... (default), or --ens mainnet --rpc https://... (read-only).
+const lookup = opt("ens", "table") === "mainnet" ? mainnetLookup(opt("rpc", "https://ethereum-rpc.publicnode.com")) : tableLookup({ [opt("name", "alice.eth")]: opt("owner") });
+const approveDomains = opt("approve-domain", "enroll.test:8806").split(",");
 
 const open = new Map(), used = new Set(), sessions = new Map();
 const TTL = 900, SKEW = 300;
@@ -33,7 +40,8 @@ async function submit(raw) {
   let tok;
   try { tok = JSON.parse(raw); } catch { return { accepted: false, reason: "bad_token" }; }
   const { v, challenge, now, claim, bundle } = tok ?? {};
-  if (v !== 1 || typeof challenge !== "string" || typeof bundle !== "string" || !Number.isInteger(now)) return { accepted: false, reason: "bad_token" };
+  const direct = v === 2 && tok.kind === "direct";
+  if ((v !== 1 && !direct) || typeof challenge !== "string" || (!direct && typeof bundle !== "string") || !Number.isInteger(now)) return { accepted: false, reason: "bad_token" };
   if (used.has(challenge)) return { accepted: false, reason: "challenge_used" };
   const expires = open.get(challenge);
   if (expires === undefined) return { accepted: false, reason: "unknown_challenge" };
@@ -41,6 +49,10 @@ async function submit(raw) {
   if (expires <= clock()) return { accepted: false, reason: "challenge_expired" };
   // The holder picks now, so a site can't probe the expiry. The cost: a cheater gets SKEW seconds of slack.
   if (Math.abs(now - clock()) > SKEW) return { accepted: false, reason: "bad_time" };
+  if (direct) { const t = performance.now(); const r = await verifyDirect({ tok, origin, lookup, approveDomains, nowSec: clock() }); return { ...r, verifyMs: performance.now() - t }; }
+  // A demo issuer makes a new key at each start. Use its current key, or the last one seen if it's down.
+  trustedIssuer = (await issuerKey()) ?? trustedIssuer;
+  if (!trustedIssuer) return { accepted: false, reason: "no_issuer" };
   let id = null;
   if (claim !== null) {
     id = parseIdentifier(claim);
@@ -70,6 +82,8 @@ const CSS = `
   .spin { width: 15px; height: 15px; border: 2px solid #d4d4d8; border-top-color: ${accent}; border-radius: 50%; animation: s .8s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
   .who-text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; word-break: break-all; }
+  #go { width: 100%; margin-top: 14px; font: 600 15px system-ui, sans-serif; padding: 12px; border: 0; border-radius: 10px; background: ${accent}; color: #fff; cursor: pointer; }
+  #go:disabled { opacity: .5; cursor: default; } #go[hidden] { display: none; }
   #out { background: none; border: 0; padding: 0; margin-left: auto; font: inherit; color: #71717a; text-decoration: underline; cursor: pointer; }
 `;
 // The whole login is this markup. Nothing here calls the extension. wvp/README.md says what each attribute means.
@@ -78,6 +92,7 @@ const form = (nonce) => `<form id="login" onsubmit="return false">
     <input id="who" type="text" autocomplete="wvp" placeholder="alice.eth or 0x..." aria-label="Your address or ENS" spellcheck="false" autocapitalize="off">
     <label class="switch"><input id="anon" type="checkbox" data-wvp-anonymous>Anonymous</label>
   </div>
+  <button id="go" type="button" data-wvp-signin>Sign in</button>
   <input id="token" type="hidden" autocomplete="wvp-token" nonce="${nonce}">
 </form>`;
 const PAGE = (nonce) => `<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><style>${CSS}</style>
@@ -94,6 +109,8 @@ let t0 = 0, signedIn = false;
 window.__result = null;
 const verified = (name, ms) => {
   signedIn = true;
+  // Signed in: Sign out is the only thing left to do.
+  $("go").hidden = true; who.readOnly = true; anon.disabled = true;
   show("ok", "");
   const b = document.createElement("span"); b.className = name ? "who-text" : ""; b.textContent = "\\u2713 Verified: " + (name ?? "anonymous");
   status.append(b);
@@ -113,7 +130,7 @@ tok.closest("form").addEventListener("wvp-state", async () => {
     const r = await post("/submit", tok.value);
     window.__result = { ...r, proofMs: tProof - t0, totalMs: performance.now() - t0 };
     await fresh();
-    if (r.accepted) verified(r.name, performance.now() - t0); else { signedIn = false; say("bad", "Rejected: " + r.reason); }
+    if (r.accepted) { verified(r.name, performance.now() - t0); if (r.mode === "direct") { $("direct")?.remove(); const a = document.createElement("div"); a.id = "direct"; a.style = "font-weight:400;font-size:13px;color:#71717a;margin-top:6px;word-break:break-all"; a.textContent = "No issuer, no proof. This site sees your wallet: " + r.address + (r.lookup ? " (ENS: " + r.lookup + ")" : ""); status.after(a); } } else { signedIn = false; say("bad", "Rejected: " + r.reason); }
   }
 });
 fetch("/me").then((r) => r.json()).then((m) => { if (m.loggedIn) { window.__me = m; verified(m.name); who.readOnly = true; if (m.name) who.value = m.name; else anon.checked = true; } });

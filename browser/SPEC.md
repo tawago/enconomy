@@ -1,52 +1,51 @@
-# WVP browser: the three rules
+# WVP: the rules
 
-Page script is the attacker. A compromised renderer is out of scope, see the end. "Checked" means run on this patched build on 2026-11-06, with scripted X input, one try each. A script played the wallet. No person has used it.
+Page script is the attacker. A compromised renderer is out of scope: the browser's activation bit is set by renderer messages. A script played the wallet in all checks.
 
-## 1. The origin given to the prover comes from the browser process
+## 1. The origin comes from the browser
 
-**Rule.** A proof is bound to origin O only if the browser's own record says the tab's top frame is at O.
+**Rule.** A login is bound to origin O only if the browser says the tab's top frame is at O. `sw.mjs` takes `port.sender.origin` and requires `frameId` 0. No message field carries an origin. The patched browser also reads `GetLastCommittedOrigin()` itself.
 
-**How.** `sw.mjs` takes `port.sender.origin`, which the browser fills in, and `frameId` must be 0. Then `wvpPrivate.approve` reads `GetPrimaryMainFrame()->GetLastCommittedOrigin()` in the browser process. A mismatch stops it. `bindNonce(origin, nonce)` is the only use. No message field carries an origin, so a page has nothing to lie with.
+**Stops.** A page lying about its origin. A's proof or token, on a challenge B really issued, gets `wrong_nonce` from B.
 
-**Checked.** The native prompt showed `http://site-a.test:8802`, `http://site-b.test:8803` and `http://race.test:8805` on the right tabs. Site A and B each accepted their own proof.
+**Doesn't stop.** A lookalike site. It gets a login for its own origin, if you sign in there.
 
-**Not rerun on this build.** The test where A's proof is sent to B (`wrong_nonce`). It passed with the extension on stock Chrome. The site code and binding are the same.
+## 2. A login needs a real click
 
-## 2. A page can't trigger a proof without real user activation
+**Rule.** A login starts only from a trusted click on `button[data-wvp-signin]`, or a trusted Enter in the field. The switch only locks the field. There's no prompt, and the wallet shows only when the approval is missing or expired.
 
-**Rule.** No proof, and no enrollment tab, unless the tab's top frame has transient activation. One gesture is good for one attempt.
+- **Stock Chrome:** this check is `login.js` reading `isTrusted`. Nothing else backs it, so it's weaker.
+- **Patched browser:** `prove` also calls `wvpPrivate.approve`, which consumes the tab's transient activation in the browser process. One gesture is good for one attempt. No gesture gives `no_activation`.
+- A login that went to enrollment resumes without a new gesture. The grant is per tab, single use, and lasts 5 s.
 
-**How.** The first thing `prove` does, before reading any credential, is `approve` with `requireActivation`, which calls `ConsumeTransientUserActivation()` in the browser process. Next comes the stricter check in `login.js`: real keys, a real leave, a trusted click on the switch. Then the native prompt, once per origin and mode.
+**Stops.** A script's `.click()`, on both builds.
 
-**One exception.** A login that passed the gate and went to enrollment resumes without a new gesture, because the gesture was in the other tab. The grant is per tab, single use, and dies after 5 s. The prompt still shows.
+**Doesn't stop.** Clickjacking, also on a first visit. A hidden Sign in under a fake button gets a real click. With the switch on, the site learns you hold a valid credential. The proof only works for that page's origin. On the patched browser, any gesture on the page counts for about 5 s, and then only `login.js` narrows it to the button.
 
-**Checked**, asking through the extension's own port:
+## 3. The typed value must match
 
-```
-no gesture:             no_activation
-after a real click:     passes the gate, goes on to enrollment
-same click, second use: no_activation
-```
+**Rule.** A named login exists only if the typed value equals the approved name or address, after normalizing. Otherwise `no_match`, and nothing is signed. Text counts only if each edit was a real key, paste or IME session.
 
-Also: Tab 6.5 s after the last key still passes, since Tab is itself a gesture. "Not now" gives no proof.
+**Stops.** A page asking for a name you didn't type. `bob.eth` when enrolled as `alice.eth`.
 
-**Holes.**
+**Doesn't stop.** Our event rules are a list and may be incomplete. A page that gets past them learns only that you hold a name it already guessed. Any field with this markup can ask, whatever its label says.
 
-- Any gesture on the page counts for about 5 s. A page script can use that window, and then only `login.js` stands between it and a proof. That list of rules may be incomplete.
-- Clickjacking on a site you already allowed still works. The prompt only guards the first time per origin and mode. For anonymous, the site learns you hold a valid credential.
-- The prompt can't be covered, since it's browser UI. Not tested against a page that resizes or scrolls under it.
+## 4. A named login covers this site and this challenge
 
-## 3. The typed name must match the credential
+**Rule.** K signs `["wvp-direct-login-v1", origin, challenge, now, claim]`. Site S accepts only if all of these hold. The site rebuilds the bytes with its own origin and an unused challenge it issued (`wrong_nonce`). A wallet signature recovers the message's address (`wrong_wallet`). The message names this K (`wrong_key`). It's unexpired and lasts at most 7 days (`expired`, `bad_lifetime`). Its domain is on the site's pinned list (`wrong_domain`). A name resolves to that address (`not_owner`). It's in the exact form `createSiweMessage` writes (`bad_message`).
 
-**Rule.** A named proof exists only if the typed value equals the credential's name or address, after normalizing.
+**Stops.** Replay at another site. Reuse of a challenge. Swapping K. A sold name, at the next lookup. An approval signed for another domain.
 
-**How.** `parseIdentifier(typed)`, then `id.claim` against `h.name` and `h.address`, in the service worker, before the prompt. No match gives `no_match` and no proof. The site's `siteCheck` then checks the claim against the proof (`wrong_policy`).
+**Doesn't stop phishing.** The approval is a bearer power. If you approve an attacker's K with the pinned domain, they log in as you at every site pinning it, named and anonymous, until expiry. There's no revocation: Revoke deletes K on this browser only. A wallet with a SIWE domain check should warn on the wrong page. Not tested. A wallet without one, or a blind-signing prompt, won't. The host of the pinned page is a small trusted party: if it's compromised, it can ask for its own K.
 
-**Checked.** `bob.eth` on Site A, enrolled as `alice.eth`: "No proof", no prompt.
+**Limits.** Only plain EOAs: `ecrecover`, no ERC-1271. Selling the name doesn't cut off a typed address until expiry.
 
-**Hole.** "Typed" is `login.js` reading events. A name forged into the field that passes those rules gets a proof, but only for the holder's real name, bound to that page's origin. So the page learns the holder has that name, which it had to guess first.
+## 5. One signature, one K, two modes
 
-## Out of scope
+**Rule.** One signature approves K for named and anonymous. The issuer takes that signature in the background. K must also sign `["wvp-issue-v1", issuer origin, nonce]`, for a one-time nonce from `/nonce`. Then the issuer applies the same checks, plus the ENS lookup, and signs the credentials.
 
-- **Compromised renderer.** The browser's activation bit is set by renderer messages, per the comment in `RenderFrameHostImpl::UpdateUserActivationState`. So this gate is against page script, not against a compromised renderer.
-- `autocomplete` isn't read by the browser in this design. `login.js` reads it.
+**Stops.** A site replaying your signature to get credentials: `no_key_proof`, since it has no K. A different K: `key_mismatch`. A reused or unknown nonce: `nonce_unknown_or_used`. No holder text reaches the signed credential, so the forged digest stays shut.
+
+**Doesn't stop.** K's public key reaches every site on a named login, while anonymous proofs use the same K. So anonymous unlinkability rests on the proof hiding K. The only check is a byte search for K's x and y in one anonymous bundle: not found. That's not a zero-knowledge argument, and OpenAC isn't audited. Don't claim unlinkable.
+
+The issuer can still issue false credentials, and it sees your name and address once. Credentials round down to the hour, so in the last hour anonymous asks the wallet again. Not tried.

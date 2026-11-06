@@ -6,14 +6,13 @@
 //  - Text: a value counts only if every edit was a trusted input that matches a trusted keydown of that very key, a trusted paste of
 //    that very text, or a trusted IME session, and the result is exactly the old value with that one edit. Anything else taints the
 //    field until it's emptied.
-//  - Leaving the field: a blur counts only right after a trusted Tab or a trusted pointerdown elsewhere. Script blur() and switching
-//    windows don't count.
-//  - Switch: only a trusted click. A script's click(), on the checkbox or its label, stays untrusted.
+//  - Sign in: only a trusted click on button[data-wvp-signin], or a trusted Enter in the field. A script's click() stays untrusted.
+//  - Switch: only a trusted click, and it only locks the field.
 (() => {
-  const FIELD = 'input[autocomplete="wvp"]', SWITCH = 'input[type="checkbox"][data-wvp-anonymous]', TOKEN = 'input[autocomplete="wvp-token"]';
+  const FIELD = 'input[autocomplete="wvp"]', SWITCH = 'input[type="checkbox"][data-wvp-anonymous]', TOKEN = 'input[autocomplete="wvp-token"]', SIGNIN = "button[data-wvp-signin]";
   const is = (t, sel) => t instanceof HTMLInputElement && t.matches(sel);
   const fields = new WeakMap();
-  const track = (f) => { let s = fields.get(f); if (!s) fields.set(f, s = { tracked: "", tainted: false, key: null, paste: null, ime: false, leftAt: 0, done: null }); return s; };
+  const track = (f) => { let s = fields.get(f); if (!s) fields.set(f, s = { tracked: "", tainted: false, key: null, paste: null, ime: false, done: null }); return s; };
   // True if `now` is `old` with one range replaced by `data`.
   const isSplice = (old, now, data) => {
     for (let p = 0; p <= Math.min(old.length, now.length - data.length); p++) {
@@ -37,11 +36,8 @@
     if (!e.isTrusted || !is(e.target, FIELD)) return;
     const s = track(e.target);
     s.key = e.key;
-    if (e.key === "Tab") s.leftAt = performance.now();
-    if (e.key === "Enter") {
-      // Enter is a way of saying "done" too. Don't let the form go before the token is in.
-      if (s.done !== doneKey(e.target)) { e.preventDefault(); named(e.target); }
-    }
+    // Enter is the same action as Sign in. Don't let the form go before the token is in.
+    if (e.key === "Enter") { e.preventDefault(); signIn(e.target.form); }
   }, true);
   window.addEventListener("paste", (e) => { if (e.isTrusted && is(e.target, FIELD)) track(e.target).paste = e.clipboardData?.getData("text/plain") ?? ""; }, true);
   window.addEventListener("compositionstart", (e) => { if (e.isTrusted && is(e.target, FIELD)) track(e.target).ime = true; }, true);
@@ -58,25 +54,14 @@
     s.key = null; s.paste = null;
     if (v === "" && e.isTrusted) { s.tainted = false; s.tracked = ""; }
   }, true);
-  window.addEventListener("pointerdown", (e) => {
-    if (!e.isTrusted) return;
-    const f = document.activeElement;
-    if (!is(f, FIELD) || e.target === f) return;
-    // Going to the switch means the user wants anonymous, so that's not "done typing".
-    const sw = f.form?.querySelector(SWITCH);
-    if (sw && (e.target === sw || sw.labels?.length && [...sw.labels].some((l) => l.contains(e.target)))) return;
-    track(f).leftAt = performance.now();
-  }, true);
-  window.addEventListener("blur", (e) => {
-    if (!e.isTrusted || !is(e.target, FIELD)) return;
-    const s = track(e.target);
-    const fresh = s.leftAt > 0 && performance.now() - s.leftAt < 1000;
-    s.leftAt = 0;
-    if (fresh) named(e.target);
-  }, true);
   window.addEventListener("click", (e) => {
-    if (!e.isTrusted || !is(e.target, SWITCH)) return;
-    flip(e.target);
+    if (!e.isTrusted) return;
+    if (is(e.target, SWITCH)) return flip(e.target);
+    // Only a real click. A script's click() on this button stays untrusted, and ends here.
+    const btn = e.target.closest?.(SIGNIN);
+    if (!btn?.form) return;
+    e.preventDefault();
+    signIn(btn.form, btn);
   }, true);
 
   // ---- what the page sees: the token, and one of working, done, none, idle. The reason never goes to the page. ----
@@ -99,21 +84,31 @@
     working.delete(tok);
     const h = heldSubmit.get(tok);
     heldSubmit.delete(tok);
+    tok.form?.querySelector(SIGNIN)?.removeAttribute("disabled");
     if (ok && h && h.form.isConnected) h.form.requestSubmit(h.submitter?.isConnected ? h.submitter : undefined);
   };
   function start(job) {
     job.gen = ++gen;
     waiting = null;
     working.add(job.tok);
+    job.tok.form?.querySelector(SIGNIN)?.setAttribute("disabled", "");
     clearToken(job.tok);
     setState(job.tok, "working");
     queue = queue.then(() => run(job)).catch((e) => fail(job, String(e?.message ?? e)));
   }
+  // The one way in: a real click on Sign in, or Enter in the field. Mode is whatever the switch says now.
+  function signIn(form, btn) {
+    const tok = form?.querySelector(TOKEN), sw = form?.querySelector(SWITCH), f = form?.querySelector(FIELD);
+    if (!tok || working.has(tok)) return;
+    if (sw?.checked) start({ mode: "anon", tok, field: f, sw }); else if (f) named(f);
+    // A real submit button on a plain form: send the form once the token is in.
+    if (btn?.type === "submit" && working.has(tok)) heldSubmit.set(tok, { form, submitter: btn });
+  }
   function named(f) {
-    const tok = tokenOf(f), sw = f.form?.querySelector(SWITCH);
-    if (!tok || f.readOnly || sw?.checked) return;
+    const tok = tokenOf(f);
+    if (!tok || f.readOnly) return;
     const s = track(f);
-    if (f.value === "") return;
+    if (f.value === "") return notice(f, "Type your ENS name or 0x address first.", "info");
     if (s.tainted || f.value !== s.tracked) {
       setState(tok, "none");
       notice(f, "No proof. The page filled this in, not you. Clear it and type it yourself.", "bad");
@@ -126,7 +121,8 @@
     const tok = tokenOf(sw), f = sw.form?.querySelector(FIELD);
     if (!tok) return;
     if (f) f.readOnly = sw.checked;
-    if (sw.checked) { start({ mode: "anon", tok, field: f, sw }); return; }
+    // Flipping starts nothing. It only drops a login that was running or a token made for the other mode.
+    if (!working.has(tok) && !tok.value) return;
     gen++; waiting = null;
     finish(tok, false);
     clearToken(tok);
@@ -135,10 +131,10 @@
   }
   const fail = (job, msg) => { if (job.gen !== gen) return; finish(job.tok, false); setState(job.tok, "none"); notice(job.field ?? job.tok, msg, "bad"); };
 
-  const ask = (method, args) => new Promise((ok, no) => {
+  const ask = (method, args, onProgress) => new Promise((ok, no) => {
     let answered = false;
     const port = chrome.runtime.connect({ name: "wvp" });
-    port.onMessage.addListener((m) => { answered = true; port.disconnect(); if (m.err) no(Object.assign(new Error(m.err.message), { code: m.err.code })); else ok(m.ok); });
+    port.onMessage.addListener((m) => { if (m.progress) return onProgress?.(m.progress); answered = true; port.disconnect(); if (m.err) no(Object.assign(new Error(m.err.message), { code: m.err.code })); else ok(m.ok); });
     port.onDisconnect.addListener(() => { if (!answered) no(Object.assign(new Error("The extension restarted. Try again."), { code: "extension_restarted" })); });
     port.postMessage({ method, args });
   });
@@ -148,10 +144,7 @@
     // getAttribute, like Chrome's EVP. A script setting el.nonce alone doesn't count.
     const nonce = job.tok.getAttribute("nonce") ?? "";
     let r;
-    try {
-      const a = (job.field ?? job.tok).getBoundingClientRect();
-      r = await ask("prove", { mode: job.mode, typed: job.typed ?? null, nonce, rect: { x: a.x, y: a.y, width: a.width, height: a.height } });
-    }
+    try { r = await ask("prove", { mode: job.mode, typed: job.typed ?? null, nonce }, (text) => notice(job.field ?? job.tok, text, "wait")); }
     catch (e) { return fail(job, WHY[e.code] ?? e.message); }
     if (job.gen !== gen) return;
     if (r.enroll) { waiting = job; notice(job.field ?? job.tok, "This browser has no valid credential. Finish the new tab, and this login continues by itself.", "info"); return; }
@@ -172,7 +165,6 @@
     bad_nonce: "No proof. This site's challenge is missing or malformed.",
     busy: "Another proof is running. Try again in a moment.",
     no_activation: "No proof. That didn't come from a real click or key press.",
-    user_denied: "No proof. You said no.",
   };
   chrome.runtime.onMessage.addListener((m, sender) => {
     if (sender.id !== chrome.runtime.id || m?.to !== "wvp-login" || !waiting) return;
@@ -199,6 +191,6 @@
     box.querySelector("span").textContent = text;
     host.style.display = "";
     clearTimeout(hideT);
-    hideT = setTimeout(() => { host.style.display = "none"; }, kind === "bad" ? 12000 : 7000);
+    hideT = setTimeout(() => { host.style.display = "none"; }, kind === "bad" ? 12000 : kind === "wait" ? 300000 : 7000);
   }
 })();

@@ -15,7 +15,8 @@ const run = (args) => new Promise((ok, no) => {
 });
 await run(["issuer/serve.mjs", "--port", "8801", "--name", name, "--owner", owner]);
 await run(["key-host/serve.mjs", "8804"]);
-await run(["--max-old-space-size=512", "site/serve.mjs", "--origin", "http://site-a.test:8802", "--port", "8802", "--issuer", "http://127.0.0.1:8801", "--title", "Site A", "--accent", "#2563eb"]);
-await run(["--max-old-space-size=512", "site/serve.mjs", "--origin", "http://site-b.test:8803", "--port", "8803", "--issuer", "http://127.0.0.1:8801", "--title", "Site B", "--accent", "#0f766e"]);
-console.log(`Ready. Enroll: http://issuer.test:8801/enroll   Sites: http://site-a.test:8802/  http://site-b.test:8803/   Ctrl-C to stop.`);
+await run(["issuer/serve-approve.mjs", "--port", "8806", "--name", name]);
+await run(["--max-old-space-size=512", "site/serve.mjs", "--origin", "http://site-a.test:8802", "--port", "8802", "--issuer", "http://127.0.0.1:8801", "--title", "Site A", "--accent", "#2563eb", "--name", name, "--owner", owner]);
+await run(["--max-old-space-size=512", "site/serve.mjs", "--origin", "http://site-b.test:8803", "--port", "8803", "--issuer", "http://127.0.0.1:8801", "--title", "Site B", "--accent", "#0f766e", "--name", name, "--owner", owner]);
+console.log(`Ready. Approval page: http://enroll.test:8806/enroll   Sites: http://site-a.test:8802/  http://site-b.test:8803/   Ctrl-C to stop.`);
 process.on("SIGINT", () => { for (const k of kids) { k.removeAllListeners("exit"); k.kill(); } process.exit(0); });

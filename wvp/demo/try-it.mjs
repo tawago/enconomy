@@ -1,7 +1,7 @@
 // Hands-on demo: opens a visible Chrome on a temp profile with the extension loaded. You type everything.
 // FAKE parts, shown on screen: the wallet is a fresh throwaway key with a prompt drawn by this script, and ENS is a local table.
 // Everything stays on 127.0.0.1. Quit Chrome to stop; servers and the profile are cleaned up.
-// --smoke: a script plays you once, through to a verified login, then everything quits. For checking this starts.
+// --smoke: a script plays you once: a script click that must do nothing, named on Site A, anonymous on Site B. Then everything quits.
 import { spawn, execFileSync } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -13,7 +13,7 @@ const EXT = join(ROOT, "extension/build/extension");
 // WVP_COMPONENT: the Chromium patch loads the extension itself, from beside the binary. Set WVP_CHROME to that binary too.
 const COMPONENT = !!process.env.WVP_COMPONENT;
 const SMOKE = process.argv.includes("--smoke");
-const ISSUER = "http://issuer.test:8801", A = "http://site-a.test:8802", B = "http://site-b.test:8803";
+const APPROVE = "http://enroll.test:8806", A = "http://site-a.test:8802", B = "http://site-b.test:8803";
 if (!existsSync(join(EXT, "sw.js")) || !existsSync(join(ROOT, "extension/build/fake-wallet.js"))) execFileSync(join(ROOT, "extension/build.sh"), { stdio: "inherit" });
 const key = generatePrivateKey();
 const addr = privateKeyToAccount(key).address;
@@ -63,7 +63,7 @@ const { id } = COMPONENT ? { id: "bundled component" } : await br.send("Extensio
 
 // The extension opens this tab, so the fake wallet goes in as it appears.
 const enrollTabs = [];
-br.watchTabs(`${ISSUER}/enroll`, async (t) => {
+br.watchTabs(`${APPROVE}/enroll`, async (t) => {
   await t.send("Page.addScriptToEvaluateOnNewDocument", { source: init });
   await t.evaluate(init + ";0");
   enrollTabs.push(t);
@@ -78,23 +78,30 @@ console.log(`check ${JSON.stringify(before)}`);
 console.log(`
 Ready. A script is not playing you now. Site A and Site B are open.
   ENS name:  alice.eth        Address: ${addr}   (fake wallet, throwaway key. ENS is a local table.)
-  1. On Site A, type alice.eth and press Tab.
-  2. A tab opens for the first signature. Click the button, then Sign in the FAKE WALLET box.
-  3. You land back on Site A, and it verifies by itself.
-  4. On Site B, flip Anonymous. Then Sign out and paste the address above. No wallet either time.
+  1. On Site A, type alice.eth and click Sign in.
+  2. A tab opens for the one signature. Click the button, then Sign in the FAKE WALLET box.
+  3. You land back on Site A, and it logs in by itself, almost at once.
+  4. On Site B, flip Anonymous and click Sign in. No wallet. It waits if the background setup is still running.
   The puzzle icon in the toolbar has "WVP": what's enrolled, proofs made, Revoke.
 Quit Chrome when done. That stops everything.`);
 
 if (SMOKE) {
   const rect = (t, sel) => t.evaluate(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`);
   const click = async (t, sel) => { const r = await rect(t, sel); for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await t.send("Input.dispatchMouseEvent", { type, x: r.x, y: r.y, button: type === "mouseMoved" ? "none" : "left", clickCount: type === "mouseMoved" ? 0 : 1 }); };
+  const result = async (t) => {
+    for (let i = 0; i < 2400; i++) { if (await t.evaluate("window.__result")) break; await sleep(100); }
+    return t.evaluate(`({ accepted: window.__result?.accepted, name: window.__result?.name, kind: window.__result?.kind, mode: window.__result?.mode, reason: window.__result?.reason, totalMs: window.__result?.totalMs })`);
+  };
   const out = { before };
   let code = 1;
   try {
     await click(ta, "#who");
     for (const c of "alice.eth") { await ta.send("Input.dispatchKeyEvent", { type: "keyDown", key: c, text: c }); await ta.send("Input.dispatchKeyEvent", { type: "keyUp", key: c }); }
-    await ta.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
-    await ta.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Tab", code: "Tab", windowsVirtualKeyCode: 9 });
+    // A script's click on Sign in, with a good name typed, must do nothing.
+    await ta.evaluate(`document.querySelector("[data-wvp-signin]").click()`);
+    await sleep(2000);
+    out.scriptClick = { enrollTabs: enrollTabs.length, state: await ta.evaluate(`document.getElementById("token").dataset.wvpState ?? null`), result: await ta.evaluate("window.__result") };
+    await click(ta, "#go");
     for (let i = 0; i < 100 && !enrollTabs.length; i++) await sleep(100);
     if (!enrollTabs.length) throw new Error("no enrollment tab");
     const e = enrollTabs[0];
@@ -104,9 +111,14 @@ if (SMOKE) {
     for (let i = 0; i < 100; i++) { if (await e.evaluate(`!!document.getElementById("fake-sign")`)) break; await sleep(100); }
     out.promptShown = await e.evaluate(`document.getElementById("fake-wallet").textContent.includes("FAKE WALLET")`);
     await click(e, "#fake-sign");
-    for (let i = 0; i < 1800; i++) { if (await ta.evaluate("window.__result")) break; await sleep(100); }
-    out.result = await ta.evaluate(`({ accepted: window.__result?.accepted, name: window.__result?.name, reason: window.__result?.reason, totalMs: window.__result?.totalMs })`);
-    code = out.result.accepted && out.result.name === "alice.eth" && out.promptShown ? 0 : 1;
+    out.named = await result(ta);
+    await tb.send("Page.bringToFront");
+    await click(tb, "#anon");
+    await click(tb, "#go");
+    out.anonymous = await result(tb);
+    out.walletTabs = enrollTabs.length;
+    const quiet = !out.scriptClick.enrollTabs && !out.scriptClick.state && !out.scriptClick.result;
+    code = quiet && out.promptShown && out.walletTabs === 1 && out.named.accepted && out.named.name === "alice.eth" && out.named.mode === "direct" && out.anonymous.accepted && out.anonymous.kind === "anonymous" ? 0 : 1;
   } catch (err) { out.err = String(err); }
   console.log(`smoke ${JSON.stringify(out)}`);
   await stop(code);

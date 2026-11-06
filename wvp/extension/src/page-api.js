@@ -1,4 +1,4 @@
-// Runs in the page's own world, on the issuer's enroll page only. Sites don't get this. A login there needs no API at all.
+// Runs in the page's own world, on the approval page only. Sites don't get this. A login there needs no API at all.
 (() => {
   let seq = 0;
   const pend = new Map();

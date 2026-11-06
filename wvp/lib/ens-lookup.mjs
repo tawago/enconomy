@@ -7,7 +7,7 @@ export const tableLookup = (table) => ({
   resolve: async (name) => table[name] ?? null,
 });
 
-// Read-only. getEnsAddress goes through the Universal Resolver contract. Address record. Not wired into the login flow.
+// Read-only. getEnsAddress goes through the Universal Resolver contract. Address record. Site servers use it with --ens mainnet. The issuer's server uses the table.
 export function mainnetLookup(rpcUrl, { onRequest } = {}) {
   const client = createPublicClient({ chain: mainnet, transport: http(rpcUrl, { onFetchRequest: onRequest, timeout: 20000 }) });
   return { kind: "mainnet-universal-resolver", client, resolve: (name) => client.getEnsAddress({ name }) };

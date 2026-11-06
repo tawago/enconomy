@@ -2,7 +2,9 @@
 // (port.sender.origin). It does not read an origin from any message, on purpose. No popup and no wallet here: a login that can go
 // ahead just goes, and one that can't sends the user to enrollment once.
 import { createSiweMessage } from "viem/siwe";
-import { parseIdentifier, addressSlot, siweStatement } from "../../lib/identifier.mjs";
+import { recoverMessageAddress, getAddress, isAddressEqual } from "viem";
+import { thumbprint, directStatement, issueBytes, loginBytes } from "../../lib/direct.mjs";
+import { parseIdentifier, addressSlot } from "../../lib/identifier.mjs";
 
 const enc = new TextEncoder();
 const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -14,7 +16,6 @@ class Refuse extends Error { constructor(code, message) { super(message ?? code)
 
 // Same rules as lib/wvp.mjs.
 const bindNonce = (origin, challenge) => sha256hex(JSON.stringify([origin, challenge]));
-const thumbprint = async (jwk) => b64u(await crypto.subtle.digest("SHA-256", enc.encode(JSON.stringify({ crv: jwk.crv, kty: jwk.kty, x: jwk.x, y: jwk.y }))));
 const THUMB_URN = "urn:ietf:params:oauth:jwk-thumbprint:sha-256:", NAME_URN = "urn:wvp:ens:";
 
 let cfgP;
@@ -52,51 +53,68 @@ async function ensureProver() {
   return out;
 }
 
-// ---- enrollment. Only the pinned issuer's page may start it. ----
+// ---- enrollment: one wallet signature, one K, for both modes. Only the pinned approval page may start it. No issuer needed here. ----
 async function enrollBegin(args, origin) {
   const cfg = await config();
-  if (origin !== cfg.issuerOrigin) throw new Refuse("not_issuer", `enrollment is only for ${cfg.issuerOrigin}`);
-  const { name, address } = args ?? {};
-  if (typeof name !== "string" || typeof address !== "string") throw new Refuse("bad_request", "name and address are required");
-  const id = parseIdentifier(name);
+  if (origin !== cfg.approveOrigin) throw new Refuse("not_approval_page", `enrollment is only for ${cfg.approveOrigin}`);
+  const id = parseIdentifier(args?.name);
   if (id?.kind !== "name") throw new Refuse("bad_name", "that isn't an ENS name");
+  const address = getAddress(args?.address);
   const k = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"]);
   const { kty, crv, x, y } = await crypto.subtle.exportKey("jwk", k.publicKey);
-  const jwk = { kty, crv, x, y };
-  const { nonce } = await (await fetch(`${cfg.issuerOrigin}/nonce`)).json();
-  const thumb = await thumbprint(jwk);
+  const jwk = { kty, crv, x, y }, thumb = await thumbprint(jwk);
   const nowSec = Math.floor(Date.now() / 1000);
   const issuedAt = new Date(nowSec * 1000), expirationTime = new Date((nowSec + 86400) * 1000);
-  const { host } = new URL(cfg.issuerOrigin);
+  // Our own random: the issuer may be down right now. Its one-time nonce is answered by K later.
+  const nonce = hex(crypto.getRandomValues(new Uint8Array(16)));
   const message = createSiweMessage({
-    address, chainId: 1, domain: host, uri: `${cfg.issuerOrigin}/`, version: "1", nonce, issuedAt, expirationTime,
-    statement: siweStatement(id.claim, address, thumb, expirationTime.toISOString()),
+    address, chainId: 1, domain: new URL(cfg.approveOrigin).host, uri: `${cfg.approveOrigin}/`, version: "1", nonce, issuedAt, expirationTime,
+    statement: directStatement(id.claim, address, thumb, expirationTime.toISOString()),
     resources: [NAME_URN + encodeURIComponent(id.claim), THUMB_URN + thumb],
   });
-  await dbPut("pending", { k: k.privateKey, jwk, message, name: id.claim, address });
+  await dbPut("pending", { k: k.privateKey, jwk, message, name: id.claim, address, exp: Math.floor(expirationTime.getTime() / 1000) });
   return { message };
 }
-
 async function enrollFinish(args, origin) {
   const cfg = await config();
-  if (origin !== cfg.issuerOrigin) throw new Refuse("not_issuer", `enrollment is only for ${cfg.issuerOrigin}`);
+  if (origin !== cfg.approveOrigin) throw new Refuse("not_approval_page", `enrollment is only for ${cfg.approveOrigin}`);
   const p = await dbGet("pending");
   if (!p) throw new Refuse("no_pending", "call enrollBegin first");
-  const t0 = now_();
-  const r = await fetch(`${cfg.issuerOrigin}/issue`, { method: "POST", body: JSON.stringify({ message: p.message, signature: args?.signature, deviceKey: p.jwk }) });
-  const body = await r.json();
-  if (r.status !== 200) throw new Refuse(body.error ?? "issuer_refused", body.why ?? "the issuer refused");
-  const issueMs = ms(t0);
-  const { keys: [issuerJwk] } = await (await fetch(`${cfg.issuerOrigin}/jwks`)).json();
-  // New credentials replace the old ones and their state.
-  if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
-  const prover = await ensureProver();
-  const prepared = await rpc("prepare", { issuerJwk, creds: [{ id: "name", sdJwt: body.sdJwt, slot: p.name }, { id: "address", sdJwt: body.sdJwtAddress, slot: addressSlot(p.address) }] });
-  await dbPut("holder", { K: p.k, jwk: p.jwk, exp: body.exp, name: p.name, address: p.address, issuerJwk });
+  let signer = null;
+  try { signer = await recoverMessageAddress({ message: p.message, signature: args?.signature }); } catch {}
+  if (!signer || !isAddressEqual(signer, p.address)) throw new Refuse("wrong_wallet", "that signature isn't from this address");
+  // New approval, new K: the old credentials and their state go.
+  await dbPut("holder", { K: p.k, jwk: p.jwk, message: p.message, walletSig: args.signature, name: p.name, address: p.address, exp: p.exp, credExp: 0 });
   await dbDel("pending");
-  const out = { name: p.name, exp: body.exp, issueMs, prover, prepare: prepared, totalMs: ms(t0) };
-  await chrome.storage.session.set({ lastEnroll: out });
-  return out;
+  if (await chrome.offscreen.hasDocument()) await chrome.offscreen.closeDocument();
+  startPrepare().catch(() => {});
+  return { name: p.name, exp: p.exp };
+}
+
+// ---- background setup for anonymous. Takes the same signature to the issuer, no wallet. One at a time. Safe to retry at any time. ----
+let prepP = null;
+const startPrepare = () => (prepP ??= doPrepare().finally(() => { prepP = null; }));
+async function doPrepare() {
+  const h = await dbGet("holder");
+  if (!h || h.credExp > Date.now() / 1000) return;
+  const cfg = await config(), t0 = now_();
+  // A worker with nothing to do gets stopped. Prepare runs for a minute with only one reply pending.
+  const alive = setInterval(() => chrome.storage.session.get("alive"), 20000);
+  try {
+    const { nonce: issueNonce } = await (await fetch(`${cfg.issuerOrigin}/nonce`)).json();
+    const proof = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, h.K, issueBytes(cfg.issuerOrigin, issueNonce)));
+    const r = await fetch(`${cfg.issuerOrigin}/issue`, { method: "POST", body: JSON.stringify({ message: h.message, signature: h.walletSig, deviceKey: h.jwk, issueNonce, proof }) });
+    const body = await r.json();
+    if (r.status !== 200) throw new Refuse(body.error ?? "issuer_refused", body.why ?? "the issuer refused");
+    const issueMs = ms(t0);
+    const { keys: [issuerJwk] } = await (await fetch(`${cfg.issuerOrigin}/jwks`)).json();
+    const prover = await ensureProver();
+    const prepared = await rpc("prepare", { issuerJwk, creds: [{ id: "name", sdJwt: body.sdJwt, slot: h.name }, { id: "address", sdJwt: body.sdJwtAddress, slot: addressSlot(h.address) }] });
+    const cur = await dbGet("holder");
+    if (cur?.jwk.x !== h.jwk.x) return; // Revoked or enrolled again while this ran.
+    await dbPut("holder", { ...cur, credExp: body.exp, issuerJwk });
+    await chrome.storage.session.set({ lastPrepare: { issueMs, totalMs: ms(t0), prover, prepare: prepared } });
+  } finally { clearInterval(alive); }
 }
 
 // ---- going to enrollment, once, and coming back. In session storage: the worker can die while the user reads their wallet. ----
@@ -112,7 +130,7 @@ async function sendToEnrollment(tabId, typedName) {
     return;
   }
   // The site's origin stays out of this URL. A fragment doesn't reach the issuer's server.
-  const url = `${cfg.issuerOrigin}/enroll${typedName ? `#name=${encodeURIComponent(typedName)}` : ""}`;
+  const url = `${cfg.approveOrigin}/enroll${typedName ? `#name=${encodeURIComponent(typedName)}` : ""}`;
   const tab = await chrome.tabs.create({ url, active: true });
   await chrome.storage.session.set({ resume: { tabId, enrollTabId: tab.id } });
 }
@@ -139,11 +157,10 @@ let busy = false;
 // Fork only. chrome.wvpPrivate exists only for a component extension, so the same build still runs as a plain unpacked one.
 const browserAsk = (tabId, fields) => new Promise((ok, no) => chrome.wvpPrivate.approve({ tabId, requireActivation: false, askUser: false, mode: "named", text: "", x: 0, y: 0, width: 0, height: 0, ...fields }, (a) => chrome.runtime.lastError ? no(new Error(chrome.runtime.lastError.message)) : ok(a)));
 const resumeGrants = new Set(); // A login already gated before it went to enrollment. The user's gesture was in the other tab.
-const num = (x) => Number.isFinite(x) ? x : 0;
-async function prove(args, origin, tabId) {
+async function prove(args, origin, tabId, say) {
   const tAll = now_();
   await bump("requests");
-  const { mode, typed, nonce, rect } = args ?? {};
+  const { mode, typed, nonce } = args ?? {};
   if (mode !== "name" && mode !== "anon") throw new Refuse("bad_request", "mode");
   if (!/^[0-9a-f]{64}$/.test(nonce ?? "")) throw new Refuse("bad_nonce", "nonce must be 32 bytes of hex");
   const id = mode === "name" ? parseIdentifier(typed) : null;
@@ -155,21 +172,26 @@ async function prove(args, origin, tabId) {
     if (!g.allowed) throw new Refuse(g.reason, "no real user gesture");
     if (g.origin !== origin) throw new Refuse("bad_origin", "the tab's origin isn't the sender's");
   }
-  const h = await dbGet("holder");
+  let h = await dbGet("holder");
   const now = Math.floor(Date.now() / 1000);
-  if (!h || h.exp < now) {
+  if (!h || h.exp <= now) {
     await sendToEnrollment(tabId, id?.kind === "name" ? id.claim : null);
     return { enroll: true };
   }
-  if (id && id.claim !== h.name && id.claim !== h.address.toLowerCase()) throw new Refuse("no_match", "typed value isn't this credential's");
+  // The approval is good. If the issuer was down, this is a chance to try again. Never a wallet prompt.
+  if (!(h.credExp > now)) startPrepare().catch(() => {});
+  if (mode === "name") return directLogin(id, nonce, origin, h, tAll);
+
+  if (!(h.credExp > now)) {
+    say("Getting anonymous login ready in this browser. It runs once, about a minute. Your wallet won't ask.");
+    try { await startPrepare(); }
+    catch (e) { throw new Refuse("not_ready", `Anonymous isn't ready: ${e.code ? `the issuer said ${e.code}` : "the issuer can't be reached"}. Try again later. Your wallet won't ask.`); }
+    h = await dbGet("holder");
+    if (!(h?.credExp > now)) throw new Refuse("not_ready", "Anonymous isn't ready. Try again later. Your wallet won't ask.");
+  }
   if (busy) throw new Refuse("busy", "another proof is running");
   busy = true;
   try {
-    if (chrome.wvpPrivate) {
-      const a = await browserAsk(tabId, { askUser: true, mode: id ? "named" : "anonymous", text: id ? id.claim : "a valid credential, nothing else", x: num(rect?.x), y: num(rect?.y), width: num(rect?.width), height: num(rect?.height) });
-      if (!a.allowed) throw new Refuse("user_denied", "you said no");
-      if (a.origin !== origin) throw new Refuse("bad_origin", "the tab's origin isn't the sender's");
-    }
     await bump("proofs");
     const tProve = now_();
     const prover = await ensureProver();
@@ -177,13 +199,21 @@ async function prove(args, origin, tabId) {
     const tSign = now_();
     const signature = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, h.K, enc.encode(bound)));
     const signMs = ms(tSign);
-    const cred = id?.kind === "address" ? "address" : "name";
-    const s = await rpc("show", { nonce: bound, signature, now, cred, slot: id?.slot ?? null });
-    const claim = id?.claim ?? null;
-    const token = JSON.stringify({ v: 1, challenge: nonce, now, claim, bundle: s.bundle });
-    await record(origin, claim, { cred, signMs, showWallMs: s.wallMs, proveTotalMs: ms(tProve), swTotalMs: ms(tAll), prover, restored: s.restored, swapped: s.swapped, stages: s.stages, sdk: s.timing, bundleBytes: s.bundleBytes, canonicalProblem: s.canonicalProblem, expressionResult: s.expressionResult, mem: s.mem });
-    return { token, revealed: claim };
+    const s = await rpc("show", { nonce: bound, signature, now, cred: "name", slot: null });
+    const token = JSON.stringify({ v: 1, challenge: nonce, now, claim: null, bundle: s.bundle });
+    await record(origin, null, { cred: "name", signMs, showWallMs: s.wallMs, proveTotalMs: ms(tProve), swTotalMs: ms(tAll), prover, restored: s.restored, swapped: s.swapped, stages: s.stages, sdk: s.timing, bundleBytes: s.bundleBytes, canonicalProblem: s.canonicalProblem, expressionResult: s.expressionResult, mem: s.mem });
+    return { token, revealed: null };
   } finally { busy = false; }
+}
+// Named login. K signs this site and this challenge. No issuer and no prover. The site sees the wallet address. The notice after login says so.
+async function directLogin(id, nonce, origin, h, tAll) {
+  if (id.claim !== h.name && id.claim !== h.address.toLowerCase()) throw new Refuse("no_match", "typed value isn't this browser's");
+  const shows = `${h.name} and wallet ${h.address}`;
+  await bump("proofs");
+  const t = now_(), now = Math.floor(Date.now() / 1000);
+  const loginSig = b64u(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, h.K, loginBytes(origin, nonce, now, id.claim)));
+  await record(origin, shows, { cred: "direct", signMs: ms(t), swTotalMs: ms(tAll) });
+  return { token: JSON.stringify({ v: 2, kind: "direct", challenge: nonce, now, claim: id.claim, message: h.message, walletSig: h.walletSig, key: h.jwk, loginSig }), revealed: shows };
 }
 // A list the page can't touch, and a badge the page can't draw over.
 async function record(origin, revealed, timing) {
@@ -234,7 +264,7 @@ chrome.runtime.onConnect.addListener((port) => {
       if (sender.id !== chrome.runtime.id || sender.frameId !== 0) throw new Refuse("bad_sender", "top frames only");
       const origin = sender.origin;
       if (!origin || origin === "null" || !/^https?:\/\//.test(origin)) throw new Refuse("bad_origin", `no usable origin: ${origin}`);
-      if (method === "prove") return answer({ ok: await prove(args, origin, sender.tab?.id) });
+      if (method === "prove") return answer({ ok: await prove(args, origin, sender.tab?.id, (text) => answer({ progress: text })) });
       if (method === "enrollBegin") return answer({ ok: await enrollBegin(args, origin) });
       if (method === "enrollFinish") { answer({ ok: await enrollFinish(args, origin) }); return await resumeAfterEnroll(); }
       throw new Refuse("bad_method", method);
@@ -249,10 +279,10 @@ globalThis.__debug = {
     if (!h) return null;
     let exportErr = "EXPORT WORKED";
     try { await crypto.subtle.exportKey("jwk", h.K); } catch (e) { exportErr = `${e.name}: ${e.message}`; }
-    return { extractable: h.K.extractable, type: h.K.type, usages: h.K.usages, exportErr, name: h.name, address: h.address, exp: h.exp, issuerX: h.issuerJwk.x, keyX: h.jwk.x };
+    return { extractable: h.K.extractable, type: h.K.type, usages: h.K.usages, exportErr, name: h.name, address: h.address, exp: h.exp, issuerX: h.issuerJwk?.x, keyX: h.jwk.x };
   },
   counts: async () => (await chrome.storage.session.get("counts")).counts ?? { requests: 0, proofs: 0 },
-  lastEnroll: async () => (await chrome.storage.session.get("lastEnroll")).lastEnroll ?? null,
+  lastPrepare: async () => (await chrome.storage.session.get("lastPrepare")).lastPrepare ?? null,
   lastTiming: async () => (await chrome.storage.session.get("lastTiming")).lastTiming ?? null,
   proofLog: async () => (await chrome.storage.local.get("proofs")).proofs ?? [],
   badge: () => chrome.action.getBadgeText({}),

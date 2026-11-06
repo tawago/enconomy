@@ -1,37 +1,57 @@
 # WVP
 
-WVP is the wallet version of Chrome's Email Verification Protocol. You approve once with your wallet. Then your browser proves "I own `alice.eth`" to any site, with no wallet popup and no issuer watching.
+WVP is the wallet version of Chrome's Email Verification Protocol. You approve once with your wallet. Then your browser logs you in to any site, as your ENS name, your address or anonymously, with no more wallet popups.
 
 **This is a prototype. A script played the wallet in every run. No person has clicked through it, and no real wallet has touched it.**
 
-There are two builds:
+**The main way to try it is the extension in plain stock Chrome.** It needs no special build. It runs on a Mac.
 
-- **Extension on stock Chrome.** Ran on a Mac. The full test pass ran here.
-- **Patched Chromium with the same extension.** Ran on Linux x64 only. It adds a browser-side gesture check and a native prompt. See `../browser/`.
+A patched Chromium runs the same extension. It adds two things:
+
+- **No install.** The extension ships beside the binary.
+- **The browser's own real-click check.** In stock Chrome that check is only the extension's `login.js`, which is weaker.
+
+The patched build ran on Linux x64 only. See `../browser/`.
 
 ## How it works
 
-1. The extension makes a browser key, K. K can sign but can't be exported.
-2. Your wallet signs one message: "Approve browser key K for `alice.eth` and `0x...` until this time."
-3. The issuer checks the signature and looks up the ENS name. It signs two SD-JWT credentials over K, one for the name and one for the address. They last 24 h at most.
-4. The browser runs OpenAC's slow Prepare step once per credential and keeps the result.
-5. A site puts a challenge in its form. You type your name and leave the field, or flip Anonymous.
-6. The extension makes a proof, bound to the origin Chrome reports and to the challenge. No wallet is involved. It puts the proof in a hidden field.
-7. The site sends the token to its server. The server checks the challenge, origin, claim, issuer key and proof.
+**Enrolling, once.**
 
-The issuer sees your name and address when you enroll. It never sees which sites you visit.
+1. Your first Sign in opens a static approval page at `enroll.test:8806`. A wallet needs a web page to inject into.
+2. The extension makes a browser key, K. K can sign but can't be exported.
+3. Your wallet signs one message: "Approve browser key K to log in to websites as `alice.eth` and `0x...`, or anonymously, until this time. No other use." It lasts 24 h. No issuer is needed for this.
+4. In the background, the browser takes that signature to the issuer. K answers a nonce from the issuer, so a site holding your signature can't do this. The issuer signs two SD-JWT credentials over K. The browser then runs OpenAC's slow Prepare step, with no wallet.
 
-A site only writes this. It calls nothing:
+**Named login.** Type your name or address and click Sign in, or press Enter. K signs this site's origin and challenge. The site checks K's signature, the wallet's approval, and that ENS says the wallet owns the name. There's no issuer and no circuit.
+
+**Anonymous login.** Flip the switch, which only locks the field, and click Sign in. The extension makes a zero-knowledge proof, bound to the site's origin and challenge. The site checks it against the issuer's key. If Prepare is still running, you wait. If the issuer is down, named login still works, and anonymous tells you to try later. The wallet doesn't ask again.
+
+### What the site sees
+
+| Login | The site sees |
+|---|---|
+| Named, typed a name | The name, your wallet address, K's public key, the signed message and your wallet's signature |
+| Named, typed an address | The same, including the name. The whole signed message goes along |
+| Anonymous | That you hold a valid, unexpired credential from this issuer. K should stay hidden, see below |
+
+K's public key is the same at every site until you enroll again. So sites can link your named logins. They see your address anyway. A site holds your wallet's signature, but without K it can't log in as you.
+
+The issuer sees your name and address once, right after you sign, even if you never use anonymous. It never sees which sites you visit.
+
+### What a site writes
+
+A site calls nothing:
 
 ```html
 <form>
   <input type="text" autocomplete="wvp">
   <input type="checkbox" data-wvp-anonymous>
   <input type="hidden" autocomplete="wvp-token" nonce="64 lowercase hex chars">
+  <button type="button" data-wvp-signin>Sign in</button>
 </form>
 ```
 
-The token is JSON: `{v, challenge, now, claim, bundle}`. `claim` is the name, the lowercase address, or `null`. The page can follow progress through `data-wvp-state` on the hidden field and a `wvp-state` event.
+The extension fills the hidden field with JSON. A named token is `{v: 2, kind: "direct", challenge, now, claim, message, walletSig, key, loginSig}`. An anonymous one is `{v: 1, challenge, now, claim: null, bundle}`. The page can follow progress through `data-wvp-state` on the hidden field and a `wvp-state` event.
 
 ## Run it
 
@@ -45,10 +65,10 @@ npm ci --ignore-scripts
 export WVP_THIRD_PARTY=/path/to/third_party
 extension/build.sh                 # Makes extension/build/extension. Not checked in.
 node demo/try-it.mjs               # Opens Chrome on a temp profile. You type. Quit Chrome to stop.
-node demo/try-it.mjs --smoke       # A script plays you for one login, then it quits.
+node demo/try-it.mjs --smoke       # A script plays you: named on Site A, anonymous on Site B. Then it quits.
 ```
 
-The demo makes a throwaway wallet key and issuer key on each start. Both live only in memory. Everything stays on 127.0.0.1, with `*.test` names mapped for that one Chrome. Set `WVP_CHROME` if Chrome isn't at the usual Mac path.
+The demo makes a throwaway wallet key and issuer key on each start. Both live only in memory. Its wallet prompt is labelled FAKE WALLET on screen. Everything stays on 127.0.0.1, with `*.test` names mapped for that one Chrome. Set `WVP_CHROME` if Chrome isn't at the usual Mac path.
 
 To try a real wallet, use a throwaway account. This hasn't been done:
 
@@ -63,8 +83,8 @@ We don't know if a wallet will inject and sign on an http page.
 | Folder | What |
 |---|---|
 | `extension/` | Extension source and `build.sh` |
-| `issuer/` | Issuer logic and its server, with the enrollment page |
-| `site/` | The site check and a demo site server |
+| `issuer/` | Issuer logic and server. `serve-approve.mjs` is the static approval page, a separate server |
+| `site/` | The two site checks, `direct-verify.mjs` and `site-check.mjs`, and a demo site server |
 | `key-host/` | Stands in for a CDN. Serves the two proving keys |
 | `lib/` | Rules shared by issuer, site and extension |
 | `demo/` | Starts everything. Holds the labelled fake wallet |
@@ -79,57 +99,64 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 | Part | Status |
 |---|---|
 | Chrome, MV3 extension, threads in an offscreen document | **Real.** Temp profile, loaded through the debug protocol, not a store. |
-| Site origin in the proof | **Real**, from the browser. On `.test` names mapped to 127.0.0.1. http only. |
-| Site servers, sessions, verify, challenge check | **Real.** Separate processes. |
+| Site origin | **Real**, from the browser. On `.test` names mapped to 127.0.0.1. http only. |
+| Site servers, sessions, both checks, challenge check | **Real.** Separate processes. |
 | Prepare, Show, reblind | **Real** proofs with the published 1k keys. Modified OpenAC build. |
-| K | **Real** and non-extractable. Export was refused, also after a restart. |
+| K | **Real** and non-extractable. |
 | Issuer code | **Real.** Throwaway key, localhost. |
-| Wallet | **FAKE.** A script signs with a throwaway key. The prompt is drawn by the demo and labelled FAKE WALLET on screen. |
+| Wallet | **FAKE.** A script signs with a throwaway key. The prompt is drawn by the demo and labelled. |
 | User | **FAKE** in test runs. A script sends trusted input through the debug protocol. On the Linux build, a script sent real X input. |
-| ENS | **FAKE.** A local table. Nothing is registered. `alice.eth` here has nothing to do with the real name. |
-| Mainnet ENS lookup | **Real but separate.** `mainnetLookup` in `lib/ens-lookup.mjs` read `vitalik.eth` on 2 RPCs. It isn't wired into the login flow. |
-| Key download speed | **FAKE.** Real bytes from localhost, about 1 s. It took 24 s once on a real network. |
-| Expired credential test | **FAKE expiry.** A hook set the extension's local copy of `exp` back. |
-| Attack tests | Real proofs against real site code, but our own scripts. **Not an audit.** |
+| ENS | **FAKE** in the demo. A local table. Nothing is registered. `alice.eth` here has nothing to do with the real name. |
+| Mainnet ENS lookup | **Partly.** `site/serve.mjs --ens mainnet --rpc URL` is read-only. The verifier refused a throwaway wallet claiming `vitalik.eth` on a real read. It wasn't tried through the live site. The issuer's server uses only the table. |
+| Approval page | **Local**, on http. |
+| Key download speed | **FAKE.** Real bytes from localhost. |
+| Attack tests | Real tokens and proofs against real site code, but our own scripts. **Not an audit.** |
 | Soundness, unlinkability | **Not proven, not audited.** |
 
 ## What you should know
 
 - **OpenAC is modified.** Stock OpenAC never ran. See the table below.
 - **Not audited.** No one outside this project has reviewed it.
-- **The issuer is trusted, also in anonymous mode.** An anonymous proof tells the site "a valid credential from this issuer". The issuer can issue false credentials, and it sees your name and address. A sold ENS name keeps working until expiry.
-- **Fake wallet and ENS table,** unless you bring a real wallet and wire in a real lookup. Neither has been done.
-- **The name slot is 63 bits.** A name with a colliding digest gets a credential that a site accepts for the victim's name. scrypt raised a guess from about 8 ns to 58 ms and 32 MiB. The salt is fixed, and GPU cost isn't measured. A bigger slot needs a new circuit and new keys.
-- **The K slot is still open.** A forged digest placed in K's x gets a real Prepare over a forged name. Only the missing secret for that x stops Show. Getting both costs about 2^128 by reasoning, not by test. This is where a review should start. The fix, K signing at issue, isn't built.
-- **The patched browser was built and run on Linux only.** A judge can't run it on a Mac. The extension on stock Chrome can run on a Mac, without the native prompt or the gesture check.
+- **No real wallet and no person has used it.** A script played both.
+- **Only plain EOAs.** There's no ERC-1271, so a Safe can't enroll.
+- **Sites see K's public key on a named login.** Anonymous proofs use the same K. So anonymous unlinkability depends on the proof hiding K. The only check is a byte search for K's x and y in one anonymous bundle: not found. That's not a zero-knowledge argument. **Don't call it unlinkable.**
+- **Phishing an approval logs in as you until expiry.** Whoever holds K and your signature can do it, at every site pinning that approval domain, named and anonymous. There's no revocation. Revoke deletes K on this browser only. Sites refuse more than 7 days, and the extension asks for 24 h.
+- **Clickjacking stays, also on a first visit.** The prompt is gone. A hidden Sign in under a fake button gets a real click, on both builds. With the switch on, the site learns you hold a valid credential. A named login still needs a typed value that matches.
+- **The real-click check is weaker in stock Chrome.** It's only `login.js` reading `isTrusted`. A script's `.click()` does nothing. But nothing in the browser backs that check up.
+- **The issuer is trusted in anonymous mode.** The proof tells the site "a valid credential from this issuer". The issuer can issue false credentials. It sees your name and address once. A sold name keeps working for anonymous until expiry.
+- **The approval page's host is a small trusted party.** Sites and the issuer pin it. If it's compromised, it can ask for an approval of its own K.
+- **Fake wallet and ENS table,** unless you bring a real wallet and use a real lookup.
+- **The name slot is 63 bits.** A colliding name gets a credential that passes a proof-based name check. scrypt raised a guess from about 8 ns to 58 ms and 32 MiB. The salt is fixed, and GPU cost isn't measured. The extension no longer makes named proofs, but the demo site still accepts them.
+- **The K slot residual.** A forged digest placed in K's x gets a real Prepare over a forged name. Only the missing secret for that x stops Show. Getting both costs about 2^128 by reasoning, not by test. The issuer now also requires K to sign a nonce. Whether that closes this hasn't been reviewed. Start a review here.
+- **The patched browser is a Linux demo.** It was built and run on Linux only.
 
 More weak points:
 
-- **Clickjacking.** On stock Chrome, a page put an invisible switch over a fake button, and a real click made a hidden proof for that page. On the patched build the native prompt guards the first use per origin and mode. Later uses are still open. The damage: the site learns you hold a valid credential.
-- **"The user typed this" is our code reading events.** It held against every trick we tried, but it's a list and may be incomplete. Any gesture opens a window of about 5 s on the patched build, and then only this list stands in the way.
-- **Any field with this markup can ask.** A site can label the box "search names". If you type your own name, it gets a proof.
-- **Autofill and password managers get no proof.** A site script that rewrites the field as you type also blocks it.
-- **Thin privacy evidence.** Upstream leaves blind values in proofs that link them. The holder wipes those and the site refuses unwiped proofs. The check is a byte comparison of 3 proofs. It's not a zero-knowledge argument. A site can't recognize a returning anonymous user, on purpose.
-- **Thin byte-flip sweep.** About 0.4% of proof bytes. It wasn't rerun on this issuer. Neither was the first test suite. 48 of 495 flips passed OpenAC's verify alone, so the site's own form check in `lib/bundle.mjs` is required.
+- **Our "typed" rules are a list and may be incomplete.** Any gesture opens a window of about 5 s on the patched build, and then only `login.js` narrows it.
+- **Any field with this markup can ask.** A site can label the box "search names". If you type your own name and click, it gets your login.
+- **Autofill and password managers get no login.** A site script that rewrites the field as you type also blocks it.
+- **Thin privacy evidence.** Upstream leaves blind values in proofs that link them. The holder wipes those and the site refuses unwiped proofs. The check was a byte comparison of 3 proofs.
+- **Thin byte-flip sweep.** About 0.4% of proof bytes, and not rerun on this issuer. 48 of 495 flips passed OpenAC's verify alone, so the form check in `lib/bundle.mjs` is required.
 - **You need an ENS name to enroll.** An address with no name can't.
-- **Revoke is local.** It deletes K here. The issuer has no revocation list.
+- **Selling a name** stops named login at the next lookup. A typed address still works until expiry.
 - **http only.** https wasn't tested.
 - **The offscreen document holds 2.4 to 3 GiB and never closes.**
+- **Prepare still makes the address credential.** Only the name credential is used now. That's wasted time.
 - **`__debug` is still in the service worker.** Pages can't reach it. It's a test hook, and one call changes the local expiry.
-- **Site denial of service.** `/challenge` is open and verify blocks about 1.4 s.
-- **Time slack.** The holder picks `now`, and the site allows 300 s either way. So a cheater gets 5 min past expiry.
+- **Site denial of service.** `/challenge` is open, and a proof check blocks about 1.4 s.
+- **Time slack.** The holder picks `now`, and the site allows 300 s either way.
 - **The extension runs on every page it serves.** Here that's `*.test`. A real build would carry a broad permission warning.
-- **Not tried on the patched build:** the suite run on stock Chrome, including A's proof at B, a restart with the same profile, the toolbar popup. A page that resizes under the prompt wasn't tried either.
+- **Not tried:** expiry in the browser, the last hour when anonymous asks the wallet again, a plain form with a submit button marked as Sign in, a second anonymous login, and a restart with the same profile.
 
 ### The forged digest
 
 An earlier version had a real hole, found in our own review. The circuit only proves a disclosure's digest is somewhere in the signed payload. Our issuer signed the holder-chosen name, so a cheater hid a forged digest inside their own name. They got a real server to answer `{"loggedIn":true,"name":"alice.eth"}`, and logged in with an expired credential.
 
-The fix: the issuer no longer signs the name, and `lib/payload-check.mjs` refuses any digest-shaped text it doesn't expect. No circuit or key changed. Keep that check. Our circuit-cases passed 28 of 28 and 13 of 13 checks. The old issuer accepts the forgery in the same test, and this one doesn't. Those tests aren't in this folder.
+The fix: the issuer no longer signs the name, and `lib/payload-check.mjs` refuses any digest-shaped text it doesn't expect. No circuit or key changed. Keep that check. Rerun on the current path, our circuit-cases passed 37 of 37 checks. The old issuer still accepts the forgery in the same test, and this one doesn't. The HTTP version of the test wasn't rerun. Those tests aren't in this folder.
 
 ### What differs from stock OpenAC
 
-Pin: `privacy-ethereum/zkID` at `b395e09c225ff45b003f0087c28e2e208e22f944`. Spartan2 and `ecdsa-spartan2` sources, `show.wasm` and the published 1k keys aren't changed.
+Pin: `privacy-ethereum/zkID` at `b395e09c225ff45b003f0087c28e2e208e22f944`. Spartan2 and `ecdsa-spartan2` sources, `show.wasm` and the published 1k keys aren't changed. This only concerns anonymous login. Named login doesn't use OpenAC.
 
 | What | Stock | What ran | Why |
 |---|---|---|---|
@@ -146,20 +173,41 @@ Pin: `privacy-ethereum/zkID` at `b395e09c225ff45b003f0087c28e2e208e22f944`. Spar
 
 The raw logs and test drivers aren't published. Each run below had a script as the wallet.
 
-### Extension on stock Chrome
+### Current flow, patched Chromium
 
-Mac14,2, Apple M2, 8 GB, macOS 27.2, Chrome 157.0.8103.38, Node 24.22.1, AC power, other work running. One test run, 108 of 108 checks. "Login" starts when you leave the field and ends at the site's answer.
+Linux x64, 32 vCPU Xeon 2.80 GHz, 125 GB RAM, Ubuntu 24.04, other jobs possibly running. Tag 157.0.8103.38. **One run each.** "dcheck build" is `is_debug=false` with `dcheck_always_on=true`, which is slower. "Demo build" has it false.
+
+| What | Value | Build |
+|---|---:|---|
+| Fresh profile, one signature, named login | 0.3 s | dcheck |
+| Same, with the issuer killed | 0.3 s | dcheck |
+| Named login again, no wallet | 0.2 s | Demo, before one K |
+| Background Prepare, two credentials | 78 s, about 20 s to prove and 15 s to save each | dcheck |
+| Anonymous on Site B while Prepare runs, from the click | 72.5 s | dcheck |
+| Anonymous after the issuer came back, from the click | 90.8 s | dcheck |
+| Named token / anonymous token | 1,144 B / about 221 KB | |
+| Site's check of a named token, one-off | 160 ms first, about 3 ms after | |
+| Same, with a real mainnet read that refused | 222 ms, including 2 reads | |
+
+Also seen on this build: a script's `.click()` did nothing, `bob.eth` gave no proof, and a second wallet prompt never came. A's token and A's proof, each on B's real challenge, got `wrong_nonce` from B. Site C, whose table names another owner, gave `not_owner`.
+
+### Current flow, stock Chrome
+
+No timed numbers yet. One scripted run passed on a Mac: a script's `.click()` did nothing, one signature, named on Site A, anonymous on Site B, no second wallet prompt.
+
+### Proof path, earlier flow
+
+These predate the Sign in button and direct login. A login then started when you left the field, and all modes used a proof. Anonymous still uses this proof path. The 108 checks of that run were not rerun on the current flow.
+
+Mac14,2, Apple M2, 8 GB, macOS 27.2, stock Chrome 157.0.8103.38, Node 24.22.1, AC power, other work running. One test run.
 
 | What | Value |
 |---|---:|
-| Login, all 12, median | 4.87 s |
-| Named / anonymous / address, median | 4.87 / 4.75 / 4.93 s |
+| Anonymous login, median of 4 | 4.75 s |
 | First login at a site that hadn't verified yet | 6.85 s |
 | Show + reblind, median of 12 | 3.36 s (3.24 to 3.45) |
 | Site's verify | About 1.45 s, first one about 3 s |
-| Enrollment, extension's part | 21.1 s first time, 19.1 and 18.8 s later |
-| of which two Prepares and saves | 18.6, 17.9, 17.6 s |
-| First login overall, from the click on approve | 28.4 s |
+| Two Prepares and saves | 18.6, 17.9, 17.6 s |
 | Prover process peak | 2,979 MiB |
 | Each site server peak | About 1,140 MiB |
 | Proof / token | 165,749 B / about 221 KB |
@@ -168,21 +216,11 @@ Mac14,2, Apple M2, 8 GB, macOS 27.2, Chrome 157.0.8103.38, Node 24.22.1, AC powe
 
 Proving isn't under 3 s. Those speeds need kept keys, opt-level 3 and 4 threads. Same machine, closest build to stock, one thread, Chrome 156: Prepare 14.8 s, Show 7.98 s, Verify 4.70 s. In Node with the plain wrapper, one thread: 14.39, 7.91, 5.06 s. Both are earlier runs, with heavy swap. Neither is stock.
 
-### Patched Chromium
+On the Linux machine above, one earlier proof login took 8.5 s on the Demo build and 9.9 s on the dcheck build. Most of the gap to the Mac looks like the Xeon against the M2. That's a guess.
 
-Linux x64, 32 vCPU Xeon 2.80 GHz, 125 GB RAM, Ubuntu 24.04, other jobs running. Tag 157.0.8103.38. One run each.
+### Building the patched browser
 
-| What | Value |
-|---|---:|
-| Login with no prompt, `is_debug=false`, `dcheck_always_on=false` | 8.5 s |
-| Same, `dcheck_always_on=true` | 9.9 s |
-| Demo binary, 57,566 steps | 1 h 38 m 09 s |
-| Output folder / `chrome` binary | 7.2 GB / 533 MB |
-| Patch build, first good one, 173 steps | 1 m 18 s |
-
-The gap to the Mac's 4.87 s looks like the Xeon against the M2. That's a guess.
-
-Runs on this build, with scripted X input: `alice.eth`, Tab, fake wallet, Sign, native prompt, Prove gave `Verified: alice.eth`. On Site B, Anonymous and "Not now" gave no proof, then Prove gave `Verified: anonymous`. `bob.eth` gave no proof and no prompt. A second login at the same site gave no prompt and no wallet. A plain form with a submit button clicked at once waited, then posted 233,951 bytes. The gesture check is in `../browser/SPEC.md`.
+Same Linux machine. Demo binary, 57,566 steps: 1 h 38 m 09 s. Output folder 7.2 GB, `chrome` 533 MB. Patch build, first good one, 173 steps: 1 m 18 s.
 
 ## Not included
 
