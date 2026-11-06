@@ -170,7 +170,7 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 | Name-only | **Real** check, but a site setting. A site without it still takes a typed address until expiry. |
 | Chain lookup | **Real on our devnet.** `--ens deployment` reads a Universal Resolver through viem. Tried only against our own deployment on chain 1337. |
 | Mainnet ENS lookup | **Partly.** `site/serve.mjs --ens mainnet --rpc URL` is read-only. The verifier refused a throwaway wallet claiming `vitalik.eth` on a real read. It wasn't tried through the live site. |
-| Approval page | **Local**, on http. |
+| Approval page | **Local**, on http, in the demo. The extension build can pin an https one. |
 | Key download speed | **FAKE.** Real bytes from localhost. |
 | Attack tests | Real tokens and proofs against real site code, but our own scripts. **Not an audit.** |
 | Soundness, unlinkability | **Not proven, not audited.** |
@@ -206,14 +206,14 @@ More weak points:
 - **You need an ENS name to enroll.** An address with no name can't.
 - **Selling or repointing a name** stops named login at the next lookup, not before. A session already open stays open until sign out. Anonymous keeps working until expiry. A typed address also does, unless the site is name-only.
 - **A site can make you approve again.** The extension can't see a site's answer, so it trusts the page's `not_owner`, once, right after a token it made from your click. One lying site drops your approval everywhere. It gets nothing from that: approving again takes your wallet's signature, on the pinned approval page.
-- **http only.** https wasn't tested.
+- **https is thin.** Named login has run on a hosted https deployment. Anonymous over https ran twice, headless with a scripted wallet, through a local proxy with a self-signed certificate. A real wallet hasn't done it.
 - **The offscreen document holds 2.4 to 3 GiB and never closes.**
 - **Prepare still makes the address credential.** Only the name credential is used now. That's wasted time.
 - **`__debug` is still in the service worker.** Pages can't reach it. It's a test hook, and one call changes the local expiry.
 - **Site denial of service.** `/challenge` is open, and a proof check blocks about 1.4 s.
 - **Time slack.** The holder picks `now`, and the site allows 300 s either way.
 - **The extension runs on every page it serves.** Here that's `*.test`. A real build would carry a broad permission warning.
-- **Not tried:** expiry in the browser, the last hour when anonymous asks the wallet again, a plain form with a submit button marked as Sign in, a second anonymous login, and a restart with the same profile.
+- **Not tried:** expiry in the browser, the last hour when anonymous asks the wallet again, a plain form with a submit button marked as Sign in, and a restart with the same profile.
 
 ### The forged digest
 
