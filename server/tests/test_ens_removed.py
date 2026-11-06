@@ -43,9 +43,8 @@ def test_old_sqlite_with_ens_names_still_opens(tmp_path, clock):
 
     store = SqliteStore(path)
     cfg = Settings(db=str(path), now_ms=clock, data_dir=str(tmp_path), android_roots=TEST_ANDROID_ROOTS,
-                   issuer_key_file=str(tmp_path / "issuer.pem"), worldid_signing_key_file=str(tmp_path / "worldid-rp.key"),
-                   presence_key_file=str(tmp_path / "presence.pem"),
-                   worldid_bg_poll=False, worldid_poll_s=0.0)
+                   issuer_key_file=str(tmp_path / "issuer.pem"),
+                   presence_key_file=str(tmp_path / "presence.pem"))
     client = TestClient(create_app(cfg, store))
     assert client.get("/v1/config").status_code == 200
     assert client.get("/v1/device/ens").status_code == 404

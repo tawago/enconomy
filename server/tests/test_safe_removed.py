@@ -35,7 +35,6 @@ def test_plain_context_lands_in_the_signed_record(client, clock):
         assert p.enroll(attested=True).status_code == 200
     c = a.post("/v1/session", {"context": CTX}).json()
     sid = c["session_id"]
-    assert c["policy"] == {"human": "none"}
     assert c["nonce"] == popctx.nonce(11155111, SAFE, CTX_HASH, c["not_before"], sid).hex()
     assert b.post(f"/v1/session/{sid}/join", {"join_token": c["join_token"]}).status_code == 200
     a.post(f"/v1/session/{sid}/confirm")

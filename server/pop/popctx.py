@@ -1,4 +1,4 @@
-"""PopCtx (worldid spec 01 §5): the one context-binding formula.
+"""PopCtx: the one context-binding formula.
 
 session_nonce = keccak256(abi.encode(bytes32 DOMAIN, uint256 chainId, address consumer,
                                      bytes32 ctxHash, uint64 notBefore, bytes16 sid))
@@ -17,7 +17,6 @@ def keccak(b: bytes) -> bytes:
 
 
 DOMAIN = keccak(b"pop-ctx-v1")
-ROLE_BYTE = {"A": b"\x41", "B": b"\x42"}
 
 
 def _addr(a: str | bytes) -> bytes:
@@ -52,27 +51,3 @@ def preimage(chain_id: int, consumer: str | bytes, ctx_hash: str | bytes, not_be
 
 def nonce(chain_id: int, consumer: str | bytes, ctx_hash: str | bytes, not_before: int, sid: str | bytes) -> bytes:
     return keccak(preimage(chain_id, consumer, ctx_hash, not_before, sid))
-
-
-def signal(n: bytes, role: str | bytes) -> bytes:
-    """abi.encodePacked(bytes32 session_nonce, bytes1 role): 33 bytes."""
-    rb = ROLE_BYTE[role] if isinstance(role, str) else role
-    assert len(n) == 32 and rb in (b"\x41", b"\x42")
-    return n + rb
-
-
-def signal_str(n: bytes, role: str | bytes) -> str:
-    """The IDKit signal string: lowercase 0x + even-length hex (decoded to raw bytes by IDKit)."""
-    return "0x" + signal(n, role).hex()
-
-
-def signal_hash_hex(b: bytes) -> str:
-    return "0x%064x" % (int.from_bytes(keccak(b), "big") >> 8)
-
-
-def action(sid: str) -> str:
-    return "pop:" + sid
-
-
-def action_field_hex(sid: str) -> str:
-    return signal_hash_hex(action(sid).encode())

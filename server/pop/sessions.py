@@ -5,7 +5,7 @@ This module covers create / join / confirm / abort / view, arm (§4.3, §4.4), c
 transcript / fail / timeout / retry / result (§7.1, §8) and the optional recording upload (§9).
 
 seed_hex never leaves the server; bed keys are derived per (role, attempt) from it (jbl250.bed_key).
-nonce_hex is shown only from `confirmed` on. A phone gets its own play PCM + own bed at arm and the
+nonce_hex is shown only from `confirmed` on, unless the session was created with early_nonce. A phone gets its own play PCM + own bed at arm and the
 partner's bed only after its own commit; the partner's play PCM is never sent.
 
 Choices the contract leaves open:
@@ -67,7 +67,7 @@ import numpy as np
 
 from pop import calibration as CAL
 from pop import constants as K
-from pop import human as H, invite, jbl250, popctx, popt2, poseidon2, presence, verdict as V, zk
+from pop import invite, jbl250, popctx, popt2, poseidon2, presence, verdict as V, zk
 from pop import issuer as sbcred
 from pop.codec import REC_KEY, b64d, decode_commit, decode_transcript, pcm, version_of
 from pop.crypto import key_hint, verify_raw
@@ -83,10 +83,6 @@ LIVE = ("created", "joined", "confirmed", "started")
 
 def _flags() -> dict:
     return {"A": False, "B": False}
-
-
-def _policy(s: dict) -> dict:
-    return s.get("policy") or {"human": "none"}
 
 
 def _iso(ms: int | None) -> str | None:
@@ -147,8 +143,8 @@ class Sessions:
         return role
 
     # -- pairing
-    def create(self, host: dict, context: dict | None = None, policy: dict | None = None) -> dict:
-        """context (already validated by the route) -> nonce = PopCtx (worldid 01 §5); else random."""
+    def create(self, host: dict, context: dict | None = None, early_nonce: bool = False) -> dict:
+        """context (already validated by the route) -> nonce = PopCtx; else random."""
         now = self.now_ms()
         sid = secrets.token_hex(16)
         not_before = now // 1000
@@ -158,8 +154,7 @@ class Sessions:
             "session_id": sid,
             "seed_hex": secrets.token_hex(32),
             "nonce_hex": nonce_hex,
-            "not_before": not_before, "context": context, "policy": policy or {"human": "none"},
-            "human": H.empty_human() if (policy or {}).get("human") == "worldid" else None,
+            "not_before": not_before, "context": context, "early_nonce": early_nonce,
             "join_token": secrets.token_hex(16),
             "token_expires_ms": now + K.JOIN_TOKEN_TTL_S * 1000,
             "state": "created", "attempt": 0, "seq": 0,
@@ -176,7 +171,7 @@ class Sessions:
         return {"session_id": s["session_id"], "join_token": s["join_token"],
                 "expires_at_ms": s["token_expires_ms"], "invite_b64url": invite.b64url(inv),
                 "invite_qr": invite.to_qr(inv),
-                "nonce": s["nonce_hex"], "not_before": not_before, "context": context, "policy": s["policy"]}
+                "nonce": s["nonce_hex"], "not_before": not_before, "context": context}
 
     def join(self, session_id: str, guest: dict, token: str) -> dict:
         s = self.load(session_id)
@@ -236,8 +231,6 @@ class Sessions:
     def arm(self, s: dict, role: str, attempt, sample_rate, rtt_min_ms, popt=None) -> dict:
         if s["state"] not in ("confirmed", "started"):
             raise PopError(409, "bad_state", s["state"])
-        if _policy(s)["human"] == "worldid" and not H.both_verified(s.get("human")):
-            raise PopError(409, "human_missing", "both roles need a verified World ID (two different humans)")
         if not isinstance(attempt, int) or isinstance(attempt, bool) or attempt != s["attempt"]:
             raise PopError(400, "bad_attempt", f"current attempt is {s['attempt']}")
         if not isinstance(sample_rate, int) or isinstance(sample_rate, bool) or not K.SR_MIN <= sample_rate <= K.SR_MAX:
@@ -378,8 +371,7 @@ class Sessions:
                 commits[r] = {"commit_b64": pr["commit_b64"], "sig_b64": pr["commit_sig_b64"]}
         return {
             "proto": K.PROTO, "session_id": s["session_id"], "session_nonce": s["nonce_hex"],
-            "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
-            "human": self._human_record(s), "pair_tag": (s.get("human") or {}).get("pair_tag"),
+            "context": s.get("context"), "not_before": s.get("not_before"),
             "attempt": s["attempt"], "verdict": verdict, "reason": reason,
             "user_text": V.USER_TEXT.get(reason) if reason else None,
             "flight_cm": flight, "t0_ms": s["t0_ms"],
@@ -403,16 +395,6 @@ class Sessions:
         if p is not None and self.presence_signer is not None and p["body"]["zk"] != res["zk"]:
             res["presence"] = self.presence_signer({**p["body"], "zk": res["zk"]})
         self._write(s["session_id"], "result.json", json.dumps(res, indent=1).encode())
-
-    @staticmethod
-    def _human_record(s: dict) -> dict | None:
-        """Full per-role World ID results (proofs included; no raw bodies, no connector_uri)."""
-        h = s.get("human")
-        if not h:
-            return None
-        drop = ("raw", "connector_uri", "detail")
-        return {**{r: {k: v for k, v in (h.get(r) or {}).items() if k not in drop} for r in ROLES},
-                "pair_tag": h.get("pair_tag")}
 
     def _write(self, sid: str, name: str, data: bytes) -> Path | None:
         if self.data_dir is None:
@@ -676,15 +658,14 @@ class Sessions:
         other_id = s["guest_device_id"] if role == "A" else s["host_device_id"]
         me = self.store.get_device(me_id)
         other = self.store.get_device(other_id) if other_id else None
-        # World ID sessions show the nonce to members from create/join (01 §9 row 3); plain sessions keep
-        # the v1 rule (the app treats nonce != null as "both confirmed").
-        shown = all(s["confirmed"].values()) or _policy(s)["human"] == "worldid"
+        # early_nonce shows it to members from create/join, for a service that must bind to it before confirm.
+        # Otherwise the v1 rule (the app treats nonce != null as "both confirmed").
+        shown = all(s["confirmed"].values()) or s.get("early_nonce")
         return {
             "session_id": s["session_id"], "seq": s["seq"], "state": s["state"], "attempt": s["attempt"],
             "role": role,
             "nonce": s["nonce_hex"] if shown else None,
-            "context": s.get("context"), "not_before": s.get("not_before"), "policy": _policy(s),
-            "human": H.public_status(s.get("human")),
+            "context": s.get("context"), "not_before": s.get("not_before"),
             "self": {"device_id": me["device_id"], "display_name": me["display_name"], "pubkey": me["pubkey"],
                      "cal_us": me.get("cal_us") or 0, "calibration": CAL.public(me)},
             "partner": None if other is None else {

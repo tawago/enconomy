@@ -32,8 +32,7 @@ def main() -> None:
                                                           serialization.NoEncryption()))
         cfg = Settings(db=":memory:", now_ms=clock, data_dir=tmp, android_roots=TEST_ANDROID_ROOTS,
                        issuer_key_file=str(d / "issuer.pem"),
-                       presence_key_file=str(d / "presence.pem"), worldid_signing_key_file=str(d / "worldid-rp.key"),
-                       worldid_bg_poll=False, worldid_poll_s=0.0)
+                       presence_key_file=str(d / "presence.pem"))
         client = TestClient(create_app(cfg, SqliteStore(":memory:")))
         w = World(client, clock, 30, Knobs(), Knobs(sr=44100, mono_off_ns=9_000_000_000, sync_err_ms=-3, out_lat_ms=25))
         w.pair(attested=True)

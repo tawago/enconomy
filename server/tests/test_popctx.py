@@ -1,4 +1,4 @@
-"""PopCtx vectors (worldid spec 01 §5; reference research/worldid/prototypes/ctxnonce/vec.py) + session create."""
+"""PopCtx vectors (reference research/worldid/prototypes/ctxnonce/vec.py) + session create."""
 import pytest
 
 from pop import popctx
@@ -34,11 +34,6 @@ def test_g_vector():
     n = popctx.nonce(CHAIN, SAFE, CTX, NB, SID)
     assert n.hex() == G_NONCE
     assert popctx.nonce(CHAIN, SAFE, "0x" + CTX.hex(), NB, bytes.fromhex(SID)) == n
-    assert popctx.signal_str(n, "A") == "0x" + G_NONCE + "41"
-    assert popctx.signal_hash_hex(popctx.signal(n, "A")) == \
-        "0x002916db5141cfe5584c6de9cf6f45579e83422ecdf3260c31e30bc7f2b964c6"
-    assert popctx.signal_hash_hex(popctx.signal(n, "B")) == \
-        "0x0097c2b664c193be4b2699e4224cd1c6c3bb1f8de93919ebee7d7e346f25ff2b"
 
 
 def test_n_vector():
@@ -46,20 +41,11 @@ def test_n_vector():
     h1 = "0x960376ecf47efc7cff7bfae13f9f9f1f678c1429cb6489486a3ef315df1f59a5"
     n = popctx.nonce(480, safe2, h1, NB, SID)
     assert n.hex() == "9fc7507c663ae43d4f8d56ba4b805fdf9e928e565141666a47630aa7fd04b121"
-    assert popctx.signal_hash_hex(popctx.signal(n, "A")) == \
-        "0x008f770c3f6700ffa8277d98ae286f59448b26c40ecc9b59eb4236aec76f5637"
-    assert popctx.signal_hash_hex(popctx.signal(n, "B")) == \
-        "0x00e9c210433251df53d3a8650bc8f0b54e5ad84ffcc0593e2785d0778f92199a"
 
 
 def test_pool_vector():
     assert popctx.nonce(CHAIN, POOL, CTX, NB, SID).hex() == \
         "ab8e50bb766db52b752932e48a63148cf015ac1a17c1345c35d4765f51027d66"
-
-
-def test_action_field():
-    assert popctx.action(SID) == "pop:" + SID and len(popctx.action(SID)) == 36
-    assert popctx.action_field_hex(SID) == "0x003d0a5a51f4fe9954190e3c33adb92f760da336203f33ee63a29ad4ee6fd8ae"
 
 
 def test_traps_differ():
@@ -93,7 +79,7 @@ def test_bad_inputs():
         popctx.nonce(CHAIN, SAFE, CTX, 1 << 64, SID)
 
 
-# -- POST /v1/session with a plain context: bound into the nonce, policy only from body.policy
+# -- POST /v1/session with a plain context: bound into the nonce
 
 PLAIN = {"chain_id": 11155111, "consumer": SAFE, "ctx_hash": "0x" + CTX.hex()}
 
@@ -114,42 +100,41 @@ def test_create_with_context(ctx_phones, clock):
     assert r.status_code == 200, r.text
     c = r.json()
     nb = clock() // 1000
-    assert c["not_before"] == nb and c["context"] == PLAIN and c["policy"] == {"human": "none"}
+    assert c["not_before"] == nb and c["context"] == PLAIN
     assert c["nonce"] == popctx.nonce(11155111, SAFE, CTX, nb, c["session_id"]).hex()
-    # no World ID: the guest gets the nonce at confirm, as in any plain session
+    # the guest gets the nonce at confirm, as in any plain session
     v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
-    assert v["nonce"] is None and v["context"] == PLAIN and v["not_before"] == nb and v["policy"] == {"human": "none"}
-
-
-def test_context_with_worldid_policy_shows_the_nonce_early(ctx_phones):
-    a, b = ctx_phones()   # no POP_WORLDID_RP_ID: create no longer cares
-    c = a.post("/v1/session", {"context": PLAIN, "policy": {"human": "worldid"}}).json()
-    assert c["policy"] == {"human": "worldid"} and c["context"] == PLAIN
-    v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
-    assert v["nonce"] == c["nonce"]
+    assert v["nonce"] is None and v["context"] == PLAIN and v["not_before"] == nb
 
 
 def test_plain_sessions_unchanged(ctx_phones):
     a, b = ctx_phones()
-    for body in (None, {}, {"policy": {"human": "none"}}):
+    for body in (None, {}):
         c = (a.post("/v1/session") if body is None else a.post("/v1/session", body)).json()
-        assert c["context"] is None and c["policy"] == {"human": "none"} and len(c["nonce"]) == 64
+        assert c["context"] is None and len(c["nonce"]) == 64
     v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
-    assert v["nonce"] is None and v["policy"] == {"human": "none"}
+    assert v["nonce"] is None
     n1 = a.post("/v1/session").json()["nonce"]
     n2 = a.post("/v1/session").json()["nonce"]
     assert n1 != n2  # random
 
 
-def test_worldid_without_context(ctx_phones):
-    a, _ = ctx_phones()
-    c = a.post("/v1/session", {"policy": {"human": "worldid"}}).json()
-    assert c["context"] is None and c["policy"] == {"human": "worldid"}
+def test_early_nonce(ctx_phones):
+    a, b = ctx_phones()
+    c = a.post("/v1/session", {"early_nonce": True}).json()
+    v = b.post(f"/v1/session/{c['session_id']}/join", {"join_token": c["join_token"]}).json()
+    assert v["nonce"] == c["nonce"]
+
+    c = a.post("/v1/session").json()
+    sid = c["session_id"]
+    assert b.post(f"/v1/session/{sid}/join", {"join_token": c["join_token"]}).json()["nonce"] is None
+    assert a.post(f"/v1/session/{sid}/confirm").json()["nonce"] is None
+    assert b.post(f"/v1/session/{sid}/confirm").json()["nonce"] == c["nonce"]
 
 
 @pytest.mark.parametrize("body,status,code", [
-    ({"context": PLAIN, "policy": {"human": "maybe"}}, 400, "bad_policy"),
-    ({"policy": "worldid"}, 400, "bad_policy"),
+    ({"early_nonce": "yes"}, 400, "bad_request"),
+    ({"early_nonce": None}, 400, "bad_request"),
     ({"context": {**PLAIN, "kind": "safe-tx"}}, 400, "bad_context"),
     ({"context": {k: PLAIN[k] for k in ("chain_id", "consumer")}}, 400, "bad_context"),
     ({"context": {**PLAIN, "chain_id": 4801}}, 400, "bad_chain"),
