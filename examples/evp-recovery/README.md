@@ -34,7 +34,7 @@ Needs `uv`, `node`, `cast`, Chrome, `cloudflared`, and `npm ci` done in `relayer
 ```sh
 ./run keys                        # TLS cert and email issuer key in .run/keys
 scripts/build_pair_named.sh       # pair_named.json where the core looks for it
-(cd contracts && forge build)     # via-ir, from contracts/foundry.toml. Run it through tools/cloud/cloud.sh on a small machine
+(cd contracts && forge build)     # via-ir, from contracts/foundry.toml. Heavy on a small machine
 ```
 
 ### Start, one terminal each

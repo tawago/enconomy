@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/../../.." && pwd)
 DEST=$HOME/.enconomy/zk/optA/noir/pair_named/target
 cd "$ROOT/fv/v1.1/circuit/pair_named"
-"$HOME/.enconomy/zk/bin/nargo" compile
+"${NARGO:-nargo}" compile
 mkdir -p "$DEST"
 python3 -I -c '
 import json, sys
