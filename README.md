@@ -102,8 +102,8 @@ cd relayer && RPC=http://127.0.0.1:8612 test/dryrun.sh
 **Static ENS site**
 
 ```sh
-cd web && python3 -m http.server 8080    # preview
-npx wrangler deploy                      # from repo root
+cd examples/ens-meetings/web && python3 -m http.server 8080    # preview
+npx wrangler deploy                      # from examples/ens-meetings/
 ```
 
 Each component README has more detail.
@@ -230,13 +230,13 @@ World ID is checked only on the server, never on chain.
 | [`contracts/`](contracts/README.md) | Foundry: `PopSafeGuard`, `P256Owner`, verifiers, ZK verifiers in [`contracts/zk/`](contracts/zk/README.md). |
 | `relayer/` | Submits Safe transactions for NEAR Safe-spend sessions (viem). |
 | [`examples/ens-meetings/`](examples/ens-meetings/README.md) | ENS example, independent of the core: name claims, [bridge](examples/ens-meetings/bridge/README.md) to `MeetResolver`, [contracts](examples/ens-meetings/contracts/README.md). |
-| [`web/`](web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into `web/app/`. |
+| [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. `build_web.sh --workers` can also put the Wasm app into its `app/`. |
 | `zkmobile/` | Spikes behind the Noir port: Android and iOS prove runs, hash vectors, toolchain pin. |
 | [`research/sound-bound/`](research/sound-bound/README.md) | Acoustic prototype, field tests, melody bakeoff, ZK spikes. |
 | `research/*.md` | Decision notes and threat model. |
 | [`tools/dsp-fixtures/`](tools/dsp-fixtures/README.md) | Parity fixtures that tie the Kotlin receiver to the Python reference. |
 | `demo` | One-command launcher for the demo stack. |
-| `wrangler.jsonc` | Cloudflare Worker deploy config for `web/`. |
+| `examples/ens-meetings/wrangler.jsonc` | Cloudflare Worker deploy config for that page. |
 
 `app/prover/` is the old circom/Spartan2 prover. The app no longer uses it.
 

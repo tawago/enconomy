@@ -15,7 +15,7 @@ Single key: admin == hot == attester, key file `~/.enconomy/ens-sepolia.key` (ov
 
 **Do not rerun bootstrap, addresses come from `deployments/sepolia.json`.**
 
-`ens.sh bootstrap` predicts the `MeetResolver` address from the bytecode of a fresh build. The metadata hash at the end of that bytecode changes with the build settings, and this move changed it: the new project has no `safe-smart-account` remapping. Bootstrap would then see no code at the predicted address, deploy a new resolver and repoint the 2LD. The prediction already missed the deployed `0xfc30…1346` before the move (see the 2026-09-27 caveat in `web/README.md`).
+`ens.sh bootstrap` predicts the `MeetResolver` address from the bytecode of a fresh build. The metadata hash at the end of that bytecode changes with the build settings, and this move changed it: the new project has no `safe-smart-account` remapping. Bootstrap would then see no code at the predicted address, deploy a new resolver and repoint the 2LD. The prediction already missed the deployed `0xfc30…1346` before the move (see the 2026-09-27 caveat in `../web/README.md`).
 
 Checked at the move, old project against new, same compiler: the runtime code is byte-identical up to the CBOR metadata tail, and the creation code differs only in the 32 hash bytes inside that tail.
 

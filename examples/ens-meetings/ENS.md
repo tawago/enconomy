@@ -31,4 +31,4 @@ Paths are relative to this folder, unless they say otherwise.
 - `contracts/` — MeetResolver, `script/ens.sh` ops (never rerun bootstrap), `deployments/sepolia.json`, `deployments/zk-sepolia.json`
 - `backend/` — name claims and presence record intake
 - `bridge/` — presence records -> MeetResolver + verifier txs, run by the backend's worker
-- `web/` at the repo root — the page; `npx wrangler deploy` from the repo root (`wrangler.jsonc`)
+- `web/` — the page; `npx wrangler deploy` from this folder (`wrangler.jsonc`)
