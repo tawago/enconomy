@@ -27,6 +27,8 @@ class PopRound2(
     requireCaptureFrames: Boolean = true,
     /** Enrollment calibration, µs (0 = none): folded into p_self (p_self = round(expected_self + cal_frames)). */
     val calUs: Long = 0,
+    /** Web only, EVP demo: sign p_self from the measured a_self, since browser calibration misses by a few ms. Gives up the self timing check. */
+    val pSelfFromArrival: Boolean = false,
 ) {
     sealed class Step {
         data class Failed(val reason: String, val arrival: Arrival2? = null) : Step()
@@ -59,6 +61,7 @@ class PopRound2(
         val a = Popt2Rule.earliest(capture, own, w.first, w.last + 1, rate)
         self = a
         val f = a.frame ?: return Step.Failed(DspReason.SELF_NOT_HEARD, a)
+        if (pSelfFromArrival) { pSelf = f; return Step.SelfOk(f, f, 0) }
         val d = f - p
         if (!selfOsOk(d)) return Step.Failed(DspReason.SELF_TIMESTAMP_MISMATCH, a)
         return Step.SelfOk(f, p, d)

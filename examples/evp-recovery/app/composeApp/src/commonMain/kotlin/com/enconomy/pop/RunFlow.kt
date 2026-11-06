@@ -253,7 +253,7 @@ class PopRun(
         val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
         val tree = async(Dispatchers.Default) { OaHash.recTreeParallel(cap.pcm, 4) }
         status(RunPhase.SelfCheck, k)
-        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs, calUs = calUs)
+        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs, calUs = calUs, pSelfFromArrival = cap.micSource == "webaudio")
         val expSelf = cap.expectedSelf()
         val self = withContext(Dispatchers.Default) { r.selfCheck(own, expSelf) }
         if (self !is PopRound2.Step.SelfOk) {

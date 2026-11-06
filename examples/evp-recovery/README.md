@@ -15,6 +15,7 @@ Hackathon build. Happy path only, no tests of its own. `contracts/test` still ex
 
 - **That the devices were really close, if one side cheats.** One cheating side can fake NEAR.
 - **That the laptop key is safe.** It's a software key in the browser, and L is a test key in a local file.
+- **The laptop's self timing.** The web app signs its predicted arrival from the arrival it measured, because browser calibration missed the circuit's 2 ms limit. So that check means nothing for the laptop. Phones still run it. Distance comes from the arrivals, so it doesn't change.
 - **Anything about the hardware.** No attestation: web devices never have it, and this run allows unattested phones.
 - **A real email check.** The issuer is a local fake on `tawago.test`, with the login secret in the source.
 - **That the new phone agreed to this tx.** Its signature over `ctx` was dropped as redundant: its transcript signs `popNonce`, which commits `ctx`, and `ctx` holds `newKey`.
