@@ -1,0 +1,22 @@
+<!doctype html>
+<!-- Live Chrome test page. Origin https://recover.tawago.test = KB aud. Nonce = ctx from ../ctx-vector.json. -->
+<meta charset="utf-8">
+<title>Recover (live test)</title>
+<h1>Recover (live test)</h1>
+<p>nonce: <code id="shownonce">(none)</code></p>
+<form id="f">
+  <input type="email" autocomplete="email" name="email" id="email">
+  <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
+  <button type="submit">Get token</button>
+</form>
+<pre id="out"></pre>
+<script>
+// Chrome 156 renderer reads GetAttribute("nonce"), not the IDL slot. Set both.
+window.setNonce = (n) => { const t = document.getElementById("tok"); t.setAttribute("nonce", n); t.nonce = n; document.getElementById("shownonce").textContent = n; return n; };
+window.lastToken = null;
+document.getElementById("f").addEventListener("submit", (e) => {
+  e.preventDefault();
+  window.lastToken = document.getElementById("tok").value;
+  document.getElementById("out").textContent = window.lastToken || "(empty)";
+});
+</script>

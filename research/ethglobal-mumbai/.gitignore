@@ -1,0 +1,60 @@
+# Ship only our own research that's in use, not third-party source or build output.
+# Root .gitignore already covers *.pem, *.key, .env, __pycache__, .venv, *.wav.
+
+# Third-party clones read during research (ethrex, mempool-workshop, sidecar, kohaku, ...), ~110 MB
+tmp/
+
+# forge / node / gradle build output and vendored libs (poc-evp-issuer/lib = forge-std, `forge install` restores it)
+**/out/
+**/out-osaka/
+**/cache/
+**/lib/
+**/node_modules/
+**/dist/
+**/.gradle/
+**/.kotlin/
+**/build/
+
+# Keeper and devnet runtime state, local keys (test or not, never commit them)
+**/state/
+**/keys/
+**/footage/
+
+# Local devnet: third-party clones and Rust build output (multi-GB)
+devnet/.vendor/
+devnet/.run/
+**/target/
+
+# Research we decided not to use. Kept locally.
+/0[0-9]-*
+/2026-11-02-*.md
+/2026-11-05-devnet-findings.md
+/stretch-human-lane/
+/stretch-kohaku-recovery/
+/poc-local-devnet/
+/submission-kit/
+/poc/dnssec-gas/
+/poc/server-patch/
+/poc/clients/keeper/
+/poc/clients/build-frame-tx.cjs
+/poc/clients/dryrun-chirpgas-shape.cjs
+/poc/clients/dryrun-s2-fees.cjs
+/poc/clients/humanhub-shape.cjs
+/poc/clients/demo.sh
+/poc-validation-rules/src/ChirpGasSponsor.sol
+/poc-validation-rules/src/ChirpHumansRegistry.sol
+/poc-validation-rules/src/HumanHub.sol
+/poc-validation-rules/src/HumanMeetBook.sol
+/poc-validation-rules/test/ChirpGas.t.sol
+/poc-validation-rules/test/HumanHub.t.sol
+/poc-validation-rules/test/GasBench.t.sol
+/poc-validation-rules/test/GasBenchHub.t.sol
+/poc-validation-rules/test/GasBenchProbe.t.sol
+/poc-validation-rules/test/GasBenchGift.t.sol
+/poc-validation-rules/test/GoldenVector.t.sol
+/poc-validation-rules/test/GoldenVectorHub.t.sol
+/poc-validation-rules/results/2026-11-02-attester.txt
+/poc-validation-rules/results/2026-11-02-humanhub.txt
+/evp-recovery/ens-half/
+/evp-recovery/ens-oracle-1337/
+/evp-recovery/poc-native-evp/attic/

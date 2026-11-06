@@ -1,0 +1,466 @@
+diff -ruN a/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidDeviceKeystore.kt b/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidDeviceKeystore.kt
+--- a/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidDeviceKeystore.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidDeviceKeystore.kt	2026-11-02 04:56:20
+@@ -37,7 +37,13 @@
+         val s = ks
+         if (s.containsAlias(KEY_ALIAS)) s.deleteEntry(KEY_ALIAS)
+         Prefs.set("key.strongbox", null)
++        frames.delete()
+     }
++
++    private val frames by lazy { AndroidFrameKeystore(ctx.packageManager) }
++
++    /** pop-frame-v1 (DIGEST_NONE + SHA256). pop-device-v1 is SHA256-only and can't sign a raw digest. */
++    override fun frameKey(): FrameKey = frames.loadOrCreate()
+ 
+     override fun generate(challenge: ByteArray): GeneratedKey {
+         delete()
+diff -ruN a/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidFrameKeystore.kt b/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidFrameKeystore.kt
+--- a/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidFrameKeystore.kt	1970-01-01 09:00:00
++++ b/app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AndroidFrameKeystore.kt	2026-11-02 04:55:38
+@@ -0,0 +1,143 @@
++package com.enconomy.pop
++
++import android.content.pm.PackageManager
++import android.os.Build
++import android.security.keystore.KeyGenParameterSpec
++import android.security.keystore.KeyInfo
++import android.security.keystore.KeyProperties
++import android.util.Log
++import java.math.BigInteger
++import java.security.KeyFactory
++import java.security.KeyPairGenerator
++import java.security.KeyStore
++import java.security.PrivateKey
++import java.security.ProviderException
++import java.security.Signature
++import java.security.interfaces.ECPublicKey
++import java.security.spec.ECGenParameterSpec
++
++/**
++ * Frame key for EIP-8141 scheme 2 (raw-digest P-256). Reached through AndroidDeviceKeystore.frameKey().
++ *
++ * Why a new alias: the existing pop-device-v1 key was generated with setDigests(DIGEST_SHA256) only.
++ * Keystore enforces the digest list at sign time, so NONEwithECDSA on it fails with
++ * "Incompatible digest". Digests are fixed at keygen, so the frame key is a second key.
++ * DIGEST_SHA256 stays in the list so the same key could also sign server requests later.
++ *
++ * Keygen order: StrongBox (if the feature exists) -> TEE -> (emulator only) unattested software.
++ * UNTESTED on hardware: whether StrongBox accepts DIGEST_NONE at keygen. If it doesn't, we expect a
++ * ProviderException (StrongBoxUnavailableException extends it) and land on TEE.
++ */
++const val FRAME_KEY_ALIAS = "pop-frame-v1"
++private const val TAG = "PopFrameKey"
++private const val PROVIDER = "AndroidKeyStore"
++
++class AndroidFrameKeystore(private val pm: PackageManager) {
++    private val ks: KeyStore get() = KeyStore.getInstance(PROVIDER).apply { load(null) }
++
++    /** What keygen actually did, for the debug screen. */
++    var lastGenNote: String = ""
++        private set
++
++    fun load(): FrameKey? {
++        val e = ks.getEntry(FRAME_KEY_ALIAS, null) as? KeyStore.PrivateKeyEntry ?: return null
++        return AndroidFrameKey(e.privateKey, e.certificate.publicKey as ECPublicKey)
++    }
++
++    fun loadOrCreate(challenge: ByteArray? = null): FrameKey = load() ?: generate(challenge)
++
++    fun delete() {
++        val s = ks
++        if (s.containsAlias(FRAME_KEY_ALIAS)) s.deleteEntry(FRAME_KEY_ALIAS)
++    }
++
++    /** Attestation chain of the frame key (leaf..root DER), null if none. */
++    fun chain(): List<ByteArray>? = ks.getCertificateChain(FRAME_KEY_ALIAS)?.map { it.encoded }
++
++    fun generate(challenge: ByteArray?): FrameKey {
++        delete()
++        val notes = mutableListOf<String>()
++        val sbFeature = Build.VERSION.SDK_INT >= 28 && pm.hasSystemFeature(PackageManager.FEATURE_STRONGBOX_KEYSTORE)
++        var done = false
++        if (sbFeature) {
++            try {
++                gen(challenge, strongBox = true); done = true; notes += "strongbox ok"
++            } catch (e: ProviderException) {
++                notes += "strongbox failed: ${e.javaClass.simpleName}: ${e.message}"
++                Log.w(TAG, "StrongBox keygen with DIGEST_NONE failed, trying TEE", e)
++            }
++        } else notes += "no strongbox feature"
++        if (!done) {
++            try {
++                gen(challenge, strongBox = false); notes += "tee ok"
++            } catch (e: Exception) {
++                if (!isEmulator()) throw IllegalStateException("frame keygen failed: $e", e)
++                notes += "attested keygen failed on emulator: $e"
++                gen(null, strongBox = false); notes += "plain key"
++            }
++        }
++        lastGenNote = notes.joinToString("; ")
++        Log.i(TAG, lastGenNote)
++        return load() ?: error("frame key missing after generate")
++    }
++
++    private fun gen(challenge: ByteArray?, strongBox: Boolean) {
++        val b = KeyGenParameterSpec.Builder(FRAME_KEY_ALIAS, KeyProperties.PURPOSE_SIGN)
++            .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
++            .setDigests(KeyProperties.DIGEST_NONE, KeyProperties.DIGEST_SHA256)
++        if (challenge != null) b.setAttestationChallenge(challenge)
++        if (strongBox && Build.VERSION.SDK_INT >= 28) b.setIsStrongBoxBacked(true)
++        KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, PROVIDER).apply {
++            initialize(b.build())
++            generateKeyPair()
++        }
++    }
++}
++
++private class AndroidFrameKey(private val priv: PrivateKey, pub: ECPublicKey) : FrameKey {
++    override val pubkey: ByteArray = byteArrayOf(4) + fixed32(pub.w.affineX) + fixed32(pub.w.affineY)
++
++    override val securityLevel: String by lazy {
++        try {
++            val info = KeyFactory.getInstance(priv.algorithm, PROVIDER).getKeySpec(priv, KeyInfo::class.java)
++            if (Build.VERSION.SDK_INT >= 31) when (info.securityLevel) {
++                KeyProperties.SECURITY_LEVEL_STRONGBOX -> "strongbox"
++                KeyProperties.SECURITY_LEVEL_TRUSTED_ENVIRONMENT -> "tee"
++                KeyProperties.SECURITY_LEVEL_SOFTWARE -> "software"
++                else -> "unknown"
++            } else {
++                @Suppress("DEPRECATION")
++                if (info.isInsideSecureHardware) "hardware" else "software"
++            }
++        } catch (e: Exception) {
++            "unknown"
++        }
++    }
++
++    /**
++     * NONEwithECDSA: Keystore takes the input as the hash value e. For a P-256 key and a 32-byte input
++     * that is exactly ECDSA over the digest (inputs longer than 32 bytes get truncated, so we refuse them).
++     */
++    override fun signDigest(digest32: ByteArray): ByteArray {
++        FrameSig.requireDigest(digest32)
++        val der = Signature.getInstance("NONEwithECDSA").run {
++            initSign(priv)
++            update(digest32)
++            sign()
++        }
++        return FrameSig.normalizeLowS(derToRawRs(der))
++    }
++}
++
++private fun isEmulator(): Boolean =
++    Build.FINGERPRINT.startsWith("generic") || Build.FINGERPRINT.contains("emulator") ||
++        Build.HARDWARE in setOf("goldfish", "ranchu") || Build.PRODUCT.contains("sdk")
++
++private fun fixed32(v: BigInteger): ByteArray {
++    val b = v.toByteArray()
++    return when {
++        b.size == 32 -> b
++        b.size > 32 -> b.copyOfRange(b.size - 32, b.size)
++        else -> ByteArray(32 - b.size) + b
++    }
++}
+diff -ruN a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/App.kt b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/App.kt
+--- a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/App.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/App.kt	2026-11-02 04:55:59
+@@ -308,6 +308,7 @@
+                 SecondaryButton("Ping server", c::ping, enabled = !s.busy, icon = PopIcons.Refresh, compact = true)
+                 if (s.baseUrl != DEFAULT_BASE_URL) QuietButton("Reset to default", c::resetBaseUrl, enabled = !s.busy)
+             }
++            if (isDebugBuild()) SecondaryButton("Sign test digest", c::signTestDigest, enabled = !s.busy, icon = PopIcons.Key, compact = true)
+             if (s.baseUrl != DEFAULT_BASE_URL) Text("Default: $DEFAULT_BASE_URL", style = Pop.mono, color = Pop.palette.muted)
+             s.info?.let { CodeBlock(it) }
+         }
+diff -ruN a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/FrameSig.kt b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/FrameSig.kt
+--- a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/FrameSig.kt	1970-01-01 09:00:00
++++ b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/FrameSig.kt	2026-11-02 04:55:59
+@@ -0,0 +1,121 @@
++package com.enconomy.pop
++
++import org.kotlincrypto.hash.sha3.Keccak256
++
++/**
++ * EIP-8141 signature scheme 2 (P256) helpers. Pure Kotlin, commonMain-safe (no BigInteger).
++ *
++ * Scheme 2 entry bytes = r || s || qx || qy (128). Rules the protocol and the sidecar check
++ * (sidecar signature.ts validateSignature, P256 branch):
++ *   0 < r < n, 0 < s <= n/2 (low-s), signer == keccak256(qx || qy)[12:],
++ *   P256VERIFY(msg, r, s, qx, qy) with msg = sig_hash or an explicit nonzero 32-byte msg.
++ * The 32 bytes go into ECDSA as the hash value e. No SHA-256 on top. So the phone has to sign
++ * in digest mode (Android NONEwithECDSA, iOS ...DigestX962SHA256), never in message mode.
++ */
++object FrameSig {
++    /** secp256r1 group order n. */
++    val N: ByteArray = hex("ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551")
++    /** floor(n / 2). s must be <= this. */
++    val HALF_N: ByteArray = hex("7fffffff800000007fffffffffffffffde737d56d38bcf4279dce5617e3192a8")
++
++    /** A frame-tx digest: sig_hash or an explicit msg. Exactly 32 bytes, not all zero. */
++    fun requireDigest(d: ByteArray) {
++        require(d.size == 32) { "digest must be 32 bytes, got ${d.size}" }
++        require(d.any { it != 0.toByte() }) { "zero digest is invalid as explicit msg" }
++    }
++
++    fun isLowS(s32: ByteArray): Boolean = cmp(s32, HALF_N) <= 0
++
++    /** r || s (64) -> r || min(s, n - s). Same signature, other sign of the point. Idempotent. */
++    fun normalizeLowS(rs: ByteArray): ByteArray {
++        require(rs.size == 64) { "r||s must be 64 bytes" }
++        val r = rs.copyOfRange(0, 32)
++        val s = rs.copyOfRange(32, 64)
++        require(cmp(s, ZERO) > 0 && cmp(s, N) < 0) { "s out of range" }
++        return if (isLowS(s)) rs.copyOf() else r + sub(N, s)
++    }
++
++    /** 65-byte 04||X||Y -> X||Y. */
++    fun qxqy(pub65: ByteArray): ByteArray {
++        require(pub65.size == 65 && pub65[0] == 4.toByte()) { "pubkey must be SEC1 uncompressed P-256" }
++        return pub65.copyOfRange(1, 65)
++    }
++
++    /** Scheme-2 signer address: keccak256(qx || qy)[12:], 20 bytes. */
++    fun signer(pub65: ByteArray): ByteArray = Keccak256().digest(qxqy(pub65)).copyOfRange(12, 32)
++
++    fun signerHex(pub65: ByteArray): String = "0x" + signer(pub65).hexStr()
++
++    /** The 128-byte `signature` field of a scheme-2 entry. Refuses high-s, so a forgotten normalize fails here, not at the mempool. */
++    fun scheme2Bytes(rs: ByteArray, pub65: ByteArray): ByteArray {
++        require(rs.size == 64) { "r||s must be 64 bytes" }
++        require(isLowS(rs.copyOfRange(32, 64))) { "high s: call normalizeLowS first" }
++        return rs + qxqy(pub65)
++    }
++
++    // ---- 256-bit big-endian helpers ----
++
++    private val ZERO = ByteArray(32)
++
++    /** Unsigned compare of two 32-byte big-endian numbers. */
++    internal fun cmp(a: ByteArray, b: ByteArray): Int {
++        require(a.size == 32 && b.size == 32)
++        for (i in 0 until 32) {
++            val x = a[i].toInt() and 0xff
++            val y = b[i].toInt() and 0xff
++            if (x != y) return x - y
++        }
++        return 0
++    }
++
++    /** a - b, requires a >= b. */
++    internal fun sub(a: ByteArray, b: ByteArray): ByteArray {
++        require(cmp(a, b) >= 0)
++        val out = ByteArray(32)
++        var borrow = 0
++        for (i in 31 downTo 0) {
++            var d = (a[i].toInt() and 0xff) - (b[i].toInt() and 0xff) - borrow
++            borrow = if (d < 0) { d += 256; 1 } else 0
++            out[i] = d.toByte()
++        }
++        return out
++    }
++
++    private fun hex(h: String): ByteArray = ByteArray(h.length / 2) { h.substring(2 * it, 2 * it + 2).toInt(16).toByte() }
++    private fun ByteArray.hexStr(): String = joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
++}
++
++/**
++ * A key that signs raw 32-byte digests for frame transactions. Android: its own alias
++ * (pop-frame-v1, DIGEST_NONE+SHA256). iOS: the same Secure Enclave key as DeviceKey.
++ */
++interface FrameKey {
++    /** 65 bytes 04||X||Y. */
++    val pubkey: ByteArray
++    val securityLevel: String
++    /** ECDSA over [digest32] as-is (no hashing). Raw r||s, 64 bytes, already low-s. Blocking. */
++    fun signDigest(digest32: ByteArray): ByteArray
++
++    /** keccak256(qx||qy)[12:], the scheme-2 signer and the registry's device address. */
++    val signerAddress: String get() = FrameSig.signerHex(pubkey)
++}
++
++/** Fixed test digest for the debug button, so printouts from different phones are comparable. sha256("pop-frame-test-v1"). */
++val FRAME_TEST_DIGEST: ByteArray get() = sha256("pop-frame-test-v1".encodeToByteArray())
++
++/**
++ * Debug: sign [FRAME_TEST_DIGEST] with the frame key and print what a scheme-2 entry needs.
++ * Check the printout on a laptop with research/ethglobal-mumbai/poc-phone-signing/verify-printout.cjs.
++ * Blocking (keygen on first use, StrongBox sign ~100 ms): call off the main thread.
++ */
++fun frameKeyReport(ks: DeviceKeystore): String {
++    val k = ks.frameKey()
++    val d = FRAME_TEST_DIGEST
++    val t0 = unixMs()
++    val rs = k.signDigest(d)
++    val ms = unixMs() - t0
++    val text = "frame-key ${k.securityLevel}\nsigner ${k.signerAddress}\ndigest ${d.toHex()}\n" +
++        "rs ${rs.toHex()}\nqxqy ${FrameSig.qxqy(k.pubkey).toHex()}\nsign_ms $ms"
++    println("PopFrameKey:\n$text")
++    return text
++}
+diff -ruN a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/PopController.kt b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/PopController.kt
+--- a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/PopController.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/PopController.kt	2026-11-02 04:55:59
+@@ -438,6 +438,24 @@
+         _state.update { it.copy(info = "rtt ${rtt} ms, server_ms ${t.server_ms}\n$cfg", status = if (ok) "ok" else "config mismatch") }
+     }
+ 
++    /** Debug: sign the fixed test digest with the frame key, show r||s, qx||qy, signer (EIP-8141 scheme 2 gate). */
++    fun signTestDigest() {
++        if (state.value.busy) return
++        _state.update { it.copy(busy = true, status = "sign test digest", error = null) }
++        scope.launch {
++            try {
++                val text = withContext(Dispatchers.Default) { frameKeyReport(keystore) }
++                _state.update { it.copy(info = text, status = "signed") }
++            } catch (e: CancellationException) {
++                throw e
++            } catch (e: Throwable) {
++                _state.update { it.copy(error = "${e::class.simpleName}: ${e.message}", info = "frame key failed: ${e.message}") }
++            } finally {
++                _state.update { it.copy(busy = false) }
++            }
++        }
++    }
++
+     /** Startup §1 check; silent on network errors (configOk stays null, ping retries). */
+     private fun checkConfig() {
+         val api = api()
+diff -ruN a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/Signing.kt b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/Signing.kt
+--- a/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/Signing.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/commonMain/kotlin/com/enconomy/pop/Signing.kt	2026-11-02 04:55:59
+@@ -31,6 +31,11 @@
+     /** Replaces any existing key. [challenge] = enroll nonce bytes (attestation challenge). */
+     fun generate(challenge: ByteArray): GeneratedKey
+     fun delete()
++    /**
++     * Raw-digest key for EIP-8141 frame-tx signatures (scheme 2). Android: separate alias pop-frame-v1,
++     * created on first call. iOS / web: the device key itself. Blocking.
++     */
++    fun frameKey(): FrameKey = throw UnsupportedOperationException("no frame key on $platform")
+ }
+ 
+ const val KEY_ALIAS = "pop-device-v1"
+diff -ruN a/app/composeApp/src/commonTest/kotlin/com/enconomy/pop/FrameSigTest.kt b/app/composeApp/src/commonTest/kotlin/com/enconomy/pop/FrameSigTest.kt
+--- a/app/composeApp/src/commonTest/kotlin/com/enconomy/pop/FrameSigTest.kt	1970-01-01 09:00:00
++++ b/app/composeApp/src/commonTest/kotlin/com/enconomy/pop/FrameSigTest.kt	2026-11-02 04:55:59
+@@ -0,0 +1,35 @@
++package com.enconomy.pop
++
++import kotlin.test.Test
++import kotlin.test.assertContentEquals
++import kotlin.test.assertEquals
++import kotlin.test.assertFailsWith
++
++/** Pure-format checks. The ECDSA round trip lives in research/ethglobal-mumbai/poc-phone-signing/jvm-test. */
++class FrameSigTest {
++    @Test fun lowS() {
++        val r = ByteArray(32) { 1 }
++        val half = FrameSig.HALF_N
++        assertContentEquals(r + half, FrameSig.normalizeLowS(r + half))
++        val halfPlus1 = half.copyOf().also { it[31] = (it[31] + 1).toByte() } // ...a8 -> ...a9, no carry
++        assertContentEquals(r + half, FrameSig.normalizeLowS(r + halfPlus1))
++        val one = ByteArray(32).also { it[31] = 1 }
++        val nMinus1 = FrameSig.N.copyOf().also { it[31] = (it[31] - 1).toByte() } // ...51 -> ...50
++        assertContentEquals(r + one, FrameSig.normalizeLowS(r + nMinus1))
++        assertFailsWith<IllegalArgumentException> { FrameSig.normalizeLowS(r + ByteArray(32)) }
++    }
++
++    @Test fun signerIsLast20OfKeccak() {
++        // generator point G as a "pubkey"; expected from viem keccak256(Gx||Gy).slice(26)
++        val g = "04" +
++            "6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296" +
++            "4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"
++        assertEquals("0xd3a9f047ad43d7e2e4e7e491f1fe2e657a2651b6", FrameSig.signerHex(g.hexToBytes()))
++    }
++
++    @Test fun scheme2RefusesHighS() {
++        val pub = byteArrayOf(4) + ByteArray(64) { 7 }
++        assertFailsWith<IllegalArgumentException> { FrameSig.scheme2Bytes(ByteArray(32) { 1 } + FrameSig.N.copyOf().also { it[31] = 0x50 }, pub) }
++        assertEquals(128, FrameSig.scheme2Bytes(ByteArray(32) { 1 } + ByteArray(32) { 1 }, pub).size)
++    }
++}
+diff -ruN a/app/composeApp/src/iosMain/kotlin/com/enconomy/pop/DeviceKeystore.ios.kt b/app/composeApp/src/iosMain/kotlin/com/enconomy/pop/DeviceKeystore.ios.kt
+--- a/app/composeApp/src/iosMain/kotlin/com/enconomy/pop/DeviceKeystore.ios.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/iosMain/kotlin/com/enconomy/pop/DeviceKeystore.ios.kt	2026-11-02 04:56:20
+@@ -66,7 +66,10 @@
+ import platform.Security.kSecAttrTokenIDSecureEnclave
+ import platform.Security.kSecClass
+ import platform.Security.kSecClassKey
++import platform.Security.SecKeyIsAlgorithmSupported
++import platform.Security.kSecKeyAlgorithmECDSASignatureDigestX962SHA256
+ import platform.Security.kSecKeyAlgorithmECDSASignatureMessageX962SHA256
++import platform.Security.kSecKeyOperationTypeSign
+ import platform.Security.kSecPrivateKeyAttrs
+ import platform.Security.kSecReturnRef
+ import platform.darwin.DISPATCH_TIME_NOW
+@@ -143,6 +146,9 @@
+         return GeneratedKey(key, chain = null, appAttest = att)
+     }
+ 
++    /** Same Secure Enclave key: SecKey picks the algorithm at sign time. */
++    override fun frameKey(): FrameKey = (load() as? IosDeviceKey) ?: error("no device key, enroll first")
++
+     private fun createKey(secureEnclave: Boolean): SecKeyRef = memScoped {
+         val err = alloc<CFErrorRefVar>()
+         val acl = if (secureEnclave) {
+@@ -248,7 +254,7 @@
+ }
+ 
+ /** Owns the +1 [priv]; released when this key is collected (a replaced key may still be signing). */
+-private class IosDeviceKey(private val priv: SecKeyRef) : DeviceKey {
++private class IosDeviceKey(private val priv: SecKeyRef) : DeviceKey, FrameKey {
+     @Suppress("unused") private val cleaner = createCleaner(priv) { CFRelease(it) }
+ 
+     override val pubkey: ByteArray = memScoped {
+@@ -280,6 +286,22 @@
+             CFRelease(data)
+         }
+         derToRawRs(der ?: error("sign: ${errText(err)}"))
++    }
++
++    /** EIP-8141 scheme 2: ECDSA over the 32 bytes as-is (DigestX962SHA256 = "already hashed"), low-s. */
++    override fun signDigest(digest32: ByteArray): ByteArray = memScoped {
++        FrameSig.requireDigest(digest32)
++        check(SecKeyIsAlgorithmSupported(priv, kSecKeyOperationTypeSign, kSecKeyAlgorithmECDSASignatureDigestX962SHA256)) {
++            "key does not support ECDSASignatureDigestX962SHA256"
++        }
++        val err = alloc<CFErrorRefVar>()
++        val data = cfData(digest32)
++        val der = try {
++            copyData(SecKeyCreateSignature(priv, kSecKeyAlgorithmECDSASignatureDigestX962SHA256, data, err.ptr))
++        } finally {
++            CFRelease(data)
++        }
++        FrameSig.normalizeLowS(derToRawRs(der ?: error("signDigest: ${errText(err)}")))
+     }
+ }
+ 
+diff -ruN a/app/composeApp/src/wasmJsMain/kotlin/com/enconomy/pop/Crypto.web.kt b/app/composeApp/src/wasmJsMain/kotlin/com/enconomy/pop/Crypto.web.kt
+--- a/app/composeApp/src/wasmJsMain/kotlin/com/enconomy/pop/Crypto.web.kt	2026-11-02 04:55:33
++++ b/app/composeApp/src/wasmJsMain/kotlin/com/enconomy/pop/Crypto.web.kt	2026-11-02 04:56:20
+@@ -19,10 +19,14 @@
+ private fun p256VerifyHash(c: JsAny, pubHex: String, hashHex: String, sigHex: String): Boolean =
+     js("(function(){ try { const b = s => Uint8Array.from(s.match(/../g), h => parseInt(h, 16)); return c.verify(c.Signature.fromCompact(b(sigHex)), b(hashHex), b(pubHex), { lowS: false }); } catch (e) { return false; } })()")
+ 
+-class WebDeviceKey(private val skHex: String) : DeviceKey {
++class WebDeviceKey(private val skHex: String) : DeviceKey, FrameKey {
+     override val pubkey: ByteArray = p256Pub(p256, skHex).hexToBytes()
+     override val securityLevel: String get() = "software"
+     override fun sign(message: ByteArray): ByteArray = p256SignHash(p256, skHex, sha256(message).toHex()).hexToBytes()
++    override fun signDigest(digest32: ByteArray): ByteArray {
++        FrameSig.requireDigest(digest32)
++        return FrameSig.normalizeLowS(p256SignHash(p256, skHex, digest32.toHex()).hexToBytes())
++    }
+ }
+ 
+ class WebDeviceKeystore : DeviceKeystore {
+@@ -38,6 +42,8 @@
+     }
+ 
+     override fun delete() = jsStorageRemove(SK_KEY)
++
++    override fun frameKey(): FrameKey = (load() as? WebDeviceKey) ?: error("no device key, enroll first")
+ }
+ 
+ actual fun createDeviceKeystore(): DeviceKeystore = WebDeviceKeystore()

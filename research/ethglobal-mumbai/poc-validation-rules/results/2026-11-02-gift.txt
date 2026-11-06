@@ -1,0 +1,31 @@
+# W4 Gas Gift, 2026-11-02. forge test --offline --match-contract 'GasBenchGift|GoldenVectorGift' -vv
+Ran 5 tests for test/GasBenchGift.t.sol:GasBenchGiftTest
+[PASS] test_budget_giftSidecarSum() (gas: 5109)
+Logs:
+  gift sidecar verify sum, key-0 lane, cap 100000: 49400
+  gift sidecar verify sum, fresh keyed lane, cap 100000: 69400
+
+[PASS] test_budget_gift_fits() (gas: 32055)
+Logs:
+  gift frame modeled ethrex use, key-0 lane (limit 20000): 17367
+
+[PASS] test_budget_gift_newKeyLane() (gas: 70225)
+Logs:
+  gift frame modeled ethrex use, fresh keyed lane (limit 40000): 37416
+
+[PASS] test_gas_giftFrame() (gas: 32258)
+Logs:
+  gift frame, GiftP256Account.gift (1 mux helper): 13967
+
+[PASS] test_gift_noSload() (gas: 32000)
+Suite result: ok. 5 passed; 0 failed; 0 skipped; finished in 21.71ms (1.10ms CPU time)
+
+Ran 2 test suites in 22.48ms (22.04ms CPU time): 6 tests passed, 0 failed, 0 skipped (6 total tests)
+
+# node ../poc/clients/gift-shape.cjs selftest
+gift golden vector vs forge (GoldenVectorGift.t.sol): match
+entry0 (A, sig hash): ok | entry1 (B, D): ok | D 0x659fe89243546c422756864b4d70d03b005853c3ef430f7c08098f142d21511d
+estimate copy: same D, other sig hash: true | B signs once: true
+max cost send / estimate: 960000 / 200360000 <= cap 1000000000000000 true
+sidecar verify sum: 49400 (fresh keyed lane 69400) / 100000
+fresh keyed lane: gift limit 40000 | D differs: true

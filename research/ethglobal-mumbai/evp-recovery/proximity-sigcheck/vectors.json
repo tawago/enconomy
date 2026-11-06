@@ -1,0 +1,30 @@
+{
+  "note": "Public vectors only. Keys were in-memory test keys and are gone. Body-frame checks: m == sha256(D) (WebCrypto) or m == sha256(authData||sha256(cdj)) with cdj.challenge == b64url(D) (passkey).",
+  "inputs": {
+    "chainId": 1337,
+    "account": "0xacacacacacacacacacacacacacacacacacacacac",
+    "newKey": "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "recoveryNonce": 7,
+    "deadline": 1793000900,
+    "notBefore": 1793000000,
+    "sid": "00112233445566778899aabbccddeeff",
+    "transcriptHash": "0x7777777777777777777777777777777777777777777777777777777777777777"
+  },
+  "ROT_DOMAIN": "0x7c223b77239f953bddb46646ad2503e4881fe1f35550465f4d228324737ec97e",
+  "GUARD_DOMAIN": "0x9de1f60e716ea09fa66128631a8b76113cd5f06f1f50bdae159c45550fc7c2f8",
+  "ctxHash": "0x62d18aa3703d4190af608fa5420ad184bda9538814f745c0dbe0674967cbe3c3",
+  "sessionNonce": "0x7f2d21adf305425c49f70168a34869398926e1a6bd54fdfec05357670d444a9f",
+  "evpNonce": "7f2d21adf305425c49f70168a34869398926e1a6bd54fdfec05357670d444a9f",
+  "D": "0x6d4fadc5c641578d719cd9a267443a6a6d9e74b609c85b4b39d3daaea2109928",
+  "webcrypto": {
+    "signer": "0xe7b4e990d4656218cb4475a4d3df91ba4753772d",
+    "msg": "0xe0023514f5df4c693a1a9e72ddf1127dd04bc34cc302c15febaf9a0ac1050631",
+    "r": "0x99a173a4eaec3b05c240b3a74422fc2995b30aa8dd5edfd20d3f3354843e9370",
+    "s": "0x4d965b6fa564ddb800321a04eeb8ead434d8fd850d1a6870c255b2e672ba8acf"
+  },
+  "passkey": {
+    "clientDataJSON": "{\"type\":\"webauthn.get\",\"challenge\":\"bU-txcZBV41xnNmiZ0Q6am2edLYJyFtLOdParqIQmSg\",\"origin\":\"https://recover.example\",\"crossOrigin\":false}",
+    "authenticatorData": "0x1f4228a6a013a3f630b909758979b417fe85c904352c0bb7ca7fa5bcfe8f91c40500000001",
+    "msg": "0x26bdd75ea81ef2a6ca15a908f80988ecef51337f520bb84c22ff7bb4a8d5177c"
+  }
+}

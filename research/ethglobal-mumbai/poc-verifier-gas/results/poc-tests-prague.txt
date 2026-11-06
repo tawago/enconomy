@@ -1,0 +1,52 @@
+Compiling 8 files with Solc 0.8.30
+Solc 0.8.30 finished in 162.54ms
+Compiler run successful!
+
+Ran 9 tests for test/Gas.t.sol:GasTest
+[PASS] test_bn254_pairing_raw() (gas: 457104)
+Logs:
+  pairing k=2: 113494
+  pairing k=3: 147534
+  pairing k=4: 181579
+
+[PASS] test_groth16_n1() (gas: 680452)
+Logs:
+  groth16 n=1 call gas (incl. CALL+calldata copy): 191173
+
+[PASS] test_groth16_n16() (gas: 872891)
+Logs:
+  groth16 n=16 call gas: 291928
+
+[PASS] test_groth16_n2() (gas: 513278)
+Logs:
+  groth16 n=2 call gas: 197961
+
+[PASS] test_groth16_n32() (gas: 1284915)
+Logs:
+  groth16 n=32 call gas: 399400
+
+[PASS] test_groth16_n4() (gas: 777562)
+Logs:
+  groth16 n=4 call gas: 211407
+
+[PASS] test_groth16_n8() (gas: 666247)
+Logs:
+  groth16 n=8 call gas: 238192
+
+[PASS] test_groth16_offcurve_burns_forwarded_gas() (gas: 1342571)
+Logs:
+  off-curve C, gas used of 1M cap: 987549
+
+[FAIL: p256 failed] test_p256_precompile() (gas: 5671)
+Logs:
+  P256VERIFY staticcall gas (incl. call overhead): 2886
+
+Suite result: FAILED. 8 passed; 1 failed; 0 skipped; finished in 5.53ms (27.89ms CPU time)
+
+Ran 1 test suite in 6.18ms (5.53ms CPU time): 8 tests passed, 1 failed, 0 skipped (9 total tests)
+
+Failing tests:
+Encountered 1 failing test in test/Gas.t.sol:GasTest
+[FAIL: p256 failed] test_p256_precompile() (gas: 5671)
+
+Encountered a total of 1 failing tests, 8 tests succeeded

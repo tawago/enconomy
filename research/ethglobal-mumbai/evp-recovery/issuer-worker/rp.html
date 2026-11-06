@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- Recovery page sketch. aud in the KB-JWT = this page's origin. -->
+<!-- Add <meta http-equiv="origin-trial" content="..."> here for browsers without the flag. -->
+<meta charset="utf-8">
+<title>Recover account</title>
+<style>body{font:16px system-ui;max-width:40em;margin:2em auto}textarea{width:100%;height:9em}</style>
+<h1>Recover account</h1>
+<p>1. New key (x||y hex, 128 chars) from the phone. Normally filled by the proximity step.</p>
+<input id="newkey" size="70" placeholder="0x...">
+<button id="setnonce">Set nonce</button>
+<p>nonce: <code id="shownonce">(none)</code></p>
+<p>2. Then type your email and press Tab. Chrome asks to verify. Then press Get token.</p>
+<form id="f">
+  <input type="email" autocomplete="email" name="email">
+  <input type="hidden" autocomplete="email-verification-token" id="tok" name="tok">
+  <button type="submit">Get token</button>
+</form>
+<textarea id="out" readonly></textarea>
+<script type="module">
+// nonce = "0x" + keccak256(newKey). Browser has no keccak, so this sketch uses SHA-256
+// as a stand-in; swap in keccak (e.g. a vendored noble-hashes) before wiring to the contract.
+const hex = (b) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
+document.getElementById("setnonce").onclick = async () => {
+  const k = document.getElementById("newkey").value.trim().replace(/^0x/, "");
+  const bytes = Uint8Array.from(k.match(/../g).map((h) => parseInt(h, 16)));
+  const n = "0x" + hex(await crypto.subtle.digest("SHA-256", bytes));
+  document.getElementById("tok").nonce = n;   // must be set BEFORE the email field loses focus
+  document.getElementById("shownonce").textContent = n;
+};
+document.getElementById("f").addEventListener("submit", (e) => {
+  e.preventDefault();                           // Chrome fills the hidden field just before submit fires
+  const t = document.getElementById("tok").value;
+  document.getElementById("out").value = t || "(empty: check chrome://autofill-internals and DevTools Issues)";
+});
+</script>
