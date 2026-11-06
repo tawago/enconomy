@@ -17,6 +17,7 @@ The Lean here adds one thing to v1: if `verifyPresence` (`EvpNoirPresenceVerifie
 - `circuit/pair_named`: the v1.1 pair. `circuit/pair_ref`: byte copy of the frozen pair, baseline only. `circuit/commit_helper`: makes the throwaway inputs.
 - `circuit/forge`, `circuit/RESULTS.md`: gas and size runs.
 - `circuit/forge/fixtures/field_180ca04b`: the real bundle. A and B proofs, re-proved pair with its witness, POPCC1 signatures, chain 1337 results.
+- `circuit/frame_tx`, `circuit/forge/fixtures/frame_180ca04b`: the frame tx through `evpVerify`. Scripts, fresh proofs, chain 1337 results.
 
 ## Theorems
 
@@ -43,6 +44,28 @@ Glue mutants ran before the `ccSig` fix and were not rerun. Stopped proving mean
 
 ## Gas and size
 
+### Frame tx through the real account, 2026-11-07, latest
+
+A real 4-frame tx on chain 1337, sent through our own sidecar. Frame 1 ran `evpVerify` on a fresh `EvpRecoveryAccount` with three real proofs bound to a fresh `ctx`. No mocks. VERIFY passed, the tx mined in block 8720, the body reverted on a junk token, nothing rotated. Tx `0x341aaba06e088193ed20e9c7d59294cef581174fdac41bf58724a09a1b43ec5c`. Detail in `circuit/RESULTS.md`.
+
+| Gas | Limit | Used |
+| --- | ---: | ---: |
+| Frame 0, expiry | 4,000 | 3,051 |
+| **Frame 1, `evpVerify`** | **12,000,000** | **11,545,764** |
+| of which `verifyPresence` | | 11,510,370 |
+| of which the account's share, entry included | | 35,394 |
+| Frame 2, L pays | 8,000 | 3,000 |
+| Frame 3, body, reverts | 110,000 + 100,000 state | 2,709 |
+| Whole tx | | 12,037,188 |
+
+- **Frame 1 margin: 217,627.** Smallest limit that passes is 11,782,373, by search with `ethrex_simulateFrameTransaction`. Plain 12M minus used is 454,236, but that ignores the 1/64 hold-back.
+- 35,394 replaces the old 32,322 + 3,400 from mock proofs.
+- Frame 1 data 30,052 B, new largest sent. No limit hit in the sidecar or ethrex.
+
+Real: the three proofs, `ctx`, the frames, both enclave signatures, the audio. Not real: the audio is from an old walk, role A is a Mac enclave key and not a laptop chirp, POPCC1 and credentials are signed locally and not by the server, the email token is junk.
+
+### Plain tx, no account, earlier the same day
+
 Three real proofs through the real `verifyPresence`, no mocks, 2026-11-07. nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522, forge 1.9.0, solc 0.8.30, Osaka, runs 1, adapter via-ir (it does not compile without). Detail, addresses and tx hashes in `circuit/RESULTS.md` and `circuit/forge/fixtures/field_180ca04b/chain1337.json`.
 
 | Gas, per call | forge | chain 1337 |
@@ -59,9 +82,9 @@ Frame 1 against 12,000,000, with the 1/64 hold-back:
 - **Measured on chain, wrapper in place of the account: smallest gas 11,752,576, so 247,424 left.** A mined tx with exactly 12M after intrinsic passed.
 - **Modeled with the real account: about 216,600 left.** Uses the older account share, 32,322 from the mock frame, plus 3,400 entry and helper. The account did not run.
 
-Calldata: bundle 29,632 B, `verifyPresence` 29,924 B. Plain tx mined at 30,052 B. Frame data sent is still 28,000 B at most, and the design wants 30,052 B.
+Calldata: bundle 29,632 B, `verifyPresence` 29,924 B. Plain tx mined at 30,052 B.
 
-Not shown: no `ctx`, a fixed old nonce, the account layer not exercised, audio from an old walk, role A is a Mac enclave key and not a laptop chirp. Also the `deadline` is long past, so a real frame 0 would refuse this bundle.
+Not shown by this run, the frame tx above covers the first three: no `ctx`, a fixed old nonce, the account layer not exercised. Also audio from an old walk, role A is a Mac enclave key and not a laptop chirp, and the `deadline` is long past.
 
 Older numbers, from before this run, throwaway pair inputs:
 
@@ -91,8 +114,11 @@ The earlier budget used phones 4,083,276 + 4,069,887 (Nov 2, old circuit), adapt
 
 ## Open
 
-- Real proofs have gone through the adapter, in forge and in a plain tx on chain 1337. They have not gone through the account, `evpVerify` or a frame tx, so the margin with the real account is still modeled.
-- The deployed phone verifier was measured. The phone circuit as it stands now was not rebuilt.
+- No real token has reached the body. Frame 3 carried junk, so the rotation has not run on chain, and the body's gas is still the forge number.
+- Frame 3's revert data is not exposed by the node. `BadHint(5)` is read from the code and fits the trace, it was not seen.
+- The account path did not run in forge. It only ran on chain 1337, so no forge number exists to compare.
+- The session is scripted on one Mac. No server issued it, no laptop chirped, no phone signed.
+- The deployed phone verifier matches the phone circuit as it stands now: same VK hash after a rebuild.
 - A direct `eth_call` at the adapter needs 3,588 less gas than forge, not the slightly more the cold-account pricing predicts. The wrapper path matches. Not explained.
 - Nothing links `AdapterAccepts` or the public input orders to the compiled code but reading them.
 - Contract lines 82 (role) and 84 (rate) carry no weight in this theorem. Reading word 3 directly, so role needs no `Trust`, was not tried.

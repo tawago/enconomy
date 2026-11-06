@@ -133,7 +133,7 @@ Code is far dearer than on Osaka, about 1,570 per runtime byte all in. Likely EI
 ### What this does NOT show
 
 - **No `ctx`.** Nothing computed `popNonce` from a context. It is a fixed old nonce read off the proofs.
-- **Account layer not exercised.** No `evpVerify`, no frame tx, no sidecar, no VERIFY frame. All plain calls.
+- **Account layer not exercised.** No `evpVerify`, no frame tx, no sidecar, no VERIFY frame. All plain calls. The section "Frame tx through `evpVerify`" below covers this.
 - **The deadline is an argument.** 1790000600 is long past on chain. `verifyPresence` has no clock so it passes. A real frame 0 expiry check would refuse it, so this bundle cannot go through the account as is.
 - **Old audio.** From an old field walk, not a fresh session.
 - **Role A is a Mac enclave key,** not a laptop chirping. `deviceA` is that key's X.
@@ -150,6 +150,81 @@ bash prove_field.sh                                # field witness, pair_named. 
 python3 -I sign_popcc1.py <issuer pem>             # local only
 cd forge && bash run_field.sh                      # needs the adapter's contracts in the repo tree
 python3 -I chain1337.py out <funded 1337 key file> # plain txs only. Printed JSON is chain1337.json
+```
+
+## Frame tx through `evpVerify`
+
+Measured 2026-11-07, latest run. A real frame tx on chain 1337, through our own sidecar (`devnet/sidecar.sh`, 16M cap). Three real proofs bound to a fresh `ctx`, no mocks. Fixture in `forge/fixtures/frame_180ca04b`, scripts in `frame_tx`.
+
+Result: VERIFY passed, the tx mined, the body reverted, no rotation. As planned for this step.
+
+- Tx `0x341aaba06e088193ed20e9c7d59294cef581174fdac41bf58724a09a1b43ec5c`, block 8720, receipt status 0x0 because frame 3 failed. L paid.
+- Account `0x224b11540c911e0fa4ff775f25dc1f20732a838d`, L `0xE09410C992448fF6f8a40530D2735ee6dB5f66D7`. A chain reset wipes them.
+
+| Frame | Limit | Used | Status | Data |
+| --- | ---: | ---: | --- | ---: |
+| 0 VERIFY, expiry | 4,000 | 3,051 | ok | 8 B |
+| 1 VERIFY, `evpVerify`, EXEC | 12,000,000 | 11,545,764 | ok | 30,052 B |
+| 2 VERIFY, L, PAY | 8,000 | 3,000 | ok | 0 |
+| 3 SENDER, `startRotationEvp` | 110,000 + 100,000 state | 2,709 | reverted | 452 B |
+| Whole tx | | 12,037,188 | | 482,664 outside the frames |
+
+State gas: 0 in all four frames.
+
+Frame 1, from `debug_traceTransaction`:
+
+| Part | Gas |
+| --- | ---: |
+| Phone A | 4,072,916 |
+| Phone B | 4,067,116 |
+| pair_named, offered 3,531,979 | 3,319,755 |
+| Adapter's own work | 50,583 |
+| `verifyPresence`, offered 11,778,316 | 11,510,370 |
+| **Account's share, entry and 24 helper calls (2,336) included** | **35,394** |
+| **Frame 1** | **11,545,764** |
+
+The verifier numbers equal the plain-tx run to the gas, on different inputs.
+
+**Margin: 217,627.** Smallest frame 1 limit that passes is 11,782,373, by search with `ethrex_simulateFrameTransaction`. The simulator gave the same frame gas as the mined tx. Modeled was about 216,600, so the model held. One gas lower, frame 1 reverts with `0xa5d82e8a`, `ShpleminiFailed()`: running short shows up as a failed proof, not as out of gas.
+
+**Frame data.** 30,052 B was accepted by the sidecar and mined. The largest before was 28,000 B. No limit hit.
+
+**Chain state after, read from the account.** `pendingOwner` zero, `readyAt` 0, `recoveryNonce` 1, same as before, `owner` unchanged. Account nonce went 2 to 3.
+
+**Frame 3's revert.** The node gives no revert data for a SENDER frame. The trace shows it read `configHash`, `owner` and `recoveryNonce`, the last one for `ctx`, then hit REVERT. So it got past config, expiry and key checks. With `offs` 0, the first check in `_checkEvp` is `BadHint(5)`. That reason is read from the code, not seen.
+
+### Setup
+
+- **Account.** New, built with its own `foundry.toml`: via-ir, runs 1,000,000, Osaka, runtime 18,216 B. Deploy 29,384,261 gas. `laptopDeviceX` = role A's enclave X. `owner` is a random address nobody holds. Config's EVP issuer X, Y are 1, 2, never read in this run.
+- **Reused on chain.** Phone verifier, `pair_named` verifier and adapter from `forge/fixtures/field_180ca04b/chain1337.json`. Adapter `maxAge` 1200. The adapter is runs 1, the account runs 1,000,000.
+- **Phone VK.** Rebuilt today from the current source: hash `0x2991b4b8...`, same as the deployed verifier.
+- **Window.** `notBefore` = chain clock - 60, `valid_at` = chain clock, `deadline` = chain clock + 1,100. Session to proofs took 66 s, proving 30 s of it, so a deadline a few minutes out would have held.
+- **Witness.** The old phone witnesses, patched. Only `nonce_hi`, `nonce_lo`, `valid_at`, the nonce in `t`, `sig`, `exp` and `csig` changed. `gen_inputs.py` itself can't rerun, `optionA-v2/inputs` is gone from the tree. Audio check: all 26,624 samples per role in the witnesses match the session's WAVs.
+- **Keys. None swapped.** Both roles keep their enclave keys. `sesign` always hashes first, so `frame_tx/sesign_raw.swift` signs `ctx` raw with B's enclave key. It writes the 32 bytes into CryptoKit's `SHA256Digest`, which relies on that struct's layout, and checks them back. Verified raw on noble and by the chain. Not a path a real phone would use as is.
+- **Forge skipped.** The proofs bind this chain id and account address, and the free simulator ran the real frames. `eth_call` at the adapter returned the selector before sending.
+
+### What is real and what is not
+
+Real: the three proofs, `ctx` and `popNonce` read from the account, all frames, the sidecar and chain, the two enclave signatures on the transcripts, the raw signature over `ctx`, L's signature.
+
+Not real:
+- **Audio from an old walk.** Same recording as before, not a fresh session.
+- **Role A is not a laptop chirp.** It is a Mac enclave key.
+- **POPCC1 and credentials signed locally** with the dev issuer key. No server took part. New `exp` = `valid_at` + 30 days.
+- **Junk email token.** Frame 3 can't pass, so no rotation ran.
+- **Transcripts re-signed after the fact** over a nonce that did not exist when the audio was recorded.
+
+### Commands
+
+`sesign_raw` is built with `swiftc`, outside the repo. `<work>` is outside the repo and holds L's key. Keys never leave the Mac. `work/` holds witnesses for the prover, delete it after.
+
+```
+cd frame_tx
+python3 -I frame_tx.py deploy <work> <account artifact> <funding key file>
+python3 -I frame_tx.py session <work> <old witness dir> <enclave dir> 1100
+bash prove.sh                                       # on the prover machine
+python3 -I frame_tx.py bundle <work> <enclave dir> ../forge/fixtures/frame_180ca04b
+node send_frame.cjs <work> <sesign_raw> <B.seblob>  # needs the sidecar up
 ```
 
 ## Commands
