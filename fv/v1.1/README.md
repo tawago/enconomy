@@ -16,6 +16,7 @@ The Lean here adds one thing to v1: if `verifyPresence` (`EvpNoirPresenceVerifie
 - `zkp/logs/build.txt`: the final build output, runner lines removed.
 - `circuit/pair_named`: the v1.1 pair. `circuit/pair_ref`: byte copy of the frozen pair, baseline only. `circuit/commit_helper`: makes the throwaway inputs.
 - `circuit/forge`, `circuit/RESULTS.md`: gas and size runs.
+- `circuit/forge/fixtures/field_180ca04b`: the real bundle. A and B proofs, re-proved pair with its witness, POPCC1 signatures, chain 1337 results.
 
 ## Theorems
 
@@ -42,7 +43,27 @@ Glue mutants ran before the `ccSig` fix and were not rerun. Stopped proving mean
 
 ## Gas and size
 
-Measured 2026-11-07, nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522, forge 1.9.0, solc 0.8.30, Osaka, runs 1. Throwaway inputs. Detail in `circuit/RESULTS.md`.
+Three real proofs through the real `verifyPresence`, no mocks, 2026-11-07. nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522, forge 1.9.0, solc 0.8.30, Osaka, runs 1, adapter via-ir (it does not compile without). Detail, addresses and tx hashes in `circuit/RESULTS.md` and `circuit/forge/fixtures/field_180ca04b/chain1337.json`.
+
+| Gas, per call | forge | chain 1337 |
+| --- | ---: | ---: |
+| Phone A | 4,072,116 | 4,072,916 |
+| Phone B | 4,067,116 | 4,067,116 |
+| pair_named | 3,318,955 | 3,319,755 |
+| Adapter's own work | 49,783 | 50,583 |
+| **`verifyPresence` total** | **11,507,970** | **11,510,370** |
+
+Chain 1337: `eth_call` returned the selector. Plain tx through a thin wrapper, status 1, `0xc68df63826b98383deb7dca97baa2547f1c4f69e0fbe660a8047979670c59a99`. Wrong `deviceB` reverts `BadPublicInputs(8)` in forge and in `eth_call`.
+
+Frame 1 against 12,000,000, with the 1/64 hold-back:
+- **Measured on chain, wrapper in place of the account: smallest gas 11,752,576, so 247,424 left.** A mined tx with exactly 12M after intrinsic passed.
+- **Modeled with the real account: about 216,600 left.** Uses the older account share, 32,322 from the mock frame, plus 3,400 entry and helper. The account did not run.
+
+Calldata: bundle 29,632 B, `verifyPresence` 29,924 B. Plain tx mined at 30,052 B. Frame data sent is still 28,000 B at most, and the design wants 30,052 B.
+
+Not shown: no `ctx`, a fixed old nonce, the account layer not exercised, audio from an old walk, role A is a Mac enclave key and not a laptop chirp. Also the `deadline` is long past, so a real frame 0 would refuse this bundle.
+
+Older numbers, from before this run, throwaway pair inputs:
 
 | | frozen pair | pair_named | change |
 | --- | ---: | ---: | ---: |
@@ -56,10 +77,7 @@ Measured 2026-11-07, nargo 1.0.0-beta.22, bb 5.0.0-nightly.20260522, forge 1.9.0
 
 Each of the 11 public inputs flipped in turn: all rejected.
 
-Frame 1 against 12,000,000. Only `pair_named` is from today:
-- Older: phones 4,083,276 + 4,069,887 (Nov 2, old circuit). Adapter with mocks 82,905 and entry plus cold 4,600 (`evp-recovery/REPORT.md`).
-- Plain sum 11,565,716, so 434,284 left. That flatters us.
-- After the 1/64 hold-back, REPORT's mock ceiling for pair is 3,524,568, so the margin is **199,520**. That ceiling was not re-run today.
+The earlier budget used phones 4,083,276 + 4,069,887 (Nov 2, old circuit), adapter with mocks 82,905 and entry plus cold 4,600 (`evp-recovery/REPORT.md`). It gave a plain-sum 434,284 and a margin after hold-back of 199,520. Today's numbers replace it.
 
 ## What it does NOT say
 
@@ -73,7 +91,9 @@ Frame 1 against 12,000,000. Only `pair_named` is from today:
 
 ## Open
 
-- The real proof has not gone through the adapter. The phone circuit as it stands now has not been re-measured.
+- Real proofs have gone through the adapter, in forge and in a plain tx on chain 1337. They have not gone through the account, `evpVerify` or a frame tx, so the margin with the real account is still modeled.
+- The deployed phone verifier was measured. The phone circuit as it stands now was not rebuilt.
+- A direct `eth_call` at the adapter needs 3,588 less gas than forge, not the slightly more the cold-account pricing predicts. The wrapper path matches. Not explained.
 - Nothing links `AdapterAccepts` or the public input orders to the compiled code but reading them.
 - Contract lines 82 (role) and 84 (rate) carry no weight in this theorem. Reading word 3 directly, so role needs no `Trust`, was not tried.
 - The Adapter and Limbs reviews are recorded only in the table above, no review files are in the tree. The `ccSig` fix was rebuilt and got one mutant, no second review.
@@ -94,3 +114,5 @@ Circuit, from `circuit`. `oalib` comes from `research/worldid/prototypes/optA-no
 bash prove.sh             # compile, gates, execute, write_vk, prove, verify, write_solidity_verifier
 cd forge && bash run.sh   # forge build --sizes, forge test -vv, forge test --gas-report
 ```
+
+Real bundle: see Commands under "Real bundle through the adapter" in `circuit/RESULTS.md`.

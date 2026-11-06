@@ -10,6 +10,13 @@ evm_version = "osaka"
 optimizer = true
 optimizer_runs = 1
 via_ir = false
-fs_permissions = [{ access = "read", path = "./fixtures" }]
+fs_permissions = [{ access = "read", path = "./fixtures" }, { access = "read", path = "./out" }]
+# The real adapter, imported as is.
+remappings = ["pop/=../../../../research/ethglobal-mumbai/evp-recovery/contracts/src/pop/"]
+allow_paths = ["../../../../research/ethglobal-mumbai/evp-recovery/contracts/src/pop"]
+# The adapter hits stack too deep without via-ir (its own foundry.toml uses via-ir). Verifiers stay as they were:
+# the test deploys the adapter from its artifact, so importing it does not pull the verifiers into via-ir.
+additional_compiler_profiles = [{ name = "adapter", via_ir = true }]
+compilation_restrictions = [{ paths = "../../../../research/ethglobal-mumbai/evp-recovery/contracts/src/pop/EvpNoirPresenceVerifier.sol", via_ir = true }]
 [lint]
 lint_on_build = false
