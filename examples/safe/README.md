@@ -2,7 +2,9 @@
 
 A 2-of-4 Safe on Sepolia that only spends when its two phone owners got a NEAR from the core. An outside developer could build this: it uses only the core's public HTTP routes and its signed presence record. It has its own database and imports nothing from the core.
 
-It isn't part of `./demo`, and the current app can't use it: its Safe screen calls core routes that are gone, and its `ContextGate` still needs the old `kind` field. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+It isn't part of `./demo`, and the core app has no Safe screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+
+The removed Kotlin app code for this feature (`chain/SafeTx.kt`, `chain/ContextGate.kt`, `chain/PopCtx.kt`, `PopController.kt` and `App.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
 
 ## What it proves
 

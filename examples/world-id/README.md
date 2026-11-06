@@ -4,7 +4,9 @@ Two different humans met. Each phone proves a World ID to this backend before th
 
 An outside developer could build this: it uses only the core's public HTTP routes and its signed presence record. It has its own database and imports nothing from the core. The core stores no human data.
 
-It isn't part of `./demo`, and the current app can't use it: its World ID screen calls core routes that are gone. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+It isn't part of `./demo`, and the core app has no World ID screen. No app ships here yet, see [What its future app must do](#what-its-future-app-must-do).
+
+The removed Kotlin app code for this feature (`WorldId.kt`, `PopController.kt` and `App.kt` under `app/composeApp/src/commonMain/kotlin/com/enconomy/pop/`) was last in commit `1e80216`.
 
 ## What it proves
 
@@ -16,7 +18,7 @@ Two different World ID proofs, bound to this nonce and role, by the devices that
 - **One human across sessions.** The action is `pop:<session_id>`, per session, so a nullifier limits one human per session. The same two people can meet again, and the same human can be in any number of sessions.
 - **Anything without trusting the core.** The core's signature is trusted for the verdict and `attested`. This backend rechecks the transcript hashes and device signatures, not the distance.
 - **That the app ran the gate.** A patched app can skip it and the core will measure anyway. This backend still answers `met: false`. It doesn't check order either: a World ID finished after the measurement, by the same device key, still counts.
-- **That the current app works with this.** Its World ID screen calls core routes that are gone.
+- **That the core app works with this.** It has no World ID screen.
 
 ## Run
 
