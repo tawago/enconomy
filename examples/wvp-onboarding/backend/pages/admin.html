@@ -42,17 +42,11 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .oops { color: var(--bad); margin: 0 0 18px; }
   #err { color: var(--bad); min-height: 1.5em; }
-  #gate button { width: 100%; }
   #notice { margin: 0 0 16px; }
   [hidden] { display: none !important; }
 </style>
 <main>
-  <form id="gate" class="card" hidden>
-    <label for="pass"><p class="next">Admin passcode</p></label>
-    <input id="pass" type="password" autocomplete="current-password">
-    <div class="row"><button class="yes" type="submit">Open</button></div>
-  </form>
-  <div id="board" hidden>
+  <div id="board">
     <h1>Requests</h1>
     <div id="approved"></div>
     <div id="list"></div>
@@ -78,10 +72,8 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const button = (cls, text, onclick) => { const b = el("button", cls, text); b.type = "button"; b.onclick = onclick; return b; };
 const isAddress = (a) => /^0x[0-9a-fA-F]{40}$/.test(a);
 const REASON = { bad_address: "That wallet address doesn't look right. Check it and paste it again.", bad_label: "Use lowercase letters, digits and inner hyphens.", label_taken: "That name is already on the list.", no_name: "That name isn't on the list any more.", busy: "Another update is still running. Try again when it's done." };
-let pass = sessionStorage.getItem("pass") ?? "";
 
-const call = (path, method = "GET", body) => fetch(path, { method, headers: { "x-admin-passcode": pass }, body: body && JSON.stringify(body) });
-const toGate = () => { sessionStorage.removeItem("pass"); pass = ""; $("gate").hidden = false; $("board").hidden = true; };
+const call = (path, method = "GET", body) => fetch(path, { method, body: body && JSON.stringify(body) });
 
 function card(req) {
   const c = el("section", "card");
@@ -98,7 +90,6 @@ function card(req) {
 async function decide(req, decision) {
   say("");
   const r = await call(`/v1/admin/requests/${req.ctx_hash}/${decision}`, "POST");
-  if (r.status === 401) return toGate();
   if (!r.ok) return say("That didn't work: " + (await r.json()).error);
   if (decision === "approve") {
     const c = el("section", "card");
@@ -109,16 +100,11 @@ async function decide(req, decision) {
 }
 
 async function refresh() {
-  if (!pass) return toGate();
   const r = await call("/v1/admin/requests");
-  if (r.status === 401) { toGate(); return say("Wrong passcode."); }
   if (!r.ok) return;
   const { requests } = await r.json();
-  const opening = $("board").hidden;
-  $("gate").hidden = true; $("board").hidden = false;
   $("list").replaceChildren(...requests.map(card));
   $("empty").hidden = requests.length > 0;
-  if (opening) loadNames();
 }
 
 // Names. All of it is drawn from this state, so a poll can redraw without losing anything but an input being typed in.
@@ -130,7 +116,6 @@ const notice = (text, bad) => { $("notice").textContent = text ?? ""; $("notice"
 async function loadNames() {
   const r = await call("/v1/admin/names").catch(() => null);
   if (!r) return;
-  if (r.status === 401) return toGate();
   if (!r.ok) return;
   const text = await r.text();
   const j = JSON.parse(text);
@@ -243,7 +228,6 @@ function toConfirm(n) {
 // Answers at once with a job. Returns the refusal's text, or null once the job has started.
 async function start(path, body) {
   const r = await call(path, "POST", body).catch(() => null);
-  if (r?.status === 401) { toGate(); return null; }
   const j = r ? await r.json().catch(() => null) : null;
   if (r?.status !== 202 || !j) {
     const text = REASON[j?.error] ?? "Couldn't reach the backend. Nothing was sent.";
@@ -268,7 +252,6 @@ async function watchJob() {
     if (!slow && Date.now() - started > 45000) { slow = true; drawNames(); }
     const r = await call(`/v1/admin/jobs/${job.id}`).catch(() => null);
     if (!r) continue;
-    if (r.status === 401) { job = null; toGate(); break; }
     if (r.status === 404) { finish({ ...job, status: "failed", error: "The backend restarted during this. Check what the name reads below." }); break; }
     if (!r.ok) continue;
     const j = await r.json();
@@ -308,18 +291,17 @@ $("add").onsubmit = async (e) => {
   $("add-label").value = ""; $("add-address").value = "";
 };
 
-$("gate").onsubmit = (e) => { e.preventDefault(); pass = $("pass").value; sessionStorage.setItem("pass", pass); say(""); refresh(); };
 refresh();
+loadNames();
 // Don't redraw under a thumb: only when the list changed.
 let seen = "";
 setInterval(async () => {
-  if (!pass || $("board").hidden) return;
   const r = await call("/v1/admin/requests").catch(() => null);
   if (!r?.ok) return;
   const text = await r.text();
   if (text !== seen) { seen = text; refresh(); }
 }, 3000);
 // The names read the chain, which is slower, so less often. This catches a name issued by a beep, or changed from elsewhere.
-setInterval(() => { if (pass && !$("board").hidden && !document.hidden && !job) loadNames(); }, 15000);
+setInterval(() => { if (!document.hidden && !job) loadNames(); }, 15000);
 </script>
 </html>

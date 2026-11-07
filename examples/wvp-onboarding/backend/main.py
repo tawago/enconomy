@@ -5,7 +5,6 @@ Run: uv run --env-file .env uvicorn --factory backend.main:create_app --host 0.0
 """
 from __future__ import annotations
 
-import hmac
 import json
 import logging
 import re
@@ -152,11 +151,6 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None, reade
     async def _api_error(_request: Request, e: ApiError):
         return JSONResponse({"error": e.code, "detail": e.detail}, status_code=e.status)
 
-    def require_admin(request: Request) -> None:
-        got = request.headers.get("x-admin-passcode", "")
-        if not hmac.compare_digest(got.encode(), settings.admin_passcode.encode()):
-            raise ApiError(401, "bad_passcode", "")
-
     def context_of(req: dict) -> dict:
         return {"chain_id": settings.chain_id, "consumer": req["address"], "ctx_hash": req["ctx_hash"]}
 
@@ -207,13 +201,11 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None, reade
         return view(request_or_404(ctx_hash))
 
     @app.get("/v1/admin/requests")
-    def pending(request: Request):
-        require_admin(request)
+    def pending():
         return {"requests": [view(r) for r in store.pending()]}
 
     @app.post("/v1/admin/requests/{ctx_hash}/{decision}")
-    def decide(ctx_hash: str, decision: str, request: Request):
-        require_admin(request)
+    def decide(ctx_hash: str, decision: str):
         status = {"approve": "approved", "decline": "declined"}.get(decision)
         if status is None:
             raise ApiError(404, "not_found", "")
@@ -314,9 +306,8 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None, reade
         return label
 
     @app.get("/v1/admin/names")
-    def list_names(request: Request):
+    def list_names():
         """The address comes from the chain on every call. read_ok false means unknown, which isn't the same as no address."""
-        require_admin(request)
         known = store.known_names()
         try:
             got = reader(settings.ens_dir, [n["label"] for n in known])
@@ -328,24 +319,20 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None, reade
 
     @app.post("/v1/admin/names")
     async def create_name(request: Request):
-        require_admin(request)
         body = await _body(request)
         return start_job("create", checked_label(body.get("label")), checked_new_address(body.get("address")))
 
     @app.post("/v1/admin/names/{label}")
     async def change_name(label: str, request: Request):
-        require_admin(request)
         body = await _body(request)
         return start_job("change", checked_label(label), checked_new_address(body.get("address")))
 
     @app.post("/v1/admin/names/{label}/clear")
-    def clear_name(label: str, request: Request):
-        require_admin(request)
+    def clear_name(label: str):
         return start_job("clear", checked_label(label), ZERO_ADDRESS)
 
     @app.get("/v1/admin/jobs/{job_id}")
-    def get_job(job_id: str, request: Request):
-        require_admin(request)
+    def get_job(job_id: str):
         if (job := jobs.get(job_id)) is None:
             raise ApiError(404, "no_job", "")
         return job

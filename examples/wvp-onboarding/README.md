@@ -19,7 +19,7 @@ After that, login doesn't change. Bob's wallet approves a browser as usual and t
 - **Who was at the other end.** The record shows the admin's phone and some other device. The other device is never tied to the wallet. Whoever beeps, the name still goes to the address the admin approved.
 - **That Bob controls the address.** The joiner page only asks the wallet for its address, and nothing is signed. Anyone can request a name for any address, so the admin has to check the address in front of Bob. Control is only shown at Bob's first login.
 - **Strong keys.** The admin key sits on this backend as a hot key, wherever `subname.mjs` loads it from. The laptop's web key is a software key, and a web device is never attested. The phone's key is pinned by id, and this backend doesn't read `attested`.
-- **A safe admin page.** One shared passcode from the environment, sent in the clear if you serve it over plain http. That one passcode also repoints and clears real names on the devnet, and there's no other auth and no rate limit on guessing it. It's fine for a demo, not for anything that matters. `POST /v1/requests` is open and has no rate limit.
+- **A safe admin page.** It has no login. See [No login on the admin page](#no-login-on-the-admin-page). `POST /v1/requests` is open too, with no rate limit.
 - **Freshness.** A record has no expiry here. An unspent NEAR for an approved request still counts later.
 
 ## Run it
@@ -46,14 +46,14 @@ cd examples/wvp-onboarding
 cp .env.example .env
 curl -s http://localhost:8001/v1/config | jq -r .presence.pubkey     # paste into ONBOARD_CORE_PRESENCE_PUBKEY
 curl -s http://localhost:8001/v1/config | jq -r .chain.chain_id      # must equal ONBOARD_CHAIN_ID
-# set ONBOARD_ADMIN_DEVICE, ONBOARD_ADMIN_PASSCODE, and ONBOARD_ENS_DIR if the default doesn't reach the folder
+# set ONBOARD_ADMIN_DEVICE, and ONBOARD_ENS_DIR if the default doesn't reach the folder
 uv sync
 uv run --env-file .env uvicorn --factory backend.main:create_app --host 0.0.0.0 --port 8400
 ```
 
 **5. Bob asks.** On the laptop, in a browser with a wallet, open `http://localhost:8400/`. Connect the wallet, type `bob`, tap Ask the admin.
 
-**6. The admin approves.** On the Pixel's browser, open `http://<laptop-lan-address>:8400/admin`. Enter the passcode, check the full address against Bob's wallet, tap Approve.
+**6. The admin approves.** On the Pixel's browser, open `http://<laptop-lan-address>:8400/admin`. Check the full address against Bob's wallet, tap Approve.
 
 **7. The beep.** Bob's page changes to Open the beep page. That opens the core's web app, which shows a code. If this browser never enrolled, enroll first and tap Host. On the Pixel, open the core app, tap Join and scan the code. Both confirm, both Start, keep them side by side.
 
@@ -76,7 +76,7 @@ node demo/servers.mjs --owner 0x<any 40 hex> --no-issuer --ens deployment --depl
 
 **`GET /v1/requests/{ctx_hash}`** `{ctx_hash, label, name, address, status, ens, last_error, beep_url}`. Status is `pending`, `approved`, `declined`, `issued` or `cleared`. The admin's page and the joiner's page both read this: there's no separate status route. `ens` is the JSON line from `subname.mjs`, `{name, address, tx}`.
 
-**`GET /v1/admin/requests`**, **`POST /v1/admin/requests/{ctx_hash}/approve`** and **`/decline`**. They need the header `x-admin-passcode`, else 401 `bad_passcode`.
+**`GET /v1/admin/requests`**, **`POST /v1/admin/requests/{ctx_hash}/approve`** and **`/decline`**. No login, like every admin route.
 
 **`GET /v1/admin/names`**, **`POST /v1/admin/names`**, **`POST /v1/admin/names/{label}`**, **`POST /v1/admin/names/{label}/clear`** and **`GET /v1/admin/jobs/{id}`**. See [Names on the admin page](#names-on-the-admin-page).
 
@@ -102,9 +102,7 @@ Pages: `GET /` for the joiner, `GET /admin` for the admin. `GET /v1/config` is `
 
 Below the requests, `/admin` lists every name issued through onboarding or added on that page, each with the address read from the chain just then, through the universal resolver, as the sites read it. You can change a name's wallet, clear it, or add a new one. It's how you show the cutoff: change the wallet, and every browser the old wallet approved stops working at its next login.
 
-**This page controls real names on the devnet, and one passcode is all that guards it.**
-
-All of these need the header `x-admin-passcode`, else 401 `bad_passcode`. The passcode never goes in a URL.
+This page changes real names on the devnet, and nothing guards it. See [No login on the admin page](#no-login-on-the-admin-page).
 
 | Route | Body | Refusal |
 |---|---|---|
@@ -120,6 +118,12 @@ A send can take minutes and a proxy gives up sooner, so the three POSTs answer 2
 - **Adding never overwrites.** If the chain already has an address for that label, nothing is sent. The name joins the list as it is, and `note` says `already_set`. That's also how a name made outside this backend gets on the list.
 - **Clearing frees the label.** Its requests go to `cleared`, an approved one included, so giving it again needs a new request, a new yes and a new beep.
 - **An address with mixed case must pass its checksum.** The zero address is refused: clear is its own route.
+
+## No login on the admin page
+
+**The admin page and its routes have no login. Anyone with the URL can approve requests, add, change or clear names under `blob.eth`, and spend the admin key's devnet ETH doing it.** A web page open in a browser that can reach this backend can send those POSTs too. This is for a devnet demo only. Don't use it with anything real.
+
+One thing still protects a name issued through the beep: the record has to include the admin's device, `ONBOARD_ADMIN_DEVICE`, or it's refused with `admin_device_missing`. So approving a request isn't enough there, the admin's phone has to beep. That doesn't cover the add and change forms, which send with no beep at all.
 
 ## The beep
 
@@ -142,7 +146,7 @@ No change to the server or any circuit. **The Pixel needs no rebuild:** it joins
 
 ## Fake or untested
 
-Run once, with no browser: this backend on a free port, a throwaway presence key and a fake `subname.mjs`. Seen: the success, and the refusals `bad_record_signature`, `context_mismatch`, `not_near`, `not_approved`, `admin_device_missing`, `label_taken`, `bad_label`, `bad_passcode`. A record for a finished request got `not_approved`. `session_used` never fired. It matters once a name is cleared and the same name and address is asked for again: the old record has the same context, and this is what refuses it. The replay is refused by `not_approved`. The record was the core's published test vector, re-signed with its throwaway key and a new context, so never a real session.
+Run once, with no browser: this backend on a free port, a throwaway presence key and a fake `subname.mjs`. Seen: the success, and the refusals `bad_record_signature`, `context_mismatch`, `not_near`, `not_approved`, `admin_device_missing`, `label_taken`, `bad_label`. A record for a finished request got `not_approved`. `session_used` never fired. It matters once a name is cleared and the same name and address is asked for again: the old record has the same context, and this is what refuses it. The replay is refused by `not_approved`. The record was the core's published test vector, re-signed with its throwaway key and a new context, so never a real session.
 
 Never run:
 
