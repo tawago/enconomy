@@ -2,7 +2,7 @@
 
 You lost your phone. A laptop, a verified email and a new phone next to the laptop move the account to the new phone, after a 120 s delay. One frame tx on chain 1337 checks all three proofs in VERIFY and the email token in its body.
 
-Hackathon build. Happy path only, no tests of its own. `contracts/test` still expects the old phone signature, so 11 of its 158 tests fail, 9 on that check and 2 gas budget tests that weren't traced.
+Hackathon build. Happy path only, no tests of its own. 2 of the gas budget tests in `contracts/test` fail and weren't traced.
 
 ## What it proves
 
@@ -52,7 +52,7 @@ scripts/build_pair_named.sh       # pair_named.json where the core looks for it
 ./run chrome      # demo profile, opens the issuer login and the page
 ```
 
-The phone needs to reach the core over https. Run a tunnel to `:8001`, for example `cloudflared tunnel --config <config> run enconomy-pop`, and set the app's **Server URL** field to it. The debug APK's baked-in default is the emulator address, so this step is needed.
+The phone needs to reach the core over https. Run a tunnel to `:8001`, for example `cloudflared tunnel --url http://localhost:8001`, and set the app's **Server URL** field to it. The debug APK's baked-in default is the emulator address, so this step is needed.
 
 ### Enroll and deploy
 

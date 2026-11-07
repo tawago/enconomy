@@ -1,6 +1,7 @@
 #!/bin/bash
 # Run from fv/v1.1/circuit/forge. Needs network once, forge fetches solc 0.8.30.
 set -euo pipefail
+bash gen.sh
 forge --version
 forge build --sizes
 forge test -vv

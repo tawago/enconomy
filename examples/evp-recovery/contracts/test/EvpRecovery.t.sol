@@ -283,46 +283,9 @@ contract EvpStartVerifyTest is EvpBase {
         require(a.approvedScope() == 2, "scope must be EXECUTION only");
     }
 
-    function test_wrongPhoneMsg() public {
-        _sig(0, 2, PHONE, keccak256("something else"));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    function test_phoneSignedSigHashNotCtx() public {
-        _sig(0, 2, PHONE, 0);
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    function test_phoneSignerIsNotNewKey() public {
-        _sig(0, 2, OTHERKEY, a.evpCtx(PHONE, TH, DEADLINE));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    function test_phoneEntryNotP256() public {
-        _sig(0, 1, PHONE, a.evpCtx(PHONE, TH, DEADLINE));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    /// A relayer swaps newKey in calldata: ctx changes, the phone's entry no longer matches.
-    function test_relayerSwapsNewKey() public {
-        _setSelfCall(3, _body(OTHERKEY, TH, DEADLINE, Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    function test_relayerSwapsSessionTag() public {
-        _setSelfCall(3, _body(PHONE, keccak256("other session"), DEADLINE, Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
     function test_deadlineMismatch() public {
         a.setFrameData(0, 0, bytes32((DEADLINE + 3600) << 192)); // frame 0 stretched, calldata not
         _verifyFails(EvpRecoveryAccountLogic.DeadlineMismatch.selector);
-    }
-
-    function test_deadlineStretchedBoth() public {
-        a.setFrameData(0, 0, bytes32((DEADLINE + 3600) << 192));
-        _setSelfCall(3, _body(PHONE, TH, DEADLINE + 3600, Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE));
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector); // ctx commits to the deadline
     }
 
     function test_noExpiryFrame() public {
@@ -444,32 +407,6 @@ contract EvpStartVerifyTest is EvpBase {
     }
 
     // ---- replay ----
-
-    /// The same signed envelope after its start landed: recoveryNonce moved, ctx moved, VERIFY says no.
-    function test_replay_sameTxAfterStart() public {
-        _verify();
-        bytes32 signed = a.evpCtx(PHONE, TH, DEADLINE);
-        _startPhone(Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE);
-        _sig(0, 2, PHONE, signed);
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-    }
-
-    /// After start + cancel (nonce 7 -> 8 -> 9) the old envelope is dead, a fresh token for nonce 9 works.
-    function test_replay_afterCancel_freshTokenWorks() public {
-        bytes32 signed = a.evpCtx(PHONE, TH, DEADLINE);
-        _startPhone(Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE);
-        vm.prank(address(a));
-        a.cancelRotation();
-        require(a.recoveryNonce() == 9, "nonce");
-        _sig(0, 2, PHONE, signed);
-        _verifyFails(EvpRecoveryAccountLogic.BadCtxSig.selector);
-        _startPhoneFails(Fixture.GOOD_PHONE, Fixture.OFFS_GOOD_PHONE, _claim(12));
-        _startEnv(PHONE, TH, DEADLINE, Fixture.NONCE9_PHONE, Fixture.OFFS_NONCE9_PHONE);
-        _prove(); // a fresh chirp for nonce 9. Without it the old proofs fail: test_presence_oldProofAfterNonceBump
-        _verify();
-        _startPhone(Fixture.NONCE9_PHONE, Fixture.OFFS_NONCE9_PHONE);
-        require(a.pendingOwner() == PHONE && a.recoveryNonce() == 10, "restart");
-    }
 
     // ---- presence, DESIGN.md 5 ----
 

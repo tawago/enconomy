@@ -13,7 +13,6 @@ The Lean here adds one thing to v1: if `verifyPresence` (`EvpNoirPresenceVerifie
 - `zkp/evpfv/Evpfv/Adapter.lean`: hand model of the contract's checks. Imports nothing.
 - `zkp/evpfv/Evpfv/Limbs.lean`: Noir limbs against `PopCtx.split`, and the pair's public input order.
 - `zkp/evpfv/Evpfv/Glue.lean`: the main theorem. Reuses `Popfv.Chain.presence_sound` by path require, re-proves none of it.
-- `zkp/logs/build.txt`: the final build output, runner lines removed.
 - `circuit/pair_named`: the v1.1 pair. `circuit/pair_ref`: byte copy of the frozen pair, baseline only. `circuit/commit_helper`: makes the throwaway inputs.
 - `circuit/forge`, `circuit/RESULTS.md`: gas and size runs.
 - `circuit/forge/fixtures/field_180ca04b`: the real bundle. A and B proofs, re-proved pair with its witness, POPCC1 signatures, chain 1337 results.
@@ -21,7 +20,7 @@ The Lean here adds one thing to v1: if `verifyPresence` (`EvpNoirPresenceVerifie
 
 ## Theorems
 
-Final `lake build Evpfv`: exit code 0, 18205 jobs. No `sorry`, `native_decide` or new axiom. Every `#print axioms` line in the log, v1's too, stays inside propext, Classical.choice, Quot.sound.
+Final `lake build Evpfv`: exit code 0, 18205 jobs. No `sorry`, `native_decide` or new axiom. Every `#print axioms` line in the build, v1's too, stays inside propext, Classical.choice, Quot.sound.
 
 | Theorem | File | Status | Review | Mutation |
 | --- | --- | --- | --- | --- |

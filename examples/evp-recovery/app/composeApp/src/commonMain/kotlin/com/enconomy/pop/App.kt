@@ -405,7 +405,6 @@ private fun Home(s: UiState, c: PopController) {
                     if (s.busy && s.status.startsWith("calibrating")) "Measuring… ${s.status.removePrefix("calibrating")}"
                     else "Measure this phone's own audio delay (5 checks, keep it quiet)", askMic, enabled = !s.busy)
                 Hairline()
-                NavRow(PopIcons.Chip, "Prover bench", "Prove a bundled fixture on this phone", c::openBench, enabled = !s.busy)
                 Hairline()
                 SwitchRow(
                     "Transcript v2", transcriptText(s), s.popt2On, { c.setPopt2(it) }, enabled = !s.busy, icon = PopIcons.Wave,
