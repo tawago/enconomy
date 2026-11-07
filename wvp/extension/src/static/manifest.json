@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "WVP (test only)",
+  "name": "WVP",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuaGAfpOiekiWA1y4/JazbxgZl7KR5Y0kTnEchD4KXio1MSMq7dd/8VBOGVbxYwQQWDAWeiAv31g4EWedCL/4itFaKYPJ5NhvwoDf8263XR8xykwhCj3K/oCsX98wv3n7tAVtFM6Vnwqy46ifm25J1O0TnwTnhUN+Jn9ZngaGRoCtvfXRTGT2PI53hFqEFF3UGXplqtFwBzYgz9pVZgF2HQXRL5hdkED/YzhJzmXz6qf70iY7LgHVvOMkHvyswMdz71xv3uoU6Ird9HB79vO+IcVmp5ijJJBdjKLsdgKg2ucEMYXEqJR8ub6uzWW7BhWk4jzPftRcUroqce2pW5CVGwIDAQAB",
   "version": "0.0.5",
-  "description": "Proves you hold a credential for an ENS name or address, bound to the site's real origin. Throwaway keys only.",
+  "description": "Prototype. Approve once with a wallet, then sign in to sites by ENS name. Use throwaway keys only.",
   "background": {
     "service_worker": "sw.js",
     "type": "module"
@@ -20,7 +20,7 @@
   "content_scripts": [
     {
       "matches": [
-        "http://issuer.test:8801/*"
+        "http://enroll.test:8806/*"
       ],
       "js": [
         "page-api.js"
@@ -31,7 +31,7 @@
     },
     {
       "matches": [
-        "http://issuer.test:8801/*"
+        "http://enroll.test:8806/*"
       ],
       "js": [
         "bridge.js"
@@ -59,8 +59,10 @@
   "cross_origin_opener_policy": {
     "value": "same-origin"
   },
+  "icons": { "16": "icon-16.png", "32": "icon-32.png", "48": "icon-48.png", "128": "icon-128.png" },
   "action": {
     "default_title": "WVP",
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icon-16.png", "32": "icon-32.png" }
   }
 }

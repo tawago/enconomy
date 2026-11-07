@@ -1,4 +1,4 @@
-// Isolated world, issuer's enroll page only. One new port per request, so a restarted service worker doesn't leave a dead port behind.
+// Isolated world, the approval page only. One new port per request, so a restarted service worker doesn't leave a dead port behind.
 // It never reads or sends an origin. The browser stamps the port with the real one.
 const ALLOWED = new Set(["enrollBegin", "enrollFinish"]);
 window.addEventListener("message", (e) => {

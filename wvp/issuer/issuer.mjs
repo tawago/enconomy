@@ -1,12 +1,14 @@
-// Thin issuer. Checks one wallet sign-in, one ENS lookup, then signs ES256 SD-JWTs over K, in the JWT shape OpenAC's circuit reads.
-// One sign-in gets two credentials over the same K: one whose name slot is the ENS name, one whose name slot is the address.
+// Thin issuer. Only anonymous login needs it. Checks one wallet signature, K's answer to a nonce and one ENS lookup, then signs ES256 SD-JWTs over K, in the JWT shape OpenAC's circuit reads.
+// One signature gets two credentials over the same K: one whose name slot is the ENS name, one whose name slot is the address.
 // No new keys, no new circuit. Same shape check on both.
 import { randomBytes, webcrypto, createHash } from "node:crypto";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { recoverMessageAddress, isAddressEqual, getAddress } from "viem";
 import { createSiweMessage, parseSiweMessage } from "viem/siwe";
 import { nameDigest, normalizeName, thumbprint, THUMB_URN, NAME_URN } from "../lib/wvp.mjs";
 import { payloadProblem } from "../lib/payload-check.mjs";
-import { parseIdentifier, addressSlot, siweStatement } from "../lib/identifier.mjs";
+import { parseIdentifier, addressSlot } from "../lib/identifier.mjs";
+import { directStatement, issueBytes } from "../lib/direct.mjs";
 
 const subtle = webcrypto.subtle;
 const enc = new TextEncoder();
@@ -25,6 +27,18 @@ export async function newIssuerKey() {
   return { privateKey: k.privateKey, publicJwk: { kty, crv, x, y } };
 }
 
+// Made on first start and kept in the file. In memory it can't be exported, same as a throwaway key.
+export async function loadIssuerKey(file) {
+  const algo = { name: "ECDSA", namedCurve: "P-256" };
+  if (!existsSync(file)) {
+    const k = await subtle.generateKey(algo, true, ["sign", "verify"]);
+    writeFileSync(file, JSON.stringify(await subtle.exportKey("jwk", k.privateKey)), { mode: 0o600, flag: "wx" });
+  }
+  const jwk = JSON.parse(readFileSync(file, "utf8"));
+  const { kty, crv, x, y } = jwk;
+  return { privateKey: await subtle.importKey("jwk", jwk, algo, false, ["sign"]), publicJwk: { kty, crv, x, y } };
+}
+
 async function checkDeviceKey(jwk) {
   if (!jwk || jwk.kty !== "EC" || jwk.crv !== "P-256") refuse("bad_device_key", "not a P-256 JWK");
   for (const c of ["x", "y"]) if (typeof jwk[c] !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(jwk[c])) refuse("bad_device_key", `${c} is not 32 bytes of base64url`);
@@ -33,7 +47,8 @@ async function checkDeviceKey(jwk) {
   catch { refuse("bad_device_key", "point is not on P-256"); }
 }
 
-export function createIssuer({ key, lookup, domain, uri, chainId = 1, clock = () => Math.floor(Date.now() / 1000), nonceTtl = 300, credTtl = DAY, issuerUrl = uri }) {
+// domain and uri pin the approval page, the same one sites pin. origin is this issuer, the one K's answer names.
+export function createIssuer({ key, lookup, domain, uri, chainId = 1, clock = () => Math.floor(Date.now() / 1000), nonceTtl = 300, credTtl = DAY, issuerUrl = uri, origin = issuerUrl, maxLife = 7 * DAY }) {
   const nonces = new Map(); // nonce -> expiry, deleted on use
 
   function newNonce() {
@@ -67,8 +82,10 @@ export function createIssuer({ key, lookup, domain, uri, chainId = 1, clock = ()
     return [input + "." + b64u(new Uint8Array(sig)), ...disclosures, ""].join("~");
   }
 
-  async function issue({ message, signature, deviceKey }) {
+  // The wallet signature was made once, maybe with the issuer down, so it can't hold this issuer's nonce. So K answers the nonce instead.
+  async function issue({ message, signature, deviceKey, issueNonce, proof }) {
     if (typeof message !== "string" || typeof signature !== "string") refuse("bad_request", "message and signature are required");
+    if (typeof issueNonce !== "string" || typeof proof !== "string") refuse("no_key_proof", "K must answer a nonce from this issuer");
     await checkDeviceKey(deviceKey);
 
     const m = parseSiweMessage(message);
@@ -97,6 +114,7 @@ export function createIssuer({ key, lookup, domain, uri, chainId = 1, clock = ()
     if (expSec <= now) refuse("siwe_expired", `message expired at ${m.expirationTime.toISOString()}`);
     if (m.issuedAt.getTime() / 1000 > now + 60) refuse("bad_message", "issued in the future");
     if (m.notBefore && m.notBefore.getTime() / 1000 > now) refuse("siwe_not_yet_valid", "notBefore is in the future");
+    if (expSec - m.issuedAt.getTime() / 1000 > maxLife) refuse("bad_message", "approval lasts too long");
 
     // 4. Does it approve this K for this name, in words the wallet showed.
     const res = m.resources ?? [];
@@ -110,16 +128,24 @@ export function createIssuer({ key, lookup, domain, uri, chainId = 1, clock = ()
     if (parseIdentifier(name)?.kind !== "name") refuse("bad_name", `${rawName} is not an ENS name`);
     const thumb = thumbprint(deviceKey);
     if (keyRes.slice(THUMB_URN.length) !== thumb) refuse("key_mismatch", "wallet approved a different key");
-    if (m.statement !== siweStatement(name, m.address, thumb, m.expirationTime.toISOString())) refuse("bad_message", "statement does not match");
+    if (m.statement !== directStatement(name, m.address, thumb, m.expirationTime.toISOString())) refuse("bad_message", "statement does not match");
 
-    // 5. One time only. Checked and used with no await in between. Only signed, in-date, on-domain messages get
+    // 5. K itself is here. A site holds the wallet signature and K's public key, not K, so it stops at this step.
+    let held = false;
+    try {
+      const pub = await subtle.importKey("jwk", { kty: "EC", crv: "P-256", x: deviceKey.x, y: deviceKey.y }, { name: "ECDSA", namedCurve: "P-256" }, false, ["verify"]);
+      held = await subtle.verify({ name: "ECDSA", hash: "SHA-256" }, pub, Buffer.from(proof, "base64url"), issueBytes(origin, issueNonce));
+    } catch {}
+    if (!held) refuse("no_key_proof", "K didn't answer this nonce");
+
+    // 6. One time only. Checked and used with no await in between. Only signed, in-date, on-domain messages from the holder of K get
     // this far, so a stranger can't burn someone's nonce.
-    const nonceExp = nonces.get(m.nonce);
+    const nonceExp = nonces.get(issueNonce);
     if (nonceExp === undefined) refuse("nonce_unknown_or_used", "this issuer did not hand out this nonce, or it was already used");
-    nonces.delete(m.nonce);
+    nonces.delete(issueNonce);
     if (nonceExp <= now) refuse("nonce_expired", "nonce is too old");
 
-    // 6. ENS.
+    // 7. ENS.
     let owner;
     try { owner = await lookup.resolve(name); }
     catch (e) { refuse("ens_lookup_failed", e.shortMessage ?? e.message); }

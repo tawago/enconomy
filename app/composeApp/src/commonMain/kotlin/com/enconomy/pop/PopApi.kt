@@ -152,6 +152,8 @@ data class ResultRecord(
     val attempts: List<JsonObject> = emptyList(),
     /** Option A validAt (unix s) when the server pins one; the phone falls back to t0 of the attempt. */
     val valid_at: Long? = null,
+    /** The core's signed record {body, sig_b64}, as it came. */
+    val presence: JsonObject? = null,
 )
 
 @Serializable data class Pcm(val pcm_b64: String, val n: Int)
@@ -268,8 +270,9 @@ class PopApi(
     suspend fun recalibrate(c: CalibrationReq): RecalibrateResp =
         call(HttpMethod.Post, "/v1/device/calibration", enc(RecalibrateReq.serializer(), RecalibrateReq(c)), RecalibrateResp.serializer())
 
-    suspend fun createSession(): CreateSessionResp =
-        call(HttpMethod.Post, "/v1/session", "{}", CreateSessionResp.serializer())
+    /** [context]: the core's plain {chain_id, consumer, ctx_hash}. It lands in the signed presence record. */
+    suspend fun createSession(context: JsonObject? = null): CreateSessionResp =
+        call(HttpMethod.Post, "/v1/session", context?.let { """{"context":$it}""" } ?: "{}", CreateSessionResp.serializer())
 
     suspend fun join(id: String, joinToken: String): SessionView =
         call(HttpMethod.Post, "/v1/session/$id/join", enc(JoinReq.serializer(), JoinReq(joinToken)), SessionView.serializer())

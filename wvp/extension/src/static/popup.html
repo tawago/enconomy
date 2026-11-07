@@ -2,17 +2,40 @@
 <meta charset="utf-8">
 <title>WVP</title>
 <style>
-  body { font: 13px/1.45 system-ui, sans-serif; margin: 0; padding: 14px; width: 340px; color: #18181b; }
-  h1 { font-size: 13px; color: #71717a; margin: 0 0 6px; font-weight: 600; }
-  #who { font: 13px ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
-  #exp { color: #52525b; margin: 4px 0 10px; }
-  #revoke { width: 100%; font: 600 13px system-ui; padding: 8px; border: 1px solid #fca5a5; color: #b91c1c; background: #fff; border-radius: 8px; cursor: pointer; }
-  ul { margin: 4px 0 0; padding-left: 16px; max-height: 150px; overflow: auto; word-break: break-all; color: #3f3f46; }
-  section { margin-top: 12px; border-top: 1px solid #e4e4e7; padding-top: 10px; }
+  :root { --bg: #F6F6F4; --ink: #1A1A18; --muted: #1A1A1899; --rule: #1A1A1822; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #1C1C1A; --ink: #ECECE8; --muted: #ECECE899; --rule: #ECECE822; } }
+  * { box-sizing: border-box; }
+  body { font: 13px/1.45 system-ui, sans-serif; margin: 0; padding: 16px; width: 340px; color: var(--ink); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  header svg { display: block; }
+  #who { font-size: 20px; font-weight: 600; line-height: 1.25; margin-top: 14px; word-break: break-all; }
+  #addr { font: 12px ui-monospace, Menlo, monospace; color: var(--muted); margin-top: 2px; }
+  #exp { color: var(--muted); margin-top: 8px; }
+  section { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
+  h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+  ul { list-style: none; margin: 0; padding: 0; overflow: auto; scrollbar-width: none; }
+  ul::-webkit-scrollbar { display: none; }
+  li { padding: 6px 0; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; }
+  li + li { border-top: 1px solid var(--rule); }
+  .host { font-weight: 600; word-break: break-all; }
+  .times { font-weight: 400; color: var(--muted); margin-left: 6px; }
+  .ago { color: var(--muted); white-space: nowrap; }
+  #more { color: var(--muted); margin-top: 6px; }
+  #more[hidden] { display: none; }
+  .saw { grid-column: 1 / -1; color: var(--muted); word-break: break-word; }
+  #none { color: var(--muted); }
+  #revoke { font: 600 13px system-ui, sans-serif; padding: 0; border: 0; background: none; color: var(--ink); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  #revoke:disabled { opacity: .5; }
+  #revoke[hidden], #revokeWhy[hidden] { display: none; }
+  #revokeWhy { color: var(--muted); margin-top: 4px; }
 </style>
-<h1>This browser's credential</h1>
+<header>
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="3" width="13" height="10" rx="2.5" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.7" fill="currentColor"/></svg>
+  <span>Your browser</span>
+</header>
 <div id="who">...</div>
+<div id="addr"></div>
 <div id="exp"></div>
-<button id="revoke" hidden>Revoke</button>
-<section><h1>Proofs made</h1><div id="none">None yet.</div><ul id="log"></ul></section>
+<section><h2>What sites saw</h2><div id="none">No sites yet.</div><ul id="log"></ul><div id="more" hidden></div></section>
+<section id="rm"><button id="revoke" hidden>Remove approval</button><div id="revokeWhy" hidden>Removes it from this browser only. Anything already shown to a site stays shown.</div></section>
 <script type="module" src="popup.js"></script>

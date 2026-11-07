@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Requests</title>
+<style>
+  :root { --ink: #16181d; --muted: #667; --line: #d9dce3; --accent: #17693a; --bad: #b3261e; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 18px/1.45 system-ui, sans-serif; color: var(--ink); background: #f6f7f9; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 20px; margin: 4px 0 18px; color: var(--muted); font-weight: 600; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
+  .ask { font-size: 30px; line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; margin: 0 0 10px; }
+  .full { font: 15px/1.4 ui-monospace, monospace; overflow-wrap: anywhere; color: var(--muted); margin: 0 0 18px; }
+  .row { display: flex; gap: 12px; }
+  button { flex: 1; min-height: 56px; font: inherit; font-weight: 700; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
+  button.yes { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input { width: 100%; min-height: 52px; font: inherit; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+  .next { font-size: 22px; font-weight: 700; margin: 0 0 8px; overflow-wrap: anywhere; }
+  .quiet { color: var(--muted); margin: 0; }
+  #err { color: var(--bad); min-height: 1.5em; }
+  #gate button { width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<main>
+  <form id="gate" class="card" hidden>
+    <label for="pass"><p class="next">Admin passcode</p></label>
+    <input id="pass" type="password" autocomplete="current-password">
+    <div class="row"><button class="yes" type="submit">Open</button></div>
+  </form>
+  <div id="board" hidden>
+    <h1>Requests</h1>
+    <div id="approved"></div>
+    <div id="list"></div>
+    <p id="empty" class="quiet" hidden>Nothing waiting.</p>
+  </div>
+  <div id="err" role="status"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const say = (text) => { $("err").textContent = text; };
+const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+let pass = sessionStorage.getItem("pass") ?? "";
+
+const call = (path, method = "GET") => fetch(path, { method, headers: { "x-admin-passcode": pass } });
+const toGate = () => { sessionStorage.removeItem("pass"); pass = ""; $("gate").hidden = false; $("board").hidden = true; };
+
+function card(req) {
+  const c = el("section", "card");
+  c.append(el("p", "ask", `Give ${req.name} to ${short(req.address)}?`), el("p", "full", req.address));
+  const row = el("div", "row");
+  const no = el("button", "", "Decline"), yes = el("button", "yes", "Approve");
+  no.type = yes.type = "button";
+  no.onclick = () => decide(req, "decline");
+  yes.onclick = () => decide(req, "approve");
+  row.append(no, yes); c.append(row);
+  return c;
+}
+
+async function decide(req, decision) {
+  say("");
+  const r = await call(`/v1/admin/requests/${req.ctx_hash}/${decision}`, "POST");
+  if (r.status === 401) return toGate();
+  if (!r.ok) return say("That didn't work: " + (await r.json()).error);
+  if (decision === "approve") {
+    const c = el("section", "card");
+    c.append(el("p", "next", `Approved ${req.name}.`), el("p", "quiet", "Now open the app, tap Join, and scan the code on their laptop. Keep the two side by side while they beep."));
+    $("approved").replaceChildren(c);
+  }
+  refresh();
+}
+
+async function refresh() {
+  if (!pass) return toGate();
+  const r = await call("/v1/admin/requests");
+  if (r.status === 401) { toGate(); return say("Wrong passcode."); }
+  if (!r.ok) return;
+  const { requests } = await r.json();
+  $("gate").hidden = true; $("board").hidden = false;
+  $("list").replaceChildren(...requests.map(card));
+  $("empty").hidden = requests.length > 0;
+}
+
+$("gate").onsubmit = (e) => { e.preventDefault(); pass = $("pass").value; sessionStorage.setItem("pass", pass); say(""); refresh(); };
+refresh();
+// Don't redraw under a thumb: only when the list changed.
+let seen = "";
+setInterval(async () => {
+  if (!pass || $("board").hidden) return;
+  const r = await call("/v1/admin/requests").catch(() => null);
+  if (!r?.ok) return;
+  const text = await r.text();
+  if (text !== seen) { seen = text; refresh(); }
+}, 3000);
+</script>
+</html>

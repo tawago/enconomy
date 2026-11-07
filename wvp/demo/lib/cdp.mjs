@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-const CHROME = process.env.WVP_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+export const CHROME = process.env.WVP_CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export const newProfile = () => mkdtempSync(join(tmpdir(), "wvp-chrome-profile-"));
@@ -53,9 +53,9 @@ export async function launch({ profile, headless = true, stock = false, extra = 
     };
     return { sessionId, targetId, send: s, evaluate };
   }
-  async function newTab(url, { init = [], bindings = {} } = {}) {
-    const { targetId } = await send("Target.createTarget", { url: "about:blank" });
-    const t = await attach(targetId);
+  // targetId: use that tab, such as the blank one Chrome starts with, instead of opening another.
+  async function newTab(url, { init = [], bindings = {}, targetId } = {}) {
+    const t = await attach(targetId ?? (await send("Target.createTarget", { url: "about:blank" })).targetId);
     await t.send("Page.enable"); await t.send("Runtime.enable"); await t.send("Inspector.enable").catch(() => {});
     for (const name of Object.keys(bindings)) await t.send("Runtime.addBinding", { name });
     on((m) => { if (m.sessionId === t.sessionId && m.method === "Runtime.bindingCalled" && bindings[m.params.name]) bindings[m.params.name](m.params.payload); });
