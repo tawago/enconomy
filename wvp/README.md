@@ -71,6 +71,12 @@ If the site refuses a token, its page sets `data-wvp-verdict` on the hidden fiel
 
 A site server started with `--name-only` refuses logins that read no ENS, with reason `name_only`. A typed address reads no ENS, so it would get past a repoint. This is a site setting. The demo sites turn it on.
 
+The demo sites also read ENS again while you're signed in by name, at most once every 2.5 seconds per session. If the name no longer resolves to the wallet that approved it, the session ends with reason `not_owner`, on the next request. The page asks every 3 seconds, so it signs itself out and says why. The next Sign in gets the usual refusal, then the approval path.
+
+If that read fails or takes over 5 seconds, the session stays and the server logs it. A flaky RPC shouldn't sign people out. This only applies to a session already open. A new login still refuses with `lookup_failed`.
+
+Anonymous and proof sessions aren't rechecked, since the site has no name to read. All of this is a choice each site makes. WVP can't force it: a site's session is the site's own.
+
 ## Run it
 
 Ran on Node 24 and Chrome 157. Close other big apps. The prover peaks near 3 GiB and each site server near 1.1 GiB.
@@ -99,7 +105,7 @@ Other wallets are untried.
 
 ### The repoint story
 
-A wallet approves this browser. A site logs you in by name, reading ENS at each login. Then the name's address record moves to a new wallet. The same browser with the same approval gets `not_owner`. You approve with the new wallet, and you're in under the same name.
+A wallet approves this browser. A site logs you in by name, reading ENS at each login and again while you're signed in. Then the name's address record moves to a new wallet. An open session ends by itself, and the same browser with the same approval gets `not_owner` at the next login. You approve with the new wallet, and you're in under the same name.
 
 ```sh
 node demo/try-it.mjs --repoint         # You play it. The steps print in the terminal.
@@ -122,7 +128,7 @@ The same story on our own ENS v2 deployment on devnet chain 1337. It isn't real 
 node demo/try-it.mjs --repoint --ens deployment --deployment <deployment.json> --name probe.eth --wallet-a-key <hot key file>
 ```
 
-Sites read the chain at each login. Wallet A signs with the key in that file. It's read when the demo starts and handed to Chrome in memory, so it isn't written to the build or the repo. Wallet B is a new throwaway key. The repoint is the cold-key transaction from `repoint.mjs`, which must sit beside the deployment file. The hand run prints the exact command. The demo stops first unless the name points at Wallet A, and prints the command that puts it back. It doesn't point the name back at the end. Anyone who can read the approval page's memory can read that key, so use a key that holds nothing.
+Sites read the chain at each login and while a named session is open. Wallet A signs with the key in that file. It's read when the demo starts and handed to Chrome in memory, so it isn't written to the build or the repo. Wallet B is a new throwaway key. The repoint is the cold-key transaction from `repoint.mjs`, which must sit beside the deployment file. The hand run prints the exact command. The demo stops first unless the name points at Wallet A, and prints the command that puts it back. It doesn't point the name back at the end. Anyone who can read the approval page's memory can read that key, so use a key that holds nothing.
 
 Seen with `--smoke-repoint` on stock Chrome, before the bubble, a script playing the user and both wallets: Wallet A logged in as `probe.eth`, a cold-key transaction moved the name to Wallet B, the same approval got `not_owner`, Wallet B approved and logged in.
 
@@ -167,7 +173,7 @@ The manifest's `key` is a public key: 2048-bit RSA, in SPKI form. It only fixes 
 | Issuer code | **Real.** Throwaway key on localhost in the demo. `--key-file` keeps one across restarts. |
 | Wallet | **FAKE** in every automated run. A script signs with a throwaway key, or in chain mode with the key file you pass. The prompt is drawn by the demo and labelled. **Real once:** the user ran `--real-wallet` by hand with Rabby, plain EOA accounts, on our devnet 1337 deployment. |
 | User | **FAKE** in automated runs, and a person in that one Rabby run. A script sends trusted input through the debug protocol. On the Linux build, a script sent real X input. |
-| ENS | **FAKE** in the default demo. A local table in a temp file, read again at each login. Nothing is registered. `alice.eth` here has nothing to do with the real name. In chain mode: real ENS v2 contracts, our own deployment on devnet 1337, not real ENS. |
+| ENS | **FAKE** in the default demo. A local table in a temp file, read again at each login and while a named session is open. Nothing is registered. `alice.eth` here has nothing to do with the real name. In chain mode: real ENS v2 contracts, our own deployment on devnet 1337, not real ENS. |
 | Repoint | **FAKE** in the default demo. `demo/repoint.mjs` edits that file. No chain, no transaction, no cold key. In chain mode: a real cold-key transaction on devnet 1337. |
 | Second wallet | **FAKE** in automated runs. A second throwaway key, picked in the Demo wallet bar on the approval page. With `--real-wallet`, your second Rabby account, run once by hand. |
 | Name-only | **Real** check, but a site setting. A site without it still takes a typed address until expiry. |
@@ -207,7 +213,7 @@ More weak points:
 - **Thin privacy evidence.** Upstream leaves blind values in proofs that link them. The holder wipes those and the site refuses unwiped proofs. The check was a byte comparison of 3 proofs.
 - **Thin byte-flip sweep.** About 0.4% of proof bytes, and not rerun on this issuer. 48 of 495 flips passed OpenAC's verify alone, so the form check in `lib/bundle.mjs` is required.
 - **You need an ENS name to enroll.** An address with no name can't.
-- **Selling or repointing a name** stops named login at the next lookup, not before. A session already open stays open until sign out. Anonymous keeps working until expiry. A typed address also does, unless the site is name-only.
+- **Selling or repointing a name** stops named login at the next lookup, not before. On a site that rechecks, as the demo sites do, a session open by name ends within a few seconds of the chain changing. If the lookup is failing, it stays open until a read works. On a site that doesn't recheck, it stays open until sign out. Anonymous keeps working until expiry. A typed address also does, unless the site is name-only.
 - **A site can make you approve again.** The extension can't see a site's answer, so it trusts the page's `not_owner`, once, right after a token it made from your click. One lying site drops your approval everywhere. It gets nothing from that: approving again takes your wallet's signature, on the pinned approval page.
 - **https is thin.** Named login has run on a hosted https deployment. Anonymous over https ran twice, headless with a scripted wallet, through a local proxy with a self-signed certificate. A real wallet hasn't done it.
 - **The offscreen document holds 2.4 to 3 GiB and never closes.**
