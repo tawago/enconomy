@@ -205,8 +205,9 @@ You do every step. This script never touches the wallet.
   2. On Blobzon, type ${NAME}, then leave the field (Tab, or click elsewhere). A dark bubble opens under the field. Click Verify. A small approval window opens. Click Connect wallet.
      Clicking Sign in or pressing Enter first gets you the same bubble. Not now closes it and sends nothing.
   3. Approve in Rabby with account 1: connect, then sign. You land back on Blobzon, signed in.
-  4. Sign out. In another terminal, send the real cold-key transaction:
+  4. Stay signed in. In another terminal, send the real cold-key transaction:
        node ${repointScript} ${NAME} <rabby-account-2>
+     A few seconds after it lands, the page signs you out by itself and says why.
   5. Type ${NAME}, click Sign in. No bubble, this site is already verified. Refused: the site says the name points to a different wallet. It's the same browser and the same approval.
   6. SWITCH THE ACTIVE ACCOUNT IN RABBY to account 2. The approval page signs with whichever account Rabby gives it.
   7. Click Sign in again. The approval is gone, so the bubble is back. Click Verify, click Connect wallet in the small window, and approve in Rabby. You're in, as ${NAME}.
@@ -220,8 +221,9 @@ Ready: the repoint story on a chain. The wallet is FAKE, drawn by this script. E
   Wallet B: ${addrB}  (a new throwaway key, gone when this quits)
   1. On Blobzon, type ${NAME}, then leave the field (Tab, or click elsewhere). A dark bubble opens under the field. Click Verify. Clicking Sign in or pressing Enter first gets you the same bubble.
      In the small window, keep Wallet A, click Connect wallet, then Sign in the demo wallet box. You're in.
-  2. Sign out. In another terminal, send the real cold-key transaction:
+  2. Stay signed in. In another terminal, send the real cold-key transaction:
        node ${repointScript} ${NAME} ${addrB}
+     A few seconds after it lands, the page signs you out by itself and says why.
   3. Type ${NAME}, click Sign in. No bubble, this site is already verified. Refused: not_owner. It's the same browser and the same approval.
   4. Click Sign in again. The approval is gone, so the bubble is back. Click Verify. In the small window, pick Wallet B in the Demo wallet bar, and approve. You're in, as ${NAME}.
   5. Sign out, type ${NAME}, press Enter. No bubble, no wallet. Leaving the field does nothing here. You need Enter or Sign in.
@@ -235,7 +237,7 @@ Ready: the repoint story. FAKE wallets, throwaway keys. ENS is a LOCAL TABLE. No
   1. On Blobzon, type alice.eth, then leave the field (Tab, or click elsewhere). A dark bubble opens under the field. Click Verify. Clicking Sign in or pressing Enter first gets you the same bubble.
      In the small window, keep Wallet A, click Connect wallet, then Sign in the demo wallet box. You're in.
   2. In another terminal: node demo/repoint.mjs alice.eth ${addrB}
-  3. Sign out. Type alice.eth, click Sign in. No bubble, this site is already verified. Refused: not_owner. It's the same browser and the same approval.
+  3. Within a few seconds the page signs you out by itself and says why. Type alice.eth, click Sign in. No bubble, this site is already verified. Refused: not_owner. It's the same browser and the same approval.
   4. Click Sign in again. The approval is gone, so the bubble is back. Click Verify. In the small window, pick Wallet B in the Demo wallet bar, and approve. You're in, as alice.eth.
   5. Sign out, type alice.eth, press Enter. No bubble, no wallet. Leaving the field does nothing here. You need Enter or Sign in.
   Typing the approved wallet's address and clicking Sign in gets name_only.

@@ -14,6 +14,7 @@ import { parseIdentifier } from "../lib/identifier.mjs";
 import { thirdParty } from "../lib/third-party.mjs";
 import { verifyDirect } from "./direct-verify.mjs";
 import { tableLookup, mainnetLookup, chainLookup } from "../lib/ens-lookup.mjs";
+import { isAddressEqual } from "viem";
 import * as blobzon from "./brands/blobzon.mjs";
 import * as blobchannel from "./brands/blobchannel.mjs";
 const opt = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i < 0 ? d : process.argv[i + 1]; };
@@ -40,7 +41,7 @@ const vks = { prepareVerifyingKey: empty, showVerifyingKey: empty };
 // The issuer only matters for anonymous proofs. A site must still start and log people in by name with it gone.
 const issuerKey = () => fetch(`${issuerUrl}/jwks`, { signal: AbortSignal.timeout(1000) }).then((r) => r.json()).then((j) => j.keys[0]).catch(() => null);
 let trustedIssuer = await issuerKey();
-// --ens table --name alice.eth --owner 0x... or --table file.json (default), --ens mainnet --rpc https://... or --ens deployment --deployment file.json with { rpc, chainId, universalResolver }. All read-only, and read again at each login.
+// --ens table --name alice.eth --owner 0x... or --table file.json (default), --ens mainnet --rpc https://... or --ens deployment --deployment file.json with { rpc, chainId, universalResolver }. All read-only. Read at each login, and again while a named session is open.
 const ens = opt("ens", "table");
 const makeLookup = () => {
   if (ens === "table") return tableLookup(opt("table") ?? { [opt("name", "alice.eth")]: opt("owner") });
@@ -52,6 +53,37 @@ const lookup = makeLookup();
 const approveDomains = opt("approve-domain", "enroll.test:8806").split(",");
 
 const open = new Map(), used = new Set(), sessions = new Map();
+// A session signed in by name holds while ENS still points that name at the wallet that approved it. Anonymous and proof sessions have no name to read.
+// `ended` keeps why a session stopped for a minute, so a reload or a second tab can still say so.
+const RECHECK_MS = 2500, RECHECK_WAIT_MS = 5000, ENDED_KEEP_MS = 60000;
+const ended = new Map();
+const endedFor = (sid) => { const e = ended.get(sid); return e && Date.now() - e.at < ENDED_KEEP_MS ? e : null; };
+async function recheck(sid, s) {
+  let moved;
+  try {
+    const owner = await Promise.race([lookup.resolve(s.name), new Promise((_, no) => setTimeout(no, RECHECK_WAIT_MS, new Error("timed out")))]);
+    moved = !owner || !isAddressEqual(owner, s.address);
+  } catch (e) {
+    // Fails open, only here. A flaky RPC shouldn't end a session that was fine a moment ago. A new login still fails closed.
+    log({ op: "recheck", name: s.name, failed: true, detail: String(e.message).slice(0, 120) });
+    moved = false;
+  }
+  s.checkedAt = Date.now();
+  if (!moved || sessions.get(sid) !== s) return;
+  sessions.delete(sid);
+  for (const [k, e] of ended) if (Date.now() - e.at >= ENDED_KEEP_MS) ended.delete(k);
+  ended.set(sid, { name: s.name, reason: "not_owner", at: Date.now() });
+  log({ op: "recheck", name: s.name, ended: "not_owner" });
+}
+// The session, if it still stands. Each one reads ENS at most once per RECHECK_MS, however many tabs ask.
+async function liveSession(sid) {
+  const s = sessions.get(sid);
+  if (s?.recheck && Date.now() - s.checkedAt >= RECHECK_MS) {
+    s.checking ??= recheck(sid, s).finally(() => { s.checking = null; });
+    await s.checking;
+  }
+  return sessions.get(sid) ?? null;
+}
 const TTL = 900, SKEW = 300;
 const clock = () => Math.floor(Date.now() / 1000);
 const newChallenge = () => { const challenge = randomBytes(32).toString("hex"); open.set(challenge, clock() + TTL); log({ op: "challenge", challenge: challenge.slice(0, 12) }); return challenge; };
@@ -124,7 +156,7 @@ const BASE = `
   @media (prefers-reduced-motion: reduce) { .tick, .tick .yes, #view { animation-duration: .001s !important; } [data-state="working"] .tick { animation-duration: 2s !important; } }
 `;
 // The whole login is this markup. Nothing here calls the extension. wvp/README.md says what each attribute means.
-const form = (nonce, signedIn = false) => `<form id="login" autocomplete="off" onsubmit="return false"${signedIn ? " hidden" : ""}>
+const form = (nonce, signedIn = false, note = "") => `<form id="login" autocomplete="off" onsubmit="return false"${signedIn ? " hidden" : ""}>
   <label class="name" for="who">ENS name</label>
   <div class="entry">
     <span class="field"><input id="who" type="text" data-wvp-name autocomplete="off" placeholder="yourname.eth" spellcheck="false" autocapitalize="off"${signedIn ? " readonly" : ""}><span class="tick" aria-hidden="true"><svg class="yes" viewBox="0 0 18 18"><path d="M3 9.6l4 4 8-9"/></svg><svg class="no" viewBox="0 0 18 18"><path d="M4.5 4.5l9 9M13.5 4.5l-9 9"/></svg></span></span>
@@ -132,17 +164,17 @@ const form = (nonce, signedIn = false) => `<form id="login" autocomplete="off" o
   </div>
   ${noProofs ? "" : `<label class="switch"><input id="anon" type="checkbox" data-wvp-anonymous>${esc(brand.anonLabel)}</label>`}
   <p class="share">Signing in shares your name and wallet address with ${esc(title)}.</p>
-  <div class="msgs"><div id="status" role="status"></div><div data-wvp-status></div></div>
+  <div class="msgs"><div id="status" role="status"${note ? ' class="hint"' : ""}>${esc(note)}</div><div data-wvp-status></div></div>
   <input id="token" type="hidden" data-wvp-token autocomplete="off" nonce="${nonce}">
 </form>`;
 const account = (s) => `<span class="acct" title="${esc(s.address ?? "")}"><b>${s.name ? esc(s.name) : "Member, no name shared"}</b>${s.address ? `<code>${esc(short(s.address))}</code>` : ""}</span><button id="out" type="button">Sign out</button>`;
 const member = (s) => brand.signedIn({ name: s.name, address: s.address, short: short(s.address) }, esc);
-const PAGE = (nonce, s) => `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)}</title><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(brand.favicon)}"><style>${BASE}${brand.css}</style>
+const PAGE = (nonce, s, note) => `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)}</title><link rel="icon" href="data:image/svg+xml,${encodeURIComponent(brand.favicon)}"><style>${BASE}${brand.css}</style>
 <body data-view="${s ? "in" : "out"}">${brand.header(`<div id="account">${s ? account(s) : ""}</div>`, esc)}
-<main id="view">${s ? member(s) : brand.signedOut(form(nonce), esc)}</main>
+<main id="view">${s ? member(s) : brand.signedOut(form(nonce, false, note), esc)}</main>
 ${s ? `<div hidden>${form(nonce, true)}</div>` : ""}
 <footer class="colophon">${esc(title)} is a demo site, not a real ${esc(brand.kind)}, and isn't affiliated with any company. Names come from ${esc(ENS_NOTE)}.</footer>
-<script src="/site.js?v=5"></script></body></html>`;
+<script src="/site.js?v=6"></script></body></html>`;
 // Same form, no site script at all, for tests that want the raw token. The field fills with no page JS.
 const BARE = (nonce) => `<!doctype html><meta charset="utf-8"><title>${esc(title)} bare</title>${form(nonce)}`;
 const JS = `
@@ -217,14 +249,25 @@ form.addEventListener("wvp-state", async () => {
 });
 const fresh = async () => { const { challenge } = await post("/challenge"); tok.setAttribute("nonce", challenge); };
 fetch("/me").then((r) => r.json()).then((m) => { if (m.loggedIn) { window.__me = m; signedIn = true; } });
+// A session can end while the page sits there, if the name moves. A fresh load is the signed-out view with a clean form, and the server words the reason.
+let polling = false;
+const poll = async () => {
+  if (!signedIn || polling) return;
+  polling = true;
+  try { const m = await fetch("/me", { cache: "no-store" }).then((r) => r.json()); if (signedIn && !m.loggedIn) location.replace("/"); } catch {}
+  polling = false;
+};
+setInterval(poll, 3000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 `;
-createServer((req, res) => {
+const endedNote = (e) => (e ? `${e.name} now points to a different wallet. You've been signed out.` : "");
+createServer(async (req, res) => {
   const send = (status, obj, h = {}) => { res.writeHead(status, { "content-type": "application/json", ...h }); res.end(JSON.stringify(obj)); };
   const html = (body, h = {}) => { res.writeHead(200, { "content-type": "text/html; charset=utf-8", ...h }); res.end(body); };
   const path = new URL(req.url, "http://x").pathname;
   const sidOf = () => (req.headers.cookie ?? "").match(/sid=([0-9a-f]+)/)?.[1];
-  if (req.method === "GET" && path === "/") return html(PAGE(newChallenge(), sessions.get(sidOf())));
-  if (req.method === "GET" && path === "/members") { const s = sessions.get(sidOf()); if (!s) return send(401, { error: "not_signed_in" }); return html(member(s)); }
+  if (req.method === "GET" && path === "/") { const s = await liveSession(sidOf()); return html(PAGE(newChallenge(), s, s ? "" : endedNote(endedFor(sidOf())))); }
+  if (req.method === "GET" && path === "/members") { const s = await liveSession(sidOf()); if (!s) return send(401, { error: "not_signed_in", reason: endedFor(sidOf())?.reason }); return html(member(s)); }
   if (req.method === "GET" && path === "/bare") return html(BARE(newChallenge()));
   // A header CSP makes the browser blank a nonce attribute that came in the markup. Here to test that.
   if (req.method === "GET" && path === "/csp") return html(BARE(newChallenge()), { "content-security-policy": "default-src 'self'" });
@@ -239,13 +282,13 @@ createServer((req, res) => {
       let r;
       try { r = await submit(body); } catch (e) { r = { accepted: false, reason: "bad_request", detail: String(e.message).slice(0, 200) }; }
       let h = {};
-      if (r.accepted) { const sid = randomBytes(16).toString("hex"); sessions.set(sid, { name: r.name ?? null, address: r.address ?? null }); h["set-cookie"] = `sid=${sid}; HttpOnly; SameSite=Strict; Path=/`; }
+      if (r.accepted) { const sid = randomBytes(16).toString("hex"); sessions.set(sid, { name: r.name ?? null, address: r.address ?? null, recheck: r.mode === "direct" && r.kind === "name", checkedAt: Date.now(), checking: null }); h["set-cookie"] = `sid=${sid}; HttpOnly; SameSite=Strict; Path=/`; }
       log({ op: "submit", accepted: r.accepted, reason: r.reason, ms: r.ms, verifyMs: r.verifyMs, name: r.name ?? null, kind: r.kind ?? null, tokenBytes: body.length });
       send(200, r, h);
     });
     return;
   }
-  if (req.method === "GET" && path === "/me") return send(200, { loggedIn: sessions.has(sidOf()), name: sessions.get(sidOf())?.name ?? null });
-  if (req.method === "POST" && path === "/logout") { sessions.delete(sidOf()); return send(200, {}, { "set-cookie": "sid=; Max-Age=0; Path=/" }); }
+  if (req.method === "GET" && path === "/me") { const s = await liveSession(sidOf()); return send(200, { loggedIn: !!s, name: s?.name ?? null, reason: s ? undefined : endedFor(sidOf())?.reason }, { "cache-control": "no-store" }); }
+  if (req.method === "POST" && path === "/logout") { sessions.delete(sidOf()); ended.delete(sidOf()); return send(200, {}, { "set-cookie": "sid=; Max-Age=0; Path=/" }); }
   send(404, { error: "not_found" });
 }).listen(port, "127.0.0.1", () => log({ ready: true, origin, port, startMs: Math.round(performance.now() - t0), rssMB: Math.round(process.memoryUsage().rss / 1048576) }));

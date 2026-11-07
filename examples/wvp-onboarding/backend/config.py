@@ -34,7 +34,6 @@ def admin_device_id(raw: str) -> str:
 class Settings:
     core_pubkey: bytes
     admin_device: str
-    admin_passcode: str
     ens_dir: Path
     db: Path = Path("data/onboarding.sqlite")
     org: str = "blob.eth"
@@ -54,7 +53,6 @@ class Settings:
         load_pub(pub)
         return cls(core_pubkey=pub,
                    admin_device=admin_device_id(_required("ONBOARD_ADMIN_DEVICE")),
-                   admin_passcode=_required("ONBOARD_ADMIN_PASSCODE"),
                    ens_dir=Path(_required("ONBOARD_ENS_DIR")).expanduser().resolve(),
                    db=Path(os.environ.get("ONBOARD_DB", "data/onboarding.sqlite")).expanduser(),
                    org=os.environ.get("ONBOARD_ORG", "blob.eth"),
