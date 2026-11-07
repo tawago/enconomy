@@ -1,12 +1,24 @@
 # enconomy
 
-[Demo video](https://ethglobal.b0bd725bc77a3ea7cd3826627d01fcb6.r2.cloudflarestorage.com/projects/9m8x8/videos/final.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=9594f0cc2b6eca8d6fd42063391f5760%2F20260926%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260926T235545Z&X-Amz-Expires=3600&X-Amz-Signature=59783a60642c0a0bc7587e78bae34b634790d5e4145e33e1310cfb40425138c8&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject)
+[Demo video 1: ETHGlobal Tokyo](https://ethglobal.b0bd725bc77a3ea7cd3826627d01fcb6.r2.cloudflarestorage.com/projects/9m8x8/videos/final.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=9594f0cc2b6eca8d6fd42063391f5760%2F20260926%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20260926T235545Z&X-Amz-Expires=3600&X-Amz-Signature=59783a60642c0a0bc7587e78bae34b634790d5e4145e33e1310cfb40425138c8&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject)
+
+[Demo video 2: ETHGlobal Mumbai](https://ethglobal.b0bd725bc77a3ea7cd3826627d01fcb6.r2.cloudflarestorage.com/projects/993fj/videos/final_full.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=9594f0cc2b6eca8d6fd42063391f5760%2F20261107%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20261107T031536Z&X-Amz-Expires=3600&X-Amz-Signature=3c8790c83daa0e982198b656fc33a0254b6d5fb535cf5670a9bd6e7194fe6674&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject)
 
 ![Enconomy: ZK proof of presence](assets/hero.jpg)
 
 Proof of presence: two phones use sound to prove they were physically close.
 
-Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. The core does only that: it signs a record saying two enrolled devices were near each other. Three examples build on the record, each independent of the core: [`examples/safe`](examples/safe/README.md) unlocks a 2-of-4 Safe spend on Sepolia, [`examples/ens-meetings`](examples/ens-meetings/README.md) records a meeting under `enconomy.eth` on Sepolia, [`examples/world-id`](examples/world-id/README.md) answers whether two different humans met. The current app's Safe, ENS and World ID screens have no backend until those examples get their own apps.
+Each phone plays a short coded sound and records both its own sound and its partner's. Each phone times when the two sounds reach its mic. Put the two phones' timings together and you get a distance, without the clocks being in sync. If the distance is under 60 cm, the verdict is NEAR. Each phone signs its half of the measurement with a hardware key, and a zero-knowledge proof ties that half to the recording without revealing the recording. The core does only that: it signs a record saying two enrolled devices were near each other.
+
+Everything else builds on that record, independent of the core:
+
+- [`examples/evp-recovery`](examples/evp-recovery/README.md): you lost your phone. A laptop, a verified email and a new phone next to the laptop move the account to the new phone, in one frame transaction.
+- [`examples/wvp-onboarding`](examples/wvp-onboarding/README.md): an admin in the room gives someone a name under an org's ENS name. Login then runs on [WVP](wvp/README.md), and repointing the name cuts off every browser the old wallet approved.
+- [`examples/safe`](examples/safe/README.md): unlocks a 2-of-4 Safe spend on Sepolia.
+- [`examples/ens-meetings`](examples/ens-meetings/README.md): records a meeting under `enconomy.eth` on Sepolia.
+- [`examples/world-id`](examples/world-id/README.md): answers whether two different humans met.
+
+The core started at ETHGlobal Tokyo and continued at ETHGlobal Mumbai. See [Tokyo to Mumbai](#tokyo-to-mumbai).
 
 ```mermaid
 flowchart LR
@@ -19,9 +31,23 @@ flowchart LR
     A -. "presence record" .-> E["ENS example backend<br/>examples/ens-meetings"]
     E --> M["MeetResolver<br/>*.enconomy.eth"]
     A -. "presence record" .-> W["World ID example backend<br/>examples/world-id"]
+    A -. "presence proofs" .-> R["EVP recovery backend<br/>examples/evp-recovery"]
+    R -- "frame tx" --> X["Recovery account<br/>devnet 1337"]
+    A -. "presence record" .-> O["WVP onboarding backend<br/>examples/wvp-onboarding"]
+    O --> Y["Our ENS v2 deployment<br/>devnet 1337"]
 ```
 
-This is a hackathon build. It runs on testnet only, it has not been audited, and the field data is limited. See [Limitations](#limitations).
+This is a hackathon build. It runs on a testnet and a devnet only, it has not been audited, and the field data is limited. See [Limitations](#limitations).
+
+## Tokyo to Mumbai
+
+| | After Tokyo | After Mumbai |
+|---|---|---|
+| Losing a phone | Guardians on a Safe, with a time lock. | A laptop, a verified email and a new phone rotate the account in one frame tx. A full recovery ran on real devices through the public sidecar. The email issuer is a local fake. |
+| Signing in | Nothing. | WVP: approve once with your wallet, then log in by ENS name with no popups. Repointing the name ends it. Run once by hand with Rabby, on our own ENS v2 deployment. |
+| Trusting the circuits | Tests and fixtures. | Lean proofs of the Noir circuits, the server's verdict and the EVP adapter. They also found real gaps: silence and a clean tone pass the arrival rule. See [`fv/v1`](fv/v1/README.md). |
+| Structure | Safe, ENS and World ID inside the app and server. | The core only does proximity. Each consumer is a separate example. |
+| The server | Decides the live verdict. | Still does. [`fv/ROADMAP.md`](fv/ROADMAP.md) plans its removal. Nothing there is built. |
 
 ## Quick start
 
@@ -39,8 +65,10 @@ uv run python -m pop        # 0.0.0.0:8000
 - JDK 21 and the Android SDK for the app, plus Xcode for iOS. JDK 26 is too new for Gradle 8.14.
 - Rust, NDK 28.2.13676358, cargo-ndk and zig 0.15. You need these only to build `app/zkprove`.
 - Foundry (forge, cast, anvil) with solc 0.8.30.
-- Barretenberg `bb` 5.0.0-nightly.20260522 at `~/.enconomy/zk/pinned/bin/bb`. This is optional. Without it, the ZK routes answer `503 zk_unavailable`.
+- Barretenberg `bb` 5.0.0-nightly.20260522, with `POP_ZK_VERIFIER` set to its path. This is optional. Without it, the ZK routes answer `503 zk_unavailable`.
 - For the full demo: `cloudflared`.
+- For EVP recovery and WVP: Chrome. WVP's anonymous login needs about 3 GiB of memory for the prover.
+- For the proofs in `fv/`: [elan](https://github.com/leanprover/elan), about 7.3 GB of disk, and nargo 1.0.0-beta.22 for the circuit runs.
 
 The contract dependencies are git submodules:
 
@@ -111,11 +139,39 @@ cd examples/ens-meetings/web && python3 -m http.server 8080    # preview
 npx wrangler deploy                      # from examples/ens-meetings/
 ```
 
+**EVP recovery**
+
+```sh
+cd examples/evp-recovery
+./run keys
+./run core        # then sidecar, backend, front and chrome, one terminal each
+```
+
+The full runbook is in [`examples/evp-recovery`](examples/evp-recovery/README.md). Its tx builder loads viem and `@noble/curves` 1.9 from `relayer/node_modules` at the repo root. That folder isn't in the repo, so a clean clone has to install those two packages there first. This has not been tried from a clean clone.
+
+**WVP**
+
+```sh
+cd wvp
+npm ci --ignore-scripts
+export WVP_THIRD_PARTY=/path/to/third_party    # see wvp/prover/README.md
+extension/build.sh
+node demo/try-it.mjs --repoint
+```
+
+**Formal verification**
+
+```sh
+cd fv/v1/zkp/popfv
+lake exe cache get
+lake build
+```
+
 Each component README has more detail.
 
 ## Demo stack
 
-One command runs the core's demo. It starts two processes: the server (:8001) and the `pop.enconomy.dev` tunnel. The examples aren't among them, they run on their own: see [`examples/safe`](examples/safe/README.md), [`examples/ens-meetings`](examples/ens-meetings/README.md) and [`examples/world-id`](examples/world-id/README.md). Log lines are prefixed `[server]` and `[tunnel]`, and are also saved in `.demo/logs/`.
+One command runs the core's demo. It starts two processes: the server (:8001) and the `pop.enconomy.dev` tunnel. The examples aren't among them, each runs on its own from its README. Log lines are prefixed `[server]` and `[tunnel]`, and are also saved in `.demo/logs/`.
 
 First-time setup:
 
@@ -214,10 +270,16 @@ Each phone proves its own half with Noir and Barretenberg UltraHonk (BN254). The
 ### On chain (Ethereum Sepolia, 11155111)
 
 - **Safe.** A Safe 1.5.0 with 2-of-4 owners: phone A, phone B and two guardians. The phone owners are P-256 keys, checked through the RIP-7212 P-256 verify precompile at `0x100`. `PopSafeGuard` requires three things on every normal transaction: proof of presence, signatures from both phones, and registered devices. Guardians on their own get only a time-locked recovery path. The live verifier, `PopAttestationVerifier`, checks a P-256 attestation from the [Safe example's backend](examples/safe/README.md). The backend signs it after the core's signed record says NEAR with two attested devices, and then submits `execTransaction`. It proves no humans: one person holding both owners' phones can spend.
-- **ENS "Met on ENS".** `MeetResolver` is a wildcard resolver for `*.enconomy.eth` on ENSv2 Sepolia. It serves live meeting counters as text records. The ENS example's backend writes each delivered NEAR record to it, in [`examples/ens-meetings`](examples/ens-meetings/README.md).
+- **ENS "Met on ENS".** `MeetResolver` is a wildcard resolver for `*.enconomy.eth` on ENSv2 Sepolia. It serves live meeting counters as text records. The ENS example's backend writes each delivered NEAR record to it, in [`examples/ens-meetings`](examples/ens-meetings/README.md). On 2026-11-07 the registry still names `MeetResolver` for `enconomy` and `MeetResolver` still answers for `alice.enconomy.eth`, but a lookup through the universal resolver pinned in `contracts/deployments/sepolia.json` fails with `ResolverNotFound`.
 - **ZK verifiers.** `PhoneVerifier`, `PairVerifier` and `VerifyLog` are deployed, and they verify a real fixture.
 
 World ID is never checked on chain. The [World ID example](examples/world-id/README.md) checks it off chain, and the Safe example doesn't use it.
+
+### On chain (EIP-8141 devnet, 1337)
+
+- **EVP recovery.** A frame tx checks three proofs in VERIFY and the email token in its body. Then, after a 120 s delay, a second tx makes the new phone the owner. The runbook is in [`examples/evp-recovery`](examples/evp-recovery/README.md). The gas numbers in [`fv/v1.1`](fv/v1.1/README.md) come from an earlier frame tx that stopped short of the rotation.
+- **The start tx isn't canonical-mempool admissible.** It uses about 11.5M gas in VERIFY against the public 100,000 cap, and calls precompiles and a foreign verifier there. It needs [our own sidecar](research/ethglobal-mumbai/devnet/sidecar.sh), with a 16M cap and precompiles allowed, or the public sidecar at `altmempool.forshtat.com/rpc`, which took it once its gas cap was lifted.
+- **ENS v2 for WVP.** Our own unmodified contracts on 1337, not real ENS. The deployment lives in a gitignored folder, so WVP's chain mode and `examples/wvp-onboarding` can't be reproduced from a clone. WVP's default demo uses a local table instead.
 
 ## Repository layout
 
@@ -231,6 +293,12 @@ World ID is never checked on chain. The [World ID example](examples/world-id/REA
 | [`examples/ens-meetings/`](examples/ens-meetings/README.md) | ENS example, independent of the core: name claims, [bridge](examples/ens-meetings/bridge/README.md) to `MeetResolver`, [contracts](examples/ens-meetings/contracts/README.md). |
 | [`examples/world-id/`](examples/world-id/README.md) | World ID example, independent of the core: backend and IDKit sidecar, answers whether two different humans met. |
 | [`examples/ens-meetings/web/`](examples/ens-meetings/web/README.md) | Static "Met on ENS" leaderboard page. |
+| [`examples/evp-recovery/`](examples/evp-recovery/README.md) | Account recovery by email, laptop and new phone in one frame tx: contracts, backend, page, local issuer, its own app. |
+| [`examples/wvp-onboarding/`](examples/wvp-onboarding/README.md) | An admin in the room issues a subname after a NEAR. Never run end to end. |
+| [`wvp/`](wvp/README.md) | Wallet version of Chrome's Email Verification Protocol: extension, issuer, demo sites, prover wrapper. |
+| [`browser/`](browser/README.md) | Optional Chromium patch for WVP. Built and run on Linux only. |
+| [`fv/`](fv/ROADMAP.md) | Formal verification: [`v1`](fv/v1/README.md) for the circuits and server, [`v1.1`](fv/v1.1/README.md) for the EVP pair circuit and adapter. |
+| [`research/ethglobal-mumbai/`](research/ethglobal-mumbai/README.md) | EVP design, threat model and gas work, our devnet sidecar. |
 | `zkmobile/` | Spikes behind the Noir port: Android and iOS prove runs, hash vectors, toolchain pin. |
 | [`research/sound-bound/`](research/sound-bound/README.md) | Acoustic prototype, field tests, melody bakeoff, ZK spikes. |
 | `research/*.md` | Decision notes and threat model. |
@@ -242,7 +310,7 @@ World ID is never checked on chain. The [World ID example](examples/world-id/REA
 
 ## Deployments
 
-Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`examples/safe/contracts/DEPLOYMENTS.md`](examples/safe/contracts/DEPLOYMENTS.md) and [`examples/ens-meetings/ENS.md`](examples/ens-meetings/ENS.md).
+These are on Ethereum Sepolia (11155111). EVP recovery and WVP use devnet 1337, which can be reset, so nothing there is listed as permanent. The full Sepolia lists are in [`examples/safe/contracts/DEPLOYMENTS.md`](examples/safe/contracts/DEPLOYMENTS.md) and [`examples/ens-meetings/ENS.md`](examples/ens-meetings/ENS.md).
 
 | Contract | Address |
 |---|---|
@@ -258,6 +326,7 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`e
 - Demo Safe: `0x1399D5F9B91B92EF8220E9328743Ac5F370Ed6d4`. It uses test phone keys, not real phones. A spend with presence cost 157,502 gas. A guardian spend without presence reverts with `NoPresence`.
 - ENS site: https://ens.enconomy.dev
 - PoP server: https://pop.enconomy.dev. It is a tunnel to a laptop, so it is not always up.
+- Web app: https://webapp.enconomy.dev. It needs that server.
 
 ## Limitations
 
@@ -266,6 +335,10 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`e
 - **Margin.** Pairs at 30 cm read at most 35 cm, and pairs at 100 cm read at least 95 cm. Handheld runs at 60 cm read 60 to 90 cm.
 - **ZK.** Proofs work only at 48 kHz, so 44.1 kHz sessions skip the proof. The phone downloads about 82 MB of proving files first. The Noir presence adapter for the Safe is built and gas-tested but not deployed.
 - **Server.** The Android attestation chain is pinned to Google's roots, but revocation and the app's identity are not checked, so any app on a real phone can attest. The server must run as a single uvicorn worker.
+- **EVP recovery.** One cheating side can fake NEAR. The laptop key is a software key in the browser, the email issuer is a local fake, and anyone can call `finishRotation`. 2 gas budget tests fail, untraced. [More](examples/evp-recovery/README.md#what-it-doesnt).
+- **WVP.** A scripted wallet in every automated run, a real one once by hand. OpenAC is a modified build. Don't call anonymous login unlinkable: that isn't shown. [More](wvp/README.md#what-you-should-know).
+- **Formal verification.** It covers what the circuits enforce, under named hypotheses, on a hand-written model. It doesn't show a beep was heard: silence and a clean tone pass. Live NEAR comes from the server and doesn't run the circuits. Don't quote it as "the proof is secure". [More](fv/v1/README.md#results).
+- **Examples.** The apps under `examples/safe`, `examples/ens-meetings` and `examples/world-id` have never been compiled. `examples/wvp-onboarding` has never run end to end.
 - **Docs.** The "Option A proofs" section of `server/README.md` still describes the retired circom/Spartan2 prover.
 
 ## Further reading
@@ -275,6 +348,9 @@ Everything is deployed on Ethereum Sepolia (11155111). The full lists are in [`e
 - [`research/2026-09-26-zk-gap-research.md`](research/2026-09-26-zk-gap-research.md): the ZK options.
 - [`zkmobile/APP_SERVER_CONTRACT.md`](zkmobile/APP_SERVER_CONTRACT.md): the app-server ZK contract, including hashes and the Merkle layout.
 - [`examples/safe/contracts/PREFLIGHT.md`](examples/safe/contracts/PREFLIGHT.md): chain facts and Safe hardening notes.
+- [`research/ethglobal-mumbai/evp-recovery/REPORT.md`](research/ethglobal-mumbai/evp-recovery/REPORT.md): the EVP recovery design and its history.
+- [`fv/v1/docs/05-spike-results.md`](fv/v1/docs/05-spike-results.md): what the Lean proofs found, in plain English.
+- [`fv/ROADMAP.md`](fv/ROADMAP.md): the plan to fix the detection rule and remove the server.
 
 ## License
 
