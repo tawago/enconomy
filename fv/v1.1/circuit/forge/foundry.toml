@@ -1,0 +1,22 @@
+# Same build as the bb verifiers in examples/safe/contracts (honk profile).
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+cache_path = "cache"
+libs = []
+solc_version = "0.8.30"
+evm_version = "osaka"
+optimizer = true
+optimizer_runs = 1
+via_ir = false
+fs_permissions = [{ access = "read", path = "./fixtures" }, { access = "read", path = "./out" }]
+# The real adapter, imported as is.
+remappings = ["pop/=../../../../examples/evp-recovery/contracts/src/pop/"]
+allow_paths = ["../../../../examples/evp-recovery/contracts/src/pop"]
+# The adapter hits stack too deep without via-ir (its own foundry.toml uses via-ir). Verifiers stay as they were:
+# the test deploys the adapter from its artifact, so importing it does not pull the verifiers into via-ir.
+additional_compiler_profiles = [{ name = "adapter", via_ir = true }]
+compilation_restrictions = [{ paths = "../../../../examples/evp-recovery/contracts/src/pop/EvpNoirPresenceVerifier.sol", via_ir = true }]
+[lint]
+lint_on_build = false

@@ -1,0 +1,491 @@
+package com.enconomy.pop
+
+import com.enconomy.pop.dsp.Arrival
+import com.enconomy.pop.dsp.PopDsp
+import com.enconomy.pop.dsp.PopRound
+import com.enconomy.pop.dsp.PopRound2
+import com.enconomy.pop.dsp.Popt2Code
+import com.enconomy.pop.dsp.Popt2Rate
+import com.enconomy.pop.dsp.pyRound
+import com.enconomy.pop.zk.CodeCommit
+import com.enconomy.pop.zk.Popt2Evidence
+import com.enconomy.pop.zk.OaHash
+import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+/** §9.2 phone states from Arming on. */
+enum class RunPhase { Arming, Running, SelfCheck, Committing, Measuring, Submitting, Failing, WaitingResult }
+
+/** Pre-flight / clock refused before arm. Nothing sent; the user fixes it and taps Start again. */
+class RunBlocked(msg: String) : Exception(msg)
+
+/** §8.3 user text. */
+object Reasons {
+    val text = mapOf(
+        "too_far" to "Too far apart. Hold the phones side by side.",
+        "partner_not_heard" to "Partner not heard. Check volume and try again.",
+        "self_not_heard" to "Your own sound was not heard. Check volume and mic.",
+        "glitch" to "Recording glitch, trying again.",
+        "impossible_flight" to "Measurement failed, trying again.",
+        "self_timestamp_mismatch" to "Audio timing off, trying again.",
+        "capture_failed" to "Audio capture failed, trying again.",
+        "timeout" to "Partner did not finish in time.",
+        "signature_invalid" to "Device signature invalid.",
+        "transcript_mismatch" to "Session data mismatch.",
+        "partner_mismatch" to "Invite does not match this partner.",
+        "aborted" to "Session aborted.",
+    )
+
+    fun of(reason: String?): String? = reason?.let { text[it] ?: it }
+}
+
+/**
+ * One confirmed session, from arm to result (contract §4-§8, §9.2 Arming..WaitingResult).
+ *
+ * Per attempt: preflight -> clock sync -> arm (own play + own bed) -> prepare audio -> poll t0 ->
+ * record + play -> self check (§6.6 1-4) -> signed commit -> partner bed -> partner arrival ->
+ * signed transcript -> optional recording upload -> poll. A failed step posts /fail.
+ * Retry is server driven: the view going back to `confirmed` with attempt + 1 re-arms (§8.2),
+ * so at most one automatic retry, and only for measurement failures.
+ *
+ * Choices the contract leaves open:
+ *  - a 409 on commit/transcript/fail means the partner already moved the session on
+ *    (its fail, a retry, done); the phone stops that attempt and follows the view.
+ *  - 409 too_early on commit (clock skew) is retried every 250 ms for up to 3 s.
+ *  - waiting for the partner to arm: 120 s, then abort.
+ *  - null templates are built only after the capture (no DSP load while recording or waiting for
+ *    t0): own nulls right after engine.run returns, partner nulls once the self check passes.
+ *  - 400 bad_attempt on arm (or transcript_mismatch on commit) with the view already at a later
+ *    attempt = the partner's /fail moved the session on; re-read the view and follow it.
+ *
+ * POPT v2 ([popt2] set and the phone's rate has a circuit): arm with "popt": 2 (own int8 code comes
+ * back), the integer rule of [PopRound2] on the same int16 capture, POPC v2 commits the Poseidon2/BN254
+ * rec_root (built on 4 workers while the self check runs), partner_code after the commit, 311-byte
+ * transcript with a_self, p_partner, delta and code_commit. v1 is untouched otherwise.
+ */
+class PopRun(
+    private val api: PopApi,
+    private val engine: AudioEngine,
+    private val key: DeviceKey,
+    private val sessionId: String,
+    private val role: Char,
+    private val uploadRecordings: Boolean = true,
+    private val onStatus: (RunPhase, Int, String?) -> Unit = { _, _, _ -> },
+    private val clock: suspend () -> ClockOffset = { ClockSync.measure(api) },
+    private val nowNs: () -> Long = ::monoNanos,
+    private val model: String = "",
+    /** null = pop-v1 only. */
+    private val popt2: Popt2Config? = null,
+    /** Enrollment calibration, µs (the server's self.cal_us; 0 = none). Local self check and meta only. */
+    private val calUs: Long = 0,
+) {
+    private val partnerRole = if (role == 'A') 'B' else 'A'
+
+    /** Last POPT v2 attempt this phone signed and submitted (option A proof after a NEAR verdict). */
+    var evidence: Popt2Evidence? = null
+        private set
+
+    /** Message of the last audio failure (e.g. output not on the speaker), for the result screen. */
+    var audioError: String? = null
+        private set
+
+    /** Runs until the session is done or aborted. Throws RunBlocked before arming. */
+    suspend fun run(): ResultRecord {
+        var v = api.session(sessionId)
+        while (true) {
+            v = when (v.state) {
+                "done" -> return resultOf(v)
+                "aborted" -> return aborted(v.error)
+                "confirmed" -> attempt(v)
+                // partner has not confirmed yet: wait for the state to move on, then arm
+                "created", "joined" -> poll(v.seq, nowNs() + 600_000_000_000L) { it.state != v.state } ?: api.session(sessionId)
+                else -> waitNext(v, v.attempt)
+            }
+        }
+    }
+
+    private fun status(p: RunPhase, attempt: Int, note: String? = null) = onStatus(p, attempt, note)
+
+    private suspend fun resultOf(v: SessionView): ResultRecord =
+        v.result?.let { popJson.decodeFromJsonElement(ResultRecord.serializer(), it) } ?: api.result(sessionId)
+
+    private fun aborted(reason: String?) = ResultRecord(session_id = sessionId, verdict = "NOT_NEAR", reason = reason ?: "aborted")
+
+    // ---- one attempt ----
+
+    private suspend fun attempt(v0: SessionView): SessionView {
+        val k = v0.attempt
+        check(k < PopConstants.MAX_ATTEMPTS) { "attempt $k" }
+        val retryNote = v0.last_failure?.takeIf { k > 0 }?.let { it.text ?: Reasons.of(it.reason) }
+        status(RunPhase.Arming, k, retryNote)
+        val nonce = v0.nonce?.hexToBytes() ?: error("no session nonce")
+        val pkPartner = v0.partner?.pubkey?.hexToBytes() ?: error("no partner pubkey")
+        check(nonce.size == 32 && pkPartner.size == 65) { "bad nonce / partner key" }
+
+        val pre = engine.preflight()
+        if (!pre.ok) throw RunBlocked(pre.problems.joinToString("\n"))
+        val clk = clock()
+        if (!clk.ok) throw RunBlocked("Network too slow (rtt ${clk.rttMinMs.toInt()} ms). Move closer to Wi-Fi and try again.")
+        val sr = pre.sampleRate
+
+        val rate2 = popt2?.rate(sr)
+        val arm = try {
+            api.arm(sessionId, ArmReq(k, sr, clk.rttMinMs, popt = if (rate2 != null) 2 else null))
+        } catch (e: PopHttpException) {
+            if (e.code != "bad_attempt") throw e
+            return movedOn(k) ?: throw e
+        }
+        check(arm.attempt == k && arm.sample_rate == sr) { "arm echo ${arm.attempt}/${arm.sample_rate} != $k/$sr" }
+        val ownCode = if (rate2 != null) {
+            check(arm.popt == 2 && arm.delta == rate2.delta) { "arm popt ${arm.popt} delta ${arm.delta}" }
+            val c = arm.own_code ?: error("v2 arm without own_code")
+            Popt2Code.fromB64(c.cI_b64, c.cQ_b64, c.n).also { check(it.n == rate2.L) { "own_code n ${it.n}" } }
+        } else null
+        val cap: Capture
+        val plan: RunPlan
+        try {
+            val play = arm.play.decodeF32(sr)
+            val ownBed = arm.own_bed.decodeF64(sr)
+            engine.prepare(sr, play)
+            status(RunPhase.Arming, k, retryNote ?: "waiting for partner")
+            val started = poll(v0.seq, nowNs() + 120_000_000_000L) { it.attempt != k || it.t0_ms != null || it.state !in LIVE }
+            if (started == null) {
+                runCatching { api.abort(sessionId) }
+                return api.session(sessionId)
+            }
+            if (started.attempt != k || started.t0_ms == null) return started
+            plan = RunPlan.of(role, sr, started.t0_ms, clk)
+            if (plan.recStartNs <= nowNs()) throw AudioException("capture_failed", "t0 already passed")
+            status(RunPhase.Running, k)
+            cap = engine.run(plan)
+            if (rate2 != null && ownCode != null) return afterCapture2(k, nonce, pkPartner, plan, cap, rate2, ownCode, started.t0_ms)
+            return afterCapture(k, nonce, pkPartner, plan, cap, ownBed)
+        } catch (e: AudioException) {
+            engine.release()
+            audioError = e.message
+            return fail(k, e.reason, buildJsonObject { put("error", e.message) })
+        } finally {
+            engine.release()
+        }
+    }
+
+    /** The view when the server is already past attempt [k] (or the session ended); null if it is still at [k]. */
+    private suspend fun movedOn(k: Int): SessionView? =
+        api.session(sessionId).takeIf { it.attempt != k || it.state !in LIVE }
+
+    private suspend fun afterCapture(k: Int, nonce: ByteArray, pkPartner: ByteArray, plan: RunPlan, cap: Capture,
+                                     ownBed: DoubleArray): SessionView = coroutineScope {
+        engine.release() // mic + speaker off once Running is over (§9.2)
+        val sr = plan.sr
+        val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
+        // Nulls only now: nothing CPU-heavy runs while the mic is open.
+        val selfNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, role, k, sr) }
+        status(RunPhase.SelfCheck, k)
+        val r = PopRound(cap.pcm, sr, role, sessionId, k, calUs = calUs)
+        val expSelf = cap.expectedSelf()
+        val self = selfNulls.await().let { n -> withContext(Dispatchers.Default) { r.selfCheck(ownBed, expSelf, n) } }
+        if (self !is PopRound.Step.SelfOk) {
+            val f = self as PopRound.Step.Failed
+            return@coroutineScope fail(k, f.reason, meta(cap, r, expSelf, null, null, hear.await()))
+        }
+        // Partner nulls overlap commit + partner bed fetch.
+        val partnerNulls = async(Dispatchers.Default) { PopDsp.nullTemplates(sessionId, partnerRole, k, sr) }
+
+        status(RunPhase.Committing, k)
+        val commit = TranscriptCodec.commit(role, k, nonce, r.recSha256)
+        val commitSig = sign(commit)
+        val bed = try {
+            commitWithRetry(CommitReq(commit.toB64(), commitSig.toB64()))
+        } catch (e: PopHttpException) {
+            if (e.status == 409) return@coroutineScope waitNext(null, k)
+            // attempt moved on between our capture and commit (partner's /fail): commit no longer matches
+            if (e.code == "transcript_mismatch") movedOn(k)?.let { return@coroutineScope it }
+            throw e
+        }
+
+        status(RunPhase.Measuring, k)
+        val partnerBed = bed.partner_bed.decodeF64(sr)
+        val expPartner = cap.expectedPartner(plan)
+        val p = partnerNulls.await().let { n -> withContext(Dispatchers.Default) { r.measurePartner(partnerBed, expPartner, n) } }
+        if (p !is PopRound.Step.PartnerOk) {
+            return@coroutineScope fail(k, (p as PopRound.Step.Failed).reason, meta(cap, r, expSelf, expPartner, null, hear.await()))
+        }
+
+        status(RunPhase.Submitting, k)
+        val t = Transcript(
+            role = role, attempt = k, sessionNonce = nonce, pkSelf = key.pubkey, pkPartner = pkPartner,
+            sampleRate = sr, half = p.half, recSha256 = r.recSha256,
+            playFramePosition = cap.playFramePosition, playNanoTime = cap.playNanoTime,
+            recFrame0NanoTime = cap.recFrame0NanoTime, selfOsDelta = self.selfOsDelta,
+            commitHash = sha256(commit),
+        )
+        val tx = t.encode()
+        val sig = sign(tx)
+        try {
+            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta(cap, r, expSelf, expPartner, p.half, hear.await())))
+        } catch (e: PopHttpException) {
+            // 409: partner moved on; 400: server rejected and finalized. Either way the view says what happened.
+            if (e.status != 409 && e.status != 400) throw e
+        }
+        if (uploadRecordings) upload(k, cap)
+        waitNext(null, k)
+    }
+
+    /** POPT v2 after the capture: same phases and failure handling as [afterCapture]. */
+    private suspend fun afterCapture2(k: Int, nonce: ByteArray, pkPartner: ByteArray, plan: RunPlan, cap: Capture,
+                                      rate: Popt2Rate, own: Popt2Code, t0Ms: Long): SessionView = coroutineScope {
+        engine.release()
+        val sr = plan.sr
+        check(sr == rate.sr) { "rate ${rate.sr} != $sr" }
+        val hear = async(Dispatchers.Default) { runCatching { cap.selfHear() }.getOrNull() }
+        val tree = async(Dispatchers.Default) { OaHash.recTreeParallel(cap.pcm, 4) }
+        status(RunPhase.SelfCheck, k)
+        val r = PopRound2(cap.pcm, rate, role, popt2!!.selfOsTolMs, calUs = calUs, pSelfFromArrival = cap.micSource == "webaudio")
+        val expSelf = cap.expectedSelf()
+        val self = withContext(Dispatchers.Default) { r.selfCheck(own, expSelf) }
+        if (self !is PopRound2.Step.SelfOk) {
+            tree.cancel()
+            return@coroutineScope fail(k, (self as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, null, null, null, hear.await()))
+        }
+
+        status(RunPhase.Committing, k)
+        val recTree = tree.await()
+        val recRoot = recTree.rootBytes()
+        val commit = TranscriptCodec.commit(role, k, nonce, recRoot, version = 2)
+        val commitSig = sign(commit)
+        val resp = try {
+            commitWithRetry(CommitReq(commit.toB64(), commitSig.toB64()))
+        } catch (e: PopHttpException) {
+            if (e.status == 409) return@coroutineScope waitNext(null, k)
+            if (e.code == "transcript_mismatch") movedOn(k)?.let { return@coroutineScope it }
+            throw e
+        }
+        val pc = resp.partner_code ?: error("v2 commit without partner_code")
+        val partnerCode = Popt2Code.fromB64(pc.cI_b64, pc.cQ_b64, pc.n)
+
+        status(RunPhase.Measuring, k)
+        // Web capture time runs late against the plan by a steady amount (70 ms on a MacBook), and a Pixel can fire
+        // 200 ms late, which together pass the search window's end. The self arrival measures the capture's part.
+        // This moves only the window: half comes from the arrivals.
+        val webShift = if (cap.micSource == "webaudio") self.aSelf - expSelf else 0.0
+        val expPartner = cap.expectedPartner(plan) + webShift
+        val p = withContext(Dispatchers.Default) { r.measurePartner(partnerCode, expPartner) }
+        if (p !is PopRound2.Step.PartnerOk) {
+            // A committed capture that missed the partner is the one worth looking at; the attempt ends at fail().
+            if (uploadRecordings) upload(k, cap)
+            return@coroutineScope fail(k, (p as PopRound2.Step.Failed).reason, meta2(cap, r, expSelf, expPartner, null, recRoot, hear.await()))
+        }
+
+        status(RunPhase.Submitting, k)
+        val t = Transcript2(
+            role = role, attempt = k, sessionNonce = nonce, pkSelf = key.pubkey, pkPartner = pkPartner,
+            sampleRate = sr, half = p.half, recRoot = recRoot,
+            playFramePosition = cap.playFramePosition, playNanoTime = cap.playNanoTime,
+            recFrame0NanoTime = cap.recFrame0NanoTime, selfOsDelta = self.selfOsDelta,
+            commitHash = sha256(commit), aSelf = self.aSelf, pPartner = p.pPartner, delta = rate.delta,
+            codeCommit = CodeCommit.compute(own.cI, own.cQ, partnerCode.cI, partnerCode.cQ),
+        )
+        val tx = t.encode()
+        val sig = sign(tx)
+        evidence = Popt2Evidence(sessionId, k, role, tx, sig, cap.pcm, recTree, own, partnerCode, t0Ms, r.provable)
+        try {
+            api.transcript(sessionId, TranscriptReq(tx.toB64(), sig.toB64(), meta2(cap, r, expSelf, expPartner, p.half, recRoot, hear.await())))
+        } catch (e: PopHttpException) {
+            if (e.status != 409 && e.status != 400) throw e
+        }
+        if (uploadRecordings) upload(k, cap)
+        waitNext(null, k)
+    }
+
+    private suspend fun sign(msg: ByteArray): ByteArray = withContext(Dispatchers.Default) { key.sign(msg) }
+
+    private suspend fun commitWithRetry(req: CommitReq): CommitResp {
+        var tries = 0
+        while (true) {
+            try {
+                return api.commit(sessionId, req)
+            } catch (e: PopHttpException) {
+                if (e.code != "too_early" || ++tries > 12) throw e
+                delay(250)
+            }
+        }
+    }
+
+    private suspend fun fail(k: Int, reason: String, meta: JsonObject?): SessionView {
+        status(RunPhase.Failing, k, Reasons.of(reason))
+        try {
+            api.fail(sessionId, k, reason)
+        } catch (e: PopHttpException) {
+            if (e.status != 409 && e.status != 400) throw e
+        }
+        return waitNext(null, k)
+    }
+
+    /** Poll until done/aborted or the server moved to a later attempt. */
+    private suspend fun waitNext(v: SessionView?, k: Int): SessionView {
+        status(RunPhase.WaitingResult, k)
+        val deadline = nowNs() + (PopConstants.TRANSCRIPT_DEADLINE_S + 40) * 1_000_000_000L
+        val out = poll(v?.seq, deadline) { it.state == "done" || it.state == "aborted" || it.attempt > k }
+        return out ?: run {
+            runCatching { api.abort(sessionId) }
+            api.session(sessionId)
+        }
+    }
+
+    /** Long-poll until [done] or [deadlineNs]; null on deadline. */
+    private suspend fun poll(after: Long?, deadlineNs: Long, done: (SessionView) -> Boolean): SessionView? {
+        var seq = after
+        var misses = 0
+        while (true) {
+            val left = (deadlineNs - nowNs()) / 1_000_000L
+            if (left <= 0) return null
+            val v = try {
+                api.session(sessionId, after = seq ?: -1, timeoutS = (left / 1000).coerceIn(1, 25).toInt())
+            } catch (e: HttpRequestTimeoutException) {
+                if (++misses > 3) throw e
+                delay(300); continue
+            } catch (e: SocketTimeoutException) {
+                if (++misses > 3) throw e
+                delay(300); continue
+            }
+            misses = 0
+            seq = v.seq
+            if (done(v) || v.state !in LIVE) return v
+        }
+    }
+
+    private suspend fun upload(k: Int, cap: Capture) {
+        try {
+            val boundary = "pop" + sha256(cap.recSha256).toHex().take(24)
+            val m = buildJsonObject { put("attempt", k); put("role", role.toString()); put("sample_rate", cap.sr) }
+            val body = Multipart.formData(boundary, listOf(
+                Multipart.Part("wav", "capture_${role}_$k.wav", "audio/wav", Wav.pcm16Mono(cap.pcm, cap.sr)),
+                Multipart.Part("meta", null, null, m.toString().encodeToByteArray()),
+            ))
+            api.signedRaw(HttpMethod.Post, "/v1/session/$sessionId/recording", body,
+                ContentType.MultiPart.FormData.withParameter("boundary", boundary))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            // diagnostics only
+        }
+    }
+
+    /** §7.1 meta: unsigned diagnostics. */
+    private fun meta(cap: Capture, r: PopRound, expSelf: Double, expPartner: Double?, half: Int?, hear: SelfHear?): JsonObject = buildJsonObject {
+        cap.meta().forEach { (k, v) -> put(k, v) }
+        hear?.putMeta(this)
+        put("role", role.toString())
+        put("expected_self", expSelf)
+        expPartner?.let { put("expected_partner", it) }
+        arrival("self", r.self)
+        arrival("partner", r.partner)
+        half?.let { put("half", it) }
+        r.self?.takeIf { it.found }?.let { calMeta(this, pyRound(it.frame - expSelf), cap.sr) }
+        put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
+        put("security_level", key.securityLevel)
+        put("model", model)
+    }
+
+    /** Calibrated self offset: cal_us, raw self_os_delta, and what is left after calibration (µs). */
+    private fun calMeta(b: kotlinx.serialization.json.JsonObjectBuilder, delta: Int, sr: Int) {
+        b.put("cal_us", calUs)
+        b.put("self_os_delta", delta)
+        b.put("self_os_calibrated_us", Calibration.calibratedUs(delta, sr, calUs))
+    }
+
+    /** v2 meta: the integer rule's arrivals, predictions and scores (diagnostics, unsigned). */
+    private fun meta2(cap: Capture, r: PopRound2, expSelf: Double, expPartner: Double?, half: Int?, recRoot: ByteArray?,
+                      hear: SelfHear?): JsonObject =
+        buildJsonObject {
+            cap.meta().forEach { (k, v) -> put(k, v) }
+            hear?.putMeta(this)
+            put("role", role.toString())
+            put("rule", "popt2")
+            put("expected_self", expSelf)
+            expPartner?.let { put("expected_partner", it) }
+            r.pSelf?.let { put("p_self", it) }
+            r.pPartner?.let { put("p_partner", it) }
+            r.self?.let { a -> put("t_self", a.frame); put("score_self", a.score); put("search_self", JsonArray(listOf(JsonPrimitive(a.lo), JsonPrimitive(a.hi)))) }
+            r.partner?.let { a -> put("t_partner", a.frame); put("score_partner", a.score); put("search_partner", JsonArray(listOf(JsonPrimitive(a.lo), JsonPrimitive(a.hi)))) }
+            half?.let { put("half", it) }
+            r.provable?.let { put("zk_provable", it) }
+            val a = r.self?.frame
+            val p = r.pSelf
+            // v2: p_self already includes cal, so a - p is the calibrated residual; raw = residual + cal
+            put("cal_us", calUs)
+            if (a != null && p != null) {
+                put("self_os_delta", a - p)
+                put("self_os_calibrated_us", Calibration.framesToUs(a - p, cap.sr))
+                put("self_os_raw_frames", pyRound(a - expSelf))
+            }
+            recRoot?.let { put("rec_root", it.toHex()) }
+            put("flat_runs", JsonArray(r.flatRuns.map { JsonArray(listOf(JsonPrimitive(it.first), JsonPrimitive(it.last + 1))) }))
+            put("security_level", key.securityLevel)
+            put("model", model)
+        }
+
+    private fun kotlinx.serialization.json.JsonObjectBuilder.arrival(name: String, a: Arrival?) {
+        if (a == null) return
+        put("t_$name", a.frame)
+        put("score_$name", a.score)
+        put("bar_$name", a.bar)
+        put("null_max_$name", a.nullMax)
+        put("strongest_$name", a.strongestFrame)
+        put("strongest_score_$name", a.strongestScore)
+        a.why?.let { put("why_$name", it) }
+    }
+
+    companion object {
+        val LIVE = setOf("created", "joined", "confirmed", "started")
+    }
+}
+
+/** int16 mono WAV (recording upload, §9). Frames are the capture bytes, so sha256 matches rec_sha256. */
+object Wav {
+    fun pcm16Mono(pcm: ShortArray, sr: Int): ByteArray {
+        val data = AudioTiming.pcm16Le(pcm)
+        val h = ByteArray(44)
+        fun s(o: Int, t: String) = t.encodeToByteArray().copyInto(h, o)
+        fun le(o: Int, v: Long, n: Int) { for (i in 0 until n) h[o + i] = (v ushr (8 * i)).toByte() }
+        s(0, "RIFF"); le(4, 36L + data.size, 4); s(8, "WAVE")
+        s(12, "fmt "); le(16, 16, 4); le(20, 1, 2); le(22, 1, 2); le(24, sr.toLong(), 4); le(28, 2L * sr, 4); le(32, 2, 2); le(34, 16, 2)
+        s(36, "data"); le(40, data.size.toLong(), 4)
+        return h + data
+    }
+}
+
+object Multipart {
+    class Part(val name: String, val filename: String?, val contentType: String?, val body: ByteArray)
+
+    fun formData(boundary: String, parts: List<Part>): ByteArray {
+        val out = ArrayList<ByteArray>()
+        for (p in parts) {
+            val sb = StringBuilder("--$boundary\r\nContent-Disposition: form-data; name=\"${p.name}\"")
+            if (p.filename != null) sb.append("; filename=\"${p.filename}\"")
+            sb.append("\r\n")
+            if (p.contentType != null) sb.append("Content-Type: ${p.contentType}\r\n")
+            sb.append("\r\n")
+            out += sb.toString().encodeToByteArray(); out += p.body; out += "\r\n".encodeToByteArray()
+        }
+        out += "--$boundary--\r\n".encodeToByteArray()
+        val n = out.sumOf { it.size }
+        val b = ByteArray(n)
+        var i = 0
+        for (x in out) { x.copyInto(b, i); i += x.size }
+        return b
+    }
+}

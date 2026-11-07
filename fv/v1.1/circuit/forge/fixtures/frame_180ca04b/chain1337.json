@@ -1,0 +1,102 @@
+{
+ "chainId": 1337,
+ "session": {
+  "laptop": "0xE09410C992448fF6f8a40530D2735ee6dB5f66D7",
+  "owner": "0x28a52b2c9c3cee5e71e3ed921bc87b28fb66b418",
+  "account": "0x224b11540c911e0fa4ff775f25dc1f20732a838d",
+  "adapter": "0x345631e18663fa69bbeb813549712261fb06e798",
+  "phone": "0x921e030d5a5fd81e9a5d2624c882d9177e5a07fe",
+  "pair": "0x0f4a6b5d23b74d70935d86ba19a0275fe393d633",
+  "maxAge": 1200,
+  "delay": 120,
+  "cfg": [
+   "1",
+   "2",
+   "0x9e2c0cedad43a65e524ec636197b290e6d3b38ac6eb7dbf4d492b656021d2db8",
+   "0x40a200302bc729ecd1978338601741801f5a8c0d8b981a0c2af99ca739b006d0",
+   "65797523467292660652038563335944905963247171223187466409117274018247407933878",
+   "34131525837809648979544475632847837838001200288591148733618215790335837636067",
+   "0x345631e18663fa69bbeb813549712261fb06e798"
+  ],
+  "configHash": "0x714f94da61ba74f523034ab9cfcccbb814b0b0d612641fe62471a106fc9d7940",
+  "qx": "0xf567fcdaa2cb002d7b91763b5314008716328fb8d943c0a6f592badceae25b59",
+  "qy": "0x1c7d236f785b1092a640d86e5bea0e96fb9366ba30781351fdc7b0f200b1c1c",
+  "deviceA": "0xa3add80f0b308b87f91990aad20b1ba09eac2329cc4ca80940a29c5b27becd0c",
+  "fund_tx": "0xc97252bb2376ff403e68423d1e1327bc76a3d9297bbd0c767c172760b9c46a18",
+  "deploy": {
+   "tx": "0x216f74beaa3d302262640fe86898eb320537c92bcb47504d7c80ced40e4f2b5a",
+   "gas": 29384261,
+   "block": 8700,
+   "runtime_bytes": 18216
+  },
+  "recoveryNonce_at_deploy": 1,
+  "account_nonce_at_deploy": 2,
+  "t_chain": 1793998794,
+  "block_at_session": 8702,
+  "newKey": "0xc2f0b38208ebB95E874BEb0A5002eBF58902CD9d",
+  "recoveryNonce": 1,
+  "sessionTag": "0xff4d676fef6065806de1bf4a55a29161413198d5e0b5953818741b35aace6924",
+  "sid": "0x65f4801654765d694d16bd94ee780599",
+  "notBefore": 1793998734,
+  "valid_at": 1793998794,
+  "deadline": 1793999894,
+  "ctx": "0x895725403681cdc7717df6a0834b5cc888ed22b9a053ec793578fad4f54499bd",
+  "popNonce": "0x1954e8e2567ed84a990a04bd2a481b622ce57fae50e2d3dde2571831843473c4",
+  "cred_exp": 1796590794
+ },
+ "tx": {
+  "hash": "0x341aaba06e088193ed20e9c7d59294cef581174fdac41bf58724a09a1b43ec5c",
+  "block": 8720,
+  "status": "0x0",
+  "sidecar": "own, devnet/sidecar.sh, 16M cap",
+  "gasUsed": 12037188,
+  "effectiveGasPrice": "0x3b9aca07",
+  "payer": "0xE09410C992448fF6f8a40530D2735ee6dB5f66D7",
+  "frames": [
+   {
+    "limit": 4000,
+    "gasUsed": 3051,
+    "status": 1,
+    "dataBytes": 8
+   },
+   {
+    "limit": 12000000,
+    "gasUsed": 11545764,
+    "status": 1,
+    "dataBytes": 30052
+   },
+   {
+    "limit": 8000,
+    "gasUsed": 3000,
+    "status": 1,
+    "dataBytes": 0
+   },
+   {
+    "limit": 110000,
+    "stateLimit": 100000,
+    "gasUsed": 2709,
+    "status": 0,
+    "dataBytes": 452
+   }
+  ],
+  "trace": {
+   "adapter_forwarded": 11778316,
+   "adapter_used": 11510370,
+   "phoneA_used": 4072916,
+   "phoneB_used": 4067116,
+   "pair_used": 3319755,
+   "pair_forwarded": 3531979,
+   "helper_calls": 24,
+   "helper_gas": 2336
+  }
+ },
+ "smallest_frame1_limit_simulated": 11782373,
+ "one_below": "VERIFY frame 1 reverts, revertData 0xa5d82e8a",
+ "after": {
+  "owner": "0x28a52b2c9C3cEE5E71E3Ed921bC87b28Fb66b418",
+  "pendingOwner": "0x0000000000000000000000000000000000000000",
+  "readyAt": 0,
+  "recoveryNonce": 1,
+  "account_nonce": 3
+ }
+}

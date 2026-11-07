@@ -1,0 +1,103 @@
+{
+ "chainId": 1337,
+ "calldata": 29924,
+ "calldata_zero": 2474,
+ "calldata_nonzero": 27450,
+ "balance_before": "0x58c1a8508d0b680",
+ "deploys": [
+  {
+   "name": "PhoneVerifier.RelationsLib",
+   "address": "0x26705d4ba1bf9223aa10e8359ed76727adf3d3d3",
+   "tx": "0xb1b88ca14ed23119069f33faa9818ecfcbe449f5bb92314523d393dfdbc33c2a",
+   "gas": 12523529
+  },
+  {
+   "name": "PhoneVerifier.ZKTranscriptLib",
+   "address": "0xf821467d16737435685a3c7272fc48d37fd851f8",
+   "tx": "0x9ba1d984ed148428d176608e87ce432f9bf979cb8959e6460320fb1948efaab8",
+   "gas": 9653543
+  },
+  {
+   "name": "PhoneVerifier",
+   "address": "0x921e030d5a5fd81e9a5d2624c882d9177e5a07fe",
+   "tx": "0x4767c4c71ca0f0225871bfd6cf13e83f7fdb87a68ebc1b997cc9f3739da228b2",
+   "gas": 27016685
+  },
+  {
+   "name": "PairNamedVerifier.RelationsLib",
+   "address": "0x12c981ada81ed9ad06a5aab10ba1e6dd6d8e0e0e",
+   "tx": "0xd89a5aa26d41f21cb724ae49303dac053754a5d3d556a7e5a96605e934bedb32",
+   "gas": 12523529
+  },
+  {
+   "name": "PairNamedVerifier.ZKTranscriptLib",
+   "address": "0x5a5c18567c7872066552779ef6801dd4cb1c0179",
+   "tx": "0x41e85a98501e74225e1e329381da9a2a39e6b5506957be08bcfdd40a57fe39c3",
+   "gas": 9653543
+  },
+  {
+   "name": "PairNamedVerifier",
+   "address": "0x0f4a6b5d23b74d70935d86ba19a0275fe393d633",
+   "tx": "0xb7b003234ef2a03a2df7e5cac50015e664e18143547cd00913425dda608e535b",
+   "gas": 26342456
+  },
+  {
+   "name": "EvpNoirPresenceVerifier",
+   "address": "0x345631e18663fa69bbeb813549712261fb06e798",
+   "tx": "0xc52af1957c32092527b9bbc837dd45f05a850f223065aa4a3af31ba1ae48ea61",
+   "gas": 5987119
+  },
+  {
+   "name": "PresenceLog",
+   "address": "0xdff8503800ebae2c15561b32465e1d3cbebaa9b5",
+   "tx": "0x66d51d02bc79a7cd57eaa6fc0d045928de0842c98c60877ba97719bd1609c011",
+   "gas": 1200731
+  }
+ ],
+ "phone": "0x921e030d5a5fd81e9a5d2624c882d9177e5a07fe",
+ "pair": "0x0f4a6b5d23b74d70935d86ba19a0275fe393d633",
+ "adapter": "0x345631e18663fa69bbeb813549712261fb06e798",
+ "wrapper": "0xdff8503800ebae2c15561b32465e1d3cbebaa9b5",
+ "eth_call": "0x7dd7b02c00000000000000000000000000000000000000000000000000000000",
+ "eth_call_wrong_deviceB": "0x58df48470000000000000000000000000000000000000000000000000000000000000008",
+ "estimate_adapter": 12070669,
+ "estimate_wrapper": 12282744,
+ "wrapped_bytes": 30052,
+ "intrinsic_adapter": 470096,
+ "intrinsic_wrapped": 470932,
+ "min_after_intrinsic_adapter": 11558090,
+ "min_after_intrinsic_wrapper": 11752576,
+ "tx": {
+  "hash": "0xc68df63826b98383deb7dca97baa2547f1c4f69e0fbe660a8047979670c59a99",
+  "block": 8461,
+  "status": "0x1",
+  "limit": 12470932,
+  "gasUsed": 11997394,
+  "event_ret": "7dd7b02c",
+  "event_gasUsed": 11520986,
+  "trace": {
+   "adapter": [
+    11807648,
+    11510370
+   ],
+   "verifiers": [
+    [
+     "0x921e030d5a5fd81e9a5d2624c882d9177e5a07fe",
+     11581423,
+     4072916
+    ],
+    [
+     "0x921e030d5a5fd81e9a5d2624c882d9177e5a07fe",
+     7569536,
+     4067116
+    ],
+    [
+     "0x0f4a6b5d23b74d70935d86ba19a0275fe393d633",
+     3560853,
+     3319755
+    ]
+   ]
+  }
+ },
+ "balance_after": "0x58b45e1ea394200"
+}

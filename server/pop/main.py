@@ -14,6 +14,7 @@ POP_ZK_VERIFIER (bb, default ~/.enconomy/zk/pinned/bin/bb), POP_ZK_PROVER (zkpro
 oaN_s48.json, oaN_s48.vk, bn254_g1_2p20.dat; default: the team build + pinned dirs, see pop/zk.py),
 POP_ZK_WRAP (command prefix for bb / zkprove). zkmobile/APP_SERVER_CONTRACT.md is the app contract.
 POP_CHAIN_ID (11155111, Ethereum Sepolia, the only chain_id a session context may name).
+POP_PAIR_CIRCUIT (unset; "named" = pair step and bundle use fv/v1.1/circuit/pair_named, 11 public inputs, see pop/zk.py).
 POP_PRESENCE_KEY_FILE (data/presence.pem, signs device statements and presence records, autogen if missing).
 Web app (app/composeApp wasmJs): POP_ALLOW_WEB=1 (enroll platform "web", software key, unattested), POP_WEB_DIR
 (serve the build at /app/), POP_CORS_ORIGINS (comma list; only for a web app hosted on another origin).

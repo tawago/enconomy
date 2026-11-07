@@ -1,0 +1,22 @@
+name = "evpfv"
+version = "0.1.0"
+keywords = ["math"]
+defaultTargets = ["Evpfv"]
+
+[leanOptions]
+pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+maxSynthPendingDepth = 3
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.36.0-rc2"
+
+[[require]]
+name = "popfv"
+path = "../../../v1/zkp/popfv"
+
+[[lean_lib]]
+name = "Evpfv"
