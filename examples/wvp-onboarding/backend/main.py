@@ -12,6 +12,7 @@ import re
 import subprocess
 import threading
 import time
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlencode
@@ -33,8 +34,34 @@ MAX_BODY = 1 << 20      # the intake is open; a real record is tens of KB
 CTX_TAG = b"wvp-onboarding-v1\n"
 LABEL_RE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 ADDR_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
-ENS_TIMEOUT_S = 180
+ZERO_ADDRESS = "0x" + "0" * 40
+ENS_TIMEOUT_S = 420     # subname.mjs waits up to 180 s per tx, and a new name takes two
+READ_TIMEOUT_S = 60
+READ_BACK_TRIES = 4     # the script has read it back already, this is only for an rpc that lags
 PAGES = Path(__file__).parent / "pages"
+READ_NAMES_JS = (Path(__file__).parent / "read_names.mjs").read_text()
+
+
+def same_address(a: str | None, b: str | None) -> bool:
+    return (a or "").lower() == (b or "").lower()
+
+
+def label_ok(label) -> bool:
+    """ENS refuses "--" in the third and fourth place, so the script would too, after the beep."""
+    return isinstance(label, str) and LABEL_RE.fullmatch(label) is not None and label[2:4] != "--"
+
+
+def address_ok(address) -> bool:
+    """A mixed-case address carries a checksum, so a typo in one is caught here and never reaches the chain."""
+    if not isinstance(address, str) or not ADDR_RE.fullmatch(address):
+        return False
+    hexa = address[2:]
+    if hexa in (hexa.lower(), hexa.upper()):
+        return True
+    h = keccak.new(digest_bits=256)
+    h.update(hexa.lower().encode("ascii"))
+    d = h.hexdigest()
+    return all(c == (c.upper() if int(d[i], 16) >= 8 else c.lower()) for i, c in enumerate(hexa))
 
 
 def ctx_hash_of(name: str, address: str) -> str:
@@ -78,12 +105,30 @@ def run_subname(ens_dir: Path, label: str, address: str) -> dict:
     return out
 
 
-def create_app(settings: Settings | None = None, now_ms=None, runner=None) -> FastAPI:
+def read_names(ens_dir: Path, labels: list[str]) -> dict:
+    """{label: address or null}, read through the universal resolver as the sites do. A label it couldn't read is left out.
+    Run with -e from <ens-dir>, so that its imports resolve there. Labels are validated, and there's no shell."""
+    if not labels:
+        return {}
+    try:
+        p = subprocess.run(["node", "--input-type=module", "-e", READ_NAMES_JS, "--", *labels], cwd=ens_dir,
+                           capture_output=True, text=True, timeout=READ_TIMEOUT_S)
+        if p.returncode != 0:
+            log.warning("read_names exit %s: %s", p.returncode, p.stderr[-300:])
+            raise RuntimeError(f"exit {p.returncode}")
+        return json.loads(p.stdout)
+    except (OSError, ValueError, subprocess.TimeoutExpired) as e:
+        raise RuntimeError(type(e).__name__) from None
+
+
+def create_app(settings: Settings | None = None, now_ms=None, runner=None, reader=None) -> FastAPI:
     settings = settings or Settings.from_env()
     now_ms = now_ms or (lambda: int(time.time() * 1000))
     runner = runner or run_subname
+    reader = reader or read_names
     store = Store(settings.db)
     issue_lock = threading.Lock()       # one admin key, so one send at a time
+    jobs: dict[str, dict] = {}          # in memory: a restart forgets them, and the page says so
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI):
@@ -96,6 +141,12 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None) -> Fa
     # The web app runs on the core's origin and delivers the record from there.
     app.add_middleware(CORSMiddleware, allow_origins=[settings.web_origin], allow_methods=["POST"],
                        allow_headers=["content-type"])
+
+    @app.middleware("http")
+    async def _no_store(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["cache-control"] = "no-store"
+        return response
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, e: ApiError):
@@ -140,7 +191,7 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None) -> Fa
     async def post_request(request: Request):
         req = await _body(request)
         label, address = req.get("label"), req.get("address")
-        if not isinstance(label, str) or not LABEL_RE.fullmatch(label):
+        if not label_ok(label):
             raise ApiError(400, "bad_label", "lowercase letters, digits and inner hyphens")
         if not isinstance(address, str) or not ADDR_RE.fullmatch(address):
             raise ApiError(400, "bad_address", "0x + 40 hex")
@@ -170,6 +221,134 @@ def create_app(settings: Settings | None = None, now_ms=None, runner=None) -> Fa
         if not store.decide(ctx_hash, status):
             raise ApiError(409, "not_pending", "")
         return view(store.get(ctx_hash))
+
+    def read_one(label: str) -> str | None:
+        got = reader(settings.ens_dir, [label])
+        if label not in got:
+            raise RuntimeError("not read")
+        return got[label]
+
+    def read_back(label: str, wanted: str | None) -> str | None:
+        for attempt in range(READ_BACK_TRIES):
+            if attempt:
+                time.sleep(3)
+            try:
+                got = read_one(label)
+            except RuntimeError:
+                if attempt == READ_BACK_TRIES - 1:
+                    raise
+                continue
+            if same_address(got, wanted):
+                break
+        return got
+
+    def run_job(job: dict, target: str) -> None:
+        """Holds issue_lock, which start_job took. What the chain reads afterwards decides the outcome, not the script's exit."""
+        label, kind = job["label"], job["kind"]
+        wanted = None if target == ZERO_ADDRESS else target
+        sent = False
+        try:
+            before = job["old"] = read_one(label)
+            if kind == "create" and before:
+                # Never overwrite from the add form: a name that already points somewhere only joins the list.
+                store.add_name(label, job["name"], now_ms())
+                job.update(status="done", address=before, note="already_set")
+                return
+            problem = None
+            if not same_address(before, wanted):
+                sent = True
+                try:
+                    job["tx"] = runner(settings.ens_dir, label, target).get("tx")
+                except RuntimeError as e:
+                    problem = str(e)
+                    log.warning("%s %s: %s", kind, job["name"], problem)
+            after = job["address"] = read_back(label, wanted) if not problem else read_one(label)
+            if kind == "create" and after:
+                store.add_name(label, job["name"], now_ms())
+            if kind == "clear" and after is None:
+                store.free_label(label)
+            if same_address(after, wanted):
+                job["status"] = "done"
+            elif problem == "TimeoutExpired":
+                job.update(status="failed", error="Timed out waiting for the chain. It may still land, so watch the list before trying again.")
+            else:
+                reads = f"It still reads {after}." if after else "It reads nothing."
+                job.update(status="failed", error=f"That didn't go through ({problem or 'read back something else'}). {reads}")
+        except RuntimeError:
+            job.update(status="failed", error="Sent, but the chain couldn't be read back. Watch the list." if sent else "Couldn't read the chain, so nothing was sent.")
+        except Exception:
+            log.exception("%s %s", kind, job["name"])
+            job.update(status="failed", error="Something broke on the backend. Watch the list before trying again.")
+        finally:
+            issue_lock.release()
+
+    def start_job(kind: str, label: str, target: str) -> JSONResponse:
+        """A send can outlast a proxy's patience, so this answers at once and the page polls the job."""
+        if not issue_lock.acquire(blocking=False):
+            raise ApiError(409, "busy", "another send is running")
+        try:
+            known = store.label_issued(label)
+            if kind == "create" and known:
+                raise ApiError(409, "label_taken", "")
+            if kind != "create" and not known:
+                raise ApiError(404, "no_name", "")
+            job = {"id": uuid.uuid4().hex, "kind": kind, "label": label, "name": f"{label}.{settings.org}", "status": "running",
+                   "old": None, "address": None, "target": None if target == ZERO_ADDRESS else target, "tx": None, "note": None, "error": None}
+            for done in [k for k, j in jobs.items() if j["status"] != "running"][:-20]:
+                del jobs[done]
+            jobs[job["id"]] = job
+            threading.Thread(target=run_job, args=(job, target), daemon=True).start()
+        except BaseException:
+            issue_lock.release()
+            raise
+        return JSONResponse(job, status_code=202)
+
+    def checked_new_address(address) -> str:
+        if not address_ok(address) or address == ZERO_ADDRESS:
+            raise ApiError(400, "bad_address", "0x + 40 hex, a good checksum, and not zero")
+        return address
+
+    def checked_label(label) -> str:
+        if not label_ok(label):
+            raise ApiError(400, "bad_label", "lowercase letters, digits and inner hyphens")
+        return label
+
+    @app.get("/v1/admin/names")
+    def list_names(request: Request):
+        """The address comes from the chain on every call. read_ok false means unknown, which isn't the same as no address."""
+        require_admin(request)
+        known = store.known_names()
+        try:
+            got = reader(settings.ens_dir, [n["label"] for n in known])
+        except RuntimeError:
+            got = {}
+        running = next((j for j in jobs.values() if j["status"] == "running"), None)
+        return {"org": settings.org, "job": running,
+                "names": [{**n, "address": got.get(n["label"]), "read_ok": n["label"] in got} for n in known]}
+
+    @app.post("/v1/admin/names")
+    async def create_name(request: Request):
+        require_admin(request)
+        body = await _body(request)
+        return start_job("create", checked_label(body.get("label")), checked_new_address(body.get("address")))
+
+    @app.post("/v1/admin/names/{label}")
+    async def change_name(label: str, request: Request):
+        require_admin(request)
+        body = await _body(request)
+        return start_job("change", checked_label(label), checked_new_address(body.get("address")))
+
+    @app.post("/v1/admin/names/{label}/clear")
+    def clear_name(label: str, request: Request):
+        require_admin(request)
+        return start_job("clear", checked_label(label), ZERO_ADDRESS)
+
+    @app.get("/v1/admin/jobs/{job_id}")
+    def get_job(job_id: str, request: Request):
+        require_admin(request)
+        if (job := jobs.get(job_id)) is None:
+            raise ApiError(404, "no_job", "")
+        return job
 
     def issue(rec: dict, req: dict) -> dict:
         ctx_hash, session_id = req["ctx_hash"], rec["body"]["session_id"]

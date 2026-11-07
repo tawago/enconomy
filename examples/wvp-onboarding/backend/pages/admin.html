@@ -2,24 +2,48 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Requests</title>
+<title>Admin</title>
 <style>
   :root { --ink: #16181d; --muted: #667; --line: #d9dce3; --accent: #17693a; --bad: #b3261e; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 18px/1.45 system-ui, sans-serif; color: var(--ink); background: #f6f7f9; }
   main { max-width: 560px; margin: 0 auto; padding: 20px 16px 48px; }
   h1 { font-size: 20px; margin: 4px 0 18px; color: var(--muted); font-weight: 600; }
+  h1.later { margin-top: 36px; }
   .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 16px; }
   .ask { font-size: 30px; line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; margin: 0 0 10px; }
   .full { font: 15px/1.4 ui-monospace, monospace; overflow-wrap: anywhere; color: var(--muted); margin: 0 0 18px; }
+  .addr { font: 600 22px/1.3 ui-monospace, monospace; margin: 0 0 18px; }
+  .addr.none { font: inherit; color: var(--muted); }
+  .addr.now { color: var(--accent); margin-bottom: 4px; }
+  .was { color: var(--muted); margin: 0 0 18px; font-size: 16px; }
+  .was code { font: 15px ui-monospace, monospace; white-space: nowrap; }
   .row { display: flex; gap: 12px; }
   button { flex: 1; min-height: 56px; font: inherit; font-weight: 700; border-radius: 12px; border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; }
   button.yes { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.stop { background: var(--bad); border-color: var(--bad); color: #fff; }
+  button.light { flex: 0 0 auto; padding: 0 22px; font-weight: 500; color: var(--muted); }
+  button:disabled { opacity: .45; cursor: default; }
   input { width: 100%; min-height: 52px; font: inherit; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 12px; }
+  input.mono { font: 16px ui-monospace, monospace; }
+  .suffix { position: relative; display: block; }
+  .suffix input { padding-right: 104px; }
+  .suffix span { position: absolute; right: 14px; top: 14px; color: var(--muted); pointer-events: none; }
   .next { font-size: 22px; font-weight: 700; margin: 0 0 8px; overflow-wrap: anywhere; }
   .quiet { color: var(--muted); margin: 0; }
+  .swap { margin: 0 0 18px; }
+  .swap dt { color: var(--muted); font-size: 15px; }
+  .swap dd { margin: 0 0 12px; }
+  .swap .big { font: 600 22px/1.3 ui-monospace, monospace; display: block; }
+  .swap .all { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); overflow-wrap: anywhere; display: block; }
+  .warn { margin: 0 0 18px; }
+  .going { display: flex; align-items: center; gap: 12px; font-weight: 600; margin: 0; }
+  .spin { flex: none; width: 22px; height: 22px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .oops { color: var(--bad); margin: 0 0 18px; }
   #err { color: var(--bad); min-height: 1.5em; }
   #gate button { width: 100%; }
+  #notice { margin: 0 0 16px; }
   [hidden] { display: none !important; }
 </style>
 <main>
@@ -33,6 +57,16 @@
     <div id="approved"></div>
     <div id="list"></div>
     <p id="empty" class="quiet" hidden>Nothing waiting.</p>
+    <h1 class="later">Names</h1>
+    <p id="notice" hidden></p>
+    <div id="names"><p class="quiet">Reading the chain…</p></div>
+    <form id="add" class="card" autocomplete="off">
+      <p class="next">Add a name</p>
+      <label class="suffix"><input id="add-label" placeholder="name" aria-label="Name" spellcheck="false" autocapitalize="none" autocomplete="off"><span id="org-suffix"></span></label>
+      <input id="add-address" class="mono" placeholder="0x wallet address" aria-label="Wallet address" spellcheck="false" autocapitalize="none" autocomplete="off">
+      <p id="add-oops" class="oops" hidden></p>
+      <div class="row"><button id="add-go" class="yes" type="submit">Add</button></div>
+    </form>
   </div>
   <div id="err" role="status"></div>
 </main>
@@ -41,9 +75,12 @@ const $ = (id) => document.getElementById(id);
 const say = (text) => { $("err").textContent = text; };
 const short = (a) => a.slice(0, 6) + "…" + a.slice(-4);
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+const button = (cls, text, onclick) => { const b = el("button", cls, text); b.type = "button"; b.onclick = onclick; return b; };
+const isAddress = (a) => /^0x[0-9a-fA-F]{40}$/.test(a);
+const REASON = { bad_address: "That wallet address doesn't look right. Check it and paste it again.", bad_label: "Use lowercase letters, digits and inner hyphens.", label_taken: "That name is already on the list.", no_name: "That name isn't on the list any more.", busy: "Another update is still running. Try again when it's done." };
 let pass = sessionStorage.getItem("pass") ?? "";
 
-const call = (path, method = "GET") => fetch(path, { method, headers: { "x-admin-passcode": pass } });
+const call = (path, method = "GET", body) => fetch(path, { method, headers: { "x-admin-passcode": pass }, body: body && JSON.stringify(body) });
 const toGate = () => { sessionStorage.removeItem("pass"); pass = ""; $("gate").hidden = false; $("board").hidden = true; };
 
 function card(req) {
@@ -77,10 +114,199 @@ async function refresh() {
   if (r.status === 401) { toGate(); return say("Wrong passcode."); }
   if (!r.ok) return;
   const { requests } = await r.json();
+  const opening = $("board").hidden;
   $("gate").hidden = true; $("board").hidden = false;
   $("list").replaceChildren(...requests.map(card));
   $("empty").hidden = requests.length > 0;
+  if (opening) loadNames();
 }
+
+// Names. All of it is drawn from this state, so a poll can redraw without losing anything but an input being typed in.
+let names = null, org = "", job = null, open = null, result = null, slow = false, seenNames = "";
+// open: { label, step: "edit" | "confirm" | "clear", draft, oops }. result: { label, old, now, note, error }.
+
+const notice = (text, bad) => { $("notice").textContent = text ?? ""; $("notice").hidden = !text; $("notice").className = bad ? "oops" : "quiet"; };
+
+async function loadNames() {
+  const r = await call("/v1/admin/names").catch(() => null);
+  if (!r) return;
+  if (r.status === 401) return toGate();
+  if (!r.ok) return;
+  const text = await r.text();
+  const j = JSON.parse(text);
+  names = j.names; org = j.org;
+  $("org-suffix").textContent = "." + org;
+  if (j.job && !job) { job = j.job; watchJob(); }
+  const editing = open?.step === "edit";
+  if (text !== seenNames && !editing) { seenNames = text; drawNames(); }
+}
+
+function drawNames() {
+  $("add-go").disabled = !!job;
+  if (!names) return;
+  const cards = names.map(nameCard);
+  // A name being created isn't on the list until the chain has it.
+  if (job && !names.some((n) => n.label === job.label)) cards.push(progressCard(job.name));
+  if (!cards.length) cards.push(el("p", "quiet", "No names yet."));
+  $("names").replaceChildren(...cards);
+  const input = $("new-address");
+  if (input && document.activeElement !== input) input.focus();
+}
+
+const progressText = () => ({ create: "Creating… about 20 seconds", change: "Updating… about 15 seconds", clear: "Clearing… about 15 seconds" }[job.kind]);
+function progressCard(name) {
+  const c = el("section", "card");
+  c.append(el("p", "ask", name), going());
+  return c;
+}
+function going() {
+  const p = el("p", "going");
+  p.append(el("span", "spin"), el("span", "", slow ? progressText().split("…")[0] + "… the chain is slow today, still waiting" : progressText()));
+  return p;
+}
+
+function swap(from, to) {
+  const d = el("dl", "swap");
+  const side = (a) => { const dd = el("dd"); if (a) dd.append(el("span", "big", short(a)), el("span", "all", a)); else dd.append(el("span", "big", "nothing")); return dd; };
+  d.append(el("dt", "", "From"), side(from), el("dt", "", "To"), side(to));
+  return d;
+}
+
+function nameCard(n) {
+  const c = el("section", "card");
+  c.append(el("p", "ask", n.name));
+  const row = el("div", "row");
+
+  if (job?.label === n.label) { c.append(going()); return c; }
+
+  if (open?.label === n.label && open.step === "edit") {
+    const input = el("input", "mono");
+    input.id = "new-address"; input.placeholder = "Paste the new wallet address"; input.value = open.draft; input.spellcheck = false; input.autocomplete = "off"; input.setAttribute("autocapitalize", "none"); input.setAttribute("aria-label", "New wallet address");
+    input.oninput = () => { open.draft = input.value; };
+    input.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); toConfirm(n); } };
+    c.append(input);
+    if (open.oops) c.append(el("p", "oops", open.oops));
+    row.append(button("", "Cancel", closeOpen), button("yes", "Continue", () => toConfirm(n)));
+    c.append(row);
+    return c;
+  }
+  if (open?.label === n.label && open.step === "confirm") {
+    c.append(swap(n.address, open.draft), el("p", "warn", "Every browser the old wallet approved stops working."));
+    row.append(button("", "Cancel", closeOpen), button("yes", "Change wallet", () => start(`/v1/admin/names/${n.label}`, { address: open.draft })));
+    c.append(row);
+    return c;
+  }
+  if (open?.label === n.label && open.step === "clear") {
+    c.append(swap(n.address, null), el("p", "warn", "Every browser the old wallet approved stops working, and the name can be given to someone else."));
+    row.append(button("", "Cancel", closeOpen), button("stop", "Clear this name", () => start(`/v1/admin/names/${n.label}/clear`)));
+    c.append(row);
+    return c;
+  }
+
+  const fresh = result?.label === n.label ? result : null;
+  if (fresh?.error) c.append(el("p", "oops", fresh.error));
+  if (!n.read_ok) c.append(el("p", "addr none", "Couldn't read the chain just now."));
+  else if (!n.address) c.append(el("p", "addr none", "Points to nothing."));
+  else if (fresh && !fresh.error && !fresh.note && fresh.old && fresh.old !== n.address) {
+    const a = el("p", "addr now", short(n.address)); a.title = n.address;
+    const was = el("p", "was", "Read back from the chain. Was "); was.append(el("code", "", short(fresh.old)));
+    c.append(a, was);
+  } else {
+    const a = el("p", "addr", short(n.address)); a.title = n.address;
+    c.append(a);
+    if (fresh?.note) c.append(el("p", "was", "It already pointed here, so nothing changed."));
+    else if (fresh && !fresh.error) c.append(el("p", "was", "Read back from the chain."));
+  }
+
+  const change = button("", "Change wallet", () => { open = { label: n.label, step: "edit", draft: "", oops: "" }; result = null; notice(); drawNames(); });
+  change.disabled = !!job || !n.read_ok;
+  row.append(change);
+  if (n.address) {
+    const clear = button("light", "Clear", () => { open = { label: n.label, step: "clear" }; result = null; notice(); drawNames(); });
+    clear.disabled = !!job;
+    row.append(clear);
+  }
+  c.append(row);
+  return c;
+}
+
+function closeOpen() { open = null; seenNames = ""; drawNames(); loadNames(); }
+
+function toConfirm(n) {
+  const a = open.draft.trim();
+  if (!isAddress(a) || /^0x0+$/.test(a)) { open.oops = REASON.bad_address; return drawNames(); }
+  if (a.toLowerCase() === (n.address ?? "").toLowerCase()) { open.oops = "It already points there."; return drawNames(); }
+  Object.assign(open, { draft: a, step: "confirm", oops: "" });
+  drawNames();
+}
+
+// Answers at once with a job. Returns the refusal's text, or null once the job has started.
+async function start(path, body) {
+  const r = await call(path, "POST", body).catch(() => null);
+  if (r?.status === 401) { toGate(); return null; }
+  const j = r ? await r.json().catch(() => null) : null;
+  if (r?.status !== 202 || !j) {
+    const text = REASON[j?.error] ?? "Couldn't reach the backend. Nothing was sent.";
+    if (open) { open.oops = text; open.step = "edit"; } else notice(text, true);
+    drawNames();
+    return text;
+  }
+  open = null; result = null; notice();
+  job = j; slow = false;
+  watchJob();
+  return null;
+}
+
+let watching = false;
+async function watchJob() {
+  if (watching) return;
+  watching = true;
+  drawNames();
+  const started = Date.now();
+  while (job) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    if (!slow && Date.now() - started > 45000) { slow = true; drawNames(); }
+    const r = await call(`/v1/admin/jobs/${job.id}`).catch(() => null);
+    if (!r) continue;
+    if (r.status === 401) { job = null; toGate(); break; }
+    if (r.status === 404) { finish({ ...job, status: "failed", error: "The backend restarted during this. Check what the name reads below." }); break; }
+    if (!r.ok) continue;
+    const j = await r.json();
+    if (j.status !== "running") { finish(j); break; }
+  }
+  watching = false;
+}
+
+function finish(j) {
+  job = null; slow = false; seenNames = "";
+  if (j.status === "done" && j.kind === "clear") { result = null; notice(`${j.name} now points to nothing, and the name can be given again.`); }
+  else {
+    result = { label: j.label, old: j.old, note: j.note, error: j.status === "failed" ? j.error : null };
+    // A failed new name may not be on the list, so its message goes above it.
+    if (result.error && !names?.some((n) => n.label === j.label)) notice(`${j.name}: ${result.error}`, true);
+  }
+  // The name reads from the chain again here, so what's shown is what the sites will see.
+  if (names && j.status === "done" && j.kind !== "clear") {
+    const known = names.find((n) => n.label === j.label);
+    if (known) Object.assign(known, { address: j.address, read_ok: true });
+    else names = [...names, { label: j.label, name: j.name, address: j.address, read_ok: true }].sort((a, b) => a.label.localeCompare(b.label));
+  }
+  drawNames();
+  loadNames();
+}
+
+$("add").onsubmit = async (e) => {
+  e.preventDefault();
+  const oops = (text) => { $("add-oops").textContent = text; $("add-oops").hidden = !text; };
+  const label = $("add-label").value.trim().toLowerCase().replace(new RegExp("\\." + org.replace(".", "\\.") + "$"), ""), address = $("add-address").value.trim();
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(label) || label.length > 63) return oops(REASON.bad_label);
+  if (!isAddress(address) || /^0x0+$/.test(address)) return oops(REASON.bad_address);
+  oops("");
+  open = null;
+  const r = await start("/v1/admin/names", { label, address });
+  if (r) { notice(); return oops(r); }
+  $("add-label").value = ""; $("add-address").value = "";
+};
 
 $("gate").onsubmit = (e) => { e.preventDefault(); pass = $("pass").value; sessionStorage.setItem("pass", pass); say(""); refresh(); };
 refresh();
@@ -93,5 +319,7 @@ setInterval(async () => {
   const text = await r.text();
   if (text !== seen) { seen = text; refresh(); }
 }, 3000);
+// The names read the chain, which is slower, so less often. This catches a name issued by a beep, or changed from elsewhere.
+setInterval(() => { if (pass && !$("board").hidden && !document.hidden && !job) loadNames(); }, 15000);
 </script>
 </html>

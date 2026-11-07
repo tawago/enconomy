@@ -1,4 +1,4 @@
-"""The example's own sqlite: requests keyed by ctx_hash, and sessions already spent on a name."""
+"""The example's own sqlite: requests keyed by ctx_hash, sessions already spent on a name, and names the admin added by hand."""
 from __future__ import annotations
 
 import json
@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS requests (
 CREATE UNIQUE INDEX IF NOT EXISTS one_issued_per_label ON requests(label) WHERE status = 'issued';
 CREATE TABLE IF NOT EXISTS used_sessions (
   session_id TEXT PRIMARY KEY, ctx_hash TEXT NOT NULL, body TEXT NOT NULL, sig_b64 TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS names (label TEXT PRIMARY KEY, name TEXT NOT NULL, created_ms INTEGER NOT NULL);
 """
 
 
@@ -38,14 +39,31 @@ class Store:
 
     def label_issued(self, label: str) -> bool:
         with self.lock:
-            return self.db.execute("SELECT 1 FROM requests WHERE label = ? AND status = 'issued'", (label,)).fetchone() is not None
+            return self.db.execute("SELECT 1 FROM requests WHERE label = ? AND status = 'issued' UNION ALL SELECT 1 FROM names WHERE label = ?",
+                                   (label, label)).fetchone() is not None
+
+    def known_names(self) -> list[dict]:
+        """Issued through onboarding, or added on the admin page."""
+        with self.lock:
+            rows = self.db.execute("SELECT label, name FROM requests WHERE status = 'issued' UNION SELECT label, name FROM names ORDER BY label")
+            return [dict(r) for r in rows]
+
+    def add_name(self, label: str, name: str, now_ms: int) -> None:
+        with self.lock:
+            self.db.execute("INSERT OR IGNORE INTO names(label, name, created_ms) VALUES (?, ?, ?)", (label, name, now_ms))
+
+    def free_label(self, label: str) -> None:
+        """The name was cleared on chain. An approval for it goes too, so giving it again needs a new yes from the admin."""
+        with self.lock:
+            self.db.execute("DELETE FROM names WHERE label = ?", (label,))
+            self.db.execute("UPDATE requests SET status = 'cleared' WHERE label = ? AND status IN ('issued', 'approved')", (label,))
 
     def put(self, ctx_hash: str, label: str, name: str, address: str, now_ms: int) -> dict:
-        """The same name and address is the same request. Asking again after a decline puts it back in front of the admin."""
+        """The same name and address is the same request. Asking again after a decline or a clear puts it back in front of the admin."""
         with self.lock:
             self.db.execute("INSERT OR IGNORE INTO requests(ctx_hash, label, name, address, created_ms) VALUES (?, ?, ?, ?, ?)",
                             (ctx_hash, label, name, address, now_ms))
-            self.db.execute("UPDATE requests SET status = 'pending' WHERE ctx_hash = ? AND status = 'declined'", (ctx_hash,))
+            self.db.execute("UPDATE requests SET status = 'pending', ens = NULL, last_error = NULL WHERE ctx_hash = ? AND status IN ('declined', 'cleared')", (ctx_hash,))
         return self.get(ctx_hash)
 
     def pending(self) -> list[dict]:

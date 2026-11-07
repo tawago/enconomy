@@ -10,7 +10,7 @@ It isn't part of `./demo`. It needs a small change in the core's web app, see [T
 
 The core says the admin's registered phone was NEAR another device, in a session bound to this exact name and address. The admin had approved that same name and address on the admin page before the record was accepted.
 
-After that, login doesn't change. Bob's wallet approves a browser as usual and the site reads the name's address at each login. A site can add `--org blob.eth` to refuse names from anywhere else. The admin can later repoint or clear the name, and that's the off switch.
+After that, login doesn't change. Bob's wallet approves a browser as usual and the site reads the name's address at each login. A site can add `--org blob.eth` to refuse names from anywhere else. The admin can later repoint or clear the name on the admin page, see [Names on the admin page](#names-on-the-admin-page), and that's the off switch.
 
 ## What it doesn't
 
@@ -19,7 +19,7 @@ After that, login doesn't change. Bob's wallet approves a browser as usual and t
 - **Who was at the other end.** The record shows the admin's phone and some other device. The other device is never tied to the wallet. Whoever beeps, the name still goes to the address the admin approved.
 - **That Bob controls the address.** The joiner page only asks the wallet for its address, and nothing is signed. Anyone can request a name for any address, so the admin has to check the address in front of Bob. Control is only shown at Bob's first login.
 - **Strong keys.** The admin key sits on this backend as a hot key, wherever `subname.mjs` loads it from. The laptop's web key is a software key, and a web device is never attested. The phone's key is pinned by id, and this backend doesn't read `attested`.
-- **A safe admin page.** One shared passcode from the environment, sent in the clear over plain http on the LAN. It's fine for a room, not for the internet. `POST /v1/requests` is open and has no rate limit.
+- **A safe admin page.** One shared passcode from the environment, sent in the clear if you serve it over plain http. That one passcode also repoints and clears real names on the devnet, and there's no other auth and no rate limit on guessing it. It's fine for a demo, not for anything that matters. `POST /v1/requests` is open and has no rate limit.
 - **Freshness.** A record has no expiry here. An unspent NEAR for an approved request still counts later.
 
 ## Run it
@@ -72,11 +72,13 @@ node demo/servers.mjs --owner 0x<any 40 hex> --no-issuer --ens deployment --depl
 
 `ctx_hash` is `keccak256("wvp-onboarding-v1\n" || name || "\n" || lowercase address)`.
 
-**`POST /v1/requests`** `{label, address}`. The same name and address is the same request. Asking again after a decline puts it back in front of the admin. Refuses 400 `bad_label`, 400 `bad_address`, 409 `label_taken`. Answers the request, as below.
+**`POST /v1/requests`** `{label, address}`. The same name and address is the same request. Asking again after a decline or a clear puts it back in front of the admin. Refuses 400 `bad_label`, 400 `bad_address`, 409 `label_taken`. Answers the request, as below.
 
-**`GET /v1/requests/{ctx_hash}`** `{ctx_hash, label, name, address, status, ens, last_error, beep_url}`. Status is `pending`, `approved`, `declined` or `issued`. The admin's page and the joiner's page both read this: there's no separate status route. `ens` is the JSON line from `subname.mjs`, `{name, address, tx}`.
+**`GET /v1/requests/{ctx_hash}`** `{ctx_hash, label, name, address, status, ens, last_error, beep_url}`. Status is `pending`, `approved`, `declined`, `issued` or `cleared`. The admin's page and the joiner's page both read this: there's no separate status route. `ens` is the JSON line from `subname.mjs`, `{name, address, tx}`.
 
 **`GET /v1/admin/requests`**, **`POST /v1/admin/requests/{ctx_hash}/approve`** and **`/decline`**. They need the header `x-admin-passcode`, else 401 `bad_passcode`.
+
+**`GET /v1/admin/names`**, **`POST /v1/admin/names`**, **`POST /v1/admin/names/{label}`**, **`POST /v1/admin/names/{label}/clear`** and **`GET /v1/admin/jobs/{id}`**. See [Names on the admin page](#names-on-the-admin-page).
 
 **`POST /v1/presence`** `{body, sig_b64}`, the `presence` block from the core's result. Open route: the core's signature is the auth, and the request comes from the record. Checks, in order:
 
@@ -95,6 +97,29 @@ node demo/servers.mjs --owner 0x<any 40 hex> --no-issuer --ens deployment --depl
 A failed script gives the session back, so it can try again. Sends run one at a time.
 
 Pages: `GET /` for the joiner, `GET /admin` for the admin. `GET /v1/config` is `{org, chain_id}`.
+
+## Names on the admin page
+
+Below the requests, `/admin` lists every name issued through onboarding or added on that page, each with the address read from the chain just then, through the universal resolver, as the sites read it. You can change a name's wallet, clear it, or add a new one. It's how you show the cutoff: change the wallet, and every browser the old wallet approved stops working at its next login.
+
+**This page controls real names on the devnet, and one passcode is all that guards it.**
+
+All of these need the header `x-admin-passcode`, else 401 `bad_passcode`. The passcode never goes in a URL.
+
+| Route | Body | Refusal |
+|---|---|---|
+| `GET /v1/admin/names` | | Answers `{org, job, names: [{label, name, address, read_ok}]}`. `read_ok` false means the read failed, not that the name is empty. `job` is the send that's running, or null. |
+| `POST /v1/admin/names` | `{label, address}` | 400 `bad_label`, 400 `bad_address`, 409 `label_taken`, 409 `busy` |
+| `POST /v1/admin/names/{label}` | `{address}` | The same, with 404 `no_name` in place of `label_taken` |
+| `POST /v1/admin/names/{label}/clear` | | 400 `bad_label`, 404 `no_name`, 409 `busy` |
+| `GET /v1/admin/jobs/{id}` | | 404 `no_job` |
+
+A send can take minutes and a proxy gives up sooner, so the three POSTs answer 202 at once with a job, and the page polls it: `{id, kind, label, name, status, old, address, target, tx, note, error}`. `status` is `running`, `done` or `failed`. `address` is read from the chain after the send, and that read decides the outcome. A clear reads null. Jobs live in memory, so a restart forgets them.
+
+- **One at a time.** They share one lock with the beep's sends, since there's one admin key. A second send while one runs gets 409 `busy`.
+- **Adding never overwrites.** If the chain already has an address for that label, nothing is sent. The name joins the list as it is, and `note` says `already_set`. That's also how a name made outside this backend gets on the list.
+- **Clearing frees the label.** Its requests go to `cleared`, an approved one included, so giving it again needs a new request, a new yes and a new beep.
+- **An address with mixed case must pass its checksum.** The zero address is refused: clear is its own route.
 
 ## The beep
 
@@ -117,13 +142,13 @@ No change to the server or any circuit. **The Pixel needs no rebuild:** it joins
 
 ## Fake or untested
 
-Run once, with no browser: this backend on a free port, a throwaway presence key and a fake `subname.mjs`. Seen: the success, and the refusals `bad_record_signature`, `context_mismatch`, `not_near`, `not_approved`, `admin_device_missing`, `label_taken`, `bad_label`, `bad_passcode`. A record for a finished request got `not_approved`. `session_used` never fired, and today it can't: a session has one context, and an issued request never goes back to approved. It's a backstop. The replay is refused by `not_approved`. The record was the core's published test vector, re-signed with its throwaway key and a new context, so never a real session.
+Run once, with no browser: this backend on a free port, a throwaway presence key and a fake `subname.mjs`. Seen: the success, and the refusals `bad_record_signature`, `context_mismatch`, `not_near`, `not_approved`, `admin_device_missing`, `label_taken`, `bad_label`, `bad_passcode`. A record for a finished request got `not_approved`. `session_used` never fired. It matters once a name is cleared and the same name and address is asked for again: the old record has the same context, and this is what refuses it. The replay is refused by `not_approved`. The record was the core's published test vector, re-signed with its throwaway key and a new context, so never a real session.
 
 Never run:
 
 - A real beep with a context from the web app. The Kotlin change has compiled for the web target, once, and that build has never been opened. Neither the origin check nor the delivery has run.
-- The real `subname.mjs`. Its interface was read from the code, not seen running: `node subname.mjs <label> <address>` in that folder, one JSON line `{name, address, tx}` on stdout with no `ok` field, and a non-zero exit if refused.
+- The real `subname.mjs`, through the beep or the admin page. Its interface was read from the code, not seen running: `node subname.mjs <label> <address>` in that folder, one JSON line `{name, address, tx}` on stdout with no `ok` field, and a non-zero exit if refused. The admin page has only been run with a fake one. Its chain read has run for real.
 - Either page in a browser, with a wallet or on a phone. CORS from the web app.
 - The site's `--org` setting. `node --check` only.
 
-Not here: repointing or clearing a name. That's the ENS folder's job. This backend doesn't hear about it, so after a clear it still answers `label_taken` for that label until its row is removed by hand.
+Not here: a change made outside this backend. The list reads the chain, so it shows a repoint from the ENS folder, but this backend doesn't hear about a clear from there. Its label stays taken until you clear it on the page too.

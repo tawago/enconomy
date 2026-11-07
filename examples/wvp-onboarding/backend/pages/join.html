@@ -91,7 +91,7 @@ function render(j) {
   say(j.last_error && j.status === "approved" ? "The beep worked but the name wasn't created: " + j.last_error + ". Beep again, or tell the admin." : "");
   if (j.status === "pending") { $("wait-title").textContent = j.name; $("wait-addr").textContent = j.address; show("wait"); }
   if (j.status === "approved") { $("beep-link").href = j.beep_url; show("beep"); }
-  if (j.status === "declined") show("no");
+  if (j.status === "declined" || j.status === "cleared") show("no");
   if (j.status === "issued") { $("done-title").textContent = j.name + " is yours"; $("done-addr").textContent = j.address; show("done"); }
 }
 
@@ -102,7 +102,7 @@ async function poll() {
   while (ctx) {
     try {
       const r = await fetch("/v1/requests/" + encodeURIComponent(ctx));
-      if (r.ok) { const j = await r.json(); render(j); if (j.status === "issued" || j.status === "declined") break; }
+      if (r.ok) { const j = await r.json(); render(j); if (j.status === "issued" || j.status === "declined" || j.status === "cleared") break; }
     } catch {}
     await new Promise((ok) => setTimeout(ok, 2000));
   }
