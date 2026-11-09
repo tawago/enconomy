@@ -1,6 +1,6 @@
 # Hashes below are of the files before a comment-only edit made after this run. See logs/post-run-edits.txt.
-# Final lake build. from fv/v1/server/lean: lake build. rc=0. Job output in full below.
-# Modules were replayed from Lake's cache. A fresh check (job fx-final-fresh, lake env lean): Verdict rc=0, 29 axiom lines, 0 errors, 0 sorry. Machine rc=0, 56 axiom lines, 0 errors, 0 sorry. Same job: lake build ServerFv.Replay rc=0 (Replay is not in the default target).
+# Final lake build. from fv/v1/server/lean: lake build. rc=0. Output in full below.
+# Modules were replayed from Lake's cache. A fresh check (a separate run, lake env lean): Verdict rc=0, 29 axiom lines, 0 errors, 0 sorry. Machine rc=0, 56 axiom lines, 0 errors, 0 sorry. Same run: lake build ServerFv.Replay rc=0 (Replay is not in the default target).
 # Source sha256 at build time:
 #   5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean
 #   557efc14d6a86bf86b2deb1772e09eb3634bcfa64e92cc2c0e405a401b9cb8d8  ServerFv/Replay.lean

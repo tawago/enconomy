@@ -1,0 +1,2143 @@
+# fv/v1/server/lean, 2026-11-09 integrator run on the box. Part 1: lake build in fv/v1/zkp/popfv (rc=0). Part 2: full lake build in fv/v1/server/lean (rc=0), then bash checks/machine_all.sh with the repo's ServerFv files named (rc=0; the box copy of ServerFv/ holds other agents' stale scratch files, rsync never deletes).
+# expect: both Build completed successfully, every fresh rc=0, traces rc=0, mutants total 34 broke 34 survived 0, overall rc=0, machine_all rc=0
+# sha256 of sources (paths from fv/v1/server/lean):
+# b90101cf496a5ccdec17b8fb878366dae22c1251aa1b5ee2c52c3e8d1f8d0e88  ServerFv.lean
+# 39bd49a3647225fbce18b2e14d4cca2f1c48a37278c3c84a91cd3cdcbd4e79f7  lakefile.toml
+# 11c697aebe5b539d74f5069e497a588e7dfab1c4eeb74313f28357e351c55ca3  lean-toolchain
+# aacf6cb654e15d9ac40b6c9fb794b59871bfef6ba6407142089a46d2e68606d6  lake-manifest.json
+# 33bc4fb22799258edb99bcf508f657fdd688286fe4cfcb29b7fc3828bb710751  ServerFv/CombineRole.lean
+# 4befeedfc83c00c9dd8b5258d562e16d62e9a04906047da59d86547b6cb187c0  ServerFv/GuardsArmView.lean
+# 6d4002966099f75d24fdff5141bb99aa2f51cb5dec68821cf992bed934f20e70  ServerFv/GuardsFail.lean
+# cd6dd965dd83dfe0aa775ca6c9821eaabcb5eaeccfcc63f4d5761b79a3bcbea5  ServerFv/M14.lean
+# eb6f960245421d8bdbb8fc43112691ab039bd85dda87270a90a053923ba53815  ServerFv/M14Handlers.lean
+# bfcd416a92c1e702ef3a0fe2a38b458fe7b88a9658ff974ab64632a5c5010a16  ServerFv/M14Transcript.lean
+# 5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean
+# 2b6588f16fb2e1d5383fe71e9e7d69c666e319c3ecc33871ea49b75bfa4a9463  ServerFv/Replay.lean
+# effadb6950383f139492c24f9f8e517b2b1bc59257bcee9e9049a408286151a4  ServerFv/V7After.lean
+# 9dbd63d1e8abb86740540204584d980187d5dc91dbb6013a77b720d961af0b75  ServerFv/V7Bridge.lean
+# a1d9a5b6ff0dda9cbae47ccf4c0fcac917b103b21f647e8b77eb3db96e446918  ServerFv/V7Facts.lean
+# 68c1c919802e7ac9277695f517445edb60f040fa6b5c8f4aecf3f89abffc1a96  ServerFv/V7Missing.lean
+# b74ebbea66eccb87e0c7bb506df34ad667390c5874f3c5886cb48ab573c01459  ServerFv/V7Replay.lean
+# 9c2cc2efea2876c941239d24dc523900ef10806330530e1e6476d61450dd12d2  ServerFv/V7Rows.lean
+# eab8653f14e222bce6e13763ed784f7003862c5b5b7190aec0e13f7754dd9fc6  ServerFv/V7Session.lean
+# 32d11c15c076fdaadf2318e06ffcb3745f95227f4e930b9cf3709e1e1cf6ee6b  ServerFv/Verdict.lean
+# 7aca9e4341abd059318ba83a67bfdce21ca68aafb60b6a36f2e9265380b7284a  ServerFv/WitnessE2.lean
+# ae9fdca500ca69785354c5aaa85d27b8d0648e6d52cc35267de33e6f189aa9a1  ServerFv/X1Keys.lean
+# e61fcb138a43f0b2c54e74a87a5d26b3cd2510895136707247c1ced5e9355301  ServerFv/X1Session.lean
+# 3cc88fa6a1a1874908e712d9239bcd71c9738916c27d2f99147957b19c98e417  ServerFv/X1SessionArm.lean
+# 5f20584d631e3b1cb5bd691a01177cf8d4a89f7ef9bf916f5b0ed17d8bd49d26  ServerFv/X1SessionCommit.lean
+# d8efd4d68e6f06d53acaff2920b7f2f51c3eb0938746d89a83a55fd896bb2964  ServerFv/X1SessionDefs.lean
+# 686c680b6291917b07a03d586d56a6515b8b566daff06a1a559a725337b74081  ServerFv/X1SessionLayout.lean
+# 7435e36f910dd992ed17c7740b71e644c2fe66fc40cad9767be3d55adce4ec61  ServerFv/X1SessionOpen.lean
+# 1e0ef45d994b3a1d2a8fcbac210cfe32ac4ed47609f82706fa7146962d9c58aa  ServerFv/X1SessionRun.lean
+# 90971f4864f214799c6d073906baacc6a4bc674232e01b19723ad50e34c76034  ServerFv/X1SessionTx.lean
+# e98c2eb1fc81e98b33ca8de250f6660535a134b41268015b020f6ecc1c2be097  ServerFv/X1SessionVerdict.lean
+# 9841352b6394b358b052b76668304fda608562c628b94eb760349cd831c4fafa  ServerFv/X2.lean
+# caea9daf38517a295ccb7c0640007dbfad0e551d251798983805a8caa8a746fe  ServerFv/X2Fail.lean
+# 01848c05a3f3fc2fe6681cc5924ad2ac2469d49990ad242cbf9b60182505ec1f  checks/machine_all.sh
+# 1bcefd34dc9436f8d22f0575721a3dde7d754feda6cbaef74319784d33dc2451  checks/machine_mutants.py
+# 9dd36fa3b004e03a7ac5b7ac99a42ef7dd359c41d9033438addc6d9507d30541  checks/machine_traces.lean
+# 4daf647a63594806f570de6438d5c2543b70d7551df917694b02a21b4e00b4ad  checks/replay_all.sh
+# 61c3563784b0c691d850876efd44f8d27a5afc50dfd65b60f9ecb574ef9a2b89  checks/replay_checks.py
+# sha256 of popfv sources (paths from fv/v1/zkp/popfv):
+# f3eb7c9665fe49f1d6feed3f132c3042dcea144dd4cb01b328d3450ab5718eaa  ./Popfv.lean
+# bbc149688539a5a40aa2a51ae66497ed27878959f52929b0ee49c10bede5d611  ./Popfv/AppParity.lean
+# 942c36c9a424f9170a4039eb3b0c5f9b7c9bb209aca93016f921b465758bd537  ./Popfv/AppPasses.lean
+# 13f61093f2bf3816569af392cca9a435d262ffd96f297b0b2ae27762062e0f65  ./Popfv/Arrival.lean
+# 88b40078c9cdc3c645fcc109c0c15a9f81103f68a3228c24073fd8fa95edab25  ./Popfv/Bar.lean
+# f15b5141d5e213da36bf6b7d321ea6ed56c4d496131b0d5870c8e6f00ec90eb7  ./Popfv/Chain.lean
+# c9afd4c7a3b925b683851cba0b5a136a924b1fc95e6b279edbca316038246e8c  ./Popfv/Commit.lean
+# 910204dfd9a2727f06c3fe715ecf3ed144368ac193dca621ff522e78d7f8e37d  ./Popfv/Field.lean
+# e3f8770eff2e1e6749c3047a434996cea7e2ac68665f1b6109765d0b99ebe5a4  ./Popfv/Freivalds.lean
+# b440179eed287c0ca3431da3c6ffaf08a2fc06dda9d295922c125a752f8601ae  ./Popfv/Pair.lean
+# c0c3f9965ce88744273bf70ecf3605395c12001e1c5ceb371c342e86adc06e60  ./Popfv/PartnerGlue.lean
+# a966e3c7eca46fe949d39a4d5a8014d6a2ef90000f474a2fc6324eecbc8f90c8  ./Popfv/Signed.lean
+# 19735bd132b9f92fcbf074bb79bbb47ae5e2159186cbfa2a2573cd95a43bbdcd  ./Popfv/WitnessChain.lean
+# 5f6811baaf6788feaed2c3748b6f69e833000a0fc3d0cd5f05a7053b97f9bbc8  ./Popfv/WitnessCommit.lean
+# a311f37f71226a924c2c0d6e532e0501320e3ab35b2ef3c8ca75c0376d1f867b  lakefile.toml
+# 11c697aebe5b539d74f5069e497a588e7dfab1c4eeb74313f28357e351c55ca3  lean-toolchain
+# 74e4c28cd190581fc8ccccbd71d6db91fcb3aaa35df8bf84ae3309a4ca190b39  lake-manifest.json
+== popfv: lake build
+⚠ [18178/18206] Replayed Popfv.Field
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: Popfv/Field.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Field.lean:150:0: 'Popfv.fits_intCast_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:151:0: 'Popfv.fits_intCast_iff_of_abs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:152:0: 'Popfv.intCast_inj_of_abs_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:153:0: 'Popfv.intCast_inj_of_small' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:154:0: 'Popfv.fits_natCast' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18179/18206] Ran Popfv.Field:irArts
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [18180/18206] Replayed Popfv.Pair
+warning: Popfv/Pair.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Pair.lean:227:0: 'Popfv.pair_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:228:0: 'Popfv.pair_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:229:0: 'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:230:0: 'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18182/18206] Replayed Popfv.Bar
+warning: Popfv/Bar.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Bar.lean:10:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:14:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Bar.lean:30:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+info: Popfv/Bar.lean:314:0: 'Popfv.bar_iff_ratio' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:315:0: 'Popfv.bar_iff_sqrt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:316:0: 'Popfv.below_bar_iff_sqrt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:317:0: 'Popfv.bar_iff_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:318:0: 'Popfv.T0eff_close' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:319:0: 'Popfv.T0eff_close_round' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:320:0: 'Popfv.round_eq_iff_g2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:321:0: 'Popfv.g_range_48k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:322:0: 'Popfv.g_range_44k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:323:0: 'Popfv.g_range_48k_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:324:0: 'Popfv.g_range_44k_sufficient' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:325:0: 'Popfv.inv_sqrt_4474747' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:326:0: 'Popfv.inv_sqrt_3792174' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:327:0: 'Popfv.T0eff_48k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:328:0: 'Popfv.T0eff_44k' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:329:0: 'Popfv.partner_bar_of_fits' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:330:0: 'Popfv.fits_of_partner_bar' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:331:0: 'Popfv.self_before_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:332:0: 'Popfv.self_at_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:333:0: 'Popfv.partner_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:334:0: 'Popfv.self_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Bar.lean:335:0: 'Popfv.silence_score_below_bar' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18184/18206] Replayed Popfv.Arrival
+warning: Popfv/Arrival.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Arrival.lean:12:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Arrival.lean:279:54: The following tactic starts with 2 goals and ends with 1 goal, 1 of which is not operated on.
+  exact Or.inl h0
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+warning: Popfv/Arrival.lean:286:54: The following tactic starts with 2 goals and ends with 1 goal, 1 of which is not operated on.
+  exact Or.inl h0
+Please focus on the current goal, for instance using `·` (typed as "\.").
+
+Note: This linter can be disabled with `set_option linter.style.multiGoal false`
+warning: Popfv/Arrival.lean:630:16: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Arrival.lean:653:16: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Arrival.lean:663:22: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Arrival.lean:665:22: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+info: Popfv/Arrival.lean:897:0: 'Popfv.Arrival.prefix_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:898:0: 'Popfv.Arrival.arrival_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:899:0: 'Popfv.Arrival.arrival_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:900:0: 'Popfv.Arrival.ring_read' depends on axioms: [propext, Quot.sound]
+info: Popfv/Arrival.lean:901:0: 'Popfv.Arrival.dF_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:902:0: 'Popfv.Arrival.DI_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:903:0: 'Popfv.Arrival.bit96_is_sign_check' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:904:0: 'Popfv.Arrival.self_side_arrival_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:905:0: 'Popfv.Arrival.self_side_arrival_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:906:0: 'Popfv.Arrival.silence_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:907:0: 'Popfv.Arrival.click_picks_any_lag' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:908:0: 'Popfv.Arrival.click_instance' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:909:0: 'Popfv.Arrival.flat_template_any_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:910:0: 'Popfv.Arrival.dc_strict_pass' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:911:0: 'Popfv.Arrival.floor_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:912:0: 'Popfv.Arrival.floor_blocks_silence' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Arrival.lean:913:0: 'Popfv.Arrival.dc_passes_floor' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18186/18206] Replayed Popfv.PartnerGlue
+warning: Popfv/PartnerGlue.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/PartnerGlue.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:16:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:18:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:20:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/PartnerGlue.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+info: Popfv/PartnerGlue.lean:882:0: 'Popfv.PartnerGlue.signed32_eq' depends on axioms: [propext, Quot.sound]
+info: Popfv/PartnerGlue.lean:883:0: 'Popfv.PartnerGlue.half_is_gap' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:884:0: 'Popfv.PartnerGlue.os_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:885:0: 'Popfv.PartnerGlue.op_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:886:0: 'Popfv.PartnerGlue.partner_window' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:887:0: 'Popfv.PartnerGlue.sod_small' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:888:0: 'Popfv.PartnerGlue.beF32_wraps' depends on axioms: [propext, Quot.sound]
+info: Popfv/PartnerGlue.lean:889:0: 'Popfv.PartnerGlue.prun_inv' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:890:0: 'Popfv.PartnerGlue.partner_loud' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:891:0: 'Popfv.PartnerGlue.partner_silence_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:892:0: 'Popfv.PartnerGlue.zero_template_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:893:0: 'Popfv.PartnerGlue.partner_accepts_nonsilent' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:894:0: 'Popfv.PartnerGlue.partner_rejects' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:895:0: 'Popfv.PartnerGlue.phone_core_glue' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:896:0: 'Popfv.PartnerGlue.phone_glue_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/PartnerGlue.lean:897:0: 'Popfv.PartnerGlue.half_commit_binds' depends on axioms: [propext, Quot.sound]
+⚠ [18188/18206] Replayed Popfv.AppPasses
+warning: Popfv/AppPasses.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/AppPasses.lean:426:0: 'Popfv.AppPasses.U128.mul_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:427:0: 'Popfv.AppPasses.U128.sq_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:428:0: 'Popfv.AppPasses.addCarry_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:429:0: 'Popfv.AppPasses.U128.timesSmall_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:430:0: 'Popfv.AppPasses.passes_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:431:0: 'Popfv.AppPasses.passes_correct_real' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:432:0: 'Popfv.AppPasses.passes_iff_d_nonpos' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:433:0: 'Popfv.AppPasses.passes_iff_partner_fits' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:434:0: 'Popfv.AppPasses.passes_iff_self_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:435:0: 'Popfv.AppPasses.not_passes_iff_self_before' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:436:0: 'Popfv.AppPasses.docstring_bound_hole' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:437:0: 'Popfv.AppPasses.popt2RuleTest_vectors' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppPasses.lean:438:0: 'Popfv.AppPasses.extra_vectors' depends on axioms: [propext]
+info: Popfv/AppPasses.lean:439:0: 'Popfv.AppPasses.partner_fits_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18190/18206] Replayed Popfv.AppParity
+warning: Popfv/AppParity.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/AppParity.lean:7:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/AppParity.lean:130:19: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/AppParity.lean:425:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/AppParity.lean:427:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/AppParity.lean:410:21: `simp at hrole` is a flexible tactic modifying `hrole`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: Popfv/AppParity.lean:410:21: Try this:
+  [apply] simp only [iff_true] at hrole
+info: Popfv/AppParity.lean:410:39: `rw [hrole] at h5`
+uses `hrole`, which was modified by the flexible tactic `simp` on line 410!
+warning: Popfv/AppParity.lean:410:21: `simp at hrole` is a flexible tactic modifying `hrole`. Try `simp?` and use the suggested `simp only [...]`. Alternatively, use `suffices` to explicitly state the simplified form.
+
+Note: This linter can be disabled with `set_option linter.flexible false`
+info: Popfv/AppParity.lean:410:21: Try this:
+  [apply] simp only [Bool.true_eq_false, iff_false, ne_eq] at hrole
+info: Popfv/AppParity.lean:410:39: `rw [hrole] at h5`
+uses `hrole`, which was modified by the flexible tactic `simp` on line 410!
+info: Popfv/AppParity.lean:519:0: 'Popfv.AppParity.be_eq_be_f' depends on axioms: [propext, Quot.sound]
+info: Popfv/AppParity.lean:520:0: 'Popfv.AppParity.beN_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:521:0: 'Popfv.AppParity.ktBe_eq_beN' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:522:0: 'Popfv.AppParity.signed_parity' depends on axioms: [propext, Quot.sound]
+info: Popfv/AppParity.lean:523:0: 'Popfv.AppParity.encode_roundtrip' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:524:0: 'Popfv.AppParity.transcript_parity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:525:0: 'Popfv.AppParity.hole_pSelf_overflow' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:526:0: 'Popfv.AppParity.lt_two_pow_31_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:527:0: 'Popfv.AppParity.A_partner_eq' depends on axioms: [propext]
+info: Popfv/AppParity.lean:528:0: 'Popfv.AppParity.p_partner_parity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:529:0: 'Popfv.AppParity.encoder_to_circuit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/AppParity.lean:530:0: 'Popfv.AppParity.digits_value' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18192/18206] Replayed Popfv.Commit
+warning: Popfv/Commit.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:11:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:18:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:24:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:27:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:32:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:34:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Commit.lean:206:27: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:214:27: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:238:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:343:45: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:345:45: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:360:37: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:366:37: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:388:26: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:393:26: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:725:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:731:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:735:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:873:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:877:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Commit.lean:929:16: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:938:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:954:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Commit.lean:954:20: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:998:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:1001:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Commit.lean:1001:27: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+info: Popfv/Commit.lean:1009:0: 'Popfv.Commit.sponge_zero_tail_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1010:0: 'Popfv.Commit.chunk_lt_two_pow_248' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1011:0: 'Popfv.Commit.chunk_last_short' depends on axioms: [propext, Quot.sound]
+info: Popfv/Commit.lean:1012:0: 'Popfv.Commit.packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1013:0: 'Popfv.Commit.absorbed_determines_templates' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1014:0: 'Popfv.Commit.code_commitment_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1015:0: 'Popfv.Commit.code_commitment_congr' depends on axioms: [propext, Quot.sound]
+info: Popfv/Commit.lean:1016:0: 'Popfv.Commit.leaf_packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1017:0: 'Popfv.Commit.node_hash_not_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1018:0: 'Popfv.Commit.selector_picks' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1019:0: 'Popfv.Commit.two_openings_agree' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1020:0: 'Popfv.Commit.opening_mismatch_gives_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1021:0: 'Popfv.Commit.merkle_tie' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1022:0: 'Popfv.Commit.open_leaves_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1023:0: 'Popfv.Commit.open_leaves_ties' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1024:0: 'Popfv.Commit.open_leaves_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1025:0: 'Popfv.Commit.honest_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1026:0: 'Popfv.Commit.phone_core_windows_are_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1027:0: 'Popfv.Commit.phone_core_windows_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1028:0: 'Popfv.Commit.phone_core_one_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1029:0: 'Popfv.Commit.past_capture_window_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Commit.lean:1030:0: 'Popfv.Commit.past_capture_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18194/18206] Replayed Popfv.Freivalds
+warning: Popfv/Freivalds.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Freivalds.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:9:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:10:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:11:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:14:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:17:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:19:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:20:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:27:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:28:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:29:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:32:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:33:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:34:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:35:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:36:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:37:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:43:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:44:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:45:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:47:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:48:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Freivalds.lean:170:12: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:199:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:201:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:203:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:204:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:205:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:209:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:213:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:214:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:216:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:217:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:219:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:243:10: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/Freivalds.lean:361:2: Try this: 
+  haveI̵
+
+The goal is a proposition, so `have` is preferred over `haveI`.
+The difference between `have` and `haveI` is that `haveI` inlines the value.
+But this is not relevant for proofs because of proof irrelevance.
+
+Note: This linter can be disabled with `set_option linter.style.haveILetI false`
+warning: Popfv/Freivalds.lean:390:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:409:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.eval_polyOf`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:409:8: `eval_polyOf` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:416:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.coeff_polyOf`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:416:8: `coeff_polyOf` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:423:0: automatically included section variable(s) unused in theorem `Popfv.Freivalds.natDegree_polyOf_le`:
+  [IsDomain 𝔽]
+  [Fintype 𝔽]
+consider restructuring your `variable` declarations so that the variables are not in scope or explicitly omit them:
+  omit [IsDomain 𝔽] [Fintype 𝔽] in theorem ...
+
+Note: This linter can be disabled with `set_option linter.unusedSectionVars false`
+warning: Popfv/Freivalds.lean:423:8: `natDegree_polyOf_le` does not use the following hypothesis in its type:
+  • [Fintype 𝔽] (#4)
+
+Consider replacing this hypothesis with the corresponding instance of `Finite` and using `Fintype.ofFinite` in the proof, or removing it entirely.
+
+Note: This linter can be disabled with `set_option linter.unusedFintypeInType false`
+warning: Popfv/Freivalds.lean:549:8: The instance assumption `[IsDomain F]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : IsDomain F := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:561:8: The instance assumption `[IsDomain F]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : IsDomain F := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:579:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:623:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:680:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:693:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:706:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+warning: Popfv/Freivalds.lean:746:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:752:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:759:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:759:24: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:794:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:797:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:803:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:803:24: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:811:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:815:19: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:820:34: `if_false` has been deprecated: Use `ite_false` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵f̵a̵l̵s̵e̵i̲t̲e̲_̲f̲a̲l̲s̲e̲
+warning: Popfv/Freivalds.lean:820:44: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:856:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:856:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Freivalds.lean:909:30: This simp argument is unused:
+  List.nil_eq
+
+Hint: Omit it from the simp argument list.
+  [apply] simp only [List.cons.injEq, and_true] at h3
+
+Note: This linter can be disabled with `set_option linter.unusedSimpArgs false`
+warning: Popfv/Freivalds.lean:994:15: `if_true` has been deprecated: Use `ite_true` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵t̵r̵u̵e̵i̲t̲e̲_̲t̲r̲u̲e̲
+warning: Popfv/Freivalds.lean:997:8: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Freivalds.lean:1019:8: The instance assumption `[Fact (Nat.Prime p)]` does not contain free variables.
+Instead of assuming it locally, please add a global instance with
+`instance : Fact (Nat.Prime p) := ...`
+
+Note: This linter can be disabled with `set_option linter.concreteInstances false`
+info: Popfv/Freivalds.lean:1061:0: 'Popfv.Freivalds.run_ring' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1062:0: 'Popfv.Freivalds.inv_all' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1063:0: 'Popfv.Freivalds.run_identity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1064:0: 'Popfv.Freivalds.check_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1065:0: 'Popfv.Freivalds.r_zero_rejected' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1066:0: 'Popfv.Freivalds.freivalds_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1067:0: 'Popfv.Freivalds.honest_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1068:0: 'Popfv.Freivalds.sz_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1069:0: 'Popfv.Freivalds.sz_count_zmod' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1070:0: 'Popfv.Freivalds.fooled_count_dom' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1071:0: 'Popfv.Freivalds.fooled_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1072:0: 'Popfv.Freivalds.fooled_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1073:0: 'Popfv.Freivalds.odds_numeric' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1074:0: 'Popfv.Freivalds.claim_true_of_not_fooled' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1075:0: 'Popfv.Freivalds.self_side_sound_unless_fooled' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1076:0: 'Popfv.Freivalds.arrival_bad_pairs_count' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1077:0: 'Popfv.Freivalds.arrival_bad_pairs_count_any_flags' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1078:0: 'Popfv.Freivalds.arrival_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1079:0: 'Popfv.Freivalds.known_r_fools' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1080:0: 'Popfv.Freivalds.wrong_curve_moves_arrival' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1081:0: 'Popfv.Freivalds.fsInput_length' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1082:0: 'Popfv.Freivalds.fsInput_determines' depends on axioms: [propext, Quot.sound]
+info: Popfv/Freivalds.lean:1083:0: 'Popfv.Freivalds.window_offset_unique' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1084:0: 'Popfv.Freivalds.absorbed_pins_identity' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1085:0: 'Popfv.Freivalds.card_fun_hit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1086:0: 'Popfv.Freivalds.rom_union_bound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Freivalds.lean:1087:0: 'Popfv.Freivalds.odds_2_64_tries' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18196/18206] Replayed Popfv.Signed
+warning: Popfv/Signed.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Signed.lean:6:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:15:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:22:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:23:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:24:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:35:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:37:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:44:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:45:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:46:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:47:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:50:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:51:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:55:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:57:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:59:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:60:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:61:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:62:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:64:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:65:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:67:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:68:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:69:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:75:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:76:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:77:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Signed.lean:484:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.a_self`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:488:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.half`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:482:10: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.mk`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:489:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.x_own`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:486:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.a_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:487:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.p_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:482:10: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:483:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.rec_root`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:485:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.p_self`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:490:2: The namespace `Signed` is duplicated in the declaration `Popfv.Signed.Signed.x_partner`.
+
+Note: This linter can be disabled with `set_option linter.dupNamespace false`
+warning: Popfv/Signed.lean:616:4: `push_neg` has been deprecated. Prefer using `push Not` instead.
+If you'd rather continue using `push_neg` in your project, you can implement it as follows:
+```
+open Lean.Parser.Tactic in
+macro "push_neg" cfg:optConfig loc:(location)? : tactic =>
+  `(tactic| push $cfg:optConfig Not $[$loc]?)
+```
+warning: Popfv/Signed.lean:628:4: `push_neg` has been deprecated. Prefer using `push Not` instead.
+If you'd rather continue using `push_neg` in your project, you can implement it as follows:
+```
+open Lean.Parser.Tactic in
+macro "push_neg" cfg:optConfig loc:(location)? : tactic =>
+  `(tactic| push $cfg:optConfig Not $[$loc]?)
+```
+warning: Popfv/Signed.lean:937:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:940:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:948:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:950:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1001:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1154:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1159:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1190:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1194:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1200:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1204:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1264:17: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1265:18: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1266:16: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1267:22: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Signed.lean:1317:10: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:6: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:25: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: Popfv/Signed.lean:1338:44: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+info: Popfv/Signed.lean:1344:0: 'Popfv.Signed.Layout.offsets' does not depend on any axioms
+info: Popfv/Signed.lean:1345:0: 'Popfv.Signed.credTag_is_SBcred3' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1346:0: 'Popfv.Signed.cred_list' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1347:0: 'Popfv.Signed.asserted_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1348:0: 'Popfv.Signed.role_iff' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1349:0: 'Popfv.Signed.nonce_limbs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1350:0: 'Popfv.Signed.nonce_determines_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1351:0: 'Popfv.Signed.x_limbs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1352:0: 'Popfv.Signed.x_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1353:0: 'Popfv.Signed.rec_root_canonical' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1354:0: 'Popfv.Signed.rec_root_injective' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1355:0: 'Popfv.Signed.wrapped_root_rejected' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1356:0: 'Popfv.Signed.alias_without_canonical' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1357:0: 'Popfv.Signed.code_commit_signed' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1358:0: 'Popfv.Signed.expiry_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1359:0: 'Popfv.Signed.unpack_issuer_spec' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1360:0: 'Popfv.Signed.issuer_key_unique' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1361:0: 'Popfv.Signed.signed_fields' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1362:0: 'Popfv.Signed.one_key' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1363:0: 'Popfv.Signed.chain_of_trust' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1364:0: 'Popfv.Signed.digest_only_free' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1365:0: 'Popfv.Signed.only_read_bytes_matter' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1366:0: 'Popfv.Signed.holder_commit_free' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1367:0: 'Popfv.Signed.check_signed_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1368:0: 'Popfv.Signed.fx_byteChecks' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1369:0: 'Popfv.Signed.fx_values' depends on axioms: [propext]
+info: Popfv/Signed.lean:1370:0: 'Popfv.Signed.chain_hypotheses_consistent' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1371:0: 'Popfv.Signed.chain_of_trust_size' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1372:0: 'Popfv.Signed.fx_types' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1373:0: 'Popfv.Signed.fx_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1374:0: 'Popfv.Signed.fx_rejects_role' depends on axioms: [propext, Quot.sound]
+info: Popfv/Signed.lean:1375:0: 'Popfv.Signed.fx_rejects_expiry' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1376:0: 'Popfv.Signed.fx_rejects_same_x' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1377:0: 'Popfv.Signed.junk_accepted' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Signed.lean:1378:0: 'Popfv.Signed.bad_keys_pass_byteChecks' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18198/18206] Replayed Popfv.Chain
+warning: Popfv/Chain.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/Chain.lean:12:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:13:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:15:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:16:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:21:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:25:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:26:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:27:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:28:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:29:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:30:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:31:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:39:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:40:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:41:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:42:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:43:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:46:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:48:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:49:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:50:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:52:100: This line exceeds the 100 character limit, please shorten it!
+You can use "string gaps" to format long strings: within a string quotation, using a '\' at the end of a line allows you to continue the string on the following line, removing all intervening whitespace.
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:54:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:56:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:57:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:58:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:60:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:64:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:65:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:66:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:72:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:74:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:76:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:77:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:78:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:79:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/Chain.lean:376:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:402:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:406:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:933:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:937:6: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:994:21: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:995:16: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:996:22: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:998:28: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:999:29: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1004:27: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1005:27: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1068:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1073:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1077:8: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1156:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1160:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1166:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1172:10: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1172:48: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/Chain.lean:1172:91: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+info: Popfv/Chain.lean:1181:0: 'Popfv.Chain.tables_agree' depends on axioms: [propext]
+info: Popfv/Chain.lean:1182:0: 'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1183:0: 'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1184:0: 'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1185:0: 'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1186:0: 'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1187:0: 'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1188:0: 'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1189:0: 'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1190:0: 'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1191:0: 'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1192:0: 'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1193:0: 'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1194:0: 'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1195:0: 'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1196:0: 'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Chain.lean:1197:0: 'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18200/18206] Replayed Popfv.WitnessCommit
+warning: Popfv/WitnessCommit.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/WitnessCommit.lean:3:100: This line exceeds the 100 character limit, please shorten it!
+
+Note: This linter can be disabled with `set_option linter.style.longLine false`
+warning: Popfv/WitnessCommit.lean:39:20: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/WitnessCommit.lean:72:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/WitnessCommit.lean:77:26: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: Popfv/WitnessCommit.lean:105:0: Definition `hypotheses_hold_concrete` is a proposition; use `theorem` instead of `def`
+
+Note: This linter can be disabled with `set_option linter.defProp false`
+warning: Popfv/WitnessCommit.lean:110:0: Definition `fire_windows` is a proposition; use `theorem` instead of `def`
+
+Note: This linter can be disabled with `set_option linter.defProp false`
+warning: Popfv/WitnessCommit.lean:117:0: Definition `fire_one_recording` is a proposition; use `theorem` instead of `def`
+
+Note: This linter can be disabled with `set_option linter.defProp false`
+warning: Popfv/WitnessCommit.lean:124:0: Definition `fire_code_binds` is a proposition; use `theorem` instead of `def`
+
+Note: This linter can be disabled with `set_option linter.defProp false`
+info: Popfv/WitnessCommit.lean:145:0: 'Popfv.Commit.RecheckHB.hypotheses_hold_together' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessCommit.lean:146:0: 'Popfv.Commit.RecheckHB.hypotheses_hold_concrete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessCommit.lean:147:0: 'Popfv.Commit.RecheckHB.fire_windows' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessCommit.lean:148:0: 'Popfv.Commit.RecheckHB.fire_one_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessCommit.lean:149:0: 'Popfv.Commit.RecheckHB.fire_code_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessCommit.lean:150:0: 'Popfv.Commit.RecheckHB.fire_two_openings' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18202/18206] Replayed Popfv.WitnessChain
+warning: Popfv/WitnessChain.lean:3:0: The module doc-string for a file should be the first command after the imports
+and any necessary `set_option` commands.
+Please, add a module doc-string (`/-! ... -/`) before `set_option linter.style.whitespace false`.
+
+Hint: Type `m(odule docstring) + [tab]` to insert a template via snippet.
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/WitnessChain.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+warning: Popfv/WitnessChain.lean:21:2: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/WitnessChain.lean:58:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+warning: Popfv/WitnessChain.lean:61:4: The `show` tactic should only be used to indicate intermediate goal states for readability.
+However, this tactic invocation changed the goal. Please use `change` instead for these purposes.
+
+Note: This linter can be disabled with `set_option linter.style.show false`
+info: Popfv/WitnessChain.lean:76:0: 'Popfv.Chain.WitnessChain.phone_hyps_hold' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessChain.lean:77:0: 'Popfv.Chain.WitnessChain.all128_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessChain.lean:78:0: 'Popfv.Chain.WitnessChain.all128_partner' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/WitnessChain.lean:79:0: 'Popfv.Chain.WitnessChain.no_tree_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+Build completed successfully (18206 jobs).
+popfv build rc=0
+== lake build (full)
+⚠ [18179/18241] Replayed Popfv.Field
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+warning: Popfv/Field.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Field.lean:150:0: 'Popfv.fits_intCast_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:151:0: 'Popfv.fits_intCast_iff_of_abs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:152:0: 'Popfv.intCast_inj_of_abs_lt' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:153:0: 'Popfv.intCast_inj_of_small' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Field.lean:154:0: 'Popfv.fits_natCast' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18180/18241] Ran Popfv.Field:irArts
+warning: Popfv/Field.lean: imports `Mathlib` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file
+⚠ [18181/18241] Replayed Popfv.Pair
+warning: Popfv/Pair.lean:1:1: * `-/`:
+Copyright too short!
+
+
+Note: This linter can be disabled with `set_option linter.style.header false`
+info: Popfv/Pair.lean:227:0: 'Popfv.pair_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:228:0: 'Popfv.pair_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:229:0: 'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: Popfv/Pair.lean:230:0: 'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18183/18241] Replayed ServerFv.Verdict
+info: ServerFv/Verdict.lean:1862:0: 'ServerFv.V1' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1863:0: 'ServerFv.V2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1864:0: 'ServerFv.V3' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1865:0: 'ServerFv.V3_ties' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1866:0: 'ServerFv.V3_circuit' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1867:0: 'ServerFv.V3_near_gives_range' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1868:0: 'ServerFv.V3_range_does_not_give_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1869:0: 'ServerFv.V4' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1870:0: 'ServerFv.V4_cal' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1871:0: 'ServerFv.V4_edges' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1872:0: 'ServerFv.V5_combine_swapped' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1873:0: 'ServerFv.V5_record_swapped' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1874:0: 'ServerFv.V5_record_swapped_mixed_versions' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1875:0: 'ServerFv.V5_record_all_swapped' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1876:0: 'ServerFv.V5_live_other_role' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1877:0: 'ServerFv.V6' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1878:0: 'ServerFv.V6_free' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1879:0: 'ServerFv.popt2_delta_48000' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1880:0: 'ServerFv.self_os_can_pass' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1881:0: 'ServerFv.X1_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1882:0: 'ServerFv.X1' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1883:0: 'ServerFv.X1_witness_v1' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1884:0: 'ServerFv.X1_witness_v2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1885:0: 'ServerFv.Powers_satisfiable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1886:0: 'ServerFv.X1_on_layout' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1887:0: 'ServerFv.Layout.decodeCommit_wire_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1888:0: 'ServerFv.Layout.decodeTranscript_wire_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Verdict.lean:1889:0: 'ServerFv.Layout.decodeCommit_wrong_length' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1890:0: 'ServerFv.Layout.decodeTranscript_wrong_length' depends on axioms: [propext]
+info: ServerFv/Verdict.lean:1895:0: (none, some (ServerFv.Reason.impossible_flight))
+info: ServerFv/Verdict.lean:1897:0: 1715 / 48
+info: ServerFv/Verdict.lean:1899:0: true
+info: ServerFv/Verdict.lean:1901:0: Except.ok { flight_cm := some (1715 : Rat)/48, verdict := some (ServerFv.Verdict.NEAR), reason := none, by_ := none }
+info: ServerFv/Verdict.lean:1903:0: Except.ok { flight_cm := some (1715 : Rat)/48, verdict := some (ServerFv.Verdict.NEAR), reason := none, by_ := none }
+info: ServerFv/Verdict.lean:1908:0: "LAYOUT commit1 504f504301420307070707070707070707070707070707070707070707070707070707070707070909090909090909090909090909090909090909090909090909090909090909"
+info: ServerFv/Verdict.lean:1910:0: "LAYOUT commit2 504f504302420307070707070707070707070707070707070707070707070707070707070707070909090909090909090909090909090909090909090909090909090909090909"
+info: ServerFv/Verdict.lean:1912:0: "LAYOUT tx1 504f50540141010707070707070707070707070707070707070707070707070707070707070707010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010102020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000bb80fffffffb090909090909090909090909090909090909090909090909090909090909090900000000000003e8000000007735940000000000b2d05e00ffffffb30404040404040404040404040404040404040404040404040404040404040404"
+info: ServerFv/Verdict.lean:1914:0: "LAYOUT tx2 504f50540241010707070707070707070707070707070707070707070707070707070707070707010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010101010102020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020000bb80fffffffb090909090909090909090909090909090909090909090909090909090909090900000000000003e8000000007735940000000000b2d05e00ffffffb30404040404040404040404040404040404040404040404040404040404040404000111700001388000600606060606060606060606060606060606060606060606060606060606060606"
+info: ServerFv/Verdict.lean:1916:0: true
+info: ServerFv/Verdict.lean:1918:0: true
+info: ServerFv/Verdict.lean:1920:0: true
+ℹ [18185/18241] Replayed ServerFv.Machine
+info: ServerFv/Machine.lean:3837:0: 'ServerFv.Machine.M9' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3838:0: 'ServerFv.Machine.M9_table' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3839:0: 'ServerFv.Machine.M9_confirmed' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3840:0: 'ServerFv.Machine.M1_terminal' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3841:0: 'ServerFv.Machine.M1_edges' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3842:0: 'ServerFv.Machine.M2' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3843:0: 'ServerFv.Machine.M3' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3844:0: 'ServerFv.Machine.M3_signed' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3845:0: 'ServerFv.Machine.combine_guard_unreachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3846:0: 'ServerFv.Machine.afterStore_accepted' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3847:0: 'ServerFv.Machine.combine_guard_on_request' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3848:0: 'ServerFv.Machine.M4' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3849:0: 'ServerFv.Machine.M5_codes' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3850:0: 'ServerFv.Machine.M5_partner_code' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3851:0: 'ServerFv.Machine.M5_no_strings' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3852:0: 'ServerFv.Machine.M5_create_token' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3853:0: 'ServerFv.Machine.M6' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3854:0: 'ServerFv.Machine.M6_view_ignores' depends on axioms: [propext, Quot.sound]
+info: ServerFv/Machine.lean:3855:0: 'ServerFv.Machine.M7' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3856:0: 'ServerFv.Machine.M8_retry_wipes' does not depend on any axioms
+info: ServerFv/Machine.lean:3857:0: 'ServerFv.Machine.M8_pins' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3858:0: 'ServerFv.Machine.M8_stale_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3859:0: 'ServerFv.Machine.M8_stale_fail' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3860:0: 'ServerFv.Machine.M8_old_commit_started' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3861:0: 'ServerFv.Machine.M8_old_commit_not_started' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3862:0: 'ServerFv.Machine.bed_msg_eq_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3863:0: 'ServerFv.Machine.M8_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3864:0: 'ServerFv.Machine.M10_stays' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3865:0: 'ServerFv.Machine.M10_commit_repeat' depends on axioms: [propext, Quot.sound]
+info: ServerFv/Machine.lean:3866:0: 'ServerFv.Machine.M10_commit_repeat_answer' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3867:0: 'ServerFv.Machine.M10_commit_resend' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3868:0: 'ServerFv.Machine.M10_commit_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3869:0: 'ServerFv.Machine.M10_tx_repeat' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3870:0: 'ServerFv.Machine.M10_tx_repeat_answer' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3871:0: 'ServerFv.Machine.M10_tx_different' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3872:0: 'ServerFv.Machine.M10_not_started' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3873:0: 'ServerFv.Machine.M10_not_started_commit' depends on axioms: [propext]
+info: ServerFv/Machine.lean:3874:0: 'ServerFv.Machine.M10_not_started_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3875:0: 'ServerFv.Machine.M10_over_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3876:0: 'ServerFv.Machine.M11' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3877:0: 'ServerFv.Machine.M12_no_auth' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3878:0: 'ServerFv.Machine.M12_bad_json' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3879:0: 'ServerFv.Machine.M12_bad_shape' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3880:0: 'ServerFv.Machine.M12_non_member' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3881:0: 'ServerFv.Machine.M12_member_load' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3882:0: 'ServerFv.Machine.M12_noauth_load' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3883:0: 'ServerFv.Machine.M12_roles' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3884:0: 'ServerFv.Machine.M12_member' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3885:0: 'ServerFv.Machine.M13' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3886:0: 'ServerFv.Machine.M13_t0' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3887:0: 'ServerFv.Machine.Witness.reaches_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3888:0: 'ServerFv.Machine.Witness.reaches_too_far' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3889:0: 'ServerFv.Machine.Witness.retries' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3890:0: 'ServerFv.Machine.Witness.retry_shows_reason' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3891:0: 'ServerFv.Machine.Witness.retry_then_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/Machine.lean:3892:0: 'ServerFv.Machine.Witness.toy_unforgeable' depends on axioms: [propext]
+ℹ [18187/18241] Replayed ServerFv.CombineRole
+info: ServerFv/CombineRole.lean:46:0: 'ServerFv.combine_role_guard' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/CombineRole.lean:47:0: 'ServerFv.combine_ok_roles' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18189/18241] Replayed ServerFv.GuardsArmView
+info: ServerFv/GuardsArmView.lean:119:0: 'ServerFv.Machine.arm_ok_rtt' depends on axioms: [propext, Quot.sound]
+info: ServerFv/GuardsArmView.lean:120:0: 'ServerFv.Machine.arm_ok_rtt_range' depends on axioms: [propext, Quot.sound]
+info: ServerFv/GuardsArmView.lean:121:0: 'ServerFv.Machine.arm_rate_matches' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/GuardsArmView.lean:122:0: 'ServerFv.Machine.arm_other_rate_error' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/GuardsArmView.lean:123:0: 'ServerFv.Machine.view_nonce_gate' depends on axioms: [propext]
+info: ServerFv/GuardsArmView.lean:124:0: 'ServerFv.Machine.view_nonce_hidden' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18191/18241] Replayed ServerFv.GuardsFail
+info: ServerFv/GuardsFail.lean:118:0: 'ServerFv.Machine.fail_ok_iff' depends on axioms: [propext]
+info: ServerFv/GuardsFail.lean:119:0: 'ServerFv.Machine.fail_submitted_refused' depends on axioms: [propext]
+info: ServerFv/GuardsFail.lean:120:0: 'ServerFv.Machine.M10_no_fail_after_tx' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/GuardsFail.lean:121:0: 'ServerFv.Machine.fail_ok_attempt' depends on axioms: [propext]
+info: ServerFv/GuardsFail.lean:122:0: 'ServerFv.Machine.fail_ok_reason' depends on axioms: [propext]
+ℹ [18193/18241] Replayed ServerFv.M14Handlers
+info: ServerFv/M14Handlers.lean:68:0: 'ServerFv.Machine.viewOr_err_doc' does not depend on any axioms
+info: ServerFv/M14Handlers.lean:69:0: 'ServerFv.Machine.result_err_doc' does not depend on any axioms
+info: ServerFv/M14Handlers.lean:70:0: 'ServerFv.Machine.arm_err_doc' depends on axioms: [propext, Quot.sound]
+info: ServerFv/M14Handlers.lean:71:0: 'ServerFv.Machine.commit_err_doc' depends on axioms: [propext, Quot.sound]
+ℹ [18195/18241] Replayed ServerFv.M14Transcript
+info: ServerFv/M14Transcript.lean:107:0: 'ServerFv.Machine.afterStore_err_doc' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/M14Transcript.lean:108:0: 'ServerFv.Machine.transcript_err_doc' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18197/18241] Replayed ServerFv.M14
+info: ServerFv/M14.lean:98:0: 'ServerFv.Machine.M14' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/M14.lean:99:0: 'ServerFv.Machine.M14_any' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18199/18241] Replayed ServerFv.V7Bridge
+info: ServerFv/V7Bridge.lean:133:0: 'ServerFv.Machine.toRR_eq' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Bridge.lean:134:0: 'ServerFv.Machine.toRR_none_iff' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Bridge.lean:135:0: 'ServerFv.Machine.txEntry_eq_some' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Bridge.lean:136:0: 'ServerFv.Machine.commitEntry_eq_some' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Bridge.lean:137:0: 'ServerFv.Machine.check_transcript_offline' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Bridge.lean:138:0: 'ServerFv.Machine.check_commit_of_CommitOk' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18201/18241] Replayed ServerFv.V7Facts
+info: ServerFv/V7Facts.lean:191:0: 'ServerFv.Machine.ResultFacts_create' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Facts.lean:192:0: 'ServerFv.Machine.ResultFacts_terminal' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Facts.lean:193:0: 'ServerFv.Machine.expire_done_not_all' depends on axioms: [propext]
+info: ServerFv/V7Facts.lean:194:0: 'ServerFv.Machine.ResultFacts_expire' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Facts.lean:195:0: 'ServerFv.Machine.fail_done_not_all' depends on axioms: [propext]
+info: ServerFv/V7Facts.lean:196:0: 'ServerFv.Machine.ResultFacts_fail' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Facts.lean:197:0: 'ServerFv.Machine.transcript_reject_not_all' depends on axioms: [propext]
+info: ServerFv/V7Facts.lean:198:0: 'ServerFv.Machine.transcript_cases' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Facts.lean:199:0: 'ServerFv.Machine.ResultFacts_transcript_reject' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18203/18241] Replayed ServerFv.V7After
+info: ServerFv/V7After.lean:132:0: 'ServerFv.Machine.combine_none_retry' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7After.lean:133:0: 'ServerFv.Machine.afterStore_ResultFacts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7After.lean:134:0: 'ServerFv.Machine.ResultFacts_afterStore' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18205/18241] Replayed ServerFv.V7Replay
+info: ServerFv/V7Replay.lean:163:0: 'ServerFv.Machine.toRR_record' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Replay.lean:164:0: 'ServerFv.Machine.verify_one_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Replay.lean:165:0: 'ServerFv.Machine.V7_replay_eq' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18207/18241] Replayed ServerFv.V7Rows
+info: ServerFv/V7Rows.lean:83:0: 'ServerFv.Machine.combine_near_shape' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Rows.lean:84:0: 'ServerFv.Machine.V7_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18209/18241] Replayed ServerFv.V7Missing
+warning: ServerFv/V7Missing.lean:56:45: Unused tactic linter: `exact OnlyRejects.rej _` does not change the goal.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: ServerFv/V7Missing.lean:68:20: Unused tactic linter: `exact OnlyRejects.ok _` does not change the goal.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: ServerFv/V7Missing.lean:68:45: Unused tactic linter: `exact OnlyRejects.rej _` does not change the goal.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+warning: ServerFv/V7Missing.lean:70:47: Unused tactic linter: `exact OnlyRejects.rej _` does not change the goal.
+
+Note: This linter can be disabled with `set_option linter.unusedTactic false`
+info: ServerFv/V7Missing.lean:143:0: 'ServerFv.Machine.check_commit_error_reject' does not depend on any axioms
+info: ServerFv/V7Missing.lean:144:0: 'ServerFv.Machine.check_transcript_error_reject' does not depend on any axioms
+info: ServerFv/V7Missing.lean:145:0: 'ServerFv.Machine.V7_missing_any' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Missing.lean:146:0: 'ServerFv.Machine.V7_missing' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Missing.lean:147:0: 'ServerFv.Machine.V7_missing_submitted' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18211/18241] Replayed ServerFv.V7Session
+info: ServerFv/V7Session.lean:516:0: 'ServerFv.Machine.ResultFacts_step' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:517:0: 'ServerFv.Machine.resultFacts' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:518:0: 'ServerFv.Machine.combine_reject_mismatch' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:519:0: 'ServerFv.Machine.combine_some_shape' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:520:0: 'ServerFv.Machine.V7_both' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:521:0: 'ServerFv.Machine.V7_both_inj' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:522:0: 'ServerFv.Machine.V7_verdict_row' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:523:0: 'ServerFv.Machine.V7_failed_row' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:524:0: 'ServerFv.Machine.V7_rejected_both' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:525:0: 'ServerFv.Machine.V7_session' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:526:0: 'ServerFv.Machine.toRR_eq_none_iff' depends on axioms: [propext, Quot.sound]
+info: ServerFv/V7Session.lean:527:0: 'ServerFv.Machine.combine_none_shape' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:528:0: 'ServerFv.Machine.V7_failed_row_flight' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:529:0: 'ServerFv.Machine.V7Witness.reaches_impossible_final' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:530:0: 'ServerFv.Machine.V7Witness.reaches_self_mismatch_final' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/V7Session.lean:531:0: 'ServerFv.Machine.V7Witness.failed_row_instances' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18213/18241] Replayed ServerFv.WitnessE2
+info: ServerFv/WitnessE2.lean:61:0: 'ServerFv.Machine.Witness.e2_clock' depends on axioms: [propext, Quot.sound]
+info: ServerFv/WitnessE2.lean:62:0: 'ServerFv.Machine.Witness.e2_one_tx_in' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/WitnessE2.lean:63:0: 'ServerFv.Machine.Witness.E2_beats_E3_one_tx' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18215/18241] Replayed ServerFv.X1Keys
+info: ServerFv/X1Keys.lean:211:0: 'ServerFv.Side.transcript_wire_ok' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1Keys.lean:212:0: 'ServerFv.X1_ready' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1Keys.lean:213:0: 'ServerFv.X1_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1Keys.lean:214:0: 'ServerFv.X1_of_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1Keys.lean:215:0: 'ServerFv.X1_on_layout_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18217/18241] Replayed ServerFv.X1SessionDefs
+info: ServerFv/X1SessionDefs.lean:256:0: @inOrderL : {B D : Type} → ℕ → List (World D × Req B D) → Bool
+info: ServerFv/X1SessionDefs.lean:257:0: @lastTimeL : {B D : Type} → ℕ → List (World D × Req B D) → ℕ
+info: ServerFv/X1SessionDefs.lean:258:0: @runL : {B D : Type} → [DecidableEq B] → [DecidableEq D] → Env B D → Doc B D → List (World D × Req B D) → Doc B D
+info: ServerFv/X1SessionDefs.lean:259:0: @runL_cons : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] (e : Env B D) (s : Doc B D)
+  (p : World D × Req B D) (l : List (World D × Req B D)), runL e s (p :: l) = runL e (step e p.1 p.2 s).1 l
+info: ServerFv/X1SessionDefs.lean:260:0: @runL_append : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] (e : Env B D) (s : Doc B D)
+  (l l' : List (World D × Req B D)), runL e s (l ++ l') = runL e (runL e s l) l'
+info: ServerFv/X1SessionDefs.lean:261:0: @runL_reachable : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] {e : Env B D} {c : ℕ} {s : Doc B D},
+  Reachable e c s → ∀ (l : List (World D × Req B D)), inOrderL c l = true → Reachable e (lastTimeL c l) (runL e s l)
+info: ServerFv/X1SessionDefs.lean:262:0: @opReq : {B D : Type} → D → Op B → Req B D
+info: ServerFv/X1SessionDefs.lean:263:0: @X1Plan : {B D : Type} → Env B D → B → B → Type
+info: ServerFv/X1SessionDefs.lean:264:0: @X1Plan.W : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → ℕ → World D
+info: ServerFv/X1SessionDefs.lean:265:0: @X1Plan.reqs : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → List (World D × Req B D)
+info: ServerFv/X1SessionDefs.lean:266:0: @X1Plan.d0 : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → Doc B D
+info: ServerFv/X1SessionDefs.lean:267:0: @X1Plan.d5 : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → Doc B D
+info: ServerFv/X1SessionDefs.lean:268:0: @X1Plan.cdA : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → CommitData B
+info: ServerFv/X1SessionDefs.lean:269:0: @X1Plan.cdB : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → CommitData B
+info: ServerFv/X1SessionDefs.lean:270:0: @X1Plan.tdA : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → TxData B
+info: ServerFv/X1SessionDefs.lean:271:0: @X1Plan.d9 : {B D : Type} → {e : Env B D} → {nonce sid : B} → X1Plan e nonce sid → Doc B D
+info: ServerFv/X1SessionDefs.lean:272:0: @X1Plan.run_reachable : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), Reachable e (P.T + 4411) (runL e P.d0 P.reqs)
+info: ServerFv/X1SessionDefs.lean:274:0: 'ServerFv.Machine.runL_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionDefs.lean:275:0: 'ServerFv.Machine.runL_append' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionDefs.lean:276:0: 'ServerFv.Machine.X1Plan.d0_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionDefs.lean:277:0: 'ServerFv.Machine.X1Plan.reqs_inOrder' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionDefs.lean:278:0: 'ServerFv.Machine.X1Plan.run_reachable' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18219/18241] Replayed ServerFv.X1SessionOpen
+info: ServerFv/X1SessionOpen.lean:122:0: 'ServerFv.Machine.X1Plan.load_open' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionOpen.lean:123:0: 'ServerFv.Machine.X1Plan.step_join' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionOpen.lean:124:0: 'ServerFv.Machine.X1Plan.step_confA' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionOpen.lean:125:0: 'ServerFv.Machine.X1Plan.step_confB' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionOpen.lean:126:0: 'ServerFv.Machine.X1Plan.run_open' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18221/18241] Replayed ServerFv.X1SessionArm
+info: ServerFv/X1SessionArm.lean:96:0: 'ServerFv.Machine.X1Plan.step_armA' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionArm.lean:97:0: 'ServerFv.Machine.X1Plan.step_armB' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18223/18241] Replayed ServerFv.X1SessionCommit
+warning: ServerFv/X1SessionCommit.lean:38:6: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: ServerFv/X1SessionCommit.lean:39:4: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+info: ServerFv/X1SessionCommit.lean:92:0: 'ServerFv.Machine.X1Plan.step_commitA' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionCommit.lean:93:0: 'ServerFv.Machine.X1Plan.step_commitB' depends on axioms: [propext, Classical.choice, Quot.sound]
+⚠ [18225/18241] Replayed ServerFv.X1SessionTx
+warning: ServerFv/X1SessionTx.lean:53:6: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: ServerFv/X1SessionTx.lean:54:4: `if_neg` has been deprecated: Use `ite_eq_right` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵n̵e̵g̵i̲t̲e̲_̲e̲q̲_̲r̲i̲g̲h̲t̲
+warning: ServerFv/X1SessionTx.lean:83:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: ServerFv/X1SessionTx.lean:87:8: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: ServerFv/X1SessionTx.lean:87:19: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+warning: ServerFv/X1SessionTx.lean:124:46: `if_pos` has been deprecated: Use `ite_eq_left` instead
+
+Hint: Replace the deprecated name:
+  i̵f̵_̵p̵o̵s̵i̲t̲e̲_̲e̲q̲_̲l̲e̲f̲t̲
+info: ServerFv/X1SessionTx.lean:133:0: @X1Plan.check_txA_partner : ∀ {B D : Type} [inst : DecidableEq B] {e : Env B D} {nonce sid : B} (P : X1Plan e nonce sid)
+  {pk' : B} {r : B × Transcript B}, checkNew e P.d7 Role.A P.dA P.tbA P.tsA pk' = Except.ok r → pk' = e.pk P.dB
+info: ServerFv/X1SessionTx.lean:134:0: @X1Plan.step_txA : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), (step e (P.W 4410) P.reqTxA P.d7).1 = P.d8
+info: ServerFv/X1SessionTx.lean:136:0: 'ServerFv.Machine.X1Plan.stale_txA' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionTx.lean:137:0: 'ServerFv.Machine.X1Plan.check_txA' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionTx.lean:138:0: 'ServerFv.Machine.X1Plan.check_txA_partner' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionTx.lean:139:0: 'ServerFv.Machine.X1Plan.step_txA' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18227/18241] Replayed ServerFv.X1SessionVerdict
+info: ServerFv/X1SessionVerdict.lean:162:0: @X1Plan.txB_checkNew : ∀ {B D : Type} [inst : DecidableEq B] [DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), checkNew e P.d8 Role.B P.dB P.tbB P.tsB (e.pk P.dA) = Except.ok (P.sB.raw, P.tB)
+info: ServerFv/X1SessionVerdict.lean:163:0: @X1Plan.txB_stored : ∀ {B D : Type} [DecidableEq B] [DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), stored e P.s9 Role.A = some P.tA ∧ stored e P.s9 Role.B = some P.tB
+info: ServerFv/X1SessionVerdict.lean:164:0: @X1Plan.txB_calMap : ∀ {B D : Type} [DecidableEq B] [DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid),
+  calMap P.s9 =
+    some fun r ↦
+      match r with
+      | Role.A => some (P.cal P.dA)
+      | Role.B => some (P.cal P.dB)
+info: ServerFv/X1SessionVerdict.lean:165:0: @X1Plan.txB_combine : ∀ {B D : Type} [inst : DecidableEq B] [DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid),
+  combine P.tA P.tB (calMap P.s9) =
+    Except.ok
+      { flight_cm := some (flight_exact P.sA.half P.sA.sample_rate P.sB.half P.sB.sample_rate),
+        verdict := some Verdict.NEAR, reason := none, by_ := none }
+info: ServerFv/X1SessionVerdict.lean:166:0: @X1Plan.txB_afterStore : ∀ {B D : Type} [inst : DecidableEq B] [DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), (afterStore e (P.W 4411) P.d8 P.s9).1 = P.d9
+info: ServerFv/X1SessionVerdict.lean:167:0: @X1Plan.step_txB : ∀ {B D : Type} [inst : DecidableEq B] [inst_1 : DecidableEq D] {e : Env B D} {nonce sid : B}
+  (P : X1Plan e nonce sid), (step e (P.W 4411) P.reqTxB P.d8).1 = P.d9
+info: ServerFv/X1SessionVerdict.lean:169:0: 'ServerFv.Machine.X1Plan.txB_checkNew' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionVerdict.lean:170:0: 'ServerFv.Machine.X1Plan.txB_combine' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionVerdict.lean:171:0: 'ServerFv.Machine.X1Plan.txB_afterStore' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionVerdict.lean:172:0: 'ServerFv.Machine.X1Plan.step_txB' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18229/18241] Replayed ServerFv.X1SessionRun
+info: ServerFv/X1SessionRun.lean:58:0: 'ServerFv.Machine.X1Plan.run_d9' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionRun.lean:59:0: 'ServerFv.Machine.X1Plan.reaches_near' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18231/18241] Replayed ServerFv.X1Session
+info: ServerFv/X1Session.lean:200:0: 'ServerFv.Machine.X1_session' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1Session.lean:201:0: 'ServerFv.Machine.X1_session_keys' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18233/18241] Replayed ServerFv.X1SessionLayout
+info: ServerFv/X1SessionLayout.lean:130:0: 'ServerFv.Machine.layout_token_lower' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionLayout.lean:131:0: 'ServerFv.Machine.X1_session_on_layout' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X1SessionLayout.lean:132:0: 'ServerFv.Machine.X1_session_on_layout_edges' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18235/18241] Replayed ServerFv.X2
+info: ServerFv/X2.lean:95:0: 'ServerFv.Machine.X2_load_result_none' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2.lean:96:0: 'ServerFv.Machine.X2_abort' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2.lean:97:0: 'ServerFv.Machine.X2_abort_after_create' depends on axioms: [propext, Classical.choice, Quot.sound]
+ℹ [18237/18241] Replayed ServerFv.X2Fail
+info: ServerFv/X2Fail.lean:222:0: 'ServerFv.Machine.X2_fail_ok' depends on axioms: [propext]
+info: ServerFv/X2Fail.lean:223:0: 'ServerFv.Machine.X2_fail_final' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:224:0: 'ServerFv.Machine.X2_fail_partner_mismatch' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:225:0: 'ServerFv.Machine.X2_fail_retry' depends on axioms: [propext]
+info: ServerFv/X2Fail.lean:226:0: 'ServerFv.Machine.X2_fail_twice' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:227:0: 'ServerFv.Machine.X2_fail_needs' depends on axioms: [propext, Quot.sound]
+info: ServerFv/X2Fail.lean:228:0: 'ServerFv.Machine.X2_bad_transcript' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:229:0: 'ServerFv.Machine.X2_bad_base64' depends on axioms: [propext]
+info: ServerFv/X2Fail.lean:230:0: 'ServerFv.Machine.X2_pk_started' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:231:0: 'ServerFv.Machine.X2_tx_needs' depends on axioms: [propext, Classical.choice, Quot.sound]
+info: ServerFv/X2Fail.lean:232:0: 'ServerFv.Machine.X2_tx_needs_error' depends on axioms: [propext, Classical.choice, Quot.sound]
+Build completed successfully (18241 jobs).
+build rc=0
+== machine_all
+== files: ServerFv/Machine.lean ServerFv/CombineRole.lean ServerFv/GuardsArmView.lean ServerFv/GuardsFail.lean ServerFv/M14.lean ServerFv/M14Handlers.lean ServerFv/M14Transcript.lean ServerFv/V7After.lean ServerFv/V7Bridge.lean ServerFv/V7Facts.lean ServerFv/V7Missing.lean ServerFv/V7Replay.lean ServerFv/V7Rows.lean ServerFv/V7Session.lean ServerFv/WitnessE2.lean ServerFv/X1Keys.lean ServerFv/X1Session.lean ServerFv/X1SessionArm.lean ServerFv/X1SessionCommit.lean ServerFv/X1SessionDefs.lean ServerFv/X1SessionLayout.lean ServerFv/X1SessionOpen.lean ServerFv/X1SessionRun.lean ServerFv/X1SessionTx.lean ServerFv/X1SessionVerdict.lean ServerFv/X2.lean ServerFv/X2Fail.lean
+== lake build
+ℹ [18229/18238] Replayed ServerFv.X1SessionRun
+ℹ [18231/18238] Replayed ServerFv.X1Session
+ℹ [18233/18238] Replayed ServerFv.X1SessionLayout
+ℹ [18234/18238] Replayed ServerFv.X2
+ℹ [18236/18238] Replayed ServerFv.X2Fail
+Build completed successfully (18238 jobs).
+build rc=0
+== fresh lake env lean ServerFv/Machine.lean
+fresh rc=0
+print-axioms requests: 56, lines: 56
+errors: 0
+axiom sets seen:
+      7 depends on axioms: [propext]
+     46 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 depends on axioms: [propext, Quot.sound]
+      1 does not depend on any axioms
+== fresh lake env lean ServerFv/CombineRole.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/GuardsArmView.lean
+fresh rc=0
+print-axioms requests: 6, lines: 6
+errors: 0
+axiom sets seen:
+      1 depends on axioms: [propext]
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/GuardsFail.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      4 depends on axioms: [propext]
+      1 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/M14.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/M14Handlers.lean
+fresh rc=0
+print-axioms requests: 4, lines: 4
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Quot.sound]
+      2 does not depend on any axioms
+== fresh lake env lean ServerFv/M14Transcript.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7After.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Bridge.lean
+fresh rc=0
+print-axioms requests: 6, lines: 6
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+      4 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/V7Facts.lean
+fresh rc=0
+print-axioms requests: 9, lines: 9
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext]
+      6 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Missing.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 does not depend on any axioms
+== fresh lake env lean ServerFv/V7Replay.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/V7Rows.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Session.lean
+fresh rc=0
+print-axioms requests: 16, lines: 16
+errors: 0
+axiom sets seen:
+     15 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/WitnessE2.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/X1Keys.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1Session.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionArm.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionCommit.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionDefs.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionLayout.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionOpen.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionRun.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionTx.lean
+fresh rc=0
+print-axioms requests: 4, lines: 4
+errors: 0
+axiom sets seen:
+      4 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionVerdict.lean
+fresh rc=0
+print-axioms requests: 4, lines: 4
+errors: 0
+axiom sets seen:
+      4 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X2.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X2Fail.lean
+fresh rc=0
+print-axioms requests: 11, lines: 11
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext]
+      7 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== word scan of source
+scan done rc=1
+== traces
+checks/machine_traces.lean:33:6: warning: Variable name `n` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _n
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+== near
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.done att=0 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== near result
+  t=4500: record ServerFv.Verdict.NEAR reason=none flight=some (1715 : Rat)/48 att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4501: view st=ServerFv.Machine.St.done att=0 seq=10 res=true nonce=true err=none [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4502: view st=ServerFv.Machine.St.done att=0 seq=10 res=true nonce=true err=none [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4503: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4504: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4505: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== far
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.done att=0 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=some (ServerFv.Reason.too_far) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== far result
+  t=4500: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.too_far) flight=some (8575 : Rat)/24 att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=some (ServerFv.Reason.too_far) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== retry then near
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.confirmed att=1 [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9300: partner role=ServerFv.Role.B att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=13 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9301: partner role=ServerFv.Role.A att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=14 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9400: accepted ServerFv.Machine.St.started att=1 [st=ServerFv.Machine.St.started att=1 seq=15 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9401: accepted ServerFv.Machine.St.done att=1 [st=ServerFv.Machine.St.done att=1 seq=16 rows=2 t0=some 8001 fin=some 9401 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== after retry, old things
+  t=4500: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4501: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4502: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4503: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4504: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4510: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4511: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4512: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+  t=9000: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+  t=9001: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+== third attempt?
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.confirmed att=1 [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9300: partner role=ServerFv.Role.B att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=13 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9301: partner role=ServerFv.Role.A att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=14 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9400: accepted ServerFv.Machine.St.started att=1 [st=ServerFv.Machine.St.started att=1 seq=15 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9401: accepted ServerFv.Machine.St.done att=1 [st=ServerFv.Machine.St.done att=1 seq=16 rows=2 t0=some 8001 fin=some 9401 err=some (ServerFv.Reason.impossible_flight) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== too early + arm
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_sample_rate [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=12: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4210: ERR 409 ServerFv.Machine.Err.too_early [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4211: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4212: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4213: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4214: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4215: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4216: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+== bad transcript sig
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4302: view st=ServerFv.Machine.St.done att=0 seq=8 res=true nonce=true err=some (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4303: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.signature_invalid) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== bad b64
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.transcript_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4303: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.transcript_mismatch) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.transcript_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== repeat transcript
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4302: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4303: ERR 409 ServerFv.Machine.Err.already_submitted [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4304: ERR 409 ServerFv.Machine.Err.already_submitted [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4305: view st=ServerFv.Machine.St.started att=0 seq=8 res=false nonce=true err=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+== fail variants
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_reason [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_reason [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: view st=ServerFv.Machine.St.confirmed att=1 seq=5 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=1 seq=5 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=12: view st=ServerFv.Machine.St.done att=1 seq=6 res=true nonce=true err=some (ServerFv.Reason.glitch) [st=ServerFv.Machine.St.done att=1 seq=6 rows=2 t0=none fin=some 12 err=some (ServerFv.Reason.glitch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=13: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.glitch) flight=none att=1 rows=2 [st=ServerFv.Machine.St.done att=1 seq=6 rows=2 t0=none fin=some 12 err=some (ServerFv.Reason.glitch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== partner_mismatch final
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: view st=ServerFv.Machine.St.done att=0 seq=5 res=true nonce=true err=some (ServerFv.Reason.partner_mismatch) [st=ServerFv.Machine.St.done att=0 seq=5 rows=1 t0=none fin=some 10 err=some (ServerFv.Reason.partner_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=11: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.partner_mismatch) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=5 rows=1 t0=none fin=some 10 err=some (ServerFv.Reason.partner_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== pairing errors
+  t=1: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.self_join [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 403 ServerFv.Machine.Err.bad_token [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: view st=ServerFv.Machine.St.created att=0 seq=1 res=false nonce=false err=none [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 401 ServerFv.Machine.Err.auth_failed [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: ERR 409 ServerFv.Machine.Err.already_joined [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+== E1 edge
+  t=120000: other [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=120001: other [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+  t=120002: ERR 410 ServerFv.Machine.Err.token_expired [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+  t=120003: view st=ServerFv.Machine.St.aborted att=0 seq=2 res=false nonce=false err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+== E2
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600003: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+  t=600004: view st=ServerFv.Machine.St.aborted att=0 seq=5 res=false nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== E2 edge
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600000: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600001: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== E3 retry
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23011: other [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23012: other [st=ServerFv.Machine.St.confirmed att=1 seq=9 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=23012: view st=ServerFv.Machine.St.confirmed att=1 seq=9 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=1 seq=9 rows=1 t0=none fin=none err=none v=none guest=some 2]
+== E3 both silent then final
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23012: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.confirmed att=1 seq=7 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=30000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=8 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=30001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=9 rows=1 t0=some 33001 fin=none err=none v=none guest=some 2]
+  t=53002: view st=ServerFv.Machine.St.done att=1 seq=10 res=true nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.done att=1 seq=10 rows=2 t0=some 33001 fin=some 53002 err=some (ServerFv.Reason.timeout) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=53003: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.timeout) flight=none att=1 rows=2 [st=ServerFv.Machine.St.done att=1 seq=10 rows=2 t0=some 33001 fin=some 53002 err=some (ServerFv.Reason.timeout) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== E2 beats E3 with one tx
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=590000: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=590001: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=594300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=594301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=620000: view st=ServerFv.Machine.St.aborted att=0 seq=9 res=false nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=9 rows=0 t0=some 593001 fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== abort live
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=20: view st=ServerFv.Machine.St.aborted att=0 seq=7 res=false nonce=true err=some (ServerFv.Reason.aborted) [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+  t=21: view st=ServerFv.Machine.St.aborted att=0 seq=7 res=false nonce=true err=some (ServerFv.Reason.aborted) [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+  t=22: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+done
+traces rc=0
+== mutants
+CONTROL []: clean rc=0 errors=0 in=[]
+CONTROL ['GuardsArmView']: clean rc=0 errors=0 in=[]
+CONTROL ['GuardsFail']: clean rc=0 errors=0 in=[]
+CONTROL ['M14Handlers', 'M14Transcript', 'M14']: clean rc=0 errors=0 in=[]
+CONTROL ['WitnessE2']: clean rc=0 errors=0 in=[]
+MUTANT no commit gate: broke rc=1 errors=1 in=['commit_inv'] expected_hit=['commit_inv']
+MUTANT partner code at arm (own_bed slot): broke rc=1 errors=1 in=['arm_material_codes'] expected_hit=['arm_material_codes']
+MUTANT third attempt allowed: broke rc=1 errors=2 in=['failed_inv', 'frame_failed'] expected_hit=['failed_inv', 'frame_failed']
+MUTANT retry without attempt limit: broke rc=1 errors=2 in=['failed_inv', 'frame_failed'] expected_hit=['failed_inv', 'frame_failed']
+MUTANT age check dropped: broke rc=1 errors=5 in=['expire_fresh', 'expire_inv', 'expire_link', 'frame_expire'] expected_hit=['expire_fresh', 'expire_inv', 'expire_link', 'frame_expire']
+MUTANT started after one arm: broke rc=1 errors=4 in=['arm_inv', 'frame_arm'] expected_hit=['arm_inv', 'frame_arm']
+MUTANT join skips token: broke rc=1 errors=1 in=['join_ok'] expected_hit=['join_ok']
+MUTANT self join allowed: broke rc=1 errors=2 in=['join_inv', 'join_ok'] expected_hit=['join_inv', 'join_ok']
+MUTANT fail on done not refused: broke rc=1 errors=4 in=['M1_terminal', 'M4', 'fail_inv', 'frame_fail'] expected_hit=['M1_terminal', 'M4', 'fail_inv', 'frame_fail']
+MUTANT non-member passes as A: broke rc=1 errors=9 in=['M12_non_member', 'M1_terminal', 'M4', 'M5_codes', 'M5_no_strings', 'frame_step', 'step_inv', 'step_records', 't0_step'] expected_hit=['M12_non_member', 'M1_terminal', 'M4', 'M5_codes', 'M5_no_strings', 'frame_step', 'step_inv', 'step_records', 't0_step']
+MUTANT bad transcript writes NEAR: broke rc=1 errors=1 in=['transcript_inv'] expected_hit=['transcript_inv']
+MUTANT deadline one ms later: broke rc=1 errors=1 in=['expire_fresh'] expected_hit=['expire_fresh']
+MUTANT retry keeps per_role: broke rc=1 errors=3 in=['M8_retry_wipes', 'next_attempt_inv'] expected_hit=['M8_retry_wipes', 'next_attempt_inv']
+MUTANT commit signature not checked: broke rc=1 errors=1 in=['commit_inv'] expected_hit=['commit_inv']
+MUTANT repeat commit refused: broke rc=1 errors=3 in=['M10_commit_different', 'M10_commit_repeat_answer', 'commit_shape'] expected_hit=['M10_commit_different', 'M10_commit_repeat_answer', 'commit_shape']
+MUTANT repeat transcript refused: broke rc=1 errors=2 in=['M10_tx_different', 'M10_tx_repeat_answer'] expected_hit=['M10_tx_different', 'M10_tx_repeat_answer']
+MUTANT stale check ignores state: broke rc=1 errors=3 in=['M10_over_transcript', 'M8_stale_fail', 'M8_stale_transcript'] expected_hit=['M10_over_transcript', 'M8_stale_fail', 'M8_stale_transcript']
+MUTANT retry keeps t0: broke rc=1 errors=2 in=['M8_retry_wipes', 'next_attempt_inv'] expected_hit=['M8_retry_wipes', 'next_attempt_inv']
+MUTANT abort clears t0: broke rc=1 errors=3 in=['abort_inv', 't0_abort'] expected_hit=['abort_inv', 't0_abort']
+MUTANT commit rewrites t0: broke rc=1 errors=6 in=['commitStore_inv', 't0_commit'] expected_hit=['commitStore_inv', 't0_commit']
+MUTANT both transcripts in answers an error: broke rc=1 errors=1 in=['afterStore_accepted'] expected_hit=['afterStore_accepted']
+MUTANT E3 before E2: broke rc=1 errors=19 in=['E2_beats_E3_one_tx', 'expire_fresh', 'expire_inv', 'expire_link', 'expire_not_near', 'frame_expire', 't0_expire'] expected_hit=['E2_beats_E3_one_tx']
+MUTANT M14 commit too_early saves: broke rc=1 errors=3 in=['commit_inv', 'commit_shape', 'frame_commit'] expected_hit=['commit_inv', 'commit_shape', 'frame_commit']
+MUTANT M14 arm bad_state saves: broke rc=1 errors=4 in=['M1_terminal', 'arm_err_doc', 'arm_inv', 'frame_arm'] expected_hit=['arm_err_doc', 'arm_inv', 'frame_arm']
+MUTANT M14 transcript already_submitted saves: broke rc=1 errors=5 in=['M10_tx_different', 'M10_tx_repeat', 'frame_transcript', 'transcript_err_doc', 'transcript_inv'] expected_hit=['M10_tx_different', 'M10_tx_repeat', 'frame_transcript', 'transcript_err_doc', 'transcript_inv']
+MUTANT M14 afterStore internal keeps new doc: broke rc=1 errors=4 in=['afterStore_err_doc', 'afterStore_inv', 'frame_afterStore', 't0_afterStore'] expected_hit=['afterStore_err_doc', 'afterStore_inv', 'frame_afterStore', 't0_afterStore']
+MUTANT M14 viewOr error saves: broke rc=1 errors=7 in=['M12_member', 'M1_terminal', 'frame_viewOr', 'viewOr_err_doc', 'viewOr_inv'] expected_hit=['M12_member', 'frame_viewOr', 'viewOr_err_doc', 'viewOr_inv']
+MUTANT M14 non-member saves: broke rc=1 errors=5 in=['M12_non_member', 'M14', 'M1_terminal', 'frame_step', 'step_inv'] expected_hit=['M12_non_member', 'M14', 'frame_step', 'step_inv']
+MUTANT fail after transcript allowed: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT fail attempt not checked: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT fail reason not checked: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT arm rtt not checked: broke rc=1 errors=1 in=['arm_ok_rtt'] expected_hit=['arm_ok_rtt']
+MUTANT re-arm rate not checked: broke rc=1 errors=1 in=['arm_rate_matches'] expected_hit=['arm_rate_matches']
+MUTANT nonce shown before confirm: broke rc=1 errors=2 in=['view_nonce_gate', 'view_nonce_hidden'] expected_hit=['view_nonce_gate', 'view_nonce_hidden']
+mutants total 34  broke 34 survived 0 unexpected 0 bad pattern 0 control failed 0
+mutants done
+mutants rc=0
+== end of machine_all
+overall rc=0
+machine_all rc=0

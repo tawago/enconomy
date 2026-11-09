@@ -1,0 +1,28 @@
+# Walk traces v4, made with the current test_walk.py (header check on) against server at 9db1490 (same 33 files as walk-final-2.txt).
+# On the run machine in ~/traces/v4/, not in the repo. From fv/v1/server/tests, three runs in parallel:
+#   pytest -q -p no:cacheprovider test_walk.py --walk-seed 20261106 --walk-sessions 2000 --trace-out walk-20261106.jsonl
+#   pytest -q -p no:cacheprovider test_walk.py::test_walk --walk-seed 7001 --walk-sessions 2000 --trace-out walk-7001.jsonl
+#   pytest -q -p no:cacheprovider test_walk.py::test_walk --walk-seed 7002 --walk-sessions 2000 --trace-out walk-7002.jsonl
+# Each run passed, so every response header in these traces passed check_headers and the header text scan while the trace was written.
+# Format pop-walk-trace-3. No replay has run on v4 yet.
+672f8de71bd27f1628e0d1cc67766bd60ccee0f207ef6a89780557149c70f15f  test_walk.py
+a7532e29e124fa54a854977313b348dffcbd125a686b4092b763ef286933f129  conftest.py
+== walk-20261106.out
+  view_shows_seed: wanted M5, caught by M5,M6 at session 1 step 2 now 528, after 5 steps
+61 passed, 1 warning in 1438.48s (0:23:58)
+rc=0
+== walk-7001.out
+  view:not_member: 142
+1 passed, 1 warning in 1172.59s (0:19:32)
+rc=0
+== walk-7002.out
+  view:not_member: 146
+1 passed, 1 warning in 1228.68s (0:20:28)
+rc=0
+2787634b3a6a9f77ab00797df8c5c9f0073c29407a20115f2558bd32896d5bfa  walk-20261106.jsonl
+d9382d4596091deed609a14b44662a718443d33189694477366d1b06b0f2c479  walk-7001.jsonl
+8d74eab923b79cdc7a387e12bfaa6122ca0bd2d1083d1290815cce33e50e7545  walk-7002.jsonl
+    31216 walk-20261106.jsonl
+    31489 walk-7001.jsonl
+    31149 walk-7002.jsonl
+    93854 total

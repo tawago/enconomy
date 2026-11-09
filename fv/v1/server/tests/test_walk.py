@@ -72,7 +72,7 @@ Options: --walk-sessions N (or WALK_SESSIONS), --walk-seed S (or WALK_SEED), --t
 TRACE FORMAT. --trace-out writes JSON lines, for a later Lean replay. Seeds, nonces, keys, hashes and signatures are
 random in each run and never appear. Only opaque labels do, so the same seed gives the same trace, byte for byte.
 All times are milliseconds since the session's created_ms. First line:
-  {"format": "pop-walk-trace-3", "seed": S, "sessions": N}
+  {"format": "pop-walk-trace-4", "seed": S, "sessions": N}
 Then one line per step:
   {"session": i, "step": j, "now": ms, "op": OP, "status": http, "code": error or null, "before": STATE or null, "after": STATE or null, "x": EXTRA or null, "resp": RESP or null}
 "before" is the walk's own model. "after" is read from the real stored document. "cal" on a create line is each phone's starting calibration.
@@ -114,8 +114,10 @@ STATE is the abstract document: section 3.1 of spec.md:
    "per_role": {"A": PR, "B": PR}, "attempts": [ROW], "result": null|RESULT}
   PR is {sr, popt, cal, cm, cms, cmh, rec, cc, tx, txs, txh, half, delta, fail}, with only the keys set so far. cm and tx are labels, cms and txs are
   signature labels, fail is the phone's reason. cmh and txh are the label of the bytes the stored hash is the SHA-256 of, or "?". rec is the commit's
-  rec field as a small int, read from rec_sha256 (v1) or rec_root (v2), or "?". cc is true when the stored v2 code_commit is the one this test
-  computes from the two codes, else "?".
+  rec field as [length in bytes, value], read from rec_sha256 (v1) or rec_root (v2), or "?". The length is kept, so a 33-byte value with a
+  leading 00 is not the 32-byte one. cc is true when the stored v2 code_commit is the one this test computes from the two codes, else "?".
+  "?" means a value the walk can't name. It never matches: the walk fails on any "?" in the stored document (M1), and the Lean replay's
+  compare never takes "?" as equal to "?".
   ROW is {attempt, outcome, reason, by}, plus per_role and t0 for a measured row, plus verdict and flight for a final one.
   RESULT is {verdict, reason, flight, attempt, t0, devices: {role: {half, sr, popt, cal}}, tx: {role: label}, txs, txh, cm, cms, rows}.
 
@@ -452,7 +454,7 @@ def m_commit(m, op, r, now, info):
         return m, 200, None, info
     if now < m["t0"] + GATE_MS:
         return m, 409, "too_early", info
-    p.update(cm=e["label"], cms=e["sigl"], cmh=e["label"], rec=f["rec"])
+    p.update(cm=e["label"], cms=e["sigl"], cmh=e["label"], rec=[32, f["rec"]])   # realize_commit writes rec as 32 bytes
     if f["version"] == 2:
         p["cc"] = True
     m["committed"][r] = True
@@ -550,7 +552,9 @@ def abstract(ctx, d):
     def stored_rec(p):
         """The commit's rec field, stored under the key for the armed version and no other."""
         key, other = ("rec_root", "rec_sha256") if p.get("popt") == 2 else ("rec_sha256", "rec_root")
-        return "?" if other in p or key not in p else int(p[key], 16)
+        if other in p or key not in p or not re.fullmatch(r"(?:[0-9a-f]{2})+", p[key]):
+            return "?"
+        return [len(p[key]) // 2, int(p[key], 16)]
 
     def pr(p, role, attempt):
         out = {}
@@ -638,6 +642,15 @@ def trace_extra(ctx, d):
             "per_role": {r: times(d["per_role"][r]) for r in ROLES},
             "rows": [{"per_role": {r: times(a["per_role"][r]) for r in ROLES}} if "per_role" in a else {} for a in d["attempts"]],
             "result": None if d["result"] is None else full_record(ctx, d["result"])}
+
+
+def unknowns(x, path=""):
+    """Paths of the "?" leaves: values the walk can't name. "?" is never equal to anything, so any one is a failure."""
+    if isinstance(x, dict):
+        return [q for k, v in x.items() for q in unknowns(v, f"{path}.{k}")]
+    if isinstance(x, list):
+        return [q for i, v in enumerate(x) for q in unknowns(v, f"{path}[{i}]")]
+    return [path] if x == "?" else []
 
 
 def without_seq(a):
@@ -1363,8 +1376,36 @@ def check_exact(op, body, want, bad):
         bad("M6", f"{op['op']} response has other keys. new {sorted(extra)}, gone {sorted(gone)}")
 
 
-def scan_response(ctx, op, status, text, body, d, info, bad):
-    """M5 and M6, on every response body. Headers aren't read."""
+# The only headers a JSON route of 9db1490 sends. main.py adds none of its own there: Cache-Control is set only on /app/ static
+# files, X-Pop-Sha256 only on the zk artifact download, and CORS headers only when cors_origins is set, which this walk leaves empty.
+ALLOWED_HEADERS = {"content-length", "content-type"}
+
+
+def header_text(headers):
+    """Every response header as one "name: value" line each, so a scan reads them like the body."""
+    return "\n".join(f"{k}: {v}" for k, v in headers.items())
+
+
+def check_headers(op, status, headers, raw_len, bad):
+    """M6: the headers are closed too. Only the allowed names, content-type is JSON, content-length is the body's length."""
+    names = {k.lower() for k in headers.keys()}
+    extra = names - ALLOWED_HEADERS
+    if extra:
+        bad("M6", f"{op['op']} response, status {status}, has other headers: {sorted(extra)}")
+    if headers.get("content-type") != "application/json":
+        bad("M6", f"{op['op']} response content-type is {headers.get('content-type')!r}")
+    if headers.get("content-length") != str(raw_len):
+        bad("M6", f"{op['op']} response content-length {headers.get('content-length')!r} is not the body length {raw_len}")
+
+
+def scan_response(ctx, op, status, text, body, d, info, bad, headers=None, raw_len=None):
+    """M5 and M6, on every response body and every response header. The secret, token and partner string scans read the
+    headers as "name: value" lines next to the body. The header names are an allow-list, see check_headers.
+    Header values are only scanned for the strings below; a header that encodes a secret some other way, say split
+    or reversed, is caught only by the allow-list, and a value hidden inside content-type or content-length by their exact checks."""
+    if headers is not None:
+        check_headers(op, status, headers, raw_len, bad)
+        text = text + "\n" + header_text(headers)
     low = text.lower()
     for name, s in ctx.secret_forms():
         if s.lower() in low:
@@ -1637,6 +1678,8 @@ def one_step(ctx, op, cov, trace):
         bad("TABLE", f"{op['op']} got {status} {code}, table says {want_status} {want_code}")
     # M1 and M14
     check_fixed(ctx, d, bad)
+    if unknowns(after):
+        bad("M1", f"stored values the walk can't name, at {unknowns(after)[:6]}")
     if without_seq(after) != without_seq(pred):
         bad("M1", f"core fields differ from the table. real {json.dumps(diff(after, pred))}")
         if info.get("expired") is None and info.get("after_load") is before_m and want_status != 200:
@@ -1748,7 +1791,7 @@ def one_step(ctx, op, cov, trace):
         if status != 400 or code != "transcript_mismatch" or d["state"] != "done":
             bad("V5", f"a transcript signed with the other role got {status} {code}, state {d['state']}")
     # M5, M6, and the responses
-    scan_response(ctx, op, status, text, body, d, info, bad)
+    scan_response(ctx, op, status, text, body, d, info, bad, r.headers, len(r.content))
     if status == 200 and op["op"] in VIEW_OPS and isinstance(body, dict):
         check_view(ctx, body, pred, info.get("view_role"), op, bad)
     if status == 200 and op["op"] == "transcript" and isinstance(body, dict):
@@ -2413,8 +2456,11 @@ def do_create(ctx, op, cov, trace):
     r, rec = send(ctx, op)
     body = r.json()
     code = body.get("error") if r.status_code >= 400 else None
+    problems = []
+    check_headers(op, r.status_code, r.headers, len(r.content), lambda p, m: problems.append((p, m)))
+    if problems:
+        raise WalkFail([p for p, _ in problems], f"create {op}: {problems}")
     if r.status_code >= 400:
-        problems = []
         check_error(ctx, op, body, None, None, lambda p, m: problems.append((p, m)))
         if problems:
             raise WalkFail([p for p, _ in problems], f"create {op}: {problems}")
@@ -2445,7 +2491,7 @@ def do_create(ctx, op, cov, trace):
         ctx.model = new_model()
         after = abstract(ctx, d)
         ctx.last_auth["A"] = dict(rec, ts_rel=int(rec["headers"]["X-Pop-Ts"]) - ctx.base, first_rel=0)
-        if without_seq(after) != without_seq(ctx.model) or after["seq"] != ctx.model["seq"]:
+        if without_seq(after) != without_seq(ctx.model) or after["seq"] != ctx.model["seq"] or unknowns(after):
             raise WalkFail(["M1"], f"create: stored {after}")
         if d["context"] is not None or d["policy"] != {"human": "none"}:
             raise WalkFail(["TABLE"], "this walk is only about context=None, human=none")
@@ -2455,7 +2501,7 @@ def do_create(ctx, op, cov, trace):
         for k, n in (("session_id", 32), ("seed_hex", 64), ("nonce_hex", 64), ("join_token", 32)):
             if not re.fullmatch(f"[0-9a-f]{{{n}}}", d[k]):
                 raise WalkFail(["M1"], f"create: {k} is not {n} hex digits")
-        low = r.text.lower()
+        low = (r.text + "\n" + header_text(r.headers)).lower()
         for name, s in ctx.secret_forms():
             if s.lower() in low:
                 raise WalkFail(["M5"], f"{name} in the create response")
@@ -2881,7 +2927,7 @@ def test_walk(env, request):
     trace = open(out, "w") if out else None
     try:
         if trace:
-            trace.write(json.dumps({"format": "pop-walk-trace-3", "seed": seed, "sessions": sessions}) + "\n")
+            trace.write(json.dumps({"format": "pop-walk-trace-4", "seed": seed, "sessions": sessions}) + "\n")
         run_walk(env, sessions, seed, cov, trace, shrink=True)
     finally:
         if trace:
@@ -2891,9 +2937,17 @@ def test_walk(env, request):
 
 
 # -- directed cases. The replay's mutants showed two rules the random walk never reached in 2000 sessions. These reach them on purpose.
+# Later added, for thin replay coverage: a repeat with nonzero halves, and one isolated v2 delta and v2 code-commit refusal.
 
-def directed_attempt(ctx, cov, trace, tag, sr, popt, first, deltas, repeat):
-    """One attempt from armed to both transcripts. Halves 0 and 0, so the flight is 0. `first` sends first. `deltas` is added to each role's fitting delta."""
+NO_HALVES = {"A": 0, "B": 0}
+# Both nonzero, still NEAR at both rates. Both phones share sr, and verdict.flight_exact at 9db1490 takes the half difference:
+# flight = 34300/2 * (12/sr - 10/sr) = 34300/sr cm, about 0.71 cm at 48000 and 0.78 cm at 44100.
+NEAR_HALVES = {"A": 12, "B": 10}
+
+
+def directed_attempt(ctx, cov, trace, tag, sr, popt, first, deltas, repeat, halves=NO_HALVES, spoil=None):
+    """One attempt from armed to both transcripts. `halves` per role, 0 and 0 by default, so the flight is 0. `first` sends first.
+    `deltas` is added to each role's fitting delta. `spoil`, if given, is merged into the first phone's transcript fields."""
     k = ctx.model["attempt"]
 
     def step(op):
@@ -2907,8 +2961,10 @@ def directed_attempt(ctx, cov, trace, tag, sr, popt, first, deltas, repeat):
     for phone in (first, OTHER[first]):
         p = ctx.model["per_role"][phone]
         cal = 0 if popt == 2 else p["cal"]
-        fields = {"role": phone, "attempt": k, "nonce": "ok", "pk_self": phone, "pk_partner": OTHER[phone], "sr": sr, "half": 0,
+        fields = {"role": phone, "attempt": k, "nonce": "ok", "pk_self": phone, "pk_partner": OTHER[phone], "sr": sr, "half": halves[phone],
                   "delta": cal * sr // 1000000 + deltas[phone], "commit": "ok", "rec": "ok", "version": popt, "v2_delta": "ok", "v2_cc": "ok"}
+        if spoil and phone == first:
+            fields.update(spoil)
         step(base_op("transcript", phone, tag, body="ok", fields=fields))
         if ctx.model["state"] == "started":
             labels[phone] = ctx.model["per_role"][phone]["tx"]
@@ -2927,6 +2983,14 @@ def directed_case(env, idx, trace, sr, popt, first, how):
     if how == "repeat":
         directed_attempt(ctx, cov, trace, "directed:repeat", sr, popt, first, {"A": 0, "B": 0}, 2)
         assert ctx.model["result"]["verdict"] == "NEAR"
+    elif how == "repeat_half":   # the repeat again, with both halves nonzero. Each repeat is accepted and moves nothing (the seq check is in directed_attempt).
+        directed_attempt(ctx, cov, trace, "directed:repeat_half", sr, popt, first, {"A": 0, "B": 0}, 2, halves=NEAR_HALVES)
+        assert ctx.model["result"]["verdict"] == "NEAR"
+        assert all(ctx.model["result"]["devices"][r]["half"] == NEAR_HALVES[r] for r in ROLES)
+    elif how in ("v2_delta", "v2_cc"):   # one v2 field wrong in the first transcript, nothing else. It is refused and ends the session.
+        directed_attempt(ctx, cov, trace, f"directed:{how}", sr, popt, first, {"A": 0, "B": 0}, 0, spoil={how: "bad"})
+        row = ctx.model["attempts"][-1]
+        assert ctx.model["result"]["verdict"] == "NOT_NEAR" and row["reason"] == "transcript_mismatch" and row["by"] == first
     else:   # both self checks fail, a full second past the tolerance. The row must blame A, since combine checks A first.
         bad = {"A": sr, "B": sr}
         directed_attempt(ctx, cov, trace, "directed:both_self", sr, popt, first, bad, 0)
@@ -2938,11 +3002,12 @@ def directed_case(env, idx, trace, sr, popt, first, how):
 def test_directed_cases(env, request):
     logging.disable(logging.CRITICAL)
     out = request.config.getoption("--directed-trace-out")
-    cases = [(sr, popt, first, how) for sr in (48000, 44100) for popt in (1, 2) for first in ROLES for how in ("repeat", "both_self")]
+    cases = [(sr, popt, first, how) for sr in (48000, 44100) for popt in (1, 2) for first in ROLES
+             for how in ("repeat", "both_self", "repeat_half", "v2_delta", "v2_cc") if popt == 2 or not how.startswith("v2_")]
     trace = open(out, "w") if out else None
     try:
         if trace:
-            trace.write(json.dumps({"format": "pop-walk-trace-3", "seed": "directed", "sessions": len(cases)}) + "\n")
+            trace.write(json.dumps({"format": "pop-walk-trace-4", "seed": "directed", "sessions": len(cases)}) + "\n")
         for i, (sr, popt, first, how) in enumerate(cases):
             directed_case(env, i, trace, sr, popt, first, how)
     finally:
@@ -3238,13 +3303,54 @@ def wrap_live_cal(monkeypatch):
     monkeypatch.setattr(V, "combine", weak_combine)
 
 
+def view_header_leak(pick):
+    """The view route answers with one extra response header, x-debug, holding pick(session, role). The body stays exactly right,
+    so only a check that reads headers can see it. pick returns None to add nothing.
+    Any x-debug header also trips the M6 allow-list in check_headers. So the seed leak is logged as M5 and M6 together, and
+    M5 is the wanted one: only the header text scan can name the seed. Without that scan it is caught as M6 alone."""
+    import starlette.responses as SR
+
+    def apply(mp):
+        orig_view, orig_init = Sessions.view, SR.Response.init_headers
+        pending = []
+
+        def weak_view(self, s, role):
+            v = pick(s, role)
+            if v is not None:
+                pending.append(v)
+            return orig_view(self, s, role)
+
+        def weak_init(self, headers=None):
+            orig_init(self, headers)
+            if pending:
+                self.raw_headers.append((b"x-debug", pending.pop().encode()))
+        mp.setattr(Sessions, "view", weak_view)
+        mp.setattr(SR.Response, "init_headers", weak_init)
+    return apply
+
+
+def live_partner_sig(s, role):
+    """The partner's stored transcript signature, while live. None otherwise."""
+    return s["per_role"][OTHER[role]].get("sig_b64") if s["state"] in LIVE else None
+
+
+def rec_leading_zero(monkeypatch):
+    """The stored rec gets a leading 00: 33 bytes, the same number. Only a projection that keeps the length can see it."""
+    def change(s):
+        for r in ROLES:
+            for k in ("rec_sha256", "rec_root"):
+                if len(s["per_role"][r].get(k, "")) == 64:
+                    s["per_role"][r][k] = "00" + s["per_role"][r][k]
+    on_save(monkeypatch, change)
+
+
 def wrap_extra_field(monkeypatch):
     def change(s):
         s["debug_note"] = "x"
     on_save(monkeypatch, change)
 
 
-# name -> (how to weaken, the property that must catch it). The first four are the ones this work asked for.
+# name -> (how to weaken, the property that must catch it[, text the failure must hold]). The first four are the ones this work asked for.
 MUTATIONS = {
     "drop_commit_gate": (lambda mp: mp.setattr(K, "B_PLAY_S", -K.CODE_S - 100), "M5"),
     "partner_bed_at_arm": (wrap_arm, "M5"),
@@ -3278,6 +3384,7 @@ MUTATIONS = {
     "stored_commit_hash_wrong": (per_role_rewrite("commit_sha256", "00" * 32), "M1"),
     "stored_transcript_hash_wrong": (per_role_rewrite("transcript_sha256", "00" * 32), "M1"),
     "stored_rec_wrong": (per_role_rewrite("rec_sha256", "00" * 32), "M1"),
+    "stored_rec_33_bytes": (rec_leading_zero, "M1"),
     "stored_code_commit_wrong": (per_role_rewrite("code_commit", "00" * 32), "M1"),
     "stored_extra_field": (wrap_extra_field, "M1"),
     "record_transcript_hash_wrong": (record_rewrite(wrong_record_tx_hash), "M1"),
@@ -3288,6 +3395,9 @@ MUTATIONS = {
     "record_proto_wrong": (record_rewrite(lambda rec: rec.update(proto="pop-v0")), "M1"),
     "record_device_name_wrong": (record_rewrite(wrong_record_device_name), "M1"),
     "combine_reads_live_calibration": (wrap_live_cal, "V1"),
+    "view_header_holds_seed": (view_header_leak(lambda s, role: s["seed_hex"]), "M5"),
+    # The x-debug header trips the M6 allow-list too, so the text pins the partner string scan itself.
+    "view_header_holds_partner_sig": (view_header_leak(live_partner_sig), "M6", "partner sig_b64 in a response to view while live"),
 }
 
 
@@ -3295,7 +3405,7 @@ MUTATIONS = {
 def test_mutation(name, env, monkeypatch):
     """The weakened server must fail the walk, on the named property. If the walk passes, the test fails."""
     logging.disable(logging.CRITICAL)
-    apply, want = MUTATIONS[name]
+    apply, want, *text = MUTATIONS[name]
     apply(monkeypatch)
     cov = Counter()
     with pytest.raises(WalkFail) as e:
@@ -3303,6 +3413,8 @@ def test_mutation(name, env, monkeypatch):
     first = e.value.text.split("\n", 1)[0]
     LAST["mutations"][name] = (want, ",".join(e.value.props), f"{first}, after {cov['steps']} steps")
     assert want in e.value.props, f"{name} was caught by {e.value.props}, not by {want}:\n{e.value.text}"
+    for t in text:
+        assert f"[{want}] {t}" in e.value.text, f"{name}: no [{want}] {t!r} in:\n{e.value.text}"
 
 
 def test_decide_mutation_also_caught_directly(monkeypatch):

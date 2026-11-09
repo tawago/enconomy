@@ -946,9 +946,11 @@ private theorem delta_ok (s : Side B) (sha : B → B) (r : Role) (k : ℕ) (n : 
     (s.transcript sha r k n).delta = some (popt2_delta s.sample_rate) := by
   simp [Side.transcript, h]
 
-/-- **X1 with the bytes in hand (rule CN1).** Two signers pick any numbers. If their bytes decode and
-their signatures check, every check passes and the verdict is NEAR. Nothing in the hypotheses or in
-the functions is about sound. See `X1` for the plain reading.
+/-- **X1 with the bytes in hand (rule CN1).** Take two sides that are `Ready` (bytes decode to their
+fields, signatures check), with crossed partner keys, distinct keys, rates in 36000..96000, self
+deltas that pass `self_os_ok`, and an exact flight strictly between -20 and 60. Then every check
+passes and the verdict is NEAR. Nothing in the hypotheses or in the functions is about sound. See `X1`
+for the plain reading.
 
 It does not show a phone told the truth about the air (CN1). It shows the verdict can't know. -/
 theorem X1_core (p : Prims B) (sA sB : Side B) (nonce : B) (attempt : ℕ) (calA calB : ℤ)
@@ -1058,7 +1060,10 @@ does not show a phone told the truth about the air, and no check in this file re
 
 **What this covers, exactly.** `X1Outcome` calls `verify_record` as written. It calls `check_transcript`
 and `combine` with arguments of the shape the live path passes (`sessions.py:433-437`, `:451-453`).
-For v1 the live path passes `code_commit = None`, so take `ccA`, `ccB` as `none` there. It also calls
+`X1Outcome` passes each side's own `code_commit`. `X1`'s conclusion does not tie that to `ccA`,
+`ccB`: the proof builds the sides with them, but the statement forces neither the live v1 value
+(`None`) nor the server's v2 value (`sessions.py:437`). `X1_keys` pins `code_commit = ccA`, `ccB`.
+It also calls
 `check_commit`, which `sessions.py` never calls. The live path has its own copy of those checks
 (`sessions.py:280-291`), with an armed version check and a `too_early` gate. The session walk to
 `result.verdict = NEAR` is not proved here.
@@ -1785,9 +1790,13 @@ theorem Powers_satisfiable (pkA pkB : Layout.Bytes) : Powers Layout.prims pkA pk
   sign pk _ m := ⟨pk ++ m, by simp [Layout.prims]⟩
 
 /-- **X1 run through its own hypotheses, on the fixed-width decoder.** Every hypothesis of `X1` is met
-at once, for version 1 and for version 2: real widths, halves 100 and 0, rate 48000, all-zero
-recording values with no recording behind them. Every check passes and the verdict is NEAR. So `X1` is
-not empty.
+at once, for version 1 and for version 2. The proof feeds `X1` 65-byte keys, all-zero recording values
+with no recording behind them, self deltas 0 and calibration 0.
+
+**What the statement pins.** Halves 100 and 0, rates 48000, version `ver` on both sides, and
+`X1Outcome` (every check passes, verdict NEAR) with an all-zero nonce, attempt 0 and calibration 0.
+So `X1` is not empty. Keys, recording values, self deltas and `code_commit` are what the proof
+builds, not what the statement says; `X1_on_layout_keys` pins them.
 
 It does not show a phone told the truth about the air (CN1). It shows the verdict can't know. -/
 theorem X1_on_layout (ver : ℕ) (hv : ver = 1 ∨ ver = 2) :

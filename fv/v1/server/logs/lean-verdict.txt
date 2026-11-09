@@ -74,12 +74,12 @@ run: 31 s, rc=0
 
 # Mutant, same machine: sed K.DELTA_MS from 2 to 3, then lake env lean on the copy.
 # Result: rc=1, error at the new theorem popt2_delta_48000. The copy was deleted.
-# Job sfv-verdict5-mut (the wrapper job's own rc=0 only says the shell finished).
+# Mutant run (the wrapper's own rc=0 only says the shell finished).
 
-# Encoder probes. From server/, real pop.codec, job sfv-enc-probe:
+# Encoder probes. From server/, real pop.codec:
 #   v1 dict with all tail fields: 269 bytes, tail left out.
 #   v2 dict with no code_commit: KeyError 'code_commit'.
-# Lean, job sfv-enc-probe3, encodeTranscript lengths, in order:
+# Lean, encodeTranscript lengths, in order:
 #   sampleTx 2 with version := 1 / sampleTx 2 with code_commit := none / sampleTx 2 / sampleTx 1
 #   311
 #   269

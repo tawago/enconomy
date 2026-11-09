@@ -1,17 +1,17 @@
-# Do the check scripts report failure in their exit code? Job rfx-exit, then rfx-exit2. Testing, not proof.
+# Do the check scripts report failure in their exit code? A first run, then a second one. Testing, not proof.
 # Shows the server follows its rules on signed numbers, not that a phone told the truth about the air (CN1). Not a proof of proximity.
-# Reading note: the first wrapper test in rfx-exit found no 200 view to change in directed.jsonl, printed no MISMATCH, and exited 3 on the session floor. It shows nothing about a mismatch. rfx-exit2 below repeats it on a confirm line, and that one exits 1.
-# Also in the first job: last lines of the three walks of job rfx-gen.
-== walk logs of job rfx-gen, last lines
-rfx1.txt:
+# Reading note: the first wrapper test in the first run found no 200 view to change in directed.jsonl, printed no MISMATCH, and exited 3 on the session floor. It shows nothing about a mismatch. the second run below repeats it on a confirm line, and that one exits 1.
+# Also in the first run: last lines of the three walks that made the v3 traces.
+== walk logs of the v3 trace runs, last lines
+walk seed 20261106:
   view_shows_seed: wanted M5, caught by M5,M6 at session 1 step 2 now 528, after 5 steps
 59 passed, 1 warning in 1281.12s (0:21:21)
 all-tests rc=0
-rfx2.txt:
+walk seed 7001:
   view:not_member: 142
 1 passed, 1 warning in 1024.31s (0:17:04)
 walk7001 rc=0
-rfx3.txt:
+walk seed 7002:
   view:not_member: 146
 1 passed, 1 warning in 1097.12s (0:18:17)
 walk7002 rc=0

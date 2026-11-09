@@ -1,5 +1,5 @@
 sessions: 500
-# job fx-final-walk500, seed 20261106 (default). Result: 1 failed, 58 passed, rc=1. The failure is coverage only: test_walk misses cal_moved:outcome_differs (need 30, got 27) and code:join:not_found. test_walk.py's header says targets are sized for 2000 sessions.
+# seed 20261106 (default). Result: 1 failed, 58 passed, rc=1. The failure is coverage only: test_walk misses cal_moved:outcome_differs (need 30, got 27) and code:join:not_found. test_walk.py's header says targets are sized for 2000 sessions.
 # Shows the server follows its rules on signed numbers. Does not show a phone told the truth about the air (CN1). Not proven proximity.
 ..F........................................................              [100%]
 =================================== FAILURES ===================================

@@ -1,6 +1,6 @@
 # OLD RUN. 28 tests, 2000 sessions, on an earlier version of test_walk.py. The current file has 59 tests. Not cited for the current file. See walk-final.txt and ../README.md.
 # from fv/v1/server/tests: env PYTHONPATH=../../../../server python -m pytest -q test_walk.py
-# job walk, seed 20261106, 2000 sessions, server/pop at 9db1490, full output, rc=0
+# seed 20261106, 2000 sessions, server/pop at 9db1490, full output, rc=0
 # Shows the server follows its rules on signed numbers. Does not show a phone told the truth about the air (CN1). Not proven proximity.
 ............................                                             [100%]
 =============================== warnings summary ===============================

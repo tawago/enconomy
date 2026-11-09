@@ -2,22 +2,42 @@
 
 Run from fv/v1/server/lean: python3 checks/replay_checks.py TRACE.jsonl [lines] [MORE_TRACES...]
 MORE_TRACES are added to the honest runs of part 2, and aren't tampered with.
-It only uses a copy of the first lines of TRACE. The trace and the repo files aren't changed.
+It only uses a copy of the first `lines` lines of TRACE; 0 or no value means the whole trace. The trace and the repo files aren't changed.
+A copy short of the replay's session floor or coverage targets gives the control rc=3, and then the run stops: use the whole trace.
 Two parts:
   1. TAMPER. Change one fact in a copy of the trace. The replay must report a mismatch.
   2. MUTANTS. Change one rule in a copy of the definitions of Verdict.lean and Machine.lean, proofs cut out. The replay must
      report a mismatch on the honest trace. A mutant that passes is printed as SURVIVED. That has two possible meanings: the sampled
      runs don't reach that rule, or they do and the rule only moves something the compare can't see. Read the rule to tell which.
-A control comes first: the same copy with no change must pass.
-Exit code 0 only if every control passes, every tamper is caught, and every mutant builds and is caught. Else 1.
+A control comes first: the same input the mutants get (the copy plus MORE_TRACES), with no change, must give rc=0, on the
+definitions-only copy and on the real build. The tampers use the copy alone and must give rc=1.
+UNREACHABLE below is a short, explicit list of mutants that no trace can reach, each with the Lean theorem that says why. Such a
+mutant that survives is printed as "SURVIVED, allowed" and doesn't fail the run. Every other survivor does.
+REPLAY_FILE=<path> runs another copy of the replay instead of ServerFv/Replay.lean, for a before-and-after comparison.
+REPLAY_ONLY=<regex> in the environment runs only the tampers and mutants whose name matches. It is for a quick check of a few rows;
+a filtered run is not the full check, and a filter that matches nothing exits 1.
+Exit code 0 only if every control passes, every tamper is caught, and every mutant builds and is caught or is on the UNREACHABLE list. Else 1.
 These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1).
 """
 import copy, json, os, random, re, shutil, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 
-trace = sys.argv[1]
-keep = int(sys.argv[2]) if len(sys.argv) > 2 else 12000
-more = " ".join(sys.argv[3:])
+
+
+def trace_path(a):
+    """A trace path must be an existing regular file and not look like an option: Replay.lean reads
+    `--stop-first` or `--min-sessions=N` as flags, so a path like that would be skipped. Returned absolute."""
+    if not a or a.startswith("-") or not os.path.isfile(a):
+        sys.exit(f"FAIL: trace path {a!r} is not an existing regular file (or starts with '-'). replay_checks rc 1")
+    return os.path.abspath(a)
+
+
+if len(sys.argv) < 2:
+    sys.exit("usage: replay_checks.py TRACE [KEEP] [EXTRA_TRACE...]")
+trace = trace_path(sys.argv[1])
+keep = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+keep = keep or 10 ** 9   # 0: the whole trace
+more = [trace_path(a) for a in sys.argv[3:]]   # extra trace paths, kept as a list: no joining, no shell
 work = tempfile.mkdtemp(prefix="replay_checks_")
 small = f"{work}/small.jsonl"
 with open(trace) as f, open(small, "w") as g:
@@ -29,11 +49,31 @@ with open(trace) as f, open(small, "w") as g:
     g.writelines(lines)
 
 
-def replay(file, leanpath=None):
+REPLAY = os.environ.get("REPLAY_FILE", "ServerFv/Replay.lean")   # another copy of the replay, for a baseline run
+
+
+_LAKE_ENV = None
+
+
+def lake_env(leanpath):
+    """The environment `lake env` gives, with `leanpath` put first on LEAN_PATH. Read once, then reused."""
+    global _LAKE_ENV
+    if _LAKE_ENV is None:
+        p = subprocess.run(["lake", "env", "env", "-0"], capture_output=True, check=True)
+        _LAKE_ENV = dict(kv.split("=", 1) for kv in p.stdout.decode().split("\0") if "=" in kv)
+    env = dict(_LAKE_ENV)
+    env["LEAN_PATH"] = leanpath + os.pathsep + env.get("LEAN_PATH", "")
+    return env
+
+
+def replay(files, leanpath=None, src=None):
+    """files: a list of trace paths."""
+    src = src or REPLAY
+    cmd = ["lake", "env", "lean", "--run", src, *files]
     env = None
-    cmd = ["lake", "env", "lean", "--run", "ServerFv/Replay.lean", file]
     if leanpath:
-        cmd = ["lake", "env", "bash", "-c", f'LEAN_PATH={leanpath}:$LEAN_PATH lean --run ServerFv/Replay.lean {file}']
+        cmd = ["lean", "--run", src, *files]
+        env = lake_env(leanpath)
     p = subprocess.run(cmd, capture_output=True, text=True, env=env)
     first = next((x for x in p.stdout.splitlines() if x.startswith("MISMATCH")), "")
     m = re.search(r" at (\S+): ", first)
@@ -118,6 +158,62 @@ def setp(path, v):
     return f
 
 
+SESSIONS = []   # session ids of the copy, in order
+for x in parsed[1:]:
+    if not SESSIONS or SESSIONS[-1] != x["session"]:
+        SESSIONS.append(x["session"])
+
+
+def two_later(x):
+    """A good create whose session has at least two sessions after it in the copy."""
+    return is_created(x) and x["session"] in SESSIONS and SESSIONS.index(x["session"]) + 2 < len(SESSIONS)
+
+
+def second_create(out, i):
+    """Send the same good create again, right after the first. The document is the same afterwards, so only the
+    one-create rule can see it."""
+    out.insert(i + 1, out[i])
+
+
+def id_comes_back(out, i):
+    """Give the session two after this one this session's id. Its own lines are all honest, so only the seen-id rule can see it."""
+    old, new = SESSIONS[SESSIONS.index(parsed[i]["session"]) + 2], parsed[i]["session"]
+    for k in range(1, len(out)):
+        if parsed[k]["session"] == old:
+            y = copy.deepcopy(parsed[k])
+            y["session"] = new
+            out[k] = json.dumps(y) + "\n"
+
+
+def has_rec(x):
+    return x["after"] and isinstance(x["after"]["per_role"]["A"].get("rec"), list)
+
+
+def all_rec_unknown(out, i):
+    """Every rec in every before and after of the copy says "?", the trace's word for a value it can't name."""
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k == "rec":
+                    o[k] = "?"
+                else:
+                    walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    for k in range(1, len(out)):
+        y = json.loads(out[k])
+        walk(y.get("before"))
+        walk(y.get("after"))
+        out[k] = json.dumps(y) + "\n"
+
+
+# The Lean side of "? vs ?": a copy of the replay whose recV shows "?" for every rec, as it does for a value of the wrong kind.
+# The #guard on an honest rec would stop that copy from building, so it goes too.
+REC_UNKNOWN = [("  | .num n => .arr [.int 32, .int n]\n", "  | .num n => .str \"?\"\n"),
+               ("#guard (cmp \"p\" (recV (.num 5)) (Lean.toJson ([32, 5] : List Nat))).isNone\n", "")]
+
+
 TAMPER = [
     ("status", lambda x: x["status"] == 200 and x["op"]["op"] == "view", setp(["status"], 409)),
     ("code", lambda x: x["code"] == "bad_state", setp(["code"], "bad_attempt")),
@@ -181,15 +277,40 @@ TAMPER = [
     ("decoded time changed on a repeat", repeat_tx, setp(["op", "eff", "real", "dec", "play_nano_time"], 99)),
     ("verify changed on a repeat", lambda x: id(x) in PAIR_IDS,
      lambda x: x["op"]["eff"]["real"]["verify"].update(C=not x["op"]["eff"]["real"]["verify"]["C"])),
+    ("txh holds the sig label", lambda x: x["after"] and x["after"]["per_role"]["A"].get("txh"),
+     lambda x: x["after"]["per_role"]["A"].update(txh=x["after"]["per_role"]["A"]["txs"])),
+    # Gaps 15 and 16. The first two edit the whole copy (a "file" change), not one line.
+    ("second good create in a session", is_created, second_create, "file"),
+    ("session id comes back", two_later, id_comes_back, "file"),
+    # Codex D1 and D2. The rec keeps its length. "?" on both sides is a mismatch: both sides say "?" for every rec here.
+    ("rec of 33 bytes, leading 00", has_rec, setp(["after", "per_role", "A", "rec"], lambda r: [33, r[1]]), None, r"\.rec\[0\]$"),
+    ("'?' vs '?' at every rec", has_rec, (all_rec_unknown, REC_UNKNOWN), "lean", r"\.rec$"),
+    ("auth code swapped", lambda x: x["op"].get("auth") == "stale_old" and x["code"] == "auth_stale", setp(["code"], "auth_bad_signature")),
+    ("auth code swapped on a step", lambda x: x["op"]["op"] != "create" and x["op"].get("auth") == "unknown_device" and x["code"] == "auth_unknown_device",
+     setp(["code"], "auth_stale")),
 ]
 
 
 def tamper(ix):
-    name, pred, change = TAMPER[ix]
+    name, pred, change, *kind = TAMPER[ix]
+    want = kind[1] if len(kind) > 1 else None
+    kind = kind[:1]
     i = find(name, pred)
     x = copy.deepcopy(parsed[i])
     out = list(lines)
-    if change is None:   # move a phone's starting calibration on the create line of that session, up front
+    src = None
+    if kind == ["lean"]:   # change the whole copy and run a changed copy of the replay
+        change, edits = change
+        txt = open(REPLAY).read()
+        for a, b in edits:
+            assert txt.count(a) == 1, f"{name}: pattern count {txt.count(a)}"
+            txt = txt.replace(a, b)
+        src = f"{work}/t{ix}_Replay.lean"
+        open(src, "w").write(txt)
+        change(out, i)
+    elif kind == ["file"]:
+        change(out, i)
+    elif change is None:   # move a phone's starting calibration on the create line of that session, up front
         role = x["op"]["actor"]
         j = next(k for k in range(i, -1, -1) if parsed[k].get("session") == x["session"] and parsed[k].get("op", {}).get("op") == "create"
                  and parsed[k]["status"] == 200)
@@ -201,9 +322,10 @@ def tamper(ix):
         out[i] = json.dumps(x) + "\n"
     f = f"{work}/t{ix}.jsonl"
     open(f, "w").writelines(out)
-    rc, path, err, first = replay(f)
+    rc, path, err, first = replay([f], src=src)
     os.remove(f)
-    return f"TAMPER {name}: {'caught' if rc == 1 and first else 'MISSED'} rc={rc} at {path} {err}"
+    ok = rc == 1 and first and (not want or re.search(want, path))   # where it must be caught, when that matters
+    return f"TAMPER {name}: {'caught' if ok else 'MISSED'} rc={rc} at {path} {err}"
 
 
 # ------------------------------------------------------------ mutants
@@ -215,10 +337,10 @@ v_src = open("ServerFv/Verdict.lean").read()
 cut = v_src.index("/-- A signed record as `verify_record` reads it")
 v_defs = v_src[:cut] + "\nend ServerFv\n"
 
-g = {}
+g = {"M14X": []}   # machine_mutants.py's extra-file list; the replay copies use only the one-place change
 txt = open("checks/machine_mutants.py").read()
-exec(txt[txt.index("M = ["):txt.index("def run(ix)")], g)
-MUT = [("M", *x) for x in g["M"]] + [
+exec(txt[txt.index("M = ["):txt.index("\nargs = sys.argv")], g)   # the table only, not its command-line filter
+MUT = [("M", *x[:3]) for x in g["M"]] + [
     ("M", "t0 delay 3001", "abbrev T0_DELAY_MS : ℕ := 3000", "abbrev T0_DELAY_MS : ℕ := 3001"),
     ("M", "gate 1201", "abbrev COMMIT_GATE_MS : ℕ := 1200", "abbrev COMMIT_GATE_MS : ℕ := 1201"),
     ("M", "token ttl 121", "abbrev JOIN_TOKEN_TTL_S : ℕ := 120", "abbrev JOIN_TOKEN_TTL_S : ℕ := 121"),
@@ -286,7 +408,32 @@ MUT = [("M", *x) for x in g["M"]] + [
     ("V", "self check reads play_nano_time", "self_os_ok t.self_os_delta t.sample_rate (cal_for t cal_us)", "self_os_ok (t.play_nano_time : ℤ) t.sample_rate (cal_for t cal_us)"),
     ("V", "self check reads play_frame_position", "self_os_ok t.self_os_delta t.sample_rate (cal_for t cal_us)", "self_os_ok (t.play_frame_position : ℤ) t.sample_rate (cal_for t cal_us)"),
     ("V", "self check reads rec_frame0_nano_time", "self_os_ok t.self_os_delta t.sample_rate (cal_for t cal_us)", "self_os_ok (t.rec_frame0_nano_time : ℤ) t.sample_rate (cal_for t cal_us)"),
+    # Gap 2: the trace labels a hash with its wire string's label, so these pass only if Replay.lean reads labels by kind.
+    ("M", "tx hash is the wire", "transcript_sha256 := e.p.sha256 raw, half := t.half", "transcript_sha256 := transcript_b64, half := t.half"),
+    ("M", "commit hash is the wire", "commit_sha256 := e.p.sha256 raw, rec_ := c.rec_", "commit_sha256 := commit_b64, rec_ := c.rec_"),
+    ("M", "record tx hash is the wire", "⟨t.transcript_b64, t.sig_b64, t.transcript_sha256⟩", "⟨t.transcript_b64, t.sig_b64, t.transcript_b64⟩"),
+    ("M", "record tx wire and sig swapped", "⟨t.transcript_b64, t.sig_b64, t.transcript_sha256⟩", "⟨t.sig_b64, t.transcript_b64, t.transcript_sha256⟩"),
 ]
+
+# Mutants no trace can reach. Each one changes a branch that Machine.step can't take, so no honest trace can show it, and a
+# replay that passes it says nothing wrong. Each entry names the Lean theorem that rules the branch out. machine_mutants.py must still
+# catch each one through a proof; this list only stops the replay from failing on it. Keep it short: a survivor not listed here fails the run.
+UNREACHABLE = {
+    # afterStore's last branch, `| _, _ => (s0, .error 500 .internal)`, runs only when combine refuses two stored transcripts.
+    # combine_guard_unreachable (Machine.lean) says that on a Core document with both submitted, combine succeeds
+    # (with Function.Injective e.pk, which the replay's .pk labels give), and afterStore_accepted builds on it. So the branch
+    # is never taken and replay-2.txt lists `internal` as never hit. machine_mutants.py catches this one through the M14 proofs.
+    "M14 afterStore internal keeps new doc": "combine_guard_unreachable",
+}
+
+ONLY = os.environ.get("REPLAY_ONLY")
+if ONLY:
+    TAMPER = [t for t in TAMPER if re.search(ONLY, t[0])]
+    MUT = [m for m in MUT if re.search(ONLY, m[1])]
+    print(f"REPLAY_ONLY={ONLY!r}: {len(TAMPER)} tampers, {len(MUT)} mutants. A filtered run, not the full check.")
+    if not TAMPER and not MUT:
+        print(f"FAIL: REPLAY_ONLY={ONLY!r} matches no tamper and no mutant. replay_checks rc 1")
+        sys.exit(1)
 
 
 def build(tag, vtxt, mtxt):
@@ -294,8 +441,8 @@ def build(tag, vtxt, mtxt):
     os.makedirs(f"{root}/ServerFv")
     for name, txt in (("Verdict", vtxt), ("Machine", mtxt)):
         open(f"{root}/ServerFv/{name}.lean", "w").write(txt)
-        p = subprocess.run(["lake", "env", "bash", "-c", f"LEAN_PATH={root}:$LEAN_PATH lean -R {root} -o {root}/ServerFv/{name}.olean {root}/ServerFv/{name}.lean"],
-                           capture_output=True, text=True)
+        p = subprocess.run(["lean", "-R", root, "-o", f"{root}/ServerFv/{name}.olean", f"{root}/ServerFv/{name}.lean"],
+                           capture_output=True, text=True, env=lake_env(root))
         if p.returncode != 0:
             return root, f"does not compile: {[l for l in p.stdout.splitlines() if 'error' in l][:2]}"
     return root, None
@@ -311,21 +458,24 @@ def mutant(ix):
     if err:
         shutil.rmtree(root)
         return f"MUTANT {name}: NO BUILD {err}"
-    rc, path, e, first = replay(f"{small} {more}", root)
+    rc, path, e, first = replay([small, *more], root)
     shutil.rmtree(root)
     tag = "caught" if rc == 1 and first else ("SURVIVED" if rc in (0, 3) else f"RUN ERROR {e}")   # rc 1 with no MISMATCH line is a compile error, not a catch
-    return f"MUTANT {name}: {tag} rc={rc} at {path}"
+    if tag == "SURVIVED" and name in UNREACHABLE:
+        tag = f"SURVIVED, allowed: no trace can reach it ({UNREACHABLE[name]})"
+    return f"MUTANT {name}: {tag} rc={rc} at {path}" + (f"  [{first[first.find(' at '):][:240]}]" if ONLY and first else "")
 
 
 root, err = build("control", v_defs, m_defs)
 assert err is None, err
-rc, path, e, first = replay(f"{small} {more}", root)
+rc, path, e, first = replay([small, *more], root)
 print(f"CONTROL definitions-only copy, no change: rc={rc} {first} {e}")
-rc2, *_ = replay(small)
-print(f"CONTROL real build, untampered copy of the first lines: rc={rc2}")
+rc2, _, _, first2 = replay([small, *more])
+print(f"CONTROL real build, the same untampered input: rc={rc2} {first2}")
 shutil.rmtree(root)
-if rc not in (0, 3) or rc2 not in (0, 3):   # 3 is only coverage or sessions short, which a short copy can be
+if rc != 0 or rc2 != 0:   # 3 means the copy is short of sessions or targets, and then a survivor could be only that
     sys.exit("a control failed, so the rest would mean nothing")
+print("UNREACHABLE allow-list:", "; ".join(f"{k} ({v})" for k, v in UNREACHABLE.items()))
 with ThreadPoolExecutor(12) as ex:
     a = list(ex.map(tamper, range(len(TAMPER))))
     b = list(ex.map(mutant, range(len(MUT))))
@@ -334,9 +484,10 @@ for r in a + b:
 print("tamper total", len(a), "missed", sum("MISSED" in r for r in a))
 missed = sum("MISSED" in r for r in a)
 caught = sum(": caught" in r for r in b)
-print("mutants total", len(b), "caught", caught, "survived", sum("SURVIVED" in r for r in b),
+allowed = sum("SURVIVED, allowed" in r for r in b)
+print("mutants total", len(b), "caught", caught, "survived", sum("SURVIVED" in r for r in b), "of them allowed (unreachable)", allowed,
       "other", len(b) - caught - sum("SURVIVED" in r for r in b))
 shutil.rmtree(work)
-failed = missed + len(b) - caught
+failed = missed + len(b) - caught - allowed
 print("replay_checks rc", 1 if failed else 0)
 sys.exit(1 if failed else 0)
