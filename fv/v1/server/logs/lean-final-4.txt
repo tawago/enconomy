@@ -1,4 +1,4 @@
-# fv/v1/server/lean, 2026-11-09 integrator run on the box. Part 1: lake build in fv/v1/zkp/popfv (rc=0). Part 2: full lake build in fv/v1/server/lean (rc=0), then bash checks/machine_all.sh with the repo's ServerFv files named (rc=0; the box copy of ServerFv/ holds other agents' stale scratch files, rsync never deletes).
+# fv/v1/server/lean, 2026-11-09 integrator run on the build machine. Part 1: lake build in fv/v1/zkp/popfv (rc=0). Part 2: full lake build in fv/v1/server/lean (rc=0), then bash checks/machine_all.sh with the repo's ServerFv files named (rc=0; the build machine copy of ServerFv/ holds other agents' stale scratch files, rsync never deletes).
 # expect: both Build completed successfully, every fresh rc=0, traces rc=0, mutants total 34 broke 34 survived 0, overall rc=0, machine_all rc=0
 # sha256 of sources (paths from fv/v1/server/lean):
 # b90101cf496a5ccdec17b8fb878366dae22c1251aa1b5ee2c52c3e8d1f8d0e88  ServerFv.lean

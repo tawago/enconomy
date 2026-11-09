@@ -4,7 +4,7 @@
 # Result: 62 passed, rc=0, 810 s. 62 = 7 single tests + 45 test_mutation cases + 7 pair-clause cases + 3 verify_record cases.
 # 45 mutation lines below, each caught by its wanted property. stored_rec_33_bytes (stored rec gets a leading 00, same number) is caught as M1.
 # view_header_holds_partner_sig is caught as M6 and the failure text holds '[M6] partner sig_b64 in a response to view while live', the scan's own line, not only the allow-list's.
-# Ran on the same box at the same time as the v5 trace runs (same test_walk.py): seed 20261106 2000 sessions 62 passed; 7001 and 7002 with test_walk alone, 1 passed each; directed 1 passed.
+# Ran on the same build machine at the same time as the v5 trace runs (same test_walk.py): seed 20261106 2000 sessions 62 passed; 7001 and 7002 with test_walk alone, 1 passed each; directed 1 passed.
 # Scope: basic flow, context=None, policy human=none. World ID, Safe, ENS, bridge, zk routes not touched.
 # Shows the server follows its rules on signed numbers. Does not show a phone told the truth about the air (CN1). Not proven proximity.
 # Hashes (sha256) and full output follow.

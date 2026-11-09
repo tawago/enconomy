@@ -1,4 +1,4 @@
-# python3 checks/replay_checks.py ~/traces/v5/walk-20261106.jsonl 0 ~/traces/v5/directed.jsonl: 0 means the whole default-seed trace (31216 lines), plus the directed trace. Full run, no REPLAY_ONLY. On the box, 2026-11-09, after the replay_checks.py fixes (empty filter exits 1; trace paths as lists with no shell; every trace path must be an existing regular file, not start with '-', and is passed absolute). Testing, not proof.
+# python3 checks/replay_checks.py ~/traces/v5/walk-20261106.jsonl 0 ~/traces/v5/directed.jsonl: 0 means the whole default-seed trace (31216 lines), plus the directed trace. Full run, no REPLAY_ONLY. On the build machine, 2026-11-09, after the replay_checks.py fixes (empty filter exits 1; trace paths as lists with no shell; every trace path must be an existing regular file, not start with '-', and is passed absolute). Testing, not proof.
 # Before it, two negative demos: '--stop-first' as the extra trace path, and a real file named '--stop-first' in the working directory. Each must give rc!=0.
 # Result: both controls rc=0, 67 of 67 tampers caught, 104 rule changes with 103 caught and 1 allowed (M14 afterStore internal keeps new doc, combine_guard_unreachable), replay_checks rc 0.
 # sha256 of the source files this run used, equal to the local files:
@@ -8,7 +8,7 @@
 # 4daf647a63594806f570de6438d5c2543b70d7551df917694b02a21b4e00b4ad  checks/replay_all.sh
 # 6eec30bfc063d49739d86d8f7002a6d04620dc6fab0b60855d62587a5878b43a  checks/replay_checks.py
 # 1bcefd34dc9436f8d22f0575721a3dde7d754feda6cbaef74319784d33dc2451  checks/machine_mutants.py
-# driver (scratch, deleted locally and on the box after the run):
+# driver (scratch, deleted locally and on the build machine after the run):
 #   set -u
 #   echo '== negative demo: --stop-first as the extra trace path'
 #   python3 checks/replay_checks.py ~/traces/v5/walk-20261106.jsonl 0 --stop-first; echo "demo rc=$?"

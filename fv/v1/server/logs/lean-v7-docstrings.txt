@@ -1,5 +1,5 @@
 # Docstring-only edits to V7Facts.lean (header: rows 3 and 4 match the reason only) and V7Missing.lean (header: holds when both device rows are in, else Python raises KeyError), codex finding E4, 2026-11-09.
-# from fv/v1/server/lean, on the box: lake build ServerFv.V7Facts ServerFv.V7Missing, then a fresh lake env lean of each, axiom lists, word scan. Expect build rc=0, fresh rc=0, 0 errors, axioms within propext, Classical.choice, Quot.sound, 0 sorryAx/ofReduceBool/trustCompiler lines, scan rc=1 (clean).
+# from fv/v1/server/lean, on the build machine: lake build ServerFv.V7Facts ServerFv.V7Missing, then a fresh lake env lean of each, axiom lists, word scan. Expect build rc=0, fresh rc=0, 0 errors, axioms within propext, Classical.choice, Quot.sound, 0 sorryAx/ofReduceBool/trustCompiler lines, scan rc=1 (clean).
 # Runs after logs/lean-final-4.txt, which holds the old hashes of these two files (a1d9a5b6..., 68c1c919...). No other source changed.
 # sha256 of the source files this run checked (paths from fv/v1/server/lean):
 # eae00b4aa54672fe60492455ec11755c92a535e2ca3fcc576837de33a7a7df4f  ServerFv/V7Facts.lean

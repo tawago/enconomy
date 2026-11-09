@@ -1,7 +1,7 @@
 # bash checks/replay_all.sh on the v5 traces (~/traces/v5): three walk traces (seeds 20261106, 7001, 7002, 2000 sessions each) and the directed trace, all made by the current test_walk.py against server 9db1490 (~/srv-9db1490). Format pop-walk-trace-4.
 # New in this run (codex D1, D2): rec is compared as [length in bytes, value], so a 33-byte stored rec with a leading 00 is a mismatch; "?" never equals anything in cmp, "?" in the trace included. The trace projection changed, so the traces were made again (v4 is the old format).
 # Result: 6032 sessions, 94251 lines, 83329 steps, 0 mismatches, all 35 chosen targets, rc=0. One at a time: walk-7002 rc=0, walk-20261106 and walk-7001 rc=3 (a target missed, no mismatch), directed under the session floor. Testing on sampled runs, not proof.
-# sha256 of the source files this run built and ran (ServerFv.lean, ServerFv/*.lean, checks/replay_all.sh). Each equals the box copy. The box also held old scratch .lean files from other jobs in ServerFv/; lake build ServerFv builds only what ServerFv.lean imports.
+# sha256 of the source files this run built and ran (ServerFv.lean, ServerFv/*.lean, checks/replay_all.sh). Each equals the build machine copy. The build machine also held old scratch .lean files from other jobs in ServerFv/; lake build ServerFv builds only what ServerFv.lean imports.
 # b90101cf496a5ccdec17b8fb878366dae22c1251aa1b5ee2c52c3e8d1f8d0e88  ServerFv.lean
 # 33bc4fb22799258edb99bcf508f657fdd688286fe4cfcb29b7fc3828bb710751  ServerFv/CombineRole.lean
 # 4befeedfc83c00c9dd8b5258d562e16d62e9a04906047da59d86547b6cb187c0  ServerFv/GuardsArmView.lean

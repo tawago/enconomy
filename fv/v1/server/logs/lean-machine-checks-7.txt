@@ -1,4 +1,4 @@
-# machine_all.sh full run on the box, 2026-11-09, after the checker fixes (Codex round 2 and its review of them): fixed-string axiom allow-list; empty, spaced or missing argument fails; files kept in a quoted array; every stage of the axiom-list pipelines checked and the number of names read must cover every printed list; grep read errors fail; word scan allows leading whitespace. File list given explicitly because the box copy holds stale scratch files.
+# machine_all.sh full run on the build machine, 2026-11-09, after the checker fixes (Codex round 2 and its review of them): fixed-string axiom allow-list; empty, spaced or missing argument fails; files kept in a quoted array; every stage of the axiom-list pipelines checked and the number of names read must cover every printed list; grep read errors fail; word scan allows leading whitespace. File list given explicitly because the build machine copy holds stale scratch files.
 # command: bash checks/machine_all.sh ServerFv/Machine.lean ServerFv/CombineRole.lean ServerFv/GuardsArmView.lean ServerFv/GuardsFail.lean ServerFv/M14.lean ServerFv/M14Handlers.lean ServerFv/M14Transcript.lean ServerFv/V7After.lean ServerFv/V7Bridge.lean ServerFv/V7Facts.lean ServerFv/V7Missing.lean ServerFv/V7Replay.lean ServerFv/V7Rows.lean ServerFv/V7Session.lean ServerFv/WitnessE2.lean ServerFv/X1Keys.lean ServerFv/X1Session.lean ServerFv/X1SessionArm.lean ServerFv/X1SessionCommit.lean ServerFv/X1SessionDefs.lean ServerFv/X1SessionLayout.lean ServerFv/X1SessionOpen.lean ServerFv/X1SessionRun.lean ServerFv/X1SessionTx.lean ServerFv/X1SessionVerdict.lean ServerFv/X2.lean ServerFv/X2Fail.lean
 # expect: 34 mutants, 0 survived, overall rc=0. Then negative demos A to D, each must end rc=1 (demo C control rc=0), and a replay_checks smoke run.
 # sha256 of sources (paths from fv/v1/server/lean):
@@ -533,7 +533,7 @@ mutants rc=0
 overall rc=0
 machine_all rc=0
 
-== negative demos and replay_checks smoke (scratch driver, deleted locally and on the box after the run; its text):
+== negative demos and replay_checks smoke (scratch driver, deleted locally and on the build machine after the run; its text):
 #   # scratch driver for logs/lean-machine-checks-7.txt negative demos and replay smoke; deleted after the run
 #   set -u
 #   T=$(mktemp -d)
@@ -572,7 +572,7 @@ machine_all rc=0
 #   echo '--- default-seed v5 trace plus the directed trace as an extra path, filtered'
 #   REPLAY_ONLY='^status$|^no commit gate$' python3 checks/replay_checks.py ~/traces/v5/walk-20261106.jsonl 0 ~/traces/v5/directed.jsonl; echo "replay_checks rc=$?"
 #   rm -f checks/neg7_scratch.sh checks/neg7b_scratch.sh
-#   ls checks/ | grep -c neg7 | sed 's/^/scratch drivers left on the box: /'
+#   ls checks/ | grep -c neg7 | sed 's/^/scratch drivers left on the build machine: /'
 # The directed trace alone is under the replay's session floor (32 sessions), so its controls give rc=3 and the script stops, as its docstring says. The filtered run on the default-seed trace with the directed trace as an extra path is the smoke test: both controls rc=0.
 == demo A: explicit empty argument
 FAIL: empty argument or a name with spaces: ''
@@ -659,4 +659,4 @@ tamper total 1 missed 0
 mutants total 1 caught 1 survived 0 of them allowed (unreachable) 0 other 0
 replay_checks rc 0
 replay_checks rc=0
-scratch drivers left on the box: 0
+scratch drivers left on the build machine: 0

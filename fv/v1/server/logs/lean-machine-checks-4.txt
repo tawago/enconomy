@@ -1,4 +1,4 @@
-# machine_all.sh full run, explicit file list (box copy holds stale scratch files from other runs; rsync never deletes)
+# machine_all.sh full run, explicit file list (build machine copy holds stale scratch files from other runs; rsync never deletes)
 # command: bash checks/machine_all.sh <files below>
 # sha256 of checked sources:
 # 5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean

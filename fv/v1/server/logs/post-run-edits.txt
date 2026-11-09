@@ -60,7 +60,7 @@ checks/machine_all.sh  fixed-string whole-line axiom allow-list; empty/spaced/mi
   every axiom-list pipeline stage checked (PIPESTATUS) and names read must cover every printed list; grep read errors fail (count/has); word scan allows leading whitespace
   before 01848c05a3f3fc2fe6681cc5924ad2ac2469d49990ad242cbf9b60182505ec1f
   after  a36c7d974e52d9e74dd1dc2bdbc9f3eaf27ed737bebf8473fa548f7b51162b32
-  (an intermediate version 9ab8983c... ran once on the box; its log was overwritten by the rerun below)
+  (an intermediate version 9ab8983c... ran once on the build machine; its log was overwritten by the rerun below)
   rerun: logs/lean-machine-checks-7.txt (34 of 34 mutants, overall rc=0; demos "", ClassicalXchoice, injected grep failure, [M]achine.lean each rc=1)
 checks/replay_checks.py  REPLAY_ONLY matching nothing exits 1; trace paths kept as lists, no shell, LEAN_PATH passed through env
   before 61c3563784b0c691d850876efd44f8d27a5afc50dfd65b60f9ecb574ef9a2b89
