@@ -25,9 +25,9 @@ namespace ServerFv.Machine
 variable {B D : Type} [DecidableEq B]
 
 /-- `afterStore` answers an error only in two ways. Either the document is `s0`, the one from the
-load (the uncaught 500s, lines 451 and the zero-division path), or the answer is 400 with a reject
+load (the uncaught 500s, lines 454 and the zero-division path), or the answer is 400 with a reject
 reason `rsn` and the document is `s` (the one with the transcript stored) finalized as NOT_NEAR,
-`rejected`, with no flight and no blamed role (lines 454-456). The accepted paths never answer an
+`rejected`, with no flight and no blamed role (lines 457-459). The accepted paths never answer an
 error. -/
 theorem afterStore_err_doc {e : Env B D} {w : World D} {s0 s : Doc B D} {st : ℕ} {c : Err}
     (h : (afterStore e w s0 s).2 = .error st c) :
@@ -47,10 +47,10 @@ theorem afterStore_err_doc {e : Env B D} {w : World D} {s0 s : Doc B D} {st : �
       · intro h; exact absurd h (by simp)
     · intro _; exact Or.inl rfl
 
-/-- The two documents a rejected transcript may leave, exactly as in `transcript` (lines 438-440 and
+/-- The two documents a rejected transcript may leave, exactly as in `transcript` (lines 441-443 and
 454-456). Bad transcript: the check rejects with `rsn`, and the loaded document `s` itself is
 finalized, blaming the sender `role`. Combine reject: the check passed with `(raw, t)`, and `s` with
-this request's transcript stored (`txStore`, the same `td` as lines 444-446) is finalized, blaming no
+this request's transcript stored (`txStore`, the same `td` as lines 447-449) is finalized, blaming no
 role. Nothing else: not `s` with another nonce, other participants, or a `seq` bump. -/
 def TxReject (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D) (tb sb : B)
     (rsn : Reason) (d : Doc B D) : Prop :=

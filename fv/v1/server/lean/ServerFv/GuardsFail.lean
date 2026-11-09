@@ -3,7 +3,7 @@ import ServerFv.Machine
 /-!
 # The guards of `/fail` (README "Known gaps" item 13)
 
-`fail_` in `Machine.lean` copies `sessions.py:464-477` at 9db1490. Before this file, three of its
+`fail_` in `Machine.lean` copies `sessions.py:467-480`. Before this file, three of its
 guards survived a one-place mutant: the `already_submitted` check, the `attempt != s["attempt"]`
 check and the `reason not in PHONE_REASONS` check. Each theorem below breaks under one of them.
 

@@ -4,7 +4,7 @@ import ServerFv.Machine
 # X2, the abort row: one member ends a session alone, with no measurement
 
 `spec.md` X2, first row of its table: `/abort` needs nobody else, in any live state, even right after
-create. This file proves that row on the Lean copy of `sessions.py` at 9db1490 (`Machine.lean`).
+create. This file proves that row on the Lean copy of `sessions.py` (`Machine.lean`).
 
 **What is pinned.** A member's `/abort` request, on any reachable document whose state after `load`
 is still live, stores a document that is `aborted`, has no result record and has `error = aborted`.

@@ -63,7 +63,7 @@ No credential, signature or curve check on it. Only "X differs from own X" is en
 
 ## Server concerns
 
-From the server FV work, `fv/v1/server/spec.md` section 6, with repros. All at `9db1490`, low severity, no wrong verdict, not fixed. Later commits changed `sessions.py` and `main.py`, and nothing was rerun, so check each one still applies.
+From the server FV work, `fv/v1/server/spec.md` section 6, with repros. Found at `9db1490`, low severity, no wrong verdict, not fixed. The rechecks that show them reran green on 5863e9c (issue #43), so each still applies there.
 
 - **R1-gap.** Key the replay cache on something canonical, not the signature's base64 string, and consider requiring low-s (`auth.py:45-46`, `crypto.py:32`).
 - **R1-edge.** The 120 s forget window ends just as a ts 60 s ahead is still in range (`auth.py:36, 44`).

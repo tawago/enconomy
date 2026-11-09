@@ -146,7 +146,7 @@ theorem X2_fail_needs {e : Env B D} {w : World D} {s : Doc B D} {role : Role}
 
 /-- **X2, one bad transcript.** The guards of `transcript` in its order, as in
 `combine_guard_on_request`: not caught as stale, state `started`, sender not submitted, sender
-committed, partner key present. If the check of lines 430-437 rejects with `rsn`, the stored document
+committed, partner key present. If the check of lines 433-440 rejects with `rsn`, the stored document
 is `done` with a NOT_NEAR record, reason `rsn`, no flight, and the answer is a 400 with that reason.
 It needs no injectivity of keys and no invariant. It says nothing about what makes the check reject;
 `X2_bad_base64` gives one way that needs no measurement. -/

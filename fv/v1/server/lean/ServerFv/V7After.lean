@@ -5,7 +5,7 @@ import ServerFv.V7Facts
 
 Gap 5 of `README.md`, property V7 of `spec.md`. Part a (`V7Facts.lean`) defined `ResultFacts` and
 showed every other way to finish a session leaves a role not submitted. This file takes the last
-branch of `/transcript` (`sessions.py:448-462`, `afterStore` in `Machine.lean`): once the second
+branch of `/transcript` (`sessions.py:451-465`, `afterStore` in `Machine.lean`): once the second
 transcript is in, the doc either keeps `ResultFacts` or goes back to the loaded doc `s0`, which is
 what the induction (part c) already knows about.
 

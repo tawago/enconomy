@@ -1,6 +1,6 @@
 # Circuit cases: crafted inputs through the real compiled circuits
 
-Run 2026-11-06 with `nargo execute`. Raw output: `../logs/circuit-cases.txt`.
+Run 2026-11-06 with `nargo execute`. Raw output: `../logs/circuit-cases.txt` (removed from the repo, in git at 5863e9c).
 
 ```bash
 server/.venv/bin/python fv/v1/zkp/circuit-cases/cases.py        # all cases, about 75 s
@@ -33,7 +33,7 @@ The real circuits accept recordings with no beep in them, and `pair` then report
 - **The inputs are signed with throwaway keys, including the issuer.** A real run needs a credential the issuer signed, and a device key willing to sign a silent recording. The issuer is a public input, and a real verifier would reject the throwaway one.
 - **e2 gives A knowledge of B's half.** A real cheater must guess it to about 5 ms or learn it with a mic near B. B's half is hidden until both transcripts are in.
 - **e1 needs two cheaters.** Two who cooperate don't need this gap: they can share codes and synthesize perfect recordings.
-- **d is a clean tone in a file.** It says nothing about a room. See `../logs/tone-room-2.txt` and `../logs/tone-distortion-sim.txt`.
+- **d is a clean tone in a file.** It says nothing about a room. See `../logs/tone-room-2.txt` (removed from the repo, in git at 5863e9c) and `../logs/tone-distortion-sim.txt` (removed from the repo, in git at 5863e9c).
 - **No proof was generated or verified.** `nargo execute` found a valid witness; `bb prove` wasn't run.
 - **Live NEAR doesn't use these circuits.** It comes from two signed numbers (`verdict.py:165`). The stock app also refuses flat runs of 8 ms, so it wouldn't sign silence.
 

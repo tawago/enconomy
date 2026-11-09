@@ -6,7 +6,7 @@ import ServerFv.V7Bridge
 Gap 5, V7, the core equation. Take a reachable document with a final record `rc` that holds both
 transcripts. Feed `toRR e rc` (the record as `verify_record` reads it, `verdict.py:168-189`) to
 `verify_record`. The result is exactly `combine` on the two transcripts the server stored, with the
-`cal_us` snapshots the server used (`sessions.py:448-453`).
+`cal_us` snapshots the server used (`sessions.py:451-456`).
 
 The proof goes through `Core.com_ok` and `Core.tx_ok` directly. `side_facts` and `M3` drop
 `c.version = _popt s r`, and `verify_one` passes `c.version` as the version, so they are not enough.
@@ -63,7 +63,7 @@ theorem toRR_record (e : Env B D) (s : Doc B D) (v : Verdict) (rs : Option Reaso
 /-- **One role replays.** In a document that satisfies `Core`, take a role `r` whose transcript is
 stored. Let `rr` be any record whose nonce, attempt, keys, transcript entries and commit entries are
 the ones the document holds (the shape `toRR_record` gives). Then `verify_one` on `rr` for `r`
-accepts, and returns the same transcript the server re-decodes at `sessions.py:451` (`stored`).
+accepts, and returns the same transcript the server re-decodes at `sessions.py:454` (`stored`).
 
 The key facts: the commit check passes by `CommitOk`; the transcript check passes by `TxOk`, with
 `sample_rate` and `code_commit` dropped (`check_transcript_offline`), and with the version
@@ -120,7 +120,7 @@ transcripts. Then `toRR e rc` exists, the server's stored transcripts `ta` and `
 on success, the same error on failure.
 
 So an offline verifier that re-runs `verify_record` on a published record sees the server's own
-`combine` call at `sessions.py:453`, on the same inputs. It does not say what `rc.verdict` or
+`combine` call at `sessions.py:456`, on the same inputs. It does not say what `rc.verdict` or
 `rc.reason` hold; that link is the V7 rows. It assumes nothing about `e` (no key injectivity). -/
 theorem V7_replay_eq {e : Env B D} {c : ℕ} {s : Doc B D} {rc : Record B D} (h : Reachable e c s)
     (hr : s.result = some rc) (hA : rc.transcripts .A ≠ none) (hB : rc.transcripts .B ≠ none) :

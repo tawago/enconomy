@@ -4,15 +4,15 @@ import ServerFv.Machine
 # Three guards on `arm` and `view` (README "Known gaps" 13)
 
 Before this file, three guards survived one-place Lean mutants: `arm`'s `rtt_min_ms` range
-(`sessions.py:239-240`), `arm`'s refusal to re-arm at another `sample_rate` or `popt`
-(`sessions.py:244-248`), and `view`'s nonce gate (`sessions.py:661`, `:666`). Each theorem below
+(`sessions.py:238-239`), `arm`'s refusal to re-arm at another `sample_rate` or `popt`
+(`sessions.py:243-247`), and `view`'s nonce gate (`sessions.py:663`, `:667`). Each theorem below
 breaks when its guard is taken out of `Machine.lean`.
 
 **Level.** Each statement is about one handler (`arm` or `view`) on one document. They say nothing
 about the load before it, the HTTP layer, or what a phone does with the answer.
 
-**What is left out.** The model has no World ID policy, so `view` here is the plain-session rule
-(`human` not `worldid`). A World ID session shows the nonce from create on (`sessions.py:661`); that
+**What is left out.** The model has no `early_nonce`, so `view` here is the plain-session rule
+(`early_nonce` false). A session created with `early_nonce` shows the nonce from create on (`sessions.py:663`); that
 branch is not modelled and nothing here is claimed about it. The `rtt_min_ms` value is only a guard:
 it is checked, never used in a verdict, so `arm_ok_rtt` says only that an accepted arm carried a
 number in `0..300`, not that the number was true.

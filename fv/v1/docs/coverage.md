@@ -1,6 +1,6 @@
 # Coverage: what's checked, and where it fails
 
-Summary of [`../server/README.md`](../server/README.md) and [05-spike-results.md](05-spike-results.md). Those files have the evidence. Server work is pinned to `main` at 9db1490.
+Summary of [`../server/README.md`](../server/README.md) and [05-spike-results.md](05-spike-results.md). Those files have the evidence. Server work checks the checkout's own `server/` (issue #43); last full run on 5863e9c plus the #43 edits.
 
 Colors: green is proved in Lean on a hand-written model. Yellow is tested or partly covered. Red is a known hole. Grey is not covered.
 
@@ -70,11 +70,9 @@ flowchart TB
         direction TB
         s1["Lean theorems<br/>no sorry, standard axioms"]:::good
         s2["Machine.lean, hand-written"]:::good
-        s3["Python at 9db1490"]:::part
-        s4["Current main"]:::hole
+        s3["Python on main, same checkout"]:::part
         s1 --> s2
-        s2 -- "Replay: 83,329 steps, 0 mismatches<br/>Sampled. Label false pass fixed. 67 of 67 tampers caught" --> s3
-        s3 -- "Not rerun. sessions.py and main.py changed" --> s4
+        s2 -- "Replay: 83,329 steps, 0 mismatches<br/>Sampled, rerun in CI. 67 of 67 tampers caught" --> s3
     end
     subgraph C["Circuits"]
         direction TB
@@ -102,7 +100,7 @@ flowchart TB
 | `test_walk.py` | Opus, last round not recorded | fail, on re-review: run records | Not re-reviewed as a track. Its 2026-11-09 fixes passed Codex. Full walk on the current file, 62 passed |
 | `Replay.lean` | Codex | fail, false pass | Fixed in code, gaps 15 and 16 added. Chunk reviews passed, no track re-review. Its 2026-11-09 fixes (recording length, `?`) passed Codex |
 | Whole work, critic | Codex, then not recorded | pass, on the second critic | Its open items are listed in the server README |
-| Circuit `Commit`, `Chain` | Opus, last round not recorded | fail, on re-review: wording and unlogged mutants | Wording fixed, mutants logged in `zkp/logs/chain-mutants.txt`. Not re-reviewed. See [05-spike-results.md](05-spike-results.md) |
+| Circuit `Commit`, `Chain` | Opus, last round not recorded | fail, on re-review: wording and unlogged mutants | Wording fixed, mutants logged in `zkp/logs/chain-mutants.txt` (removed from the repo, in git at 5863e9c). Not re-reviewed. See [05-spike-results.md](05-spike-results.md) |
 | Circuit `Freivalds`, `Signed` | Opus | pass | See [05-spike-results.md](05-spike-results.md) |
 | M14 fix, 2026-11-09 | Codex astra, Opus checked | pass | `TxReject` pins the doc. Open: no status limit on the unchanged case, combine reason, `M14_any` |
 | `X1_session` fix, 2026-11-09 | Codex astra, Opus checked | pass | `X1Reached` pins run and stored values. Open: symmetric layout instances |

@@ -3,7 +3,7 @@ import Popfv.Pair
 /-!
 # The verdict rules of the server (`server/pop/verdict.py`)
 
-A literal Lean copy of `verdict.py` at commit 9db1490. Same names, same order of checks.
+A literal Lean copy of `verdict.py`. Same names, same order of checks.
 Line numbers in the comments are for that file, unless another file is named.
 Property ids (V1 .. V6, X1) are from `fv/v1/server/spec.md`.
 
@@ -12,13 +12,13 @@ on signed numbers. They do not show a phone told the truth about the air (CN1). 
 keys signed two numbers that fit a range. It does not mean two phones were close. Theorem `X1`
 says exactly this, and it sits next to the others so nobody reads them as more than they are.
 
-**Scope.** Only the basic proximity check. Sessions are taken with `context=None` and policy
-`human=none`. World ID, Safe, attestation, ENS, the bridge, zk routes, recording upload and audio
+**Scope.** Only the basic proximity check. Sessions are taken with `context=None` and
+`early_nonce=False`. Contexts, zk routes, the presence signature, recording upload and audio
 processing are not modeled, and nothing is claimed about them. The session steps themselves
 (`sessions.py`) are not in this file either. So `X1` here stops at `check_commit`,
 `check_transcript`, `combine` and `verify_record`. The session walk to `result.verdict = NEAR`
 is not proved here. `sessions.py` never calls `check_commit`. It has its own copy of those checks
-(`sessions.py:280-291`), with an armed version check, and a `too_early` gate after it (`:297`).
+(`sessions.py:279-290`), with an armed version check, and a `too_early` gate after it (`:297`).
 
 **Assumptions, by name.**
 * A1, honest server: the code runs as written. All of this is about that code.
@@ -89,7 +89,7 @@ abbrev NEAR_CM : ℤ := 60
 abbrev SPEED_OF_SOUND_CM_S : ℕ := 34300
 /-- `constants.py:27` -/
 abbrev SELF_OS_TOL_MS : ℕ := 50
-/-- `constants.py:39` -/
+/-- `constants.py:40` -/
 abbrev DELTA_MS : ℕ := 2
 end K
 
@@ -549,15 +549,16 @@ theorem V4_edges :
   norm_num [self_os_ok, abs_of_nonneg, abs_of_neg]
 
 /-- A phone can always pick a number that passes the self check, whatever the calibration in the
-allowed range. No audio is needed to do so. Used to read `X1` plainly.
+allowed range: 0..`CAL_MAX_US_WEB` = 150000, the larger of the two enrolment limits (`calibration.max_us`;
+phones get 0..50000). No audio is needed to do so. Used to read `X1` plainly.
 
 It does not show a phone told the truth about the air (CN1). -/
 theorem self_os_can_pass (sr : ℕ) (cal : ℤ) (hsr : 36000 ≤ sr) (hsr2 : sr ≤ 96000)
-    (hc0 : 0 ≤ cal) (hc1 : cal ≤ 50000) :
+    (hc0 : 0 ≤ cal) (hc1 : cal ≤ 150000) :
     self_os_ok (cal * sr / 1000000) sr cal = true ∧
       -2^31 ≤ cal * sr / 1000000 ∧ cal * sr / 1000000 < 2^31 := by
   have hm : 0 ≤ cal * (sr : ℤ) := by positivity
-  have hle : cal * (sr : ℤ) ≤ 50000 * 96000 :=
+  have hle : cal * (sr : ℤ) ≤ 150000 * 96000 :=
     mul_le_mul hc1 (by exact_mod_cast hsr2) (by positivity) (by norm_num)
   set x : ℤ := cal * (sr : ℤ) with hx
   have h1 : x / 1000000 * 1000000 ≤ x := Int.ediv_mul_le x (by norm_num)
@@ -797,7 +798,7 @@ theorem V5_record_all_swapped (p : Prims B) (rec : ResultRecord B) (tr cm : Sign
 
 /-- **V5, row 4.** Live: a phone signs a transcript that names the other role. All earlier checks
 pass, and `check_transcript` gives `transcript_mismatch` (`verdict.py:122`). That this ends the session is
-`sessions.py:438-440`, which is not in this file.
+`sessions.py:441-443`, which is not in this file.
 
 It is about signed records. It does not show a phone told the truth about the air (CN1). -/
 theorem V5_live_other_role (p : Prims B) (raw sig : B) (role : Role) (pk_self pk_partner nonce : B)
@@ -1048,7 +1049,7 @@ structure Powers (p : Prims B) (pkA pkB : B) : Prop where
 /-- **X1 (rule CN1). The hole.** Pick any two halves in the signed 32-bit range and any two rates in
 36000..96000 whose exact flight lies strictly between -20 and 60. Pick any 32-byte recording values,
 with no recording behind them (for v2 they must be below the field size, `hrA`, `hrB`). Pick self
-deltas that pass. A phone can always find one when its calibration is in 0..50000
+deltas that pass. A phone can always find one when its calibration is in 0..150000
 (`self_os_can_pass`). This theorem takes the deltas as given and works for any calibration, as long as
 they pass. Two signers holding their enrolled keys can then write transcripts that pass every check, and the verdict is NEAR. No part of this reads
 sound.
@@ -1059,13 +1060,13 @@ sound.
 does not show a phone told the truth about the air, and no check in this file reads the air.
 
 **What this covers, exactly.** `X1Outcome` calls `verify_record` as written. It calls `check_transcript`
-and `combine` with arguments of the shape the live path passes (`sessions.py:433-437`, `:451-453`).
+and `combine` with arguments of the shape the live path passes (`sessions.py:436-440`, `:451-453`).
 `X1Outcome` passes each side's own `code_commit`. `X1`'s conclusion does not tie that to `ccA`,
 `ccB`: the proof builds the sides with them, but the statement forces neither the live v1 value
-(`None`) nor the server's v2 value (`sessions.py:437`). `X1_keys` pins `code_commit = ccA`, `ccB`.
+(`None`) nor the server's v2 value (`sessions.py:440`). `X1_keys` pins `code_commit = ccA`, `ccB`.
 It also calls
 `check_commit`, which `sessions.py` never calls. The live path has its own copy of those checks
-(`sessions.py:280-291`), with an armed version check and a `too_early` gate. The session walk to
+(`sessions.py:279-290`), with an armed version check and a `too_early` gate. The session walk to
 `result.verdict = NEAR` is not proved here.
 
 Hypotheses by name: `Powers` is what the signers can do. `hsha` says the hash gives 32 bytes, kept out
@@ -1239,7 +1240,7 @@ On other values they differ, at least in these ways:
 * A v1 transcript that carries all the tail fields gets the tail too. Python leaves them out.
 
 It is not `codec.py`. Nothing here is proved about the Python. A run compares the bytes on four
-samples only (`logs/layout-vectors.txt`). The signature check and the hash here are stand-ins with no
+samples only (`spec-checks/layout_vectors.py`, run by `run_all.sh`). The signature check and the hash here are stand-ins with no
 security at all. -/
 
 namespace Layout

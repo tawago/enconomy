@@ -3,7 +3,7 @@
 This is not the walk test. It only pins the facts the spec leans on, so nobody has to trust a reading.
 It shows the server follows its rules on signed numbers. It says nothing about the air (CN1).
 
-Run from fv/v1/server, with the repo's top-level server/ folder at commit 9db1490 (see fv/v1/server/README.md):
+Run from fv/v1/server, against the repo's own top-level server/ folder (see fv/v1/server/README.md):
   python spec-checks/recheck.py
 It imports the server from that top-level folder, so what is checked is whatever commit sits there.
 Each line is  [PASS|FAIL] id: what. Exit code 1 if any line fails.
@@ -65,8 +65,7 @@ class Walk:
         self.tmp = tempfile.mkdtemp()
         self.clock = TickClock()
         cfg = Settings(db=":memory:", allow_unattested=True, now_ms=self.clock, data_dir=self.tmp,
-                       issuer_key_file=f"{self.tmp}/issuer.pem", worldid_signing_key_file=f"{self.tmp}/rp.key",
-                       attest_key_file=f"{self.tmp}/attest.pem", worldid_bg_poll=False, worldid_poll_s=0.0)
+                       issuer_key_file=f"{self.tmp}/issuer.pem", presence_key_file=f"{self.tmp}/presence.pem")
         self.store = SqliteStore(":memory:")
         self.app = create_app(cfg, self.store)
         self.client = TestClient(self.app, raise_server_exceptions=raise_500)
@@ -404,9 +403,9 @@ def gates():
 def timing():
     # M12 note: anyone with the session id can fire the lazy timeout, no auth
     w = Walk().pair(); w.arm(); w.clock.ms = w.t0 + 20001
-    r = w.client.get(f"/v1/session/{w.sid}/relay")
+    r = w.client.get(f"/v1/session/{w.sid}/zk/bundle")
     d = w.doc()
-    check("M12-restated", "unauthenticated /relay fires the lazy timeout", d["attempt"] == 1 and d["state"] == "confirmed" and d["last_failure"]["reason"] == "timeout", r.status_code)
+    check("M12-restated", "unauthenticated /zk/bundle fires the lazy timeout", d["attempt"] == 1 and d["state"] == "confirmed" and d["last_failure"]["reason"] == "timeout", r.status_code)
     w = Walk().pair(); w.arm(); w.clock.ms = w.t0 + 20000
     w.view(w.a)
     check("M11", "exactly t0 + 20 s is not late", w.doc()["state"] == "started")
@@ -630,19 +629,23 @@ def junk():
 
 
 def create_and_query():
-    """Create's own refusals, and the query check on view. Only the paths a context=None, human=none session can take."""
+    """Create's own refusals, and the query check on view. Only the paths a context=None, early_nonce=False session can take."""
     w = Walk()
     count = lambda: w.store._db.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]  # noqa: E731
     path, n = "/v1/session", count()
     for label, raw, code, err in [("not JSON", b"{not json", 400, "bad_request"), ("a list, not an object", b"[1]", 400, "bad_request"),
-                                  ("bad policy", b'{"policy":{"human":"x"}}', 400, "bad_policy"),
-                                  ("policy not an object", b'{"policy":3}', 400, "bad_policy")]:
+                                  ("early_nonce not a boolean", b'{"early_nonce":"x"}', 400, "bad_request"),
+                                  ("early_nonce null", b'{"early_nonce":null}', 400, "bad_request")]:
         r = w.client.post(path, content=raw, headers=w.a.headers("POST", path, raw))
         check("T-create", f"create, {label}: {code} {err}, nothing stored", r.status_code == code and r.json()["error"] == err and count() == n, r.text[:60])
     r = w.client.post(path, content=b"{not json", headers={"content-type": "application/json"})
     check("T-create", "create, not JSON, no auth: 401, auth comes first here", r.status_code == 401 and count() == n, r.status_code)
     r = w.client.post(path, content=b"", headers=w.a.headers("POST", path, b""))
     check("T-create", "create, empty body: 200, plain session", r.status_code == 200 and count() == n + 1, r.status_code)
+    raw = b'{"policy":{"human":"x"}}'
+    r = w.client.post(path, content=raw, headers=w.a.headers("POST", path, raw))
+    check("T-create", "create, an old policy field: ignored, 200, plain session", r.status_code == 200 and count() == n + 2
+          and "policy" not in w.store.get_session(r.json()["session_id"]), r.status_code)
     w = Walk().pair()
     good = f"/v1/session/{w.sid}?after=x"
     r = w.client.get(good, headers=w.a.headers("GET", good, b""))
@@ -776,8 +779,8 @@ def deep_meta():
         w.clock.ms = w.t0 + 20000
         check("E500-meta", f"depth {depth}: at t0 + 20000 view still works", w.req(w.a, "GET", f"/v1/session/{w.sid}").status_code == 200)
         w.clock.ms = w.t0 + 20001
-        rv, rab, rel = w.req(w.b, "GET", f"/v1/session/{w.sid}"), w.post(w.b, "/abort"), w.client.get(f"/v1/session/{w.sid}/relay")
-        check("E500-meta", f"depth {depth}: from t0 + 20001 view and abort: 500, as is the no-auth relay, unchanged",
+        rv, rab, rel = w.req(w.b, "GET", f"/v1/session/{w.sid}"), w.post(w.b, "/abort"), w.client.get(f"/v1/session/{w.sid}/zk/bundle")
+        check("E500-meta", f"depth {depth}: from t0 + 20001 view and abort: 500, as is the no-auth zk/bundle, unchanged",
               rv.status_code == 500 and rab.status_code == 500 and rel.status_code == 500 and before == w.doc(), (rv.status_code, rab.status_code, rel.status_code))
         w.clock.ms = before["created_ms"] + 600001
         rv = w.req(w.b, "GET", f"/v1/session/{w.sid}")

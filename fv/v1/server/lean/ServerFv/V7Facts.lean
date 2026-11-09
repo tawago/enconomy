@@ -105,7 +105,7 @@ theorem ResultFacts_expire {e : Env B D} {c : ℕ} {w : World D} {s : Doc B D}
   intro rc hr
   rw [expire_done_not_all h hres hr]; simp
 
-/-- **(4)** An accepted `/fail` leaves the failing role not submitted: line 474 refuses a role that
+/-- **(4)** An accepted `/fail` leaves the failing role not submitted: line 477 refuses a role that
 has submitted, `failStore` writes only `fail_`, and `_failed` either clears all flags or keeps them.
 This holds whether or not a record was written. -/
 theorem fail_not_submitted {e : Env B D} {w : World D} {s s' : Doc B D} {role : Role} {a : Arg}
@@ -146,8 +146,8 @@ theorem ResultFacts_fail {e : Env B D} {w : World D} {s s' : Doc B D} {role : Ro
   intro rc hr
   rw [fail_done_not_all hf hr]; simp
 
-/-- **(5)** The transcript reject at lines 438-440 finalizes the doc from before `txStore`, so the
-sending role, not yet submitted there (line 423), stays not submitted. -/
+/-- **(5)** The transcript reject at lines 441-443 finalizes the doc from before `txStore`, so the
+sending role, not yet submitted there (line 426), stays not submitted. -/
 theorem transcript_reject_not_all {e : Env B D} {w : World D} {s : Doc B D} {role : Role}
     {rsn : Reason} (hns : s.submitted role = false) :
     all2 (_finalize e w s .NOT_NEAR (some rsn) none .rejected (some role)).submitted = false := by

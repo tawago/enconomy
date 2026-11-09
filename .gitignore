@@ -69,3 +69,7 @@ tools/cloud/
 # Foundry build output, wherever a contracts folder lives
 **/contracts/out/
 **/contracts/cache/
+
+# fv run output: rerun with fv/v1/server/run_all.sh, never committed (issue #43)
+fv/v1/server/logs/
+fv/v1/zkp/logs/

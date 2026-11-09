@@ -40,7 +40,7 @@ theorem result_err_doc {s : Doc B D} {st : ℕ} {c : Err}
   unfold result
   split <;> rfl
 
-/-- `arm` on any error gives back the document it was handed: none of the error branches (lines 231-251)
+/-- `arm` on any error gives back the document it was handed: none of the error branches (lines 232-250)
 stores the arm or bumps `seq`. The two success branches answer `armMaterial`, which the hypothesis rules out. -/
 theorem arm_err_doc {e : Env B D} {w : World D} {s : Doc B D} {role : Role} {a sr : Arg}
     {rtt : Option ℚ} {p : Arg} {st : ℕ} {c : Err}
