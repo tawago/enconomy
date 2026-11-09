@@ -72,7 +72,7 @@ flowchart TB
         s2["Machine.lean, hand-written"]:::good
         s3["Python on main, same checkout"]:::part
         s1 --> s2
-        s2 -- "Replay: 83,329 steps, 0 mismatches<br/>Sampled, rerun in CI. 67 of 67 tampers caught" --> s3
+        s2 -- "Replay: 83,329 steps, 0 mismatches<br/>Sampled, rerun by run_all.sh. 67 of 67 tampers caught" --> s3
     end
     subgraph C["Circuits"]
         direction TB

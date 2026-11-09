@@ -8,7 +8,7 @@
 
 **Scope.** Sessions with `context=None` and `early_nonce=False` only. No claim about contexts, zk routes, the presence signature beyond the walk's check of the record copy, device statements, recording upload, enrolment attestation parsing or DSP. World ID, Safe, attestation and ENS left `server/pop/` for `examples/`.
 
-**Code under check.** The `server/` in the same checkout, never a pinned copy. [`run_all.sh`](run_all.sh) runs every check against it, and CI ([`.github/workflows/fv-server.yml`](../../../.github/workflows/fv-server.yml)) runs that script on every change to `server/pop/` or `fv/v1/`, so a behaviour change the model doesn't match fails the run. Line numbers in these docs are for `server/pop/` at 5863e9c. They are pointers only and can go stale without a failing run.
+**Code under check.** The `server/` in the same checkout, never a pinned copy. [`run_all.sh`](run_all.sh) runs every check against it. Run it by hand after a change to `server/pop/` or `fv/v1/`: a behaviour change the model doesn't match fails the run. Line numbers in these docs are for `server/pop/` at 5863e9c. They are pointers only and can go stale without a failing run.
 
 Files: [`spec.md`](spec.md) has the rules and properties. `lean/ServerFv/` has the proofs and the replay. `tests/test_walk.py` is the walk. `reviews/` holds the review reports that were kept. Run output goes to `logs/`, which is git-ignored.
 
@@ -176,7 +176,7 @@ Numbers are kept from the earlier list so old references still work. Closed gaps
 8. **`machine_all.sh` exited on the mutants' code only. Closed.** It now exits 1 if the build, any fresh check, the axiom scan, the word scan, the traces or the mutants fail. Since 2026-11-09 (Codex): a word scan that can't read a file fails, each set of extra files gets a control compile that must be clean, a mutant counts only if an error lands in an expected theorem, a filter that picks no mutant fails, and axiom lists Lean wraps over lines are read whole. `logs/machine-checks-negative.txt` (in git at 5863e9c) shows four broken inputs each ending rc=1. the 2026-11-09 run ([Results](#results)) ends with `overall rc=0`. Fixed 2026-11-09 after Codex round 2: the allow-list is a whole-line fixed-string match, so `ClassicalXchoice` fails; an empty argument, a name with spaces or a missing file fails the run before any check; the word scan allows leading whitespace before `axiom`, `unsafe` and `partial`; file names are kept in a quoted array, so none is globbed; every stage of the axiom-list pipelines is checked and the names read must cover every printed list; every grep in the per-file checks and the traces fails the run on a read error. the 2026-11-09 run ([Results](#results)) shows the full run (34 of 34 mutants, `overall rc=0`) and four broken inputs ending rc=1: `""`, `ClassicalXchoice`, an injected failing grep in the name extraction, a file named `[M]achine.lean`. Still open (low): `owner()` in `machine_mutants.py` finds the nearest declaration above an error with no end-of-declaration check, so an error in a later `example` or namespace could count for an expected theorem. In the logged run `owner()` places every error in a theorem: the four mutants that broke more than their expected theorems broke other theorems, no `def`.
 9. **`Powers` and hash width had no row in `spec.md`'s assumption table. Closed.** Rows `Powers`, `hsha` and `hb64` are in `spec.md` section 2.
 10. **Walk mutations name no target for M4, M9, M12, M13, M14, V3, V6, V8.** Unchanged. Some are hit by accident. `minimize()` runs only when a walk fails, and no kept run shows it working.
-11. **Run records are thin. Closed by removal (issue #43).** Run logs are no longer kept in the repo. `run_all.sh` reruns every check on the checkout's own `server/`, prints the commit it ran on, and CI runs it on every change, so a result is tied to a commit by the run itself. The older logs, with their file hashes, are in git at 5863e9c.
+11. **Run records are thin. Closed by removal (issue #43).** Run logs are no longer kept in the repo. `run_all.sh` reruns every check on the checkout's own `server/`, prints the commit it ran on, so a result is tied to a commit by the run itself. The older logs, with their file hashes, are in git at 5863e9c.
 12. **`spec.md` section 5 is a history table. Closed.** Its stale opener now reads as history. The table above is the current list.
 
 **Smaller ones.**
@@ -194,7 +194,7 @@ Numbers are kept from the earlier list so old references still work. Closed gaps
 
 ## What is not done
 
-- The full run was done by hand. CI ([`fv-server.yml`](../../../.github/workflows/fv-server.yml)) has not run yet.
+- Nothing reruns the checks on its own. After a change to `server/pop/`, someone has to run `run_all.sh`.
 - No track re-review after the fixes to `Verdict.lean`, `test_walk.py`, `Chain.lean` and the circuit docs, after the `Replay.lean` changes, or of this doc pass. The 2026-11-09 Codex re-reviews covered only the M14, `X1_session`, checker and replay/walk fixes.
 - The low items Codex left open on 2026-11-09 are not fixed: M14 status limit and `M14_any` (gap 5), the layout instances' symmetry (gap 4), `owner()` (gap 8). The checker allow-list, empty argument and empty `REPLAY_ONLY` are fixed (gaps 8, 22), not re-reviewed.
 - The clean-clone steps above were not run as written.
