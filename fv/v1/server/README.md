@@ -21,11 +21,11 @@ cd server && uv sync --group dev --python 3.12 && cd ..
 PY=$PWD/server/.venv/bin/python fv/v1/server/run_all.sh          # all; or: python | lean
 ```
 
-`python` runs the spec rechecks, the walk (1000 sessions, seed 20261106) and makes four traces (seeds 20261106, 7001, 7002 with 2000 sessions each, and the directed cases). `lean` runs `lake build` with the Mathlib cache, a fresh check of `Verdict.lean`, the layout vectors and `checks/machine_all.sh` with its 34 mutants. `all` does both, then the replay (`checks/replay_all.sh`) and `checks/replay_checks.py` (tampers and rule changes). Traces are seeded, so they are made fresh each run and never stored. One file per step lands in `logs/`, with a summary table at the end; the exit code is 0 only if every step passed. Remove any scratch `.lean` file from `ServerFv/` first, or `machine_all.sh`'s glob picks it up and fails. Lean and the traces are heavy: on a 32-core box the whole run took about 50 min.
+`python` runs the spec rechecks, the walk (1000 sessions, seed 20261106) and makes four traces (seeds 20261106, 7001, 7002 with 2000 sessions each, and the directed cases). `lean` runs `lake build` with the Mathlib cache, a fresh check of `Verdict.lean`, the layout vectors and `checks/machine_all.sh` with its 34 mutants. `all` does both, then the replay (`checks/replay_all.sh`) and `checks/replay_checks.py` (tampers and rule changes). Traces are seeded, so they are made fresh each run and never stored. One file per step lands in `logs/`, with a summary table at the end; the exit code is 0 only if every step passed. Remove any scratch `.lean` file from `ServerFv/` first, or `machine_all.sh`'s glob picks it up and fails. Lean and the traces are heavy: a full run takes about 50 min on a large Linux machine, longer on a laptop.
 
 ## Results
 
-Last full run: 2026-11-09, `run_all.sh all` on the tree of this change (5863e9c plus the issue #43 edits), Python 3.12.3, on a 32-core Linux box. Every step rc=0.
+Last full run: 2026-11-09, `run_all.sh all` on the tree of this change (5863e9c plus the issue #43 edits), Python 3.12.3, on Linux. Every step rc=0.
 
 | Step | Result |
 | --- | --- |
@@ -194,7 +194,7 @@ Numbers are kept from the earlier list so old references still work. Closed gaps
 
 ## What is not done
 
-- The full run is on the cloud box only. CI ([`fv-server.yml`](../../../.github/workflows/fv-server.yml)) has not run yet.
+- The full run was done by hand. CI ([`fv-server.yml`](../../../.github/workflows/fv-server.yml)) has not run yet.
 - No track re-review after the fixes to `Verdict.lean`, `test_walk.py`, `Chain.lean` and the circuit docs, after the `Replay.lean` changes, or of this doc pass. The 2026-11-09 Codex re-reviews covered only the M14, `X1_session`, checker and replay/walk fixes.
 - The low items Codex left open on 2026-11-09 are not fixed: M14 status limit and `M14_any` (gap 5), the layout instances' symmetry (gap 4), `owner()` (gap 8). The checker allow-list, empty argument and empty `REPLAY_ONLY` are fixed (gaps 8, 22), not re-reviewed.
 - The clean-clone steps above were not run as written.
