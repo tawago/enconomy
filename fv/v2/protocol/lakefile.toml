@@ -1,0 +1,9 @@
+name = "protofv"
+version = "0.1.0"
+defaultTargets = ["ProtoFv"]
+
+[leanOptions]
+relaxedAutoImplicit = false
+
+[[lean_lib]]
+name = "ProtoFv"
