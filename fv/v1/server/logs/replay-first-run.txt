@@ -1,4 +1,4 @@
-# First full replay, kept as found. Job replay-all. Lines cut at 500 chars. Traces of job tr-gen, since replaced.
+# First full replay, kept as found. Lines cut at 500 chars. Traces from an earlier trace run, since replaced.
 # The mismatch was in the label written by test_walk.py real_cc, not in the model or the server. See replay.txt, section 'finding'.
 # Testing on sampled runs. Shows the server follows its rules on signed numbers, not that a phone told the truth about the air (CN1).
 all rc=0

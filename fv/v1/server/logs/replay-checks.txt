@@ -1,8 +1,8 @@
-# Does the replay catch anything? checks/replay_checks.py, on the full default-seed trace plus directed.jsonl, job on the next lines. Testing, not proof.
+# Does the replay catch anything? checks/replay_checks.py, on the full default-seed trace plus directed.jsonl, output on the next lines. Testing, not proof.
 # Shows the server follows its rules on signed numbers, not that a phone told the truth about the air (CN1). Not a proof of proximity.
 # rc=3 on the real-build control is a coverage note only: that copy is one seed, without the directed trace. A catch needs both rc=1 and a MISMATCH line.
 # The changes are chosen by hand and run on definitions-only copies, with proofs cut out. All caught does not show no blind spot remains.
-# An earlier run of this script, job rfx-checks, exited 1 on one miss: my "verify changed on a repeat" tamper picked lines where the signature differed, so no fact repeated. The tamper was wrong, not the replay. It now picks a repeat of both strings.
+# An earlier run of this script exited 1 on one miss: my "verify changed on a repeat" tamper picked lines where the signature differed, so no fact repeated. The tamper was wrong, not the replay. It now picks a repeat of both strings.
 CONTROL definitions-only copy, no change: rc=0  
 CONTROL real build, untampered copy of the first lines: rc=3
 TAMPER status: caught rc=1 at status 

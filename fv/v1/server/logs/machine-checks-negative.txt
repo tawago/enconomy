@@ -1,0 +1,63 @@
+# negative checks for machine_all.sh and machine_mutants.py: broken scan path, extra file that fails to compile, bogus filter,
+# and an axiom list Lean wraps over lines that holds sorryAx. Each must end with rc=1 (demo1..4 rc).
+# sha256 of sources (paths from fv/v1/server/lean):
+# 01848c05a3f3fc2fe6681cc5924ad2ac2469d49990ad242cbf9b60182505ec1f  checks/machine_all.sh
+# 1bcefd34dc9436f8d22f0575721a3dde7d754feda6cbaef74319784d33dc2451  checks/machine_mutants.py
+# 5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean
+# 6d4002966099f75d24fdff5141bb99aa2f51cb5dec68821cf992bed934f20e70  ServerFv/GuardsFail.lean
+# driver: demos 1-3 as in the previous version of this log; demo 4 script:
+#   # demo 4: an axiom list that Lean wraps over lines, holding sorryAx. Runs the real per-file lines of machine_all.sh.
+#   set -u
+#   T=$(mktemp -d)
+#   cat > $T/AxDemo.lean <<'L'
+#   theorem a_rather_long_theorem_name_so_that_lean_wraps_the_axiom_list_over_several_lines_demo : True := by
+#     have h1 : ∀ p : Prop, p ∨ ¬ p := Classical.em
+#     have h2 : (fun x : Nat => x) = (fun x => x) := funext fun _ => rfl
+#     exact sorryAx True false
+#   #print axioms a_rather_long_theorem_name_so_that_lean_wraps_the_axiom_list_over_several_lines_demo
+#   L
+#   echo "--- raw lean output"; lake env lean $T/AxDemo.lean
+#   { echo 'fail=0; bad() { echo "FAIL: $*"; fail=1; }'; echo "tmp=$T; files=$T/AxDemo.lean"
+#     sed -n '/^for f in \$files; do$/,/^done$/p' checks/machine_all.sh; echo 'echo "overall rc=$fail"; exit $fail'; } > $T/ax.sh
+#   echo "--- per-file check from machine_all.sh"; bash $T/ax.sh; echo "demo4 rc=$?"
+#   rm -rf $T
+
+== 1. word scan with a missing file (real scan lines from machine_all.sh)
+== word scan of source
+grep: ServerFv/NoSuchFile.lean: No such file or directory
+scan done rc=2
+FAIL: word scan rc=2 (read error)
+overall rc=1
+demo1 rc=1
+== 2. extra file that does not compile (control must fail, mutant not counted)
+1
+CONTROL []: clean rc=0 errors=0 in=[]
+CONTROL ['/tmp/tmp.ApMHOBxexR/Broken']: FAILED rc=1 errors=2 in=['broken_demo']
+MUTANT join skips token: broke rc=1 errors=1 in=['join_ok'] expected_hit=['join_ok']
+MUTANT fail reason not checked: CONTROL FAILED for ['/tmp/tmp.ApMHOBxexR/Broken']
+mutants total 2  broke 1 survived 0 unexpected 0 bad pattern 0 control failed 1
+mutants done
+demo2 rc=1
+== 3. bogus filter
+no mutant matches ['zzz_no_such_mutant']
+mutants done
+demo3 rc=1
+== 4. wrapped axiom list holding sorryAx
+--- raw lean output
+/tmp/tmp.EYgzrV9yJQ/AxDemo.lean:1:8: warning: declaration uses `sorry`
+'a_rather_long_theorem_name_so_that_lean_wraps_the_axiom_list_over_several_lines_demo' depends on axioms: [propext,
+ sorryAx,
+ Classical.choice,
+ Quot.sound]
+--- per-file check from machine_all.sh
+== fresh lake env lean /tmp/tmp.EYgzrV9yJQ/AxDemo.lean
+fresh rc=0
+print-axioms requests: 1, lines: 1
+errors: 0
+axiom sets seen:
+      1 depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+FAIL: /tmp/tmp.EYgzrV9yJQ/AxDemo.lean other axioms: sorryAx
+3: sorryAx,
+FAIL: /tmp/tmp.EYgzrV9yJQ/AxDemo.lean output names sorryAx/ofReduceBool/trustCompiler
+overall rc=1
+demo4 rc=1

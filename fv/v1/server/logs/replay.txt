@@ -17,11 +17,11 @@
 # The repo's HEAD has moved since: git diff 9db1490 HEAD -- server/pop has 15 files changed, sessions.py among them. Nothing here speaks for the newer code.
 #
 # COMMANDS.
-#   traces, from fv/v1/server/tests, job rfx-gen, three pytest runs side by side, written to traces:
+#   traces, from fv/v1/server/tests, three pytest runs side by side, written to traces:
 #     env PYTHONPATH=../../../../server python -m pytest -q -p no:cacheprovider test_walk.py --walk-seed 20261106 --walk-sessions 2000 --trace-out traces/walk-20261106.jsonl    59 passed, rc=0
 #     (same with test_walk.py::test_walk and seeds 7001, 7002.) 1 passed each, rc=0.
-#   directed, job rfx-dir: pytest test_walk.py::test_directed_cases --directed-trace-out traces/directed.jsonl   1 passed
-#   replay, from fv/v1/server/lean: checks/replay_all.sh <the four traces>, which runs lake env lean --run ServerFv/Replay.lean. Job below.
+#   directed: pytest test_walk.py::test_directed_cases --directed-trace-out traces/directed.jsonl   1 passed
+#   replay, from fv/v1/server/lean: checks/replay_all.sh <the four traces>, which runs lake env lean --run ServerFv/Replay.lean. Output below.
 #   The traces are not kept in the repo, about 68 MB each.
 #
 # WHAT CHANGED SINCE THE LAST VERSION OF THIS LOG, after a review. Machine.lean and Verdict.lean did not change, and no proof was touched. No new mismatch came up.

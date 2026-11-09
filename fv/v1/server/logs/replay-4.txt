@@ -1,0 +1,227 @@
+# bash checks/replay_all.sh on the v5 traces (~/traces/v5): three walk traces (seeds 20261106, 7001, 7002, 2000 sessions each) and the directed trace, all made by the current test_walk.py against server 9db1490 (~/srv-9db1490). Format pop-walk-trace-4.
+# New in this run (codex D1, D2): rec is compared as [length in bytes, value], so a 33-byte stored rec with a leading 00 is a mismatch; "?" never equals anything in cmp, "?" in the trace included. The trace projection changed, so the traces were made again (v4 is the old format).
+# Result: 6032 sessions, 94251 lines, 83329 steps, 0 mismatches, all 35 chosen targets, rc=0. One at a time: walk-7002 rc=0, walk-20261106 and walk-7001 rc=3 (a target missed, no mismatch), directed under the session floor. Testing on sampled runs, not proof.
+# sha256 of the source files this run built and ran (ServerFv.lean, ServerFv/*.lean, checks/replay_all.sh). Each equals the build machine copy. The build machine also held old scratch .lean files from other jobs in ServerFv/; lake build ServerFv builds only what ServerFv.lean imports.
+# b90101cf496a5ccdec17b8fb878366dae22c1251aa1b5ee2c52c3e8d1f8d0e88  ServerFv.lean
+# 33bc4fb22799258edb99bcf508f657fdd688286fe4cfcb29b7fc3828bb710751  ServerFv/CombineRole.lean
+# 4befeedfc83c00c9dd8b5258d562e16d62e9a04906047da59d86547b6cb187c0  ServerFv/GuardsArmView.lean
+# 6d4002966099f75d24fdff5141bb99aa2f51cb5dec68821cf992bed934f20e70  ServerFv/GuardsFail.lean
+# cd6dd965dd83dfe0aa775ca6c9821eaabcb5eaeccfcc63f4d5761b79a3bcbea5  ServerFv/M14.lean
+# eb6f960245421d8bdbb8fc43112691ab039bd85dda87270a90a053923ba53815  ServerFv/M14Handlers.lean
+# bfcd416a92c1e702ef3a0fe2a38b458fe7b88a9658ff974ab64632a5c5010a16  ServerFv/M14Transcript.lean
+# 5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean
+# 2b6588f16fb2e1d5383fe71e9e7d69c666e319c3ecc33871ea49b75bfa4a9463  ServerFv/Replay.lean
+# effadb6950383f139492c24f9f8e517b2b1bc59257bcee9e9049a408286151a4  ServerFv/V7After.lean
+# 9dbd63d1e8abb86740540204584d980187d5dc91dbb6013a77b720d961af0b75  ServerFv/V7Bridge.lean
+# a1d9a5b6ff0dda9cbae47ccf4c0fcac917b103b21f647e8b77eb3db96e446918  ServerFv/V7Facts.lean
+# 68c1c919802e7ac9277695f517445edb60f040fa6b5c8f4aecf3f89abffc1a96  ServerFv/V7Missing.lean
+# b74ebbea66eccb87e0c7bb506df34ad667390c5874f3c5886cb48ab573c01459  ServerFv/V7Replay.lean
+# 9c2cc2efea2876c941239d24dc523900ef10806330530e1e6476d61450dd12d2  ServerFv/V7Rows.lean
+# eab8653f14e222bce6e13763ed784f7003862c5b5b7190aec0e13f7754dd9fc6  ServerFv/V7Session.lean
+# 32d11c15c076fdaadf2318e06ffcb3745f95227f4e930b9cf3709e1e1cf6ee6b  ServerFv/Verdict.lean
+# 7aca9e4341abd059318ba83a67bfdce21ca68aafb60b6a36f2e9265380b7284a  ServerFv/WitnessE2.lean
+# ae9fdca500ca69785354c5aaa85d27b8d0648e6d52cc35267de33e6f189aa9a1  ServerFv/X1Keys.lean
+# e61fcb138a43f0b2c54e74a87a5d26b3cd2510895136707247c1ced5e9355301  ServerFv/X1Session.lean
+# 3cc88fa6a1a1874908e712d9239bcd71c9738916c27d2f99147957b19c98e417  ServerFv/X1SessionArm.lean
+# 5f20584d631e3b1cb5bd691a01177cf8d4a89f7ef9bf916f5b0ed17d8bd49d26  ServerFv/X1SessionCommit.lean
+# d8efd4d68e6f06d53acaff2920b7f2f51c3eb0938746d89a83a55fd896bb2964  ServerFv/X1SessionDefs.lean
+# 686c680b6291917b07a03d586d56a6515b8b566daff06a1a559a725337b74081  ServerFv/X1SessionLayout.lean
+# 7435e36f910dd992ed17c7740b71e644c2fe66fc40cad9767be3d55adce4ec61  ServerFv/X1SessionOpen.lean
+# 1e0ef45d994b3a1d2a8fcbac210cfe32ac4ed47609f82706fa7146962d9c58aa  ServerFv/X1SessionRun.lean
+# 90971f4864f214799c6d073906baacc6a4bc674232e01b19723ad50e34c76034  ServerFv/X1SessionTx.lean
+# e98c2eb1fc81e98b33ca8de250f6660535a134b41268015b020f6ecc1c2be097  ServerFv/X1SessionVerdict.lean
+# 9841352b6394b358b052b76668304fda608562c628b94eb760349cd831c4fafa  ServerFv/X2.lean
+# caea9daf38517a295ccb7c0640007dbfad0e551d251798983805a8caa8a746fe  ServerFv/X2Fail.lean
+# 4daf647a63594806f570de6438d5c2543b70d7551df917694b02a21b4e00b4ad  checks/replay_all.sh
+# sha256 of the traces:
+# directed.jsonl lines=401 sha256=ef88cfd8c758ae6ccffcfaec7ce4d268f15cd2dc8e6161079d6a38816405d50f header={"format": "pop-walk-trace-4", "seed": "directed", "sessions": 32}
+# walk-20261106.jsonl lines=31216 sha256=00b3214ba8d42a0522aaf8282842569d352577a66f5571e4dbfe1b17f7416f6b header={"format": "pop-walk-trace-4", "seed": 20261106, "sessions": 2000}
+# walk-7001.jsonl lines=31489 sha256=d95879441c0ca227dca40755e871016ea6b8f34b99ee755287d316f323149451 header={"format": "pop-walk-trace-4", "seed": 7001, "sessions": 2000}
+# walk-7002.jsonl lines=31149 sha256=988e61965e5d7ae727b632ae44cdf3f11d5d990e642f3d8880167b69cb44cf21 header={"format": "pop-walk-trace-4", "seed": 7002, "sessions": 2000}
+== lake build (the Machine proofs too, so the Replay reads what was checked)
+Build completed successfully (18241 jobs).
+build rc=0
+== traces
+walk-20261106.jsonl lines=31216 sha256=00b3214ba8d42a0522aaf8282842569d352577a66f5571e4dbfe1b17f7416f6b header={"format": "pop-walk-trace-4", "seed": 20261106, "sessions": 2000}
+walk-7001.jsonl lines=31489 sha256=d95879441c0ca227dca40755e871016ea6b8f34b99ee755287d316f323149451 header={"format": "pop-walk-trace-4", "seed": 7001, "sessions": 2000}
+walk-7002.jsonl lines=31149 sha256=988e61965e5d7ae727b632ae44cdf3f11d5d990e642f3d8880167b69cb44cf21 header={"format": "pop-walk-trace-4", "seed": 7002, "sessions": 2000}
+directed.jsonl lines=401 sha256=ef88cfd8c758ae6ccffcfaec7ce4d268f15cd2dc8e6161079d6a38816405d50f header={"format": "pop-walk-trace-4", "seed": "directed", "sessions": 32}
+== replay, all traces together
+Replay of Machine.step against traces from the real server (test_walk.py --trace-out).
+This is testing on sampled runs. It is not a proof that the Lean table and the Python are equal.
+These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1). Not a proof of proximity.
+Scope: context=None, human=none. Assumptions named in ServerFv/Replay.lean: honest code, one worker, no await between load and save, unforgeable signature, no collisions.
+Signature bits, base64 bits, decoded fields and starting calibration are recorded facts from the real code, read from the trace.
+Compared: status and code, the abstract document and the response digest. Fields outside those are listed in ServerFv/Replay.lean and are not checked here.
+Not compared, among others: record policy, human, pair_tag; view policy, human; document policy, human, context, not_before.
+The trace is a projection built from fixed key lists in test_walk.py, so keys outside those lists are dropped before the strict compare. 'The whole record' means the compared part.
+Labels are read by kind: a hash field shows only a hash label, a wire field only a wire label, a signature field only a signature label.
+Sessions: one good create per session, and an id can't come back within a trace file; either is a mismatch. The host is the create's actor. A 401 code must be one the auth label gives (authCodes, from m_auth).
+trace ~/traces/v5/walk-20261106.jsonl: {"format":"pop-walk-trace-4","seed":20261106,"sessions":2000}
+trace ~/traces/v5/walk-7001.jsonl: {"format":"pop-walk-trace-4","seed":7001,"sessions":2000}
+trace ~/traces/v5/walk-7002.jsonl: {"format":"pop-walk-trace-4","seed":7002,"sessions":2000}
+trace ~/traces/v5/directed.jsonl: {"format":"pop-walk-trace-4","seed":"directed","sessions":32}
+sessions 6032
+trace lines 94251
+lines skipped, after a mismatch in the same session: 0
+sessions with a mismatch: 0
+  arm answered, a role on popt 2: 4335
+  arm answered, both on popt 1: 10280
+  err seen: already_committed: 137
+  err seen: already_joined: 828
+  err seen: already_submitted: 146
+  err seen: auth_failed: 1530
+  err seen: bad_attempt: 762
+  err seen: bad_reason: 645
+  err seen: bad_request: 1525
+  err seen: bad_sample_rate: 249
+  err seen: bad_state: 11114
+  err seen: bad_token: 54
+  err seen: no_result: 609
+  err seen: not_member: 3990
+  err seen: self_join: 670
+  err seen: signature_invalid: 477
+  err seen: stale_attempt: 371
+  err seen: token_expired: 269
+  err seen: too_early: 731
+  err seen: transcript_mismatch: 1222
+  expiry fired: E1: 447
+  expiry fired: E2: 822
+  expiry fired: E3: 1051
+  flight values compared, within 0.005: 3370
+  not a step: refused create: 3521
+  not a step: set_cal: 944
+  not a step: unknown session id: 425
+  op: abort: 515
+  op: arm: 18876
+  op: commit: 19995
+  op: confirm: 12543
+  op: create: 9553
+  op: fail: 3089
+  op: join: 7580
+  op: result: 1604
+  op: set_cal: 944
+  op: transcript: 15886
+  op: view: 3666
+  repeat transcript with a nonzero half: 17
+  resp compared: accepted: 10198
+  resp compared: arm: 14615
+  resp compared: commit: 12943
+  resp compared: record: 550
+  resp compared: view: 19694
+  result: NEAR reason=none: 2758
+  result: NOT_NEAR reason=capture_failed: 21
+  result: NOT_NEAR reason=glitch: 15
+  result: NOT_NEAR reason=impossible_flight: 199
+  result: NOT_NEAR reason=partner_mismatch: 95
+  result: NOT_NEAR reason=partner_not_heard: 16
+  result: NOT_NEAR reason=self_not_heard: 22
+  result: NOT_NEAR reason=self_timestamp_mismatch: 175
+  result: NOT_NEAR reason=signature_invalid: 94
+  result: NOT_NEAR reason=timeout: 351
+  result: NOT_NEAR reason=too_far: 612
+  result: NOT_NEAR reason=transcript_mismatch: 292
+  row: aborted reason=aborted by=A: 56
+  row: aborted reason=aborted by=B: 57
+  row: failed reason=capture_failed by=A: 34
+  row: failed reason=capture_failed by=B: 29
+  row: failed reason=glitch by=A: 37
+  row: failed reason=glitch by=B: 24
+  row: failed reason=impossible_flight by=none: 809
+  row: failed reason=partner_mismatch by=A: 48
+  row: failed reason=partner_mismatch by=B: 47
+  row: failed reason=partner_not_heard by=A: 34
+  row: failed reason=partner_not_heard by=B: 27
+  row: failed reason=self_not_heard by=A: 29
+  row: failed reason=self_not_heard by=B: 27
+  row: failed reason=self_timestamp_mismatch by=A: 339
+  row: failed reason=self_timestamp_mismatch by=B: 302
+  row: failed reason=timeout by=A: 262
+  row: failed reason=timeout by=B: 246
+  row: failed reason=timeout by=none: 543
+  row: rejected reason=signature_invalid by=A: 42
+  row: rejected reason=signature_invalid by=B: 52
+  row: rejected reason=transcript_mismatch by=A: 158
+  row: rejected reason=transcript_mismatch by=B: 134
+  row: verdict reason=none by=none: 2758
+  row: verdict reason=too_far by=none: 612
+  same transcript again, answered 200: 33
+  state after a step: aborted: 4760
+  state after a step: confirmed: 16010
+  state after a step: created: 7420
+  state after a step: done: 15726
+  state after a step: joined: 13067
+  state after a step: started: 32378
+  step code: abort 200 : 353
+  step code: abort 401 auth_failed: 37
+  step code: abort 403 not_member: 109
+  step code: arm 200 : 14615
+  step code: arm 400 bad_attempt: 259
+  step code: arm 400 bad_request: 552
+  step code: arm 400 bad_sample_rate: 249
+  step code: arm 401 auth_failed: 232
+  step code: arm 403 not_member: 634
+  step code: arm 409 bad_state: 2295
+  step code: commit 200 : 12943
+  step code: commit 400 bad_request: 182
+  step code: commit 400 signature_invalid: 383
+  step code: commit 400 transcript_mismatch: 930
+  step code: commit 401 auth_failed: 310
+  step code: commit 403 not_member: 869
+  step code: commit 409 already_committed: 137
+  step code: commit 409 bad_state: 3435
+  step code: commit 409 too_early: 731
+  step code: confirm 200 : 10837
+  step code: confirm 401 auth_failed: 100
+  step code: confirm 403 not_member: 316
+  step code: confirm 409 bad_state: 1231
+  step code: create 200: 6032
+  step code: fail 200 : 407
+  step code: fail 400 bad_attempt: 503
+  step code: fail 400 bad_reason: 645
+  step code: fail 400 bad_request: 92
+  step code: fail 401 auth_failed: 146
+  step code: fail 403 not_member: 381
+  step code: fail 409 already_submitted: 18
+  step code: fail 409 bad_state: 757
+  step code: fail 409 stale_attempt: 110
+  step code: join 200 : 5574
+  step code: join 400 bad_request: 66
+  step code: join 400 self_join: 670
+  step code: join 401 auth_failed: 100
+  step code: join 403 bad_token: 54
+  step code: join 409 already_joined: 828
+  step code: join 410 token_expired: 269
+  step code: result 200 : 550
+  step code: result 401 auth_failed: 102
+  step code: result 403 not_member: 294
+  step code: result 404 no_result: 609
+  step code: transcript 200 : 10198
+  step code: transcript 400 bad_request: 198
+  step code: transcript 400 signature_invalid: 94
+  step code: transcript 400 transcript_mismatch: 292
+  step code: transcript 401 auth_failed: 316
+  step code: transcript 403 not_member: 943
+  step code: transcript 409 already_submitted: 128
+  step code: transcript 409 bad_state: 3396
+  step code: transcript 409 stale_attempt: 261
+  step code: view 200 : 2523
+  step code: view 400 bad_request: 435
+  step code: view 401 auth_failed: 187
+  step code: view 403 not_member: 444
+  steps run through Machine.step: 83329
+  verdict: NEAR: 2758
+  verdict: NOT_NEAR: 1892
+Lean error codes never hit: [internal]
+reasons never seen in an attempts row: []
+chosen coverage targets: 35, missed: []
+session floor: 1000
+RESULT no mismatch in any compared step, on these sampled runs, with 6032 sessions and all 35 chosen targets reached. That is not full coverage. Not a proof of equivalence, and not a proof of proximity.
+replay rc=0
+== replay, one trace at a time
+walk-20261106.jsonl rc=3 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch, but a chosen coverage target was missed 
+walk-7001.jsonl rc=3 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch, but a chosen coverage target was missed 
+walk-7002.jsonl rc=0 sessions 2000 sessions with a mismatch: 0 RESULT no mismatch in any compared step, on these sampled runs, with 2000 sessions and all 35 chosen targets reached. That is not full coverage. Not a proof of equivalence, and not a proof of proximity. 
+directed.jsonl rc=3 sessions 32 sessions with a mismatch: 0 RESULT no mismatch, but only 32 sessions, under the floor of 1000 
+== end of replay_all, rc=0
+exit rc=0

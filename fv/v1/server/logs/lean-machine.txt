@@ -1,7 +1,7 @@
 # 2026-11-06. ServerFv/Machine.lean, from fv/v1/server/lean.
 # These results show the server follows its rules on signed numbers. They do not show a phone told
 # the truth about the air (CN1).
-# Job sfv-machine: lake build
+# First run: lake build
 # Local grep for sorry, admit, native_decide, ^axiom in Machine.lean: no hits.
 ℹ [18185/18189] Built ServerFv.Machine (13s)
 info: ServerFv/Machine.lean:3525:0: 'ServerFv.Machine.M9' depends on axioms: [propext, Classical.choice, Quot.sound]
@@ -52,10 +52,10 @@ info: ServerFv/Machine.lean:3568:0: 'ServerFv.Machine.Witness.toy_unforgeable' d
 Build completed successfully (18189 jobs).
 run: 29 s, rc=0
 
-# Job sfv-machine-mut: each mutant is a one-place change to a copy of Machine.lean at /tmp/mut.lean,
+# Mutant run: each mutant is a one-place change to a copy of Machine.lean at /tmp/mut.lean,
 # then lake env lean on that copy. rc=1 means the proofs broke, as they should.
 # The file in the repo was not changed. first= is the first error line in the copy.
-# The MUTANT lines are copied by hand from the job's output, seen to the end.
+# The MUTANT lines are copied by hand from the run's output, seen to the end.
 MUTANT no commit gate: rc=1 errors=1 first=line 1569:4
 MUTANT retry without attempt limit: rc=1 errors=2 first=line 1008:4
 MUTANT bad transcript writes NEAR: rc=1 errors=1 first=line 1715:67
@@ -74,11 +74,11 @@ run: 118 s, rc=0
 # Changes: M8_old_commit split into M8_old_commit_started and M8_old_commit_not_started. New:
 # M10_commit_repeat_answer, M10_commit_resend, M10_tx_repeat_answer, M10_not_started_commit,
 # M10_not_started_transcript, M10_over_transcript, M12_member_load. Docstrings and header only otherwise.
-# Job sfv-machine-fix: lake build
+# Run after the fix: lake build
 Build completed successfully (18189 jobs).
 run: 37 s, rc=0
 # Local grep for sorry, admit, native_decide, axiom, unsafe, partial and one banned test-name word: only the word "partial" in the header's prose.
-# Job sfv-machine-fix2: fresh `lake env lean ServerFv/Machine.lean`, then five new mutants on /tmp/fixmut.lean.
+# Second run after the fix: fresh `lake env lean ServerFv/Machine.lean`, then five new mutants on /tmp/fixmut.lean.
 fresh rc=0
 # 52 '#print axioms' lines. 0 lines with sorryAx, ofReduceBool or trustCompiler.
 'ServerFv.Machine.M8_old_commit_started' depends on axioms: [propext]
@@ -104,7 +104,7 @@ MUTANT old commit other code: rc=1 errors=1 first=3110:84 touches=['M8_old_commi
 run: 94 s, rc=0
 
 # 2026-11-06, second review. The earlier reviewer could not finish its runs, so every check was run again here.
-# Full output, seen to the end: logs/lean-machine-checks.txt (job machfix-all4, rc=0). Machine.lean sha1 a7aaff7a.
+# Full output, seen to the end: logs/lean-machine-checks.txt (rc=0). Machine.lean sha1 a7aaff7a.
 # Command, from fv/v1/server/lean: bash checks/machine_all.sh
 # Result: lake build ok. Fresh lean rc=0, 55 of 55 '#print axioms' lines, 0 with sorryAx, ofReduceBool or trustCompiler.
 # Traces rc=0. 21 mutants, each a one-place change to a copy: all 21 broke a proof, none survived.

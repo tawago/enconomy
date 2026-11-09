@@ -24,7 +24,9 @@ and they say NOTHING about where the phones really were.
 * "Loud enough" means the literal integer test `BAR * match >= loudness`. That includes `0 >= 0`.
 * `silence_satisfies_phone_sound` and `silence_satisfies_presence_sound` are the known silence case, machine-checked: two
   all-silent recordings, with no sound in them at all, meet every hypothesis of these theorems and every conclusion, and `pair` reads
-  flight 0 cm. Same shape as `circuit-cases` e1.
+  flight 0 cm. Only with toy hashes and signatures (`Silence.permOne`, `silC`, `silMsgs`), not real Poseidon2 or ECDSA.
+  `silence_satisfies_presence_sound` exports only `pair`, `HalfBinds`, the conclusion, flight 0 and that every sample is
+  silence (`Arrival.silent n = 32768`) in its statement; the other hypotheses of `presence_sound` are built inside its proof. Same shape as `circuit-cases` e1, not the same numbers.
 * Silence is not the only exception. Loudness above zero doesn't mean a beep either: a clean 500 Hz tone, written to a file before any code exists, solved the real
   `phone` circuit on 6 of 6 fresh sessions (`circuit-cases` d). That's a run in `nargo`, not a theorem here, and a file, not a room.
 * Any signer can sign any recording, so "signed" says who signed, not that what they signed is true.
@@ -136,7 +138,8 @@ structure Witness where
   /-- lib.nr 280: `back = rr.to_be_bytes()` -/
   back : Nat → Nat
 
-/-- The Noir types of those inputs (main.nr 5-31). Noir enforces them on input. -/
+/-- The Noir types of those inputs that the proofs use (main.nr 5-31). Noir enforces them on input. Not a full list: `sig` (main.nr 14)
+and `csig` (main.nr 17), both `[u8; 64]`, have no range fact here because no proof needs one. Leaving them out only makes the theorems stronger. -/
 structure PhoneTypes (w : Witness) : Prop where
   attempt_ok : isU8 w.attempt                    -- main.nr 7
   sr_ok : isU32 w.sr                             -- main.nr 11
@@ -201,7 +204,7 @@ witness. Each field is the block model, unchanged. `phone_circuit` below fixes `
 what lets `phone_bad_challenges` count over all pairs.
 
 Lines 228-299 are inside `signed`. Lines 361-369 and 405 are inside `arrival`, and lines 371 and 433 inside `spot`. `open_s` and `open_p` hold the Merkle
-asserts (lines 109, 117, 128). `beF t 177 32` is `sg.rec_root` (line 279), `osF` and `opF` are lines 503 and 506, written with `sg.p_self` and `sg.a_partner`
+constraints: the 8-bit decomposition `idx.to_le_bits()` (line 109) and the asserts at lines 117 and 128. `beF t 177 32` is `sg.rec_root` (line 279), `osF` and `opF` are lines 503 and 506, written with `sg.p_self` and `sg.a_partner`
 as `check_signed` returns them (lines 292-293). -/
 structure phone_circuit_at (C : Signed.Crypto) (perm : Perm) (w : Witness) (out r rho : F) : Prop where
   /-- main.nr 33-34 -/
@@ -715,7 +718,8 @@ Everything from here on is about the known silence gap (`fv/v1/docs/05-spike-res
 `silent_recording_passes_the_tests` needs no toy: any silent window meets the literal tests, for any templates. `silence_satisfies_phone_sound` and
 `silence_satisfies_presence_sound` go further. Their proofs build the whole witness and use it for the hypotheses of `phone_sound` and `presence_sound`, so those hypotheses aren't contradictory. `silence_satisfies_phone_sound` lists them all in its statement. `silence_satisfies_presence_sound` lists only part: see its docstring. Limit: every chain-level witness here uses silent audio, so nothing at this level shows the model accepts real audio, or exercises an arrival lag above 0.
 
-The witness has the shape of `circuit-cases` e1, in `cases.py` `silent_phone`: all samples silent, `p_self = 24000`, `a_self = p_self - 96`, `a_partner = a_self ± half`, `p_partner = a_partner - 100`, one chosen `half` on both phones.
+The witness has the shape of `circuit-cases` e1, in `cases.py` `silent_phone`: all samples silent, `a_self = p_self - 96`, `a_partner = a_self ± half`, `p_partner = a_partner - 100`, one chosen `half` on both phones.
+The numbers are this witness's, not e1's: here `p_self = 24000` and `half = 10000` on both roles. e1 uses `half = 45000`, and role B's partner lag `a_self - 45000` would land below `HM`, so `silent_phone` moves B to `p_self = 84000`.
 Two things are toys, because Poseidon2, SHA-256 and ECDSA are opaque here. The permutation always answers 1, and a signature verifies exactly when the toy signing history holds that message. So this shows the hypotheses are consistent.
 It says nothing about real Poseidon2 or real ECDSA, and nobody here holds a real issuer's credential. `circuit-cases` b and e1 run this shape through the real compiled circuit, with real hashes and throwaway keys, and no proof made. -/
 
@@ -1113,7 +1117,7 @@ theorem silence_satisfies_phone_sound (b : Bool) (c1 c2 c3 c4 : Nat → Nat)
     silMsgs_not_everything⟩
 
 open Silence in
-/-- **The known silence case meets `presence_sound`, all of it.** Two phones, with ANY `u8` templates, record digital silence and sign one chosen `half`, here 10000 on both. `pair` accepts at flight exactly 0 cm, `HalfBinds` holds and the conclusion holds. This statement lists only those. The proof builds the other hypotheses of `presence_sound` for the same witness, but doesn't export them.
+/-- **The known silence case meets `presence_sound`, all of it.** Two phones, with ANY `u8` templates, record digital silence and sign one chosen `half`, here 10000 on both. `pair` accepts at flight exactly 0 cm, `HalfBinds` holds and the conclusion holds. This statement lists only those, plus the fact that every sample is silence (`Arrival.silent n = 32768`). The proof builds the other hypotheses of `presence_sound` for the same witness, but doesn't export them.
 There is no sound anywhere in either recording. Nothing in this witness says where either phone was: there is no position in it at all, and the same witness works if they were on different continents.
 
 So "`-20 < flight < 60`" is arithmetic on signed numbers. It is NOT proof that two phones were near each other, and NOT proof that anything was heard. Same shape as `circuit-cases` e1, which the real compiled circuit accepts with throwaway keys. One silent cheater is enough in the real circuit too: `circuit-cases` e2, handed the other phone's half, reads 33.9 cm. That's a `nargo` run, not a theorem here. It needs a device willing to sign a silent recording and a credential from the issuer:

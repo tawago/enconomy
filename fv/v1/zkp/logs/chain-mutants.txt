@@ -1,0 +1,526 @@
+Mutation checks for the circuit proofs in fv/v1/zkp/popfv, run 2026-11-08 with fv/v1/lean_run.sh.
+Backs the mutant claims in fv/v1/README.md (Commit and Chain rows) and fv/v1/docs/05-spike-results.md (Commit and Chain rows).
+
+Method
+- First a clean `lake build` of popfv (Build completed successfully, 18206 jobs, no sorryAx).
+- Each mutant is a scratch copy of ONE file under ~/mut/<name>/src/Popfv, compiled with plain `lean` (lakefile leanOptions passed as -D),
+  against the real build's .olean files, symlinked, minus the mutated module. The repo files are never changed.
+- Lean writes no .olean for a file with errors, so Chain.lean can't import a broken Commit or Pair. For those, a second check
+  compiles one file: the mutated module's body, then Chain.lean's body, imports merged ("combo").
+- Controls: the same paths with no change. control_commit, control_pair and control_chain compile with rc=0 and no sorryAx.
+  The commit combo control has one error, at past_capture_window_passes: `partner_silence_accepts` resolves to another
+  declaration once the other imports are open in one file. It is in the control too, and no Chain theorem depends on it.
+  All Chain axioms in that control are clean.
+- A mutant counts as caught when lean returns rc=1 and the named theorems' `#print axioms` show sorryAx.
+  That is a failed proof, not a proved refutation.
+
+Results (theorems that pick up sorryAx; unlisted printed theorems stay clean)
+| mutant | change | breaks |
+|---|---|---|
+| commit_fits8_true | Commit.lean 467 (lib.nr 109, 8-bit check): `fits 8 idx` -> `True` | Commit: merkle_ok iff lemma (unsolved goals at 481), two_openings_agree, opening_mismatch_gives_collision, merkle_tie, open_leaves_first, open_leaves_ties, open_leaves_complete, phone_core_windows_are_recording, phone_core_windows_nonvacuous, phone_core_one_recording, past_capture_*. Chain (combo): phone_sound_at, phone_sound, phone_sound_no_tree, phone_bad_challenges, phone_bad_odds, presence_sound, silW_accepts, silence_satisfies_phone_sound, silence_satisfies_presence_sound |
+| pair_cb_true | Pair.lean 38 (pair main.nr 24): `cb = commit_b` -> `True` | Pair: pair_complete only; pair_sound still proves (it never uses the commitment checks, as Pair.lean says). Chain (combo): presence_sound, silence_satisfies_presence_sound |
+| pair_upper_true | Pair.lean 47 (pair main.nr 36, flight < 60): `fits 70 (120 * s - 34300 * n - 1)` -> `True` | Pair: pair_sound, pair_complete. Chain (combo): presence_sound, silence_satisfies_presence_sound |
+| chain_op_ok_deleted | Chain.lean field `op_ok` (lib.nr 507) deleted | phone_sound_at, phone_sound, phone_sound_no_tree, phone_bad_challenges, phone_bad_odds, presence_sound, silence_satisfies_phone_sound, silence_satisfies_presence_sound. Errors are "invalid field op_ok" at the uses (466, 507) and in the witness (1069): the proofs used the missing field by name |
+| chain_wpost_true | Chain.lean `wpost` (lib.nr 526, partner window upper bound) -> `True` | phone_sound_core and everything above it, silW_accepts, both silence_satisfies_* |
+| chain_partner_true | Chain.lean `partner` (lib.nr 524 -> 472) -> `True` | phone_sound_core, phone_sound_at, phone_sound, phone_sound_no_tree, phone_bad_challenges, phone_bad_odds, presence_sound, silW_accepts, both silence_satisfies_* |
+| chain_root_any | Chain.lean `open_p` (lib.nr 508) root `beF w.t 177 32` -> `∃ rt` | phone_sound_at, phone_sound, phone_sound_no_tree, phone_bad_challenges, phone_bad_odds, presence_sound, silW_accepts, both silence_satisfies_* |
+| chain_fits34 | Chain.lean `wpost`: `fits 33` -> `fits 34` | same as chain_wpost_true |
+
+"The upper bound to True" in the README is ambiguous; both readings were run (chain_wpost_true and pair_upper_true). Both are caught.
+In every mutant rc=1. Line numbers in the errors are those of the mutated scratch file.
+
+Script (run from fv/v1/zkp/popfv as: ../../lean_run.sh chain-mutants bash -c "$(cat chain_mutants.sh)")
+----------------------------------------------------------------
+set -u
+# Runs in fv/v1/zkp/popfv. Each mutant is a scratch copy under ~/mut; the repo files are never changed.
+M=$HOME/mut; rm -rf "$M"; mkdir -p "$M"
+LP=$(lake env printenv LEAN_PATH)
+# The leanOptions of lakefile.toml, which plain `lean` does not read.
+OPTS="-DmaxSynthPendingDepth=3 -DrelaxedAutoImplicit=false -Dweak.linter.mathlibStandardSet=true -Dpp.unicode.fun=true"
+mutate() { # mutate <name> <file> <old> <new>
+  mkdir -p "$M/$1/src/Popfv" "$M/$1/olean/Popfv"
+  # Every other Popfv module resolves to the real build, by symlink. The mutated module's entries are removed, so nothing writes through a link.
+  ln -s "$PWD"/.lake/build/lib/lean/Popfv/* "$M/$1/olean/Popfv/"
+  rm -f "$M/$1/olean/Popfv/$(basename "$2" .lean)".*
+  python3 - "$2" "$M/$1/src/Popfv/$(basename "$2")" "$3" "$4" <<'PY'
+import sys
+src, dst, old, new = sys.argv[1:]
+s = open(src).read()
+n = s.count(old)
+assert n == 1, f"{n} matches for {old!r}"
+open(dst, "w").write(s.replace(old, new))
+PY
+}
+check() { # check <name> <file> [<downstream file>]
+  local d=$M/$1 f=$2 base; base=$(basename "$f" .lean)
+  {
+    echo "### $1"
+    diff "$f" "$d/src/Popfv/$base.lean" | sed 's/^/  diff: /'
+    LEAN_PATH="$d/olean:$LP" timeout 550 lean $OPTS --root="$d/src" -o "$d/olean/Popfv/$base.olean" "$d/src/Popfv/$base.lean" > "$d/out.txt" 2>&1
+    echo "  $base.lean rc=$?"
+    grep -E ': error'  "$d/out.txt" | cut -c1-220 | sed 's/^/  /'
+    grep -E 'depends on axioms|does not depend on any axioms' "$d/out.txt" | cut -c1-220 | sed 's/^/  /'
+    if [ -n "${3:-}" ]; then
+      if [ -f "$d/olean/Popfv/$base.olean" ]; then
+        echo "  mutated $base.olean was written; checking $3 against it"
+        LEAN_PATH="$d/olean:$LP" timeout 550 lean $OPTS "$3" > "$d/down.txt" 2>&1
+        echo "  $(basename "$3") rc=$?"
+        grep -E ': error'  "$d/down.txt" | cut -c1-220 | sed 's/^/  /'
+        grep -E 'depends on axioms|does not depend on any axioms' "$d/down.txt" | cut -c1-220 | sed 's/^/  /'
+      else
+        echo "  no olean written for the mutated $base.lean, so $(basename "$3") was not checked against it"
+      fi
+    fi
+  } > "$d/report.txt" 2>&1
+}
+C=Popfv/Chain.lean
+# Controls: unchanged copies through the same path.
+mutate control_commit Popfv/Commit.lean '  | 0 => ⟨leaf, fits 8 idx⟩' '  | 0 => ⟨leaf, fits 8 idx⟩'
+mutate control_pair Popfv/Pair.lean '  cb = commit_b ∧' '  cb = commit_b ∧'
+mutate control_chain $C '  wpost : fits 33 (' '  wpost : fits 33 ('
+mutate commit_fits8_true Popfv/Commit.lean '  | 0 => ⟨leaf, fits 8 idx⟩' '  | 0 => ⟨leaf, True⟩'
+mutate pair_cb_true Popfv/Pair.lean '  cb = commit_b ∧' '  True ∧'
+mutate pair_upper_true Popfv/Pair.lean '  fits 70 (120 * s - 34300 * n - 1)' '  True'
+mutate chain_op_ok_deleted $C $'  /-- line 507 -/\n  op_ok : fits 10 (opF w.t w.role_b w.leaf_p)\n' ''
+mutate chain_wpost_true $C '  wpost : fits 33 (pPartnerF w.t + 12000 - aPartnerF w.t w.role_b)' '  wpost : True'
+mutate chain_partner_true $C '  partner : partnerAccepts w.xp (asU32 (opF w.t w.role_b w.leaf_p)) w.c_ip w.c_qp' '  partner : True'
+mutate chain_root_any $C '  open_p : open_leaves perm w.xp w.leaf_p w.chp (beF w.t 177 32)' '  open_p : ∃ rt, open_leaves perm w.xp w.leaf_p w.chp rt'
+mutate chain_fits34 $C '  wpost : fits 33 (' '  wpost : fits 34 ('
+check control_commit Popfv/Commit.lean $C &
+check control_pair Popfv/Pair.lean $C &
+check control_chain $C &
+check commit_fits8_true Popfv/Commit.lean $C &
+check pair_cb_true Popfv/Pair.lean $C &
+check pair_upper_true Popfv/Pair.lean $C &
+for n in chain_op_ok_deleted chain_wpost_true chain_partner_true chain_root_any chain_fits34; do check $n $C & done
+wait
+# Lean writes no .olean when a file has errors, so an upstream mutant can't be imported by Chain.lean.
+# Instead: one file holding the mutated module's body followed by Chain.lean's body, with both import lists merged.
+combo() { # combo <name> <upstream file>
+  local d=$M/$1 base; base=$(basename "$2" .lean)
+  python3 - "$d/src/Popfv/$base.lean" Popfv/Chain.lean "$d/src/Popfv/Combo.lean" "Popfv.$base" <<'PY'
+import sys
+up, ch, out, drop = sys.argv[1:]
+def split(p):
+    imps, body = [], []
+    for line in open(p).read().splitlines():
+        (imps if line.startswith("import ") else body).append(line)
+    return imps, body
+iu, bu = split(up); ic, bc = split(ch)
+imps = [i for i in dict.fromkeys(iu + ic) if i != "import " + drop]
+open(out, "w").write("\n".join(imps + bu + bc) + "\n")
+PY
+  {
+    echo "### $1, mutated $base.lean body + Chain.lean body in one file"
+    echo "  imports: $(grep '^import' "$d/src/Popfv/Combo.lean" | tr '\n' ' ')"
+    LEAN_PATH="$d/olean:$LP" timeout 550 lean $OPTS --root="$d/src" "$d/src/Popfv/Combo.lean" > "$d/combo.txt" 2>&1
+    echo "  rc=$?"
+    grep -E ': error'  "$d/combo.txt" | cut -c1-220 | sed 's/^/  /'
+    grep -E 'depends on axioms|does not depend on any axioms' "$d/combo.txt" | grep 'Chain' | cut -c1-220 | sed 's/^/  /'
+  } > "$d/combo-report.txt" 2>&1
+}
+for n in control_commit:Commit control_pair:Pair commit_fits8_true:Commit pair_cb_true:Pair pair_upper_true:Pair; do
+  combo "${n%%:*}" "Popfv/${n##*:}.lean" &
+done
+wait
+for n in control_commit control_pair control_chain commit_fits8_true pair_cb_true pair_upper_true chain_op_ok_deleted chain_wpost_true chain_partner_true chain_root_any chain_fits34; do
+  cat "$M/$n/report.txt"; echo
+done
+for n in control_commit control_pair commit_fits8_true pair_cb_true pair_upper_true; do cat "$M/$n/combo-report.txt"; echo; done
+----------------------------------------------------------------
+
+Output
+### control_commit
+  Commit.lean rc=0
+  'Popfv.Commit.sponge_zero_tail_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.chunk_lt_two_pow_248' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.chunk_last_short' depends on axioms: [propext, Quot.sound]
+  'Popfv.Commit.packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.absorbed_determines_templates' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.code_commitment_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.code_commitment_congr' depends on axioms: [propext, Quot.sound]
+  'Popfv.Commit.leaf_packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.node_hash_not_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.selector_picks' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.two_openings_agree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.opening_mismatch_gives_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.merkle_tie' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_first' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_ties' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.honest_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_windows_are_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_windows_nonvacuous' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_one_recording' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.past_capture_window_passes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.past_capture_witness' depends on axioms: [propext, Classical.choice, Quot.sound]
+  mutated Commit.olean was written; checking Popfv/Chain.lean against it
+  Chain.lean rc=0
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+### control_pair
+  Pair.lean rc=0
+  'Popfv.pair_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.pair_complete' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  mutated Pair.olean was written; checking Popfv/Chain.lean against it
+  Chain.lean rc=0
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+### control_chain
+  Chain.lean rc=0
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+### commit_fits8_true
+  diff: 467c467
+  diff: <   | 0 => ⟨leaf, fits 8 idx⟩
+  diff: ---
+  diff: >   | 0 => ⟨leaf, True⟩
+  Commit.lean rc=1
+  ~/mut/commit_fits8_true/src/Popfv/Commit.lean:481:52: error: unsolved goals
+  'Popfv.Commit.sponge_zero_tail_collision' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.chunk_lt_two_pow_248' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.chunk_last_short' depends on axioms: [propext, Quot.sound]
+  'Popfv.Commit.packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.absorbed_determines_templates' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.code_commitment_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.code_commitment_congr' depends on axioms: [propext, Quot.sound]
+  'Popfv.Commit.leaf_packing_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.node_hash_not_injective' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.selector_picks' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.two_openings_agree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.opening_mismatch_gives_collision' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.merkle_tie' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_first' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_ties' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.open_leaves_complete' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.honest_binds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_windows_are_recording' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_windows_nonvacuous' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.phone_core_one_recording' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.past_capture_window_passes' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Commit.past_capture_witness' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  no olean written for the mutated Commit.lean, so Chain.lean was not checked against it
+
+### pair_cb_true
+  diff: 38c38
+  diff: <   cb = commit_b ∧                                                                -- line 24
+  diff: ---
+  diff: >   True ∧                                                                -- line 24
+  Pair.lean rc=1
+  ~/mut/pair_cb_true/src/Popfv/Pair.lean:223:14: error: Application type mismatch: The argument
+  'Popfv.pair_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.pair_complete' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  no olean written for the mutated Pair.lean, so Chain.lean was not checked against it
+
+### pair_upper_true
+  diff: 47c47
+  diff: <   fits 70 (120 * s - 34300 * n - 1)                                              -- line 36
+  diff: ---
+  diff: >   True                                              -- line 36
+  Pair.lean rc=1
+  ~/mut/pair_upper_true/src/Popfv/Pair.lean:199:64: error: Application type mismatch: The argument
+  ~/mut/pair_upper_true/src/Popfv/Pair.lean:223:84: error: Application type mismatch: The argument
+  'Popfv.pair_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.pair_complete' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.distance_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.keys_differ_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
+  no olean written for the mutated Pair.lean, so Chain.lean was not checked against it
+
+### chain_op_ok_deleted
+  diff: 220,221d219
+  diff: <   /-- line 507 -/
+  diff: <   op_ok : fits 10 (opF w.t w.role_b w.leaf_p)
+  Chain.lean rc=1
+  ~/mut/chain_op_ok_deleted/src/Popfv/Chain.lean:466:42: error(lean.invalidField): Invalid field `op_ok`: The environment does not contain `Popfv.Chain.phone_circuit_at.op_ok`, so it is not possible to project t
+  ~/mut/chain_op_ok_deleted/src/Popfv/Chain.lean:507:32: error(lean.invalidField): Invalid field `op_ok`: The environment does not contain `Popfv.Chain.phone_circuit_at.op_ok`, so it is not possible to project t
+  ~/mut/chain_op_ok_deleted/src/Popfv/Chain.lean:1069:6: error: `op_ok` is not a field of structure `phone_circuit_at`
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### chain_wpost_true
+  diff: 233c233
+  diff: <   wpost : fits 33 (pPartnerF w.t + 12000 - aPartnerF w.t w.role_b)
+  diff: ---
+  diff: >   wpost : True
+  Chain.lean rc=1
+  ~/mut/chain_wpost_true/src/Popfv/Chain.lean:450:77: error: Application type mismatch: The argument
+  ~/mut/chain_wpost_true/src/Popfv/Chain.lean:1083:15: error: Type mismatch
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### chain_partner_true
+  diff: 229c229
+  diff: <   partner : partnerAccepts w.xp (asU32 (opF w.t w.role_b w.leaf_p)) w.c_ip w.c_qp
+  diff: ---
+  diff: >   partner : True
+  Chain.lean rc=1
+  ~/mut/chain_partner_true/src/Popfv/Chain.lean:435:92: error: Application type mismatch: The argument
+  ~/mut/chain_partner_true/src/Popfv/Chain.lean:1081:17: error: Type mismatch
+  ~/mut/chain_partner_true/src/Popfv/Chain.lean:1081:75: error: Type mismatch
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### chain_root_any
+  diff: 223c223
+  diff: <   open_p : open_leaves perm w.xp w.leaf_p w.chp (beF w.t 177 32)
+  diff: ---
+  diff: >   open_p : ∃ rt, open_leaves perm w.xp w.leaf_p w.chp rt
+  Chain.lean rc=1
+  ~/mut/chain_root_any/src/Popfv/Chain.lean:466:6: error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  ~/mut/chain_root_any/src/Popfv/Chain.lean:509:47: error: Application type mismatch: The argument
+  ~/mut/chain_root_any/src/Popfv/Chain.lean:1073:8: error: `show` tactic failed, pattern
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### chain_fits34
+  diff: 233c233
+  diff: <   wpost : fits 33 (pPartnerF w.t + 12000 - aPartnerF w.t w.role_b)
+  diff: ---
+  diff: >   wpost : fits 34 (pPartnerF w.t + 12000 - aPartnerF w.t w.role_b)
+  Chain.lean rc=1
+  ~/mut/chain_fits34/src/Popfv/Chain.lean:450:77: error: Application type mismatch: The argument
+  ~/mut/chain_fits34/src/Popfv/Chain.lean:1083:15: error: Type mismatch
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### control_commit, mutated Commit.lean body + Chain.lean body in one file
+  imports: import Popfv.PartnerGlue import Popfv.Pair import Popfv.Arrival import Popfv.Bar import Popfv.Freivalds import Popfv.Signed 
+  rc=1
+  ~/mut/control_commit/src/Popfv/Combo.lean:984:4: error: Function expected at
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+### control_pair, mutated Pair.lean body + Chain.lean body in one file
+  imports: import Popfv.Field import Popfv.Arrival import Popfv.PartnerGlue import Popfv.Bar import Popfv.Commit import Popfv.Freivalds import Popfv.Signed 
+  rc=0
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+
+### commit_fits8_true, mutated Commit.lean body + Chain.lean body in one file
+  imports: import Popfv.PartnerGlue import Popfv.Pair import Popfv.Arrival import Popfv.Bar import Popfv.Freivalds import Popfv.Signed 
+  rc=1
+  ~/mut/commit_fits8_true/src/Popfv/Combo.lean:486:52: error: unsolved goals
+  ~/mut/commit_fits8_true/src/Popfv/Combo.lean:984:4: error: Function expected at
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### pair_cb_true, mutated Pair.lean body + Chain.lean body in one file
+  imports: import Popfv.Field import Popfv.Arrival import Popfv.PartnerGlue import Popfv.Bar import Popfv.Commit import Popfv.Freivalds import Popfv.Signed 
+  rc=1
+  ~/mut/pair_cb_true/src/Popfv/Combo.lean:229:14: error: Application type mismatch: The argument
+  ~/mut/pair_cb_true/src/Popfv/Combo.lean:885:115: error: Type mismatch
+  ~/mut/pair_cb_true/src/Popfv/Combo.lean:1383:31: error: Application type mismatch: The argument
+  ~/mut/pair_cb_true/src/Popfv/Combo.lean:1383:41: error: unsolved goals
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+
+### pair_upper_true, mutated Pair.lean body + Chain.lean body in one file
+  imports: import Popfv.Field import Popfv.Arrival import Popfv.PartnerGlue import Popfv.Bar import Popfv.Commit import Popfv.Freivalds import Popfv.Signed 
+  rc=1
+  ~/mut/pair_upper_true/src/Popfv/Combo.lean:205:64: error: Application type mismatch: The argument
+  ~/mut/pair_upper_true/src/Popfv/Combo.lean:229:84: error: Application type mismatch: The argument
+  'Popfv.Chain.tables_agree' depends on axioms: [propext]
+  'Popfv.Chain.arrival_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.partner_window_congr' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_core' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_at' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_sound_no_tree' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.values_are_signed_bytes' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_challenges' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.phone_bad_odds' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+  'Popfv.Chain.silent_recording_passes_the_tests' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_forces_lag_zero' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.loud_enough_vs_score' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.Silence.silW_accepts' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_phone_sound' depends on axioms: [propext, Classical.choice, Quot.sound]
+  'Popfv.Chain.silence_satisfies_presence_sound' depends on axioms: [propext, sorryAx, Classical.choice, Quot.sound]
+

@@ -45,7 +45,11 @@ has to fill them in. They were all recorded from the real code, on the strings r
 * The starting calibration of each phone, on the create line. It is an input, like the clock.
 The same string must keep the same facts. If a later line says otherwise, that is a mismatch, and no earlier fact is kept silently.
 The trace is never edited to fit. A wire string is its label, and hash, key and nonce bytes are labels too.
-That is sound as long as the assumption about collisions holds.
+That is sound as long as the assumption about collisions holds. The trace gives a hash the same label as its wire string, so
+labels are read by kind: a wire field shows only a wire label, a signature field only a signature label, a hash field only a hash
+label (`wireLbl`, `sigLbl`, `hashLbl`). A hash field holding the wire string shows "?", and is a mismatch. "?" is never equal
+to anything in `cmp`, "?" in the trace included, so a value neither side can name fails closed. A rec is compared as
+[length, value], so a stored rec of another length with the same number is a mismatch.
 
 **What is compared.**
 * Document: state, attempt, seq, guest, the four flag maps, t0, token expiry, finished, error, last failure's attempt, reason and by,
@@ -62,15 +66,22 @@ That is sound as long as the assumption about collisions holds.
 `test_walk.py` checks many of them against its own model. This replay doesn't.
 * Document: `updated_ms`, `last_flight_cm`, `last_failure.text`, `not_before`, `context`, `policy`, `human`.
 * Per role: `rtt_min_ms`, `submitted_ms`, `meta`, `code_attest`.
-* Record: `proto`, `user_text`, `context`, `not_before`, `zk`, and display fields of a device: name, model, attested, security level.
-* Answers: the create's invite, `not_before`, `context` and `policy`. A view's constants, display fields, calibration block, `zk_valid_at`, `context`
-  and `not_before`. An arm's `popt` and `tune_db`. A commit's `code_attest`. The detail text of an error. All bytes of a sound.
+* Record: `proto`, `user_text`, `context`, `not_before`, `policy`, `human`, `pair_tag`, `zk`, and display fields of a device: name, model,
+  attested, security level.
+* Answers: the create's invite, `not_before`, `context` and `policy`. A view's constants, display fields, calibration block, `zk_valid_at`, `context`,
+  `not_before`, `policy` and `human`. An arm's `popt` and `tune_db`. A commit's `code_attest`. The detail text of an error. All bytes of a sound.
 * The real value of an id, secret or key. Only "same as at create" or a label reaches the trace.
+* Keys the trace never writes. The trace is a projection: `abstract`, `abstract_result`, `full_record`, `trace_extra` and `resp_digest` in
+  `test_walk.py` build new dicts from fixed key lists, so a key the Python adds outside those lists is dropped before this replay's
+  strict compare. The compare here rejects an extra key only among the keys the trace writes. "The whole record" in a log means
+  the compared part. The walk itself rejects unknown keys in the stored document and the record (`check_record_shape` and `check_fixed`,
+  `test_walk.py` lines 1290-1296 and 1339-1350), and checks the whole view against `want_view`. That is the walk's check, not this replay's.
 
 **What a trace can't cover.**
 * It is a sample. A rule the walk never hits with the right inputs is not tested, however many runs pass.
   `replay.txt` lists the error codes and reasons seen, and the ones never seen.
-* Fixed inputs. Every create is by phone A, and host A is written into the create call below. Every create's time is the session's own zero.
+* Fixed inputs. The host is the create's actor, read from the trace, but every create in the saved traces is by phone A, so another
+  host isn't tested (the counter "first good create by a phone other than A" says how many were seen). Every create's time is the session's own zero.
   Each decoded transcript holds the same five values the walk sends: 1, 2, 3, 70000 and 71000. No rule in `Machine.step` or `combine` reads them.
 * `Verdict.check_commit` isn't called by `Machine.step`, which has those checks inline, so it isn't tested here.
 * `Req.noauth_load`: no such request is sent, so routes like `/relay` that run a bare load are not tested.
@@ -85,7 +96,13 @@ That is sound as long as the assumption about collisions holds.
 * `flight` is rounded in Python (`round(float(f), 2)`) and exact in Lean. It is compared to within 0.005 plus 1e-9.
   Nothing decides on the rounded number, so that gap can't move a verdict.
 * Auth is not modeled: `auth.py` is out of `Machine.step`, whose `sender` is `none` when auth fails. Here the trace's `auth`
-  label picks `sender`. All four 401 codes are the one Lean code `auth_failed`, so only the status is compared there.
+  label picks `sender`. All four 401 codes are the one Lean code `auth_failed`. The real code is checked against the label
+  with `authCodes`, a copy of `m_auth` in `test_walk.py`. A `replay` label allows `auth_stale` or `auth_replay`, since which one
+  depends on a time the trace doesn't keep.
+
+**Sessions.** One good create per session: a second good create in the same session is a mismatch. Lines of one session
+come together, and a session id that already ended in the same trace file can't come back: that is a mismatch too. A new id
+starts a new session. Ids are counted per file, since each trace numbers its sessions from 0.
 -/
 
 set_option linter.style.whitespace false
@@ -232,12 +249,43 @@ def roleO (o : Option Role) : V := optV (fun r => .str (roleW r)) o
 def flagsV (f : Role → Bool) : V := .obj [("A", .bool (f .A)), ("B", .bool (f .B))]
 def flightO (o : Option ℚ) : V := optV .flight o
 
-def lbl : RB → V
-  | .wire l | .sigw l | .hash l => .str l
+/-- The label of a wire string, in a field that must hold a wire string. Any other kind of bytes gives "?".
+The trace writes a hash under the same label as its wire string (`cm_hash`, `tx_hash` in `test_walk.py`), so one shared
+label function would let a hash field holding the wire string pass. Each field kind gets its own function for that reason. -/
+def wireLbl : RB → V
+  | .wire l => .str l
   | _ => .str "?"
 
+/-- The label of a signature string. Any other kind of bytes gives "?". -/
+def sigLbl : RB → V
+  | .sigw l => .str l
+  | _ => .str "?"
+
+/-- The label of SHA-256 of decoded bytes. A wire or signature string in a hash field gives "?". -/
+def hashLbl : RB → V
+  | .hash l => .str l
+  | _ => .str "?"
+
+/-- True when the value is the string `s`. `V` has no equality, so the checks below go through this. -/
+def V.isStr (s : String) : V → Bool
+  | .str t => t == s
+  | _ => false
+
+-- A field of one kind never shows the label of another kind.
+#guard (hashLbl (.wire "t1")).isStr "?"
+#guard (hashLbl (.sigw "s1")).isStr "?"
+#guard (wireLbl (.hash "t1")).isStr "?"
+#guard (wireLbl (.sigw "s1")).isStr "?"
+#guard (sigLbl (.wire "t1")).isStr "?"
+#guard (sigLbl (.hash "t1")).isStr "?"
+#guard (hashLbl (.hash "t1")).isStr "t1"
+#guard (wireLbl (.wire "t1")).isStr "t1"
+#guard (sigLbl (.sigw "s1")).isStr "s1"
+
+/-- A rec field as [length in bytes, value], like `stored_rec` in `test_walk.py`. The codec's rec is always 32 bytes (`32s` in
+`_COMMIT` and `_TX` of `codec.py`), so a stored 33-byte value with a leading 00 is a mismatch even though its number is the same. -/
 def recV : RB → V
-  | .num n => .int n
+  | .num n => .arr [.int 32, .int n]
   | _ => .str "?"
 
 /-- `pr` in `abstract`: only the keys set so far. -/
@@ -248,14 +296,14 @@ def prV (attempt : ℕ) (r : Role) (p : PerRole RB) : V :=
   let sr := (p.arm.map (·.sample_rate)).getD 0
   let cm := match p.commit with
     | some c =>
-      [("cm", lbl c.commit_b64), ("cms", lbl c.commit_sig_b64), ("cmh", lbl c.commit_sha256), ("rec", recV c.rec_)] ++
+      [("cm", wireLbl c.commit_b64), ("cms", sigLbl c.commit_sig_b64), ("cmh", hashLbl c.commit_sha256), ("rec", recV c.rec_)] ++
         (match c.code_commit with
          | some x => [("cc", if x = RB.cc sr ⟨seedL, r, attempt⟩ ⟨seedL, OTHER r, attempt⟩ then V.bool true else V.str "?")]
          | none => [])
     | none => []
   let tx := match p.tx with
     | some t =>
-      [("tx", lbl t.transcript_b64), ("txs", lbl t.sig_b64), ("txh", lbl t.transcript_sha256),
+      [("tx", wireLbl t.transcript_b64), ("txs", sigLbl t.sig_b64), ("txh", hashLbl t.transcript_sha256),
        ("half", V.int t.half), ("delta", V.int t.self_os_delta)]
     | none => []
   let fl := match p.fail_ with
@@ -292,11 +340,11 @@ def recordFields (full : Bool) (x : Record RB String) : List (String × V) :=
    ("devices", someRoles fun r => (x.devices r).map fun d =>
      .obj ([("half", optV V.int d.half), ("sr", optV natV d.sample_rate), ("popt", natV d.popt), ("cal", V.int d.cal_us)] ++
        if full then [("dev", V.str d.device_id), ("pk", V.str (match d.pubkey with | .pk p => p | _ => "?"))] else [])),
-   ("tx", someRoles fun r => (x.transcripts r).map fun t => lbl t.transcript_b64),
-   ("txs", someRoles fun r => (x.transcripts r).map fun t => lbl t.sig_b64),
-   ("txh", someRoles fun r => (x.transcripts r).map fun t => lbl t.sha256),
-   ("cm", someRoles fun r => (x.commits r).map fun c => lbl c.commit_b64),
-   ("cms", someRoles fun r => (x.commits r).map fun c => lbl c.sig_b64),
+   ("tx", someRoles fun r => (x.transcripts r).map fun t => wireLbl t.transcript_b64),
+   ("txs", someRoles fun r => (x.transcripts r).map fun t => sigLbl t.sig_b64),
+   ("txh", someRoles fun r => (x.transcripts r).map fun t => hashLbl t.sha256),
+   ("cm", someRoles fun r => (x.commits r).map fun c => wireLbl c.commit_b64),
+   ("cms", someRoles fun r => (x.commits r).map fun c => sigLbl c.sig_b64),
    ("rows", .arr (x.attempts.map summaryV))] ++
   if full then
     [("sid", okV (x.session_id = sidL)), ("nonce", okV (x.session_nonce = RB.nonce)),
@@ -413,7 +461,7 @@ partial def cmp (path : String) (v : V) (j : Json) : Option Diff :=
   match v, j with
   | .null, .null => none
   | .bool a, .bool b => if a == b then none else no
-  | .str a, .str b => if a == b then none else no
+  | .str a, .str b => if a == b && a != "?" then none else no   -- "?" is a value one side can't name: never equal
   | .int z, .num n => if n.exponent == 0 && n.mantissa == z then none else no
   | .flight q, .num n => if flightClose q (numQ n) then none else no
   | .arr l, .arr m =>
@@ -442,6 +490,13 @@ partial def cmp (path : String) (v : V) (j : Json) : Option Diff :=
             | none => goObj xs
       goObj kv
   | _, _ => no
+
+-- Fail closed: "?" on both sides is a mismatch, not a match. A rec keeps its length.
+#guard (cmp "p" (.str "?") (.str "?")).isSome
+#guard (cmp "p" (.str "ok") (.str "ok")).isNone
+#guard (cmp "p" (recV (.num 5)) (Lean.toJson ([33, 5] : List Nat))).isSome
+#guard (cmp "p" (recV (.num 5)) (Lean.toJson ([32, 5] : List Nat))).isNone
+#guard (cmp "p" (recV (.str "x:00")) (.str "?")).isSome
 
 /-! ## Reading a trace line -/
 
@@ -545,7 +600,7 @@ def Reg.env (r : Reg) : Env RB String where
       sha256 := fun x =>
         match x with
         | .raw l => .hash l
-        | y => y
+        | _ => .str "x:sha-of-nonraw"
       rec_root_ok := fun _ => true
       decode_commit := fun x =>
         match x with
@@ -640,6 +695,19 @@ def hasBody (kind : String) : Bool := ["join", "arm", "commit", "transcript", "f
 
 def authOk (a : String) : Bool := ["ok", "edge_old", "edge_new"].contains a
 
+/-- The real 401 codes an `auth` label can give: `m_auth` in `test_walk.py`, written out again. Empty for a label that passes.
+`replay` gives either, by a time the trace doesn't keep. -/
+def authCodes : String → List String
+  | "missing" | "bad_sig_b64_missing" | "bad_sig_b64" | "wrong_key" | "tamper" => ["auth_bad_signature"]
+  | "unknown_device" => ["auth_unknown_device"]
+  | "stale_old" | "stale_new" => ["auth_stale"]
+  | "replay" => ["auth_stale", "auth_replay"]
+  | _ => []
+
+#guard authCodes "stale_old" == ["auth_stale"]
+#guard authCodes "ok" == []
+#guard (authCodes "replay").contains "auth_replay"
+
 /-! ## The run -/
 
 structure Sess where
@@ -672,10 +740,10 @@ def outcomeOf : Resp RB String → Nat × Option String
   | .error st c => (st, some (errW c))
   | _ => (200, none)
 
-def sameCode (lean : Option String) (trace : Json) : Bool :=
+def sameCode (auth : String) (lean : Option String) (trace : Json) : Bool :=
   match lean, trace with
   | none, .null => true
-  | some "auth_failed", .str c => c.startsWith "auth_"
+  | some "auth_failed", .str c => (authCodes auth).contains c
   | some a, .str c => a == c
   | _, _ => false
 
@@ -684,7 +752,8 @@ def compareStep (line : Json) (s' : Doc RB String) (r : Resp RB String) : R (Opt
   let (st, code) := outcomeOf r
   let tst ← jNat line "status"
   let tcode := line.getObjValD "code"
-  if st != tst || !sameCode code tcode then
+  let auth := jStrD ((line.getObjValD "op")) "auth" "ok"
+  if st != tst || !sameCode auth code tcode then
     return some ⟨"status", s!"{st} {code}", s!"{tst} {tcode.compress}"⟩
   match cmp "after" (docV s') (line.getObjValD "after") with
   | some d => return some d
@@ -740,17 +809,24 @@ def runLine (ss : Sess) (t : Tot) (line : Json) : R Out := do
     let cal := ["A", "B", "C"].foldl (fun (m : Std.HashMap String ℤ) ph => m.insert ph (calOf (calJ.getObjValD ph))) {}
     let ss := { ss with cal := cal }
     if good then
-      -- Fixed inputs, not read from the trace: host phone A, this session's zero as the time, and the labels for id, nonce, seed and token.
-      -- The walk's every create is like that (`do_create` in `test_walk.py`), so another host or time isn't tested.
-      let (s', r) := Machine.create (B := RB) (D := String) (ss.world now) "A" sidL .nonce seedL tokenL
+      if ss.doc.isSome then
+        return ⟨ss, t, some ⟨"create", "one good create per session", "a second good create"⟩⟩
+      -- The host is the create's actor, read from the trace. Fixed inputs, not read from the trace: this session's zero as the time,
+      -- and the labels for id, nonce, seed and token. The walk's every create is by phone A at its zero (`do_create` in `test_walk.py`).
+      let host ← jStr op "actor"
+      let (s', r) := Machine.create (B := RB) (D := String) (ss.world now) host sidL .nonce seedL tokenL
       let d ← compareStep line s' r
+      let t := if host != "A" then t.inc "first good create by a phone other than A" else t
       return ⟨{ ss with doc := some s' }, (tally t none s').inc s!"step code: create 200", d⟩
     else
       let tst ← jNat line "status"
+      let tcode := line.getObjValD "code"
+      let wantCode := if auth != "ok" then authCodes auth else if body == "bad_policy" then ["bad_policy"] else ["bad_request"]
       let d : Option Diff :=
         if !(line.getObjValD "after").isNull then some ⟨"after", "nothing stored", (line.getObjValD "after").compress⟩
         else if auth != "ok" && tst != 401 then some ⟨"status", "401", toString tst⟩
         else if auth == "ok" && tst != 400 then some ⟨"status", "400", toString tst⟩
+        else if !(wantCode.any fun c => tcode == Json.str c) then some ⟨"code", toString wantCode, tcode.compress⟩
         else none
       return ⟨ss, t.inc "not a step: refused create", d⟩
   | "set_cal" =>
@@ -781,7 +857,7 @@ def runLine (ss : Sess) (t : Tot) (line : Json) : R Out := do
     if jStrD op "sid" "ok" == "unknown" && !json_bad && sender.isSome && !shape_bad then
       let tst ← jNat line "status"
       let d : Option Diff :=
-        if tst != 404 || !sameCode (some "not_found") (line.getObjValD "code") then some ⟨"status", "404 not_found", toString tst⟩
+        if tst != 404 || !sameCode "ok" (some "not_found") (line.getObjValD "code") then some ⟨"status", "404 not_found", toString tst⟩
         else (cmp "after" (docV s) (line.getObjValD "after")).orElse fun _ => cmp "x" (docExtraV s) (line.getObjValD "x")
       return ⟨ss, t.inc "not a step: unknown session id", d⟩
     let b ← bodyOf kind op
@@ -808,6 +884,12 @@ def runLine (ss : Sess) (t : Tot) (line : Json) : R Out := do
       else t
     let t := t.inc "steps run through Machine.step"
     let t := if kind == "transcript" && st == 200 && s'.seq == (load e w s).seq then t.inc "same transcript again, answered 200" else t
+    let t := if kind == "transcript" && st == 200 && s'.seq == (load e w s).seq &&
+        (match (op.getObjValD "eff").getObjValD "label" with
+         | .str l => match ((reg.txs[l]?).join) with
+           | some td => td.half != 0
+           | none => false
+         | _ => false) then t.inc "repeat transcript with a nonzero half" else t
     let t := if kind == "arm" && st == 200 && (s'.armed .A || s'.armed .B) then
         if _popt s' .A == 2 || _popt s' .B == 2 then t.inc "arm answered, a role on popt 2" else t.inc "arm answered, both on popt 1"
       else t
@@ -833,7 +915,11 @@ def header : List String :=
    "These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1). Not a proof of proximity.",
    "Scope: context=None, human=none. Assumptions named in ServerFv/Replay.lean: honest code, one worker, no await between load and save, unforgeable signature, no collisions.",
    "Signature bits, base64 bits, decoded fields and starting calibration are recorded facts from the real code, read from the trace.",
-   "Compared: status and code, the abstract document and the response digest. Fields outside those are listed in ServerFv/Replay.lean and are not checked here."]
+   "Compared: status and code, the abstract document and the response digest. Fields outside those are listed in ServerFv/Replay.lean and are not checked here.",
+   "Not compared, among others: record policy, human, pair_tag; view policy, human; document policy, human, context, not_before.",
+   "The trace is a projection built from fixed key lists in test_walk.py, so keys outside those lists are dropped before the strict compare. 'The whole record' means the compared part.",
+   "Labels are read by kind: a hash field shows only a hash label, a wire field only a wire label, a signature field only a signature label.",
+   "Sessions: one good create per session, and an id can't come back within a trace file; either is a mismatch. The host is the create's actor. A 401 code must be one the auth label gives (authCodes, from m_auth)."]
 
 def main (args : List String) : IO UInt32 := do
   let stopFirst := args.contains "--stop-first"
@@ -854,11 +940,12 @@ def main (args : List String) : IO UInt32 := do
     match Json.parse first with
     | .error e => IO.eprintln s!"{f}: bad header: {e}"; return 2
     | .ok hd =>
-      if jStrD hd "format" "" != "pop-walk-trace-3" then
+      if jStrD hd "format" "" != "pop-walk-trace-4" then
         IO.eprintln s!"{f}: wrong format {first}"
         return 2
       IO.println s!"trace {f}: {hd.compress}"
     let mut ss : Sess := { id := 0 }
+    let mut seen : Std.HashSet Nat := {}
     let mut started := false
     let mut stopped := false
     while !stopped do
@@ -872,9 +959,20 @@ def main (args : List String) : IO UInt32 := do
         | .ok n => pure n
         | .error e => IO.eprintln s!"{f}: line {lines}: {e}"; return 2
       if !started || id != ss.id then
+        let back := seen.contains id
+        seen := seen.insert id
         ss := { id := id }
         started := true
         sessions := sessions + 1
+        if back then
+          -- One session's lines come together, so an id that already ended can't start again.
+          let msg := s!"MISMATCH {f} session {id} step {(j.getObjValD "step").compress} now {(j.getObjValD "now").compress} op {((j.getObjValD "op").getObjValD "op").compress} tag {((j.getObjValD "op").getObjValD "tag").compress}: at session: lean an id not seen before in this file, trace id {id} comes back"
+          if t.first.isNone then
+            IO.println msg
+            t := { t with first := some msg }
+          t := { t with mismatches := t.mismatches + 1, sessionsBroken := t.sessionsBroken + 1 }
+          ss := { ss with broke := true }
+          if stopFirst then stopped := true
       if ss.broke then
         skipped := skipped + 1
         continue

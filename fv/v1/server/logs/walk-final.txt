@@ -1,7 +1,7 @@
 sessions: 1000
 # Hashes below are of the files before a comment-only edit made after this run. See logs/post-run-edits.txt.
 # Final walk. from fv/v1/server/tests: env PYTHONPATH=../../../../server python -m pytest -q test_walk.py --walk-sessions 1000
-# job fx-final-walk1000, seed 20261106 (default), server/pop matches 9db1490 by sha1, full output below. Result: 59 passed, rc=0.
+# seed 20261106 (default), server/pop matches 9db1490 by sha1, full output below. Result: 59 passed, rc=0.
 # test_walk.py sha256 02243d6605430fba9f55139ba814caf42185fed53e58b49a062f8a285d9c310b, conftest.py sha256 a7532e29e124fa54a854977313b348dffcbd125a686b4092b763ef286933f129
 # 500 sessions was run first and missed two coverage targets, so this is the 1000 run. All else passed at 500. Its full output: walk-final-500.txt
 # Scope: basic flow, context=None, policy human=none. World ID, Safe, ENS, bridge, zk routes not touched.

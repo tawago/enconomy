@@ -60,7 +60,7 @@ def main : IO Unit := do
   let _ ← trace "E2 edge" (env Hnear) start (opening ++ [(600000, R 1 .view), (600001, R 3 .view)])
   let _ ← trace "E3 retry" (env Hnear) start (upTo 10 ++ [(4300, R 1 (.commit 10 110)), (4301, R 1 (.transcript 11 111)), (23011, .noauth_load), (23012, .noauth_load), (23012, R 2 .view)])
   let _ ← trace "E3 both silent then final" (env Hnear) start (upTo 10 ++ [(23012, R 3 .view), (30000, armR 1 1), (30001, armR 2 1), (53002, R 2 .view), (53003, R 2 .result)])
-  let _ ← trace "E2 beats E3 with one tx" (env Hnear) start (upTo 590000 ++ [(594000, R 1 (.commit 10 110)), (594001, R 1 (.transcript 11 111)), (620000, R 1 .view)])
+  let _ ← trace "E2 beats E3 with one tx" (env Hnear) start (upTo 590000 ++ [(594300, R 1 (.commit 10 110)), (594301, R 1 (.transcript 11 111)), (620000, R 1 .view)])
   let _ ← trace "abort live" (env Hnear) start (upTo 10 ++ [(20, R 2 .abort), (21, R 1 .abort), (22, R 1 .result)])
   IO.println "done"
 

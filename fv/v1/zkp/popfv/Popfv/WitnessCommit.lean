@@ -12,7 +12,8 @@ namespace RecheckHB
 
 open PartnerGlue (bytesOK osF opF pSelf aPartner)
 
-/-- `a_self = 2100`, `half = sod = 0`, so the self window sits in leaf 1 and the partner window in leaf 2. -/
+/-- `a_self = 2100`, `half = sod = 0`, so the self opening starts at leaf 1 and the partner opening at leaf 2. Each window spans more than
+one leaf: the self window starts at offset 949 in the opened array and runs 12254 samples, to index 13202 of 13312, so 13 leaves of 1024. -/
 def tNV (i : Nat) : Nat := if i = 271 then 8 else if i = 272 then 52 else 0
 
 /-- A non-constant recording of `u16` samples. -/

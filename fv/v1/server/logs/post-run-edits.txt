@@ -1,6 +1,7 @@
 # Files changed after the final runs, 2026-11-07. Comment and docstring lines only, to take private run details out for the public repo.
 # No check ran after these edits. Hashes in the other logs are of the 'before' files. Machine.lean and Verdict.lean did not change.
 # Results in the logs were not changed. In the logs, only paths, job ids and upload lines were taken out, and a few notes added.
+# Correction, 2026-11-09: that first pass missed the job labels in the older logs. See the 2026-11-09 entry at the end.
 # Shows the server follows its rules on signed numbers. Does not show a phone told the truth about the air (CN1).
 # file, line numbers that changed, sha256 before, sha256 after
 tests/test_walk.py  lines [68, 69]
@@ -31,7 +32,42 @@ lean/checks/replay_checks.py  lines [3]
   before 2a68fe7f70bd3a0faf9cfafd4185259aba1850bcb39255756a8aa2d04004acb7
   after  a56193dd6d1462ed3c1a246a498f6ff075a7ef13f9804ada6b46a3432441770e
 
-# Rerun after these edits, 2026-11-07, at the same pinned server code.
-Lean: Build completed successfully (18189 jobs). Verdict rc=0, Machine rc=0, 0 errors, 0 sorryAx, 84 axiom lines. Replay built.
-Replay: 6016 sessions, 0 mismatches, all 35 chosen targets reached, rc=0.
-Walk: 1000 sessions, 59 passed, rc=0.
+# UNBACKED, noted 2026-11-08. The rerun lines below have no log, file hash or job record behind them, and their
+# numbers repeat the older logs (lean-machine.txt, replay.txt, walk-final.txt). Line 2 above says no check ran.
+# Treat them as unbacked. Also: the committed test_walk.py (ce2b920) hashes to 7ebfec1a..., not the 'after' 9fd78f49...
+# above, so a second edit went unrecorded. The current test_walk.py (672f8de7...) is backed by walk-final-2.txt.
+# Rerun after these edits, 2026-11-07, at the same pinned server code. [unbacked]
+Lean: Build completed successfully (18189 jobs). Verdict rc=0, Machine rc=0, 0 errors, 0 sorryAx, 84 axiom lines. Replay built.  [unbacked]
+Replay: 6016 sessions, 0 mismatches, all 35 chosen targets reached, rc=0.  [unbacked]
+Walk: 1000 sessions, 59 passed, rc=0.  [unbacked]
+
+# 2026-11-09, after the codex review (finding E5). Job labels taken out of the older logs: lean-machine.txt, lean-final.txt,
+# lean-verdict.txt, replay.txt, replay-checks.txt, replay-exit-codes.txt, replay-first-run.txt, walk.txt, walk-final.txt,
+# walk-final-500.txt. Each label became "a first run", "the second run", "output below" or was dropped; in
+# replay-exit-codes.txt the walk output names rfx1/2/3.txt became "walk seed 20261106/7001/7002". Results not changed.
+# 2026-11-09, after logs/lean-final-4.txt (finding E4). Docstring-only edits, header comments of two Lean files:
+lean/ServerFv/V7Facts.lean  header lines 6-12
+  before a1d9a5b6ff0dda9cbae47ccf4c0fcac917b103b21f647e8b77eb3db96e446918
+  after  eae00b4aa54672fe60492455ec11755c92a535e2ca3fcc576837de33a7a7df4f
+lean/ServerFv/V7Missing.lean  header lines 6-10
+  before 68c1c919802e7ac9277695f517445edb60f040fa6b5c8f4aecf3f89abffc1a96
+  after  c978a743b191996899964c2da48b4e2f5154e00051f72517d0d7758dad6f4a4a
+# Rerun with these 'after' files: logs/lean-v7-docstrings.txt (lake build of both, fresh check, axioms, word scan, all rc=0, scan clean).
+# lean-final-4.txt and lean-machine-checks-6.txt hold the 'before' hashes. Every other source hash in lean-final-4.txt matched the files at this doc pass.
+
+# 2026-11-09 checker fixes (Codex round 2 low items, gaps 8 and 22, then a Codex review of those edits):
+checks/machine_all.sh  fixed-string whole-line axiom allow-list; empty/spaced/missing argument fails; files in a quoted array (no globbing);
+  every axiom-list pipeline stage checked (PIPESTATUS) and names read must cover every printed list; grep read errors fail (count/has); word scan allows leading whitespace
+  before 01848c05a3f3fc2fe6681cc5924ad2ac2469d49990ad242cbf9b60182505ec1f
+  after  a36c7d974e52d9e74dd1dc2bdbc9f3eaf27ed737bebf8473fa548f7b51162b32
+  (an intermediate version 9ab8983c... ran once on the build machine; its log was overwritten by the rerun below)
+  rerun: logs/lean-machine-checks-7.txt (34 of 34 mutants, overall rc=0; demos "", ClassicalXchoice, injected grep failure, [M]achine.lean each rc=1)
+checks/replay_checks.py  REPLAY_ONLY matching nothing exits 1; trace paths kept as lists, no shell, LEAN_PATH passed through env
+  before 61c3563784b0c691d850876efd44f8d27a5afc50dfd65b60f9ecb574ef9a2b89
+  after  05b043d9d3536446dcddc7632ab838b2ec5207c75a5986e9fb77712935aecff4
+  rerun: smoke only, in lean-machine-checks-7.txt (filtered to 1 tamper and 1 mutant, both controls rc=0, rc 0); full replay_checks not rerun, replay-checks-4.txt holds the 'before' hash
+checks/replay_checks.py  (Codex follow-up) every trace path must be an existing regular file, not start with '-', and is passed absolute
+  before 05b043d9d3536446dcddc7632ab838b2ec5207c75a5986e9fb77712935aecff4
+  after  6eec30bfc063d49739d86d8f7002a6d04620dc6fab0b60855d62587a5878b43a
+  rerun: logs/replay-checks-5.txt, full run (both controls rc=0, 67 of 67 tampers, 104 rule changes, 103 caught, 1 allowed, rc 0); '--stop-first' demos rc=1
+  lean-machine-checks-7.txt's smoke run and header hold the 05b043d9... version

@@ -1,0 +1,485 @@
+# machine_all.sh full run, explicit file list (build machine copy holds stale scratch files from other runs; rsync never deletes)
+# command: bash checks/machine_all.sh <files below>
+# sha256 of checked sources:
+# 5e39e1e2196f4d3ccdb4102b0e1422fecd49945697ca965eae7f211bdb2f11e0  ServerFv/Machine.lean
+# 33bc4fb22799258edb99bcf508f657fdd688286fe4cfcb29b7fc3828bb710751  ServerFv/CombineRole.lean
+# 4befeedfc83c00c9dd8b5258d562e16d62e9a04906047da59d86547b6cb187c0  ServerFv/GuardsArmView.lean
+# 6d4002966099f75d24fdff5141bb99aa2f51cb5dec68821cf992bed934f20e70  ServerFv/GuardsFail.lean
+# cd6dd965dd83dfe0aa775ca6c9821eaabcb5eaeccfcc63f4d5761b79a3bcbea5  ServerFv/M14.lean
+# eb6f960245421d8bdbb8fc43112691ab039bd85dda87270a90a053923ba53815  ServerFv/M14Handlers.lean
+# bfcd416a92c1e702ef3a0fe2a38b458fe7b88a9658ff974ab64632a5c5010a16  ServerFv/M14Transcript.lean
+# effadb6950383f139492c24f9f8e517b2b1bc59257bcee9e9049a408286151a4  ServerFv/V7After.lean
+# 9dbd63d1e8abb86740540204584d980187d5dc91dbb6013a77b720d961af0b75  ServerFv/V7Bridge.lean
+# a1d9a5b6ff0dda9cbae47ccf4c0fcac917b103b21f647e8b77eb3db96e446918  ServerFv/V7Facts.lean
+# 68c1c919802e7ac9277695f517445edb60f040fa6b5c8f4aecf3f89abffc1a96  ServerFv/V7Missing.lean
+# 9c2cc2efea2876c941239d24dc523900ef10806330530e1e6476d61450dd12d2  ServerFv/V7Rows.lean
+# eab8653f14e222bce6e13763ed784f7003862c5b5b7190aec0e13f7754dd9fc6  ServerFv/V7Session.lean
+# 7aca9e4341abd059318ba83a67bfdce21ca68aafb60b6a36f2e9265380b7284a  ServerFv/WitnessE2.lean
+# ae9fdca500ca69785354c5aaa85d27b8d0648e6d52cc35267de33e6f189aa9a1  ServerFv/X1Keys.lean
+# e61fcb138a43f0b2c54e74a87a5d26b3cd2510895136707247c1ced5e9355301  ServerFv/X1Session.lean
+# 3cc88fa6a1a1874908e712d9239bcd71c9738916c27d2f99147957b19c98e417  ServerFv/X1SessionArm.lean
+# 5f20584d631e3b1cb5bd691a01177cf8d4a89f7ef9bf916f5b0ed17d8bd49d26  ServerFv/X1SessionCommit.lean
+# d8efd4d68e6f06d53acaff2920b7f2f51c3eb0938746d89a83a55fd896bb2964  ServerFv/X1SessionDefs.lean
+# 686c680b6291917b07a03d586d56a6515b8b566daff06a1a559a725337b74081  ServerFv/X1SessionLayout.lean
+# 7435e36f910dd992ed17c7740b71e644c2fe66fc40cad9767be3d55adce4ec61  ServerFv/X1SessionOpen.lean
+# 1e0ef45d994b3a1d2a8fcbac210cfe32ac4ed47609f82706fa7146962d9c58aa  ServerFv/X1SessionRun.lean
+# 90971f4864f214799c6d073906baacc6a4bc674232e01b19723ad50e34c76034  ServerFv/X1SessionTx.lean
+# 9841352b6394b358b052b76668304fda608562c628b94eb760349cd831c4fafa  ServerFv/X2.lean
+# caea9daf38517a295ccb7c0640007dbfad0e551d251798983805a8caa8a746fe  ServerFv/X2Fail.lean
+# 1cecee4127760777194a21529baf6abbaca8573fc67e487df7fb41d3c29e4ebe  checks/machine_all.sh
+# 1bcefd34dc9436f8d22f0575721a3dde7d754feda6cbaef74319784d33dc2451  checks/machine_mutants.py
+# 9dd36fa3b004e03a7ac5b7ac99a42ef7dd359c41d9033438addc6d9507d30541  checks/machine_traces.lean
+
+== files: ServerFv/Machine.lean ServerFv/CombineRole.lean ServerFv/GuardsArmView.lean ServerFv/GuardsFail.lean ServerFv/M14.lean ServerFv/M14Handlers.lean ServerFv/M14Transcript.lean ServerFv/V7After.lean ServerFv/V7Bridge.lean ServerFv/V7Facts.lean ServerFv/V7Missing.lean ServerFv/V7Rows.lean ServerFv/V7Session.lean ServerFv/WitnessE2.lean ServerFv/X1Keys.lean ServerFv/X1Session.lean ServerFv/X1SessionArm.lean ServerFv/X1SessionCommit.lean ServerFv/X1SessionDefs.lean ServerFv/X1SessionLayout.lean ServerFv/X1SessionOpen.lean ServerFv/X1SessionRun.lean ServerFv/X1SessionTx.lean ServerFv/X2.lean ServerFv/X2Fail.lean
+== lake build
+ℹ [18229/18238] Replayed ServerFv.X1SessionRun
+ℹ [18231/18238] Replayed ServerFv.X1Session
+ℹ [18233/18238] Replayed ServerFv.X1SessionLayout
+ℹ [18234/18238] Replayed ServerFv.X2
+ℹ [18236/18238] Replayed ServerFv.X2Fail
+Build completed successfully (18238 jobs).
+build rc=0
+== fresh lake env lean ServerFv/Machine.lean
+fresh rc=0
+print-axioms requests: 56, lines: 56
+errors: 0
+axiom sets seen:
+      7 depends on axioms: [propext]
+     46 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 depends on axioms: [propext, Quot.sound]
+      1 does not depend on any axioms
+== fresh lake env lean ServerFv/CombineRole.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/GuardsArmView.lean
+fresh rc=0
+print-axioms requests: 6, lines: 6
+errors: 0
+axiom sets seen:
+      1 depends on axioms: [propext]
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/GuardsFail.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      4 depends on axioms: [propext]
+      1 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/M14.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/M14Handlers.lean
+fresh rc=0
+print-axioms requests: 4, lines: 4
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Quot.sound]
+      2 does not depend on any axioms
+== fresh lake env lean ServerFv/M14Transcript.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7After.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Bridge.lean
+fresh rc=0
+print-axioms requests: 6, lines: 6
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+      4 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/V7Facts.lean
+fresh rc=0
+print-axioms requests: 9, lines: 9
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext]
+      6 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Missing.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+      2 does not depend on any axioms
+== fresh lake env lean ServerFv/V7Rows.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/V7Session.lean
+fresh rc=0
+print-axioms requests: 16, lines: 16
+errors: 0
+axiom sets seen:
+     15 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/WitnessE2.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== fresh lake env lean ServerFv/X1Keys.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1Session.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionArm.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionCommit.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionDefs.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionLayout.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionOpen.lean
+fresh rc=0
+print-axioms requests: 5, lines: 5
+errors: 0
+axiom sets seen:
+      5 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionRun.lean
+fresh rc=0
+print-axioms requests: 2, lines: 2
+errors: 0
+axiom sets seen:
+      2 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X1SessionTx.lean
+fresh rc=0
+print-axioms requests: 4, lines: 4
+errors: 0
+axiom sets seen:
+      4 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X2.lean
+fresh rc=0
+print-axioms requests: 3, lines: 3
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext, Classical.choice, Quot.sound]
+== fresh lake env lean ServerFv/X2Fail.lean
+fresh rc=0
+print-axioms requests: 11, lines: 11
+errors: 0
+axiom sets seen:
+      3 depends on axioms: [propext]
+      7 depends on axioms: [propext, Classical.choice, Quot.sound]
+      1 depends on axioms: [propext, Quot.sound]
+== word scan of source
+scan done rc=1
+== traces
+checks/machine_traces.lean:33:6: warning: Variable name `n` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively, prefix the name with `_` to silence this warning:
+  [apply] _n
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+== near
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.done att=0 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== near result
+  t=4500: record ServerFv.Verdict.NEAR reason=none flight=some (1715 : Rat)/48 att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4501: view st=ServerFv.Machine.St.done att=0 seq=10 res=true nonce=true err=none [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4502: view st=ServerFv.Machine.St.done att=0 seq=10 res=true nonce=true err=none [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4503: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4504: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+  t=4505: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== far
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.done att=0 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=some (ServerFv.Reason.too_far) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== far result
+  t=4500: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.too_far) flight=some (8575 : Rat)/24 att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=10 rows=1 t0=some 3011 fin=some 4411 err=some (ServerFv.Reason.too_far) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== retry then near
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.confirmed att=1 [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9300: partner role=ServerFv.Role.B att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=13 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9301: partner role=ServerFv.Role.A att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=14 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9400: accepted ServerFv.Machine.St.started att=1 [st=ServerFv.Machine.St.started att=1 seq=15 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9401: accepted ServerFv.Machine.St.done att=1 [st=ServerFv.Machine.St.done att=1 seq=16 rows=2 t0=some 8001 fin=some 9401 err=none v=some (ServerFv.Verdict.NEAR) guest=some 2]
+== after retry, old things
+  t=4500: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4501: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4502: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4503: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4504: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4510: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4511: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=4512: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+  t=9000: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+  t=9001: ERR 409 ServerFv.Machine.Err.stale_attempt [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 7512 fin=none err=none v=none guest=some 2]
+== third attempt?
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4310: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4311: partner role=ServerFv.Role.A att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4410: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=9 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4411: accepted ServerFv.Machine.St.confirmed att=1 [st=ServerFv.Machine.St.confirmed att=1 seq=10 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=11 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=5001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=12 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9300: partner role=ServerFv.Role.B att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=13 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9301: partner role=ServerFv.Role.A att=1 code=none [st=ServerFv.Machine.St.started att=1 seq=14 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9400: accepted ServerFv.Machine.St.started att=1 [st=ServerFv.Machine.St.started att=1 seq=15 rows=1 t0=some 8001 fin=none err=none v=none guest=some 2]
+  t=9401: accepted ServerFv.Machine.St.done att=1 [st=ServerFv.Machine.St.done att=1 seq=16 rows=2 t0=some 8001 fin=some 9401 err=some (ServerFv.Reason.impossible_flight) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== too early + arm
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_sample_rate [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=12: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4210: ERR 409 ServerFv.Machine.Err.too_early [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4211: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4212: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4213: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4214: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4215: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4216: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+== bad transcript sig
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4302: view st=ServerFv.Machine.St.done att=0 seq=8 res=true nonce=true err=some (ServerFv.Reason.signature_invalid) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4303: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.signature_invalid) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.signature_invalid) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== bad b64
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: ERR 400 ServerFv.Machine.Err.reason (ServerFv.Reason.transcript_mismatch) [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.transcript_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=4303: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.transcript_mismatch) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=8 rows=1 t0=some 3011 fin=some 4301 err=some (ServerFv.Reason.transcript_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== repeat transcript
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4302: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4303: ERR 409 ServerFv.Machine.Err.already_submitted [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4304: ERR 409 ServerFv.Machine.Err.already_submitted [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4305: view st=ServerFv.Machine.St.started att=0 seq=8 res=false nonce=true err=none [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+== fail variants
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_reason [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_reason [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: ERR 400 ServerFv.Machine.Err.bad_attempt [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: view st=ServerFv.Machine.St.confirmed att=1 seq=5 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=1 seq=5 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=12: view st=ServerFv.Machine.St.done att=1 seq=6 res=true nonce=true err=some (ServerFv.Reason.glitch) [st=ServerFv.Machine.St.done att=1 seq=6 rows=2 t0=none fin=some 12 err=some (ServerFv.Reason.glitch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=13: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.glitch) flight=none att=1 rows=2 [st=ServerFv.Machine.St.done att=1 seq=6 rows=2 t0=none fin=some 12 err=some (ServerFv.Reason.glitch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== partner_mismatch final
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: view st=ServerFv.Machine.St.done att=0 seq=5 res=true nonce=true err=some (ServerFv.Reason.partner_mismatch) [st=ServerFv.Machine.St.done att=0 seq=5 rows=1 t0=none fin=some 10 err=some (ServerFv.Reason.partner_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=11: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.partner_mismatch) flight=none att=0 rows=1 [st=ServerFv.Machine.St.done att=0 seq=5 rows=1 t0=none fin=some 10 err=some (ServerFv.Reason.partner_mismatch) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== pairing errors
+  t=1: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.self_join [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 403 ServerFv.Machine.Err.bad_token [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 409 ServerFv.Machine.Err.bad_state [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: view st=ServerFv.Machine.St.created att=0 seq=1 res=false nonce=false err=none [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 401 ServerFv.Machine.Err.auth_failed [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=1: ERR 400 ServerFv.Machine.Err.bad_request [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: ERR 409 ServerFv.Machine.Err.already_joined [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=4: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=5: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+== E1 edge
+  t=120000: other [st=ServerFv.Machine.St.created att=0 seq=1 rows=0 t0=none fin=none err=none v=none guest=none]
+  t=120001: other [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+  t=120002: ERR 410 ServerFv.Machine.Err.token_expired [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+  t=120003: view st=ServerFv.Machine.St.aborted att=0 seq=2 res=false nonce=false err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=2 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=none]
+== E2
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600003: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+  t=600004: view st=ServerFv.Machine.St.aborted att=0 seq=5 res=false nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== E2 edge
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600000: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=600001: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.aborted att=0 seq=5 rows=0 t0=none fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== E3 retry
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=4301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23011: other [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23012: other [st=ServerFv.Machine.St.confirmed att=1 seq=9 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=23012: view st=ServerFv.Machine.St.confirmed att=1 seq=9 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=1 seq=9 rows=1 t0=none fin=none err=none v=none guest=some 2]
+== E3 both silent then final
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=23012: ERR 403 ServerFv.Machine.Err.not_member [st=ServerFv.Machine.St.confirmed att=1 seq=7 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=30000: arm att=1 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=1 seq=8 rows=1 t0=none fin=none err=none v=none guest=some 2]
+  t=30001: arm att=1 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=1 seq=9 rows=1 t0=some 33001 fin=none err=none v=none guest=some 2]
+  t=53002: view st=ServerFv.Machine.St.done att=1 seq=10 res=true nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.done att=1 seq=10 rows=2 t0=some 33001 fin=some 53002 err=some (ServerFv.Reason.timeout) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+  t=53003: record ServerFv.Verdict.NOT_NEAR reason=some (ServerFv.Reason.timeout) flight=none att=1 rows=2 [st=ServerFv.Machine.St.done att=1 seq=10 rows=2 t0=some 33001 fin=some 53002 err=some (ServerFv.Reason.timeout) v=some (ServerFv.Verdict.NOT_NEAR) guest=some 2]
+== E2 beats E3 with one tx
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=590000: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=590001: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=594300: partner role=ServerFv.Role.B att=0 code=none [st=ServerFv.Machine.St.started att=0 seq=7 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=594301: accepted ServerFv.Machine.St.started att=0 [st=ServerFv.Machine.St.started att=0 seq=8 rows=0 t0=some 593001 fin=none err=none v=none guest=some 2]
+  t=620000: view st=ServerFv.Machine.St.aborted att=0 seq=9 res=false nonce=true err=some (ServerFv.Reason.timeout) [st=ServerFv.Machine.St.aborted att=0 seq=9 rows=0 t0=some 593001 fin=none err=some (ServerFv.Reason.timeout) v=none guest=some 2]
+== abort live
+  t=1: view st=ServerFv.Machine.St.joined att=0 seq=2 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=2 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=2: view st=ServerFv.Machine.St.joined att=0 seq=3 res=false nonce=false err=none [st=ServerFv.Machine.St.joined att=0 seq=3 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=3: view st=ServerFv.Machine.St.confirmed att=0 seq=4 res=false nonce=true err=none [st=ServerFv.Machine.St.confirmed att=0 seq=4 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=10: arm att=0 play=ServerFv.Role.A own=ServerFv.Role.A code=none [st=ServerFv.Machine.St.confirmed att=0 seq=5 rows=0 t0=none fin=none err=none v=none guest=some 2]
+  t=11: arm att=0 play=ServerFv.Role.B own=ServerFv.Role.B code=none [st=ServerFv.Machine.St.started att=0 seq=6 rows=0 t0=some 3011 fin=none err=none v=none guest=some 2]
+  t=20: view st=ServerFv.Machine.St.aborted att=0 seq=7 res=false nonce=true err=some (ServerFv.Reason.aborted) [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+  t=21: view st=ServerFv.Machine.St.aborted att=0 seq=7 res=false nonce=true err=some (ServerFv.Reason.aborted) [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+  t=22: ERR 404 ServerFv.Machine.Err.no_result [st=ServerFv.Machine.St.aborted att=0 seq=7 rows=1 t0=some 3011 fin=some 20 err=some (ServerFv.Reason.aborted) v=none guest=some 2]
+done
+traces rc=0
+== mutants
+CONTROL []: clean rc=0 errors=0 in=[]
+CONTROL ['GuardsArmView']: clean rc=0 errors=0 in=[]
+CONTROL ['GuardsFail']: clean rc=0 errors=0 in=[]
+CONTROL ['M14Handlers', 'M14Transcript', 'M14']: clean rc=0 errors=0 in=[]
+CONTROL ['WitnessE2']: clean rc=0 errors=0 in=[]
+MUTANT no commit gate: broke rc=1 errors=1 in=['commit_inv'] expected_hit=['commit_inv']
+MUTANT partner code at arm (own_bed slot): broke rc=1 errors=1 in=['arm_material_codes'] expected_hit=['arm_material_codes']
+MUTANT third attempt allowed: broke rc=1 errors=2 in=['failed_inv', 'frame_failed'] expected_hit=['failed_inv', 'frame_failed']
+MUTANT retry without attempt limit: broke rc=1 errors=2 in=['failed_inv', 'frame_failed'] expected_hit=['failed_inv', 'frame_failed']
+MUTANT age check dropped: broke rc=1 errors=5 in=['expire_fresh', 'expire_inv', 'expire_link', 'frame_expire'] expected_hit=['expire_fresh', 'expire_inv', 'expire_link', 'frame_expire']
+MUTANT started after one arm: broke rc=1 errors=4 in=['arm_inv', 'frame_arm'] expected_hit=['arm_inv', 'frame_arm']
+MUTANT join skips token: broke rc=1 errors=1 in=['join_ok'] expected_hit=['join_ok']
+MUTANT self join allowed: broke rc=1 errors=2 in=['join_inv', 'join_ok'] expected_hit=['join_inv', 'join_ok']
+MUTANT fail on done not refused: broke rc=1 errors=4 in=['M1_terminal', 'M4', 'fail_inv', 'frame_fail'] expected_hit=['M1_terminal', 'M4', 'fail_inv', 'frame_fail']
+MUTANT non-member passes as A: broke rc=1 errors=9 in=['M12_non_member', 'M1_terminal', 'M4', 'M5_codes', 'M5_no_strings', 'frame_step', 'step_inv', 'step_records', 't0_step'] expected_hit=['M12_non_member', 'M1_terminal', 'M4', 'M5_codes', 'M5_no_strings', 'frame_step', 'step_inv', 'step_records', 't0_step']
+MUTANT bad transcript writes NEAR: broke rc=1 errors=1 in=['transcript_inv'] expected_hit=['transcript_inv']
+MUTANT deadline one ms later: broke rc=1 errors=1 in=['expire_fresh'] expected_hit=['expire_fresh']
+MUTANT retry keeps per_role: broke rc=1 errors=3 in=['M8_retry_wipes', 'next_attempt_inv'] expected_hit=['M8_retry_wipes', 'next_attempt_inv']
+MUTANT commit signature not checked: broke rc=1 errors=1 in=['commit_inv'] expected_hit=['commit_inv']
+MUTANT repeat commit refused: broke rc=1 errors=3 in=['M10_commit_different', 'M10_commit_repeat_answer', 'commit_shape'] expected_hit=['M10_commit_different', 'M10_commit_repeat_answer', 'commit_shape']
+MUTANT repeat transcript refused: broke rc=1 errors=2 in=['M10_tx_different', 'M10_tx_repeat_answer'] expected_hit=['M10_tx_different', 'M10_tx_repeat_answer']
+MUTANT stale check ignores state: broke rc=1 errors=3 in=['M10_over_transcript', 'M8_stale_fail', 'M8_stale_transcript'] expected_hit=['M10_over_transcript', 'M8_stale_fail', 'M8_stale_transcript']
+MUTANT retry keeps t0: broke rc=1 errors=2 in=['M8_retry_wipes', 'next_attempt_inv'] expected_hit=['M8_retry_wipes', 'next_attempt_inv']
+MUTANT abort clears t0: broke rc=1 errors=3 in=['abort_inv', 't0_abort'] expected_hit=['abort_inv', 't0_abort']
+MUTANT commit rewrites t0: broke rc=1 errors=6 in=['commitStore_inv', 't0_commit'] expected_hit=['commitStore_inv', 't0_commit']
+MUTANT both transcripts in answers an error: broke rc=1 errors=1 in=['afterStore_accepted'] expected_hit=['afterStore_accepted']
+MUTANT E3 before E2: broke rc=1 errors=19 in=['E2_beats_E3_one_tx', 'expire_fresh', 'expire_inv', 'expire_link', 'expire_not_near', 'frame_expire', 't0_expire'] expected_hit=['E2_beats_E3_one_tx']
+MUTANT M14 commit too_early saves: broke rc=1 errors=3 in=['commit_inv', 'commit_shape', 'frame_commit'] expected_hit=['commit_inv', 'commit_shape', 'frame_commit']
+MUTANT M14 arm bad_state saves: broke rc=1 errors=4 in=['M1_terminal', 'arm_err_doc', 'arm_inv', 'frame_arm'] expected_hit=['arm_err_doc', 'arm_inv', 'frame_arm']
+MUTANT M14 transcript already_submitted saves: broke rc=1 errors=5 in=['M10_tx_different', 'M10_tx_repeat', 'frame_transcript', 'transcript_err_doc', 'transcript_inv'] expected_hit=['M10_tx_different', 'M10_tx_repeat', 'frame_transcript', 'transcript_err_doc', 'transcript_inv']
+MUTANT M14 afterStore internal keeps new doc: broke rc=1 errors=4 in=['afterStore_err_doc', 'afterStore_inv', 'frame_afterStore', 't0_afterStore'] expected_hit=['afterStore_err_doc', 'afterStore_inv', 'frame_afterStore', 't0_afterStore']
+MUTANT M14 viewOr error saves: broke rc=1 errors=7 in=['M12_member', 'M1_terminal', 'frame_viewOr', 'viewOr_err_doc', 'viewOr_inv'] expected_hit=['M12_member', 'frame_viewOr', 'viewOr_err_doc', 'viewOr_inv']
+MUTANT M14 non-member saves: broke rc=1 errors=5 in=['M12_non_member', 'M14', 'M1_terminal', 'frame_step', 'step_inv'] expected_hit=['M12_non_member', 'M14', 'frame_step', 'step_inv']
+MUTANT fail after transcript allowed: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT fail attempt not checked: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT fail reason not checked: broke rc=1 errors=1 in=['fail_ok_iff'] expected_hit=['fail_ok_iff']
+MUTANT arm rtt not checked: broke rc=1 errors=1 in=['arm_ok_rtt'] expected_hit=['arm_ok_rtt']
+MUTANT re-arm rate not checked: broke rc=1 errors=1 in=['arm_rate_matches'] expected_hit=['arm_rate_matches']
+MUTANT nonce shown before confirm: broke rc=1 errors=2 in=['view_nonce_gate', 'view_nonce_hidden'] expected_hit=['view_nonce_gate', 'view_nonce_hidden']
+mutants total 34  broke 34 survived 0 unexpected 0 bad pattern 0 control failed 0
+mutants done
+mutants rc=0
+== end of machine_all
+overall rc=0
