@@ -4,7 +4,7 @@ import ServerFv.Machine
 # V7 bridge: from a stored record to what `verify_record` reads
 
 Gap 5, V7, the first piece. `verify_record` (`verdict.py:168-189`) re-checks a §8.4 record offline.
-The machine stores that record as `Machine.Record` (`sessions.py:360-384`). This file turns one into
+The machine stores that record as `Machine.Record` (`sessions.py:361-384`). This file turns one into
 the other (`toRR`) and proves two small transfer lemmas that the V7 replay proof needs.
 
 **What `toRR` copies.** `session_nonce`, `attempt`, each role's `pubkey` and `cal_us`, and the

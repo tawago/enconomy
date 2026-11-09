@@ -13,7 +13,7 @@ requests of `X1Plan.reqs`, run from `d0`, end on `d9`, and `d9` is a `Reachable`
 `T + 4411` whose stored record is a NEAR verdict with the exact flight and both devices' rows.
 
 **What it pins.** For any `X1Plan` (any setting `e`, any signers' picks meeting the plan's
-hypotheses), the model of `sessions.py` at 9db1490 can reach a finished session whose record says
+hypotheses), the model of `sessions.py` can reach a finished session whose record says
 NEAR, attempt 0, no reason, `flight_cm = flight_exact ..`, and device rows holding the enrolled ids,
 their keys, the armed rates, the transcript halves, the armed versions and the stored calibration.
 

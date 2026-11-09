@@ -12,7 +12,7 @@ signers pick for one session run, with the hypotheses the walk needs, and the te
 `d0` is `Reachable`, and that the nine requests of the plan are in time order and end at `T + 4411`.
 
 **What it does not prove.** It does not prove that `step` takes `d_k` to `d_{k+1}`. Those are
-separate lemmas in other files. The documents here are written by hand from `sessions.py` at 9db1490
+separate lemmas in other files. The documents here are written by hand from `sessions.py`
 and could be wrong until those lemmas check them. The schedule is one fixed timing (join at `T+1`,
 confirms at `T+2`, `T+3`, arms at `T+10`, `T+11`, commits at `T+4310`, `T+4311`, transcripts at
 `T+4410`, `T+4411`). Nothing here is about sound (CN1).

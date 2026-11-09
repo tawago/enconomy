@@ -3,9 +3,10 @@ import ServerFv.Verdict
 /-!
 # The session machine of the server (`server/pop/sessions.py`)
 
-A literal Lean copy of the session steps in `sessions.py` at commit 9db1490, from the table in
+A literal Lean copy of the session steps in `sessions.py`, from the table in
 `fv/v1/server/spec.md` section 3.5. Same names, same order of guards. Line numbers in comments are
-for `sessions.py`, unless another file is named. Property ids (M1 .. M13) are from `spec.md`.
+for `sessions.py` at 5863e9c, unless another file is named; they are pointers only, the replay runs
+against the checkout's own `server/`. Property ids (M1 .. M13) are from `spec.md`.
 
 **What this file shows, and what it does not.** These results show the server follows its rules on
 signed numbers. They do not show a phone told the truth about the air (CN1). A NEAR means two keys
@@ -13,8 +14,8 @@ signed two numbers that fit a range. It does not mean two phones were close. See
 `Verdict.lean`. The witness at the end of this file reaches NEAR with numbers picked by hand, and no
 audio exists anywhere in this model.
 
-**Scope.** Only the basic proximity flow. Every session here has `context=None` and policy
-`human=none`. World ID, Safe, attestation, ENS, the bridge, zk routes, recording upload, enrolment
+**Scope.** Only the basic proximity flow. Every session here has `context=None` and
+`early_nonce=False`. Contexts, zk routes, the presence signature, recording upload, enrolment
 and audio processing are not modeled, and nothing is claimed about them.
 
 **Assumptions, by name.** Ids are from `spec.md` section 2.
@@ -40,11 +41,11 @@ and audio processing are not modeled, and nothing is claimed about them.
 
 **How the Lean copy differs from the Python.** These are the differences we know of.
 * One clock read per step, `World.now`. The real code reads the clock several times in a handler.
-  So `join`'s second expiry check (line 183) can't fire here, and `finished_ms` is the load's read.
-* `per_role[r]` is split into groups written together: `arm` (line 252), `commit` (line 299),
-  `tx` (line 444), `fail_` (line 476). A key being present is the group being `some`.
+  So `join`'s second expiry check (line 184) can't fire here, and `finished_ms` is the load's read.
+* `per_role[r]` is split into groups written together: `arm` (line 251), `commit` (line 298),
+  `tx` (line 447), `fail_` (line 479). A key being present is the group being `some`.
 * Dropped, as in `spec.md` section 3.3: display fields, `updated_ms`, `meta`, `rtt_min_ms` (kept as a
-  guard), `zk`, `human`, `context`, `policy`, `att`, `not_before`, `last_flight_cm`, `code_attest`,
+  guard), `zk`, `presence`, `context`, `early_nonce`, `not_before`, `last_flight_cm`, `code_attest`,
   `submitted_ms`, `result.json`, `user_text`, `proto`. Kept against that list, since M5 and M11 need them:
   `armed_ms` and `committed_ms`. Python's `created_at` and `finished_at` are `created_ms` and `finished_ms` here.
 * Error details are dropped. An error is a status and a code.
@@ -55,7 +56,7 @@ and audio processing are not modeled, and nothing is claimed about them.
 * A request's JSON body is already sorted into `Arg`. `Arg.other` is anything that isn't null or an
   int, a bool included.
 * Uncaught Python exceptions are the response `error 500 internal`, with the document as loaded:
-  line 451 or a rate of 0 in `combine`. `M9` shows the paths that need a missing key can't happen, so
+  line 454 or a rate of 0 in `combine`. `M9` shows the paths that need a missing key can't happen, so
   a `None` where Python would raise a `TypeError` or `KeyError` (`t0_ms`, `_pk`, `mine[...]`) takes
   a harmless default here. These are the spots marked "unreachable".
 * Three known 500s are plain refusals here, with the same stored document: a `reason` that is a list
@@ -64,13 +65,13 @@ and audio processing are not modeled, and nothing is claimed about them.
 * `token.lower()` is `String.toLower`. It differs from Python only on non-ASCII, see the line above.
 * One session document at a time. An unknown session id is a 404 with nothing stored, so not a step.
   A refused `create` stores nothing either, so it isn't a step. That covers its 500 (`spec.md` E500-create).
-* The long poll of `GET /session` (`main.py:522-526`) is one load and one view. Each extra round of it is one
+* The long poll of `GET /session` (`main.py:474-478`) is one load and one view. Each extra round of it is one
   more load, and it saves nothing else (A3). `Req.noauth_load` covers what such a load can do.
 * `json_bad` can be set on any `Req.api`, even for a route with no body, where the Python has no such path. It only
   refuses, so it adds nothing a real request could not do.
 * In this model the seed is in responses, inside `Code` values (`M5_codes`). Real responses hold PCM there.
   Only A6 says PCM doesn't give the seed away, and A6 is an assumption, not a result here.
-* This table is compared with the real Python on sampled runs by `ServerFv/Replay.lean`, totals in `fv/v1/server/logs/replay.txt`.
+* This table is compared with the real Python on sampled runs by `ServerFv/Replay.lean`; `fv/v1/server/run_all.sh` runs it on fresh traces.
   That is testing, not a proof that the two are equal. Nothing in this file depends on it.
 -/
 
@@ -90,24 +91,24 @@ set_option linter.unreachableTactic false
 namespace ServerFv
 
 namespace K
-/-- `constants.py:51` -/
-abbrev JOIN_TOKEN_TTL_S : ℕ := 120
 /-- `constants.py:52` -/
+abbrev JOIN_TOKEN_TTL_S : ℕ := 120
+/-- `constants.py:53` -/
 abbrev SESSION_MAX_AGE_S : ℕ := 600
-/-- `constants.py:34` -/
-abbrev TRANSCRIPT_DEADLINE_S : ℕ := 20
 /-- `constants.py:35` -/
+abbrev TRANSCRIPT_DEADLINE_S : ℕ := 20
+/-- `constants.py:36` -/
 abbrev MAX_ATTEMPTS : ℕ := 2
-/-- `sessions.py:297`, `int((K.B_PLAY_S + K.CODE_S) * 1000)`: 0.95 s + 0.25 s. The walk saw the gate at
+/-- `sessions.py:296`, `int((K.B_PLAY_S + K.CODE_S) * 1000)`: 0.95 s + 0.25 s. The walk saw the gate at
 exactly this number (`spec.md` M5, gate at 1199 and 1200). -/
 abbrev COMMIT_GATE_MS : ℕ := 1200
 end K
 
 namespace Machine
 
-/-- `T0_DELAY_MS`, `sessions.py:76`. -/
+/-- `T0_DELAY_MS`, `sessions.py:80`. -/
 abbrev T0_DELAY_MS : ℕ := 3000
-/-- `MAX_RTT_MS`, `sessions.py:75`. -/
+/-- `MAX_RTT_MS`, `sessions.py:79`. -/
 abbrev MAX_RTT_MS : ℕ := 300
 
 /-! ## Data -/
@@ -116,11 +117,11 @@ abbrev MAX_RTT_MS : ℕ := 300
 inductive St | created | joined | confirmed | started | done | aborted
   deriving DecidableEq, Repr
 
-/-- `LIVE`, `sessions.py:77`. -/
+/-- `LIVE`, `sessions.py:81`. -/
 def live (st : St) : Bool :=
   st = .created || st = .joined || st = .confirmed || st = .started
 
-/-- `OTHER`, `sessions.py:74`. -/
+/-- `OTHER`, `sessions.py:78`. -/
 def OTHER : Role → Role
   | .A => .B
   | .B => .A
@@ -132,14 +133,14 @@ structure Code where
   attempt : ℕ
   deriving DecidableEq, Repr
 
-/-- `per_role[r]` written by arm, `sessions.py:252-253`. `rtt_min_ms` is only a guard. -/
+/-- `per_role[r]` written by arm, `sessions.py:251-252`. `rtt_min_ms` is only a guard. -/
 structure ArmData where
   sample_rate : ℕ
   armed_ms : ℕ
   popt : ℕ
   cal_us : ℤ
 
-/-- `per_role[r]` written by commit, `sessions.py:299-304`. `rec_` stands for `REC_KEY[ver]`. -/
+/-- `per_role[r]` written by commit, `sessions.py:298-303`. `rec_` stands for `REC_KEY[ver]`. -/
 structure CommitData (B : Type) where
   commit_b64 : B
   commit_sig_b64 : B
@@ -148,7 +149,7 @@ structure CommitData (B : Type) where
   committed_ms : ℕ
   code_commit : Option B
 
-/-- `per_role[r]` written by transcript, `sessions.py:444-446`. -/
+/-- `per_role[r]` written by transcript, `sessions.py:447-449`. -/
 structure TxData (B : Type) where
   transcript_b64 : B
   sig_b64 : B
@@ -156,7 +157,7 @@ structure TxData (B : Type) where
   half : ℤ
   self_os_delta : ℤ
 
-/-- `per_role[r]`. Empty is `{}`, line 165 and line 321. -/
+/-- `per_role[r]`. Empty is `{}`, line 166 and line 320. -/
 structure PerRole (B : Type) where
   arm : Option ArmData := none
   commit : Option (CommitData B) := none
@@ -167,7 +168,7 @@ structure PerRole (B : Type) where
 inductive Outcome | failed | aborted | rejected | verdict
   deriving DecidableEq, Repr
 
-/-- One row of `s["attempts"]`, lines 203, 315-316, 345-346. -/
+/-- One row of `s["attempts"]`, lines 204, 314-315, 344-345. -/
 structure AttemptRow (B : Type) where
   attempt : ℕ
   outcome : Outcome
@@ -187,13 +188,13 @@ structure SummaryRow where
   verdict : Option Verdict
   flight_cm : Option ℚ
 
-/-- `s["last_failure"]`, line 317. `text` is a fixed string for the reason, so it is left out. -/
+/-- `s["last_failure"]`, line 316. `text` is a fixed string for the reason, so it is left out. -/
 structure LastFailure where
   attempt : ℕ
   reason : Option Reason
   by_ : Option Role
 
-/-- `result["devices"][r]`, lines 362-365. -/
+/-- `result["devices"][r]`, lines 363-366. -/
 structure DeviceRow (B D : Type) where
   device_id : D
   pubkey : B
@@ -202,18 +203,18 @@ structure DeviceRow (B D : Type) where
   popt : ℕ
   cal_us : ℤ
 
-/-- `result["transcripts"][r]`, lines 367-368. -/
+/-- `result["transcripts"][r]`, lines 368-369. -/
 structure TxEntry (B : Type) where
   transcript_b64 : B
   sig_b64 : B
   sha256 : B
 
-/-- `result["commits"][r]`, line 370. -/
+/-- `result["commits"][r]`, line 371. -/
 structure CommitEntry (B : Type) where
   commit_b64 : B
   sig_b64 : B
 
-/-- `s["result"]`, the record from `_record`, lines 371-384, the fields in scope. -/
+/-- `s["result"]`, the record from `_record`, lines 372-384, the fields in scope. -/
 structure Record (B D : Type) where
   session_id : B
   session_nonce : B
@@ -229,7 +230,7 @@ structure Record (B D : Type) where
   commits : Role → Option (CommitEntry B)
   attempts : List SummaryRow
 
-/-- The session document, `sessions.py:151-166`, fields of `spec.md` section 3.1. -/
+/-- The session document, `sessions.py:153-167`, fields of `spec.md` section 3.1. -/
 structure Doc (B D : Type) where
   session_id : B
   seed_hex : String
@@ -264,13 +265,13 @@ structure Env (B D : Type) where
   code_commit : ℕ → Code → Code → B
 
 /-- What one request reads from the outside: one clock read (A7), and the `cal_us` of each device row
-at that moment (`sessions.py:329-331`). How a row gets its `cal_us` is out of scope, so any value can
+at that moment (`sessions.py:328-330`). How a row gets its `cal_us` is out of scope, so any value can
 turn up. -/
 structure World (D : Type) where
   now : ℕ
   cal : D → ℤ
 
-/-- A JSON value in an `Any` field of a request body (`main.py:228-231`, `:253-254`). -/
+/-- A JSON value in an `Any` field of a request body (`main.py:202-205`, `:220-221`). -/
 inductive Arg
   | null
   | int (n : ℤ)
@@ -285,13 +286,13 @@ inductive Op (B : Type)
   | transcript (transcript_b64 sig_b64 : B)
   | fail_ (attempt : Arg) (reason : Option Reason)
 
-/-- The body of a route: join has no member step (`main.py:513-516`). -/
+/-- The body of a route: join has no member step (`main.py:465-468`). -/
 inductive Body (B : Type)
   | join (token : String)
   | op (o : Op B)
 
 /-- A request on this session. `noauth_load` is any route that runs `load` with no auth or no member
-check, for example `/relay` (`main.py:673`). Its own work is out of scope.
+check, for example `/zk/bundle` (`main.py:593`). Its own work is out of scope.
 
 For the rest, in the order of `spec.md` section 3.4: `json_bad` is a body that fails the JSON parse,
 `sender` is `none` when auth fails, `shape_bad` is a wrong body shape or a bad query. All three stop
@@ -301,7 +302,7 @@ inductive Req (B D : Type)
   | api (json_bad : Bool) (sender : Option D) (shape_bad : Bool) (body : Body B)
 
 /-- The error codes of the handlers. `reason` holds a `Reject` reason, or a `PopError` with the same
-word (lines 284, 286, 288, 291). -/
+word (lines 283, 285, 287, 290). -/
 inductive Err
   | auth_failed | bad_request | not_member | self_join | already_joined | bad_token | token_expired
   | bad_state | bad_attempt | bad_sample_rate | already_committed | too_early | stale_attempt
@@ -315,7 +316,7 @@ structure ViewDevice (B D : Type) where
   pubkey : B
   cal_us : ℤ
 
-/-- The dict `view` returns, lines 663-684, fields in scope. -/
+/-- The dict `view` returns, lines 664-684, fields in scope. -/
 structure ViewBody (B D : Type) where
   session_id : B
   seq : ℕ
@@ -337,12 +338,12 @@ structure ViewBody (B D : Type) where
 
 /-- What a request gets back. M5 and M6 are statements about this.
 
-* `created`: line 170. Its invite fields carry the same token.
+* `created`: line 171. Its invite fields carry the same token.
 * `view`: the view.
-* `armMaterial`: `_arm_material`, lines 215-228. `play` and `own_bed` always, `own_code` and `delta` in v2.
-* `partnerBed`: `_partner_bed`, lines 261-270.
-* `accepted`: lines 425, 462.
-* `record`: `result`, line 482.
+* `armMaterial`: `_arm_material`, lines 216-229. `play` and `own_bed` always, `own_code` and `delta` in v2.
+* `partnerBed`: `_partner_bed`, lines 260-269.
+* `accepted`: lines 428, 465.
+* `record`: `result`, line 485.
 * `other`: what a `noauth_load` route answers. Out of scope, nothing is claimed about it.
 * `error`: a `PopError`. -/
 inductive Resp (B D : Type)
@@ -364,7 +365,7 @@ variable {B D : Type} [DecidableEq B] [DecidableEq D]
 def upd {α : Type} (f : Role → α) (r : Role) (v : α) : Role → α :=
   fun x => if x = r then v else f x
 
-/-- `_flags()`, lines 80-81. -/
+/-- `_flags()`, lines 84-85. -/
 def _flags : Role → Bool := fun _ => false
 
 /-- `all(d.values())` on a per-role flag map. -/
@@ -375,33 +376,33 @@ def _int : Arg → Option ℤ
   | .int n => some n
   | _ => none
 
-/-- Device id of a role: lines 326, 334, 358. -/
+/-- Device id of a role: lines 325, 333, 359. -/
 def devId (s : Doc B D) : Role → Option D
   | .A => some s.host_device_id
   | .B => s.guest_device_id
 
-/-- `_pk`, lines 333-335. `none` where Python would raise, which `M9` shows is unreachable. -/
+/-- `_pk`, lines 332-334. `none` where Python would raise, which `M9` shows is unreachable. -/
 def _pk (e : Env B D) (s : Doc B D) (r : Role) : Option B :=
   (devId s r).map e.pk
 
-/-- `_popt`, lines 211-213. -/
+/-- `_popt`, lines 212-214. -/
 def _popt (s : Doc B D) (r : Role) : ℕ :=
   ((s.per_role r).arm.map (·.popt)).getD 1
 
-/-- `Code(seed, role, attempt)`, the current attempt: `_key`, lines 208-209. -/
+/-- `Code(seed, role, attempt)`, the current attempt: `_key`, lines 209-210. -/
 def _code (s : Doc B D) (r : Role) : Code := ⟨s.seed_hex, r, s.attempt⟩
 
-/-- `_code_commit`, lines 272-275. -/
+/-- `_code_commit`, lines 271-274. -/
 def _code_commit (e : Env B D) (s : Doc B D) (r : Role) : B :=
   e.code_commit (((s.per_role r).arm.map (·.sample_rate)).getD 0) (_code s r) (_code s (OTHER r))
 
-/-- `role_of`, lines 130-135. -/
+/-- `role_of`, lines 132-137. -/
 def role_of (s : Doc B D) (d : D) : Option Role :=
   if d = s.host_device_id then some .A
   else if some d = s.guest_device_id then some .B
   else none
 
-/-- `_save`, lines 104-108. `updated_ms` is dropped. Every save works (A10). -/
+/-- `_save`, lines 106-110. `updated_ms` is dropped. Every save works (A10). -/
 def _save (s : Doc B D) : Doc B D := { s with seq := s.seq + 1 }
 
 /-- `reason in V.RETRY_REASONS`, with `None` not in it. -/
@@ -412,7 +413,7 @@ def isRetry (reason : Option Reason) : Bool :=
 
 /-! ## The steps, in file order -/
 
-/-- `_record`, lines 354-384. It reads the document it is given, like the Python. -/
+/-- `_record`, lines 355-384. It reads the document it is given, like the Python. -/
 def _record (e : Env B D) (s : Doc B D) (verdict : Verdict) (reason : Option Reason)
     (flight : Option ℚ) : Record B D where
   session_id := s.session_id
@@ -434,8 +435,8 @@ def _record (e : Env B D) (s : Doc B D) (verdict : Verdict) (reason : Option Rea
       if a.outcome = .verdict then a.verdict else none,
       if a.outcome = .verdict then a.flight_cm else none⟩
 
-/-- `next_attempt`, lines 312-322. The guard at line 313 can't fire, since `_failed` is its only
-caller and checks the same thing at line 339. So it isn't copied. `confirmed` stays. -/
+/-- `next_attempt`, lines 311-321. The guard at line 312 can't fire, since `_failed` is its only
+caller and checks the same thing at line 338. So it isn't copied. `confirmed` stays. -/
 def next_attempt (s : Doc B D) (reason : Option Reason) (by_ : Option Role) : Doc B D :=
   _save { s with
     attempts := s.attempts ++
@@ -450,7 +451,7 @@ def next_attempt (s : Doc B D) (reason : Option Reason) (by_ : Option Role) : Do
     submitted := _flags
     per_role := fun _ => {} }
 
-/-- `_finalize`, lines 343-352. `result.json` is not modeled. -/
+/-- `_finalize`, lines 342-353. `result.json` is not modeled. -/
 def _finalize (e : Env B D) (w : World D) (s : Doc B D) (verdict : Verdict) (reason : Option Reason)
     (flight : Option ℚ) (outcome : Outcome) (by_ : Option Role) : Doc B D :=
   let s1 : Doc B D := { s with
@@ -462,20 +463,20 @@ def _finalize (e : Env B D) (w : World D) (s : Doc B D) (verdict : Verdict) (rea
     finished_ms := some w.now }
   _save { s1 with result := some (_record e s1 verdict reason flight) }
 
-/-- `_failed`, lines 337-341. Python's `reason` can be `None` only as a type, so `Option` is kept. -/
+/-- `_failed`, lines 336-340. Python's `reason` can be `None` only as a type, so `Option` is kept. -/
 def _failed (e : Env B D) (w : World D) (s : Doc B D) (reason : Option Reason) (by_ : Option Role) :
     Doc B D :=
   if isRetry reason && Nat.blt (s.attempt + 1) K.MAX_ATTEMPTS then next_attempt s reason by_
   else _finalize e w s .NOT_NEAR reason none .failed by_
 
-/-- The silent role of line 119-120: the only one not submitted, else none. -/
+/-- The silent role of line 121-122: the only one not submitted, else none. -/
 def silent (s : Doc B D) : Option Role :=
   match s.submitted .A, s.submitted .B with
   | false, true => some .A
   | true, false => some .B
   | _, _ => none
 
-/-- `_expire`, lines 110-121: rows E1, E2, E3 of the table. On line 118 `t0_ms = None` would raise in
+/-- `_expire`, lines 112-123: rows E1, E2, E3 of the table. On line 120 `t0_ms = None` would raise in
 Python, and `M9` shows a started session has one. -/
 def _expire (e : Env B D) (w : World D) (s : Doc B D) : Doc B D :=
   if s.state = .created ∧ w.now > s.token_expires_ms then
@@ -486,11 +487,11 @@ def _expire (e : Env B D) (w : World D) (s : Doc B D) : Doc B D :=
     _failed e w s (some .timeout) (silent s)
   else s
 
-/-- `load`, lines 123-127, for a known session. -/
+/-- `load`, lines 125-129, for a known session. -/
 def load (e : Env B D) (w : World D) (s : Doc B D) : Doc B D := _expire e w s
 
-/-- `create`, lines 144-173, with `context=None`, `human=none`. `sid`, `seed`, `nonce` and `token` are
-the fresh random values of lines 147-157. -/
+/-- `create`, lines 146-174, with `context=None`, `early_nonce=False`. `sid`, `seed`, `nonce` and `token` are
+the fresh random values of lines 149-158. -/
 def create (w : World D) (host : D) (sid nonce : B) (seed token : String) : Doc B D × Resp B D :=
   let s : Doc B D := _save
     { session_id := sid, seed_hex := seed, nonce_hex := nonce, join_token := token
@@ -504,7 +505,7 @@ def create (w : World D) (host : D) (sid nonce : B) (seed token : String) : Doc 
       per_role := fun _ => {} }
   (s, .created s.session_id s.nonce_hex s.join_token s.token_expires_ms)
 
-/-- `join`, lines 175-187, after the load inside it (line 176). -/
+/-- `join`, lines 176-188, after the load inside it (line 177). -/
 def join (w : World D) (s : Doc B D) (guest : D) (token : String) : Except (ℕ × Err) (Doc B D) :=
   if guest = s.host_device_id then .error (400, .self_join)                  -- 177-178
   else if s.guest_device_id ≠ none then .error (409, .already_joined)        -- 179-180
@@ -513,7 +514,7 @@ def join (w : World D) (s : Doc B D) (guest : D) (token : String) : Except (ℕ 
     .error (410, .token_expired)                                             -- 183-184
   else .ok (_save { s with guest_device_id := some guest, state := .joined }) -- 185-187
 
-/-- `confirm`, lines 189-197. -/
+/-- `confirm`, lines 190-198. -/
 def confirm (s : Doc B D) (role : Role) : Except (ℕ × Err) (Doc B D) :=
   if s.state = .confirmed ∨ (s.state = .joined ∧ s.confirmed role = true) then .ok s  -- 190-191
   else if s.state ≠ .joined then .error (409, .bad_state)                             -- 192-193
@@ -522,7 +523,7 @@ def confirm (s : Doc B D) (role : Role) : Except (ℕ × Err) (Doc B D) :=
     let s1 : Doc B D := { s with confirmed := c }
     .ok (_save (if all2 c = true then { s1 with state := .confirmed } else s1))       -- 195-197
 
-/-- `abort`, lines 199-205. -/
+/-- `abort`, lines 200-206. -/
 def abort (w : World D) (s : Doc B D) (role : Role) : Doc B D :=
   if s.state = .done ∨ s.state = .aborted then s
   else _save { s with
@@ -531,32 +532,32 @@ def abort (w : World D) (s : Doc B D) (role : Role) : Doc B D :=
       [{ attempt := s.attempt, outcome := .aborted, reason := some .aborted, by_ := some role }]
     finished_ms := some w.now }
 
-/-- `_arm_material`, lines 215-228. Only the sender's own code. -/
+/-- `_arm_material`, lines 216-229. Only the sender's own code. -/
 def _arm_material (s : Doc B D) (role : Role) : Resp B D :=
   let sr := (s.per_role role).arm.map (·.sample_rate)
   .armMaterial s.attempt sr (_code s role) (_code s role)
     (if _popt s role = 2 then some (_code s role) else none)
     (if _popt s role = 2 then sr.map popt2_delta else none)
 
-/-- `sample_rate` as `int` in range, line 237. Bools are `Arg.other`. -/
+/-- `sample_rate` as `int` in range, line 236. Bools are `Arg.other`. -/
 def srArg : Arg → Option ℕ
   | .int n => if (K.SR_MIN : ℤ) ≤ n ∧ n ≤ (K.SR_MAX : ℤ) then some n.toNat else none
   | _ => none
 
-/-- `popt`, lines 241-243: null means 1. Any other value but the integers 1 and 2 is refused. -/
+/-- `popt`, lines 240-242: null means 1. Any other value but the integers 1 and 2 is refused. -/
 def poptArg : Arg → Option ℕ
   | .null => some 1
   | .int 1 => some 1
   | .int 2 => some 2
   | _ => none
 
-/-- `rtt_min_ms` in range, line 239. A non-number is `none`. -/
+/-- `rtt_min_ms` in range, line 238. A non-number is `none`. -/
 def rttOk (rtt : Option ℚ) : Bool :=
   match rtt with
   | some x => Decidable.decide (0 ≤ x ∧ x ≤ (MAX_RTT_MS : ℚ))
   | none => false
 
-/-- `arm`, lines 230-258. The World ID check at line 233 can't fire with `human=none`. -/
+/-- `arm`, lines 231-257. -/
 def arm (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (attempt sample_rate : Arg)
     (rtt : Option ℚ) (popt : Arg) : Doc B D × Resp B D :=
   if ¬ (s.state = .confirmed ∨ s.state = .started) then (s, .error 409 .bad_state)    -- 231-232
@@ -584,7 +585,7 @@ def arm (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (attempt sample_
           { s1 with state := .started, t0_ms := some (w.now + T0_DELAY_MS) } else s1)
         (s2, _arm_material s2 role)                                                   -- 258
 
-/-- `_partner_bed`, lines 261-270. -/
+/-- `_partner_bed`, lines 260-269. -/
 def _partner_bed (s : Doc B D) (role : Role) : Resp B D :=
   .partnerBed (_code s (OTHER role))
     (if _popt s role = 2 then some (_code s (OTHER role)) else none)
@@ -596,7 +597,7 @@ def commitStore (s : Doc B D) (role : Role) (cd : CommitData B) : Doc B D :=
     per_role := upd s.per_role role { s.per_role role with commit := some cd }
     committed := upd s.committed role true }
 
-/-- `commit`, lines 277-309. -/
+/-- `commit`, lines 276-308. -/
 def commit (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D) (commit_b64 sig_b64 : B) :
     Doc B D × Resp B D :=
   if s.state ≠ .started then (s, .error 409 .bad_state)                               -- 278-279
@@ -626,7 +627,7 @@ def commit (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D) (co
         (s1, _partner_bed s1 role)                                                    -- 309
   | _, _ => (s, .error 400 (.reason .transcript_mismatch))                            -- 283-284
 
-/-- `_stale`, lines 404-406, for an attempt that is an int. -/
+/-- `_stale`, lines 407-409, for an attempt that is an int. -/
 def _stale (s : Doc B D) (attempt : ℤ) : Bool :=
   (s.state = .confirmed || s.state = .started) && Decidable.decide (attempt < (s.attempt : ℤ))
 
@@ -641,13 +642,13 @@ def staleTranscript (e : Env B D) (s : Doc B D) (role : Role) (transcript_b64 si
     | none => false
   | _, _ => false
 
-/-- The re-decode at line 451 of a stored transcript. -/
+/-- The re-decode at line 454 of a stored transcript. -/
 def stored (e : Env B D) (s : Doc B D) (r : Role) : Option (Transcript B) :=
   match (s.per_role r).tx with
   | some td => (e.b64d td.transcript_b64).bind e.p.decode_transcript
   | none => none
 
-/-- The `cal_us` map of line 453: the snapshots. -/
+/-- The `cal_us` map of line 456: the snapshots. -/
 def calMap (s : Doc B D) : Option (Role → Option ℤ) :=
   some fun r => some (((s.per_role r).arm.map (·.cal_us)).getD 0)
 
@@ -692,7 +693,7 @@ def txStore (s : Doc B D) (role : Role) (td : TxData B) : Doc B D :=
     per_role := upd s.per_role role { s.per_role role with tx := some td }
     submitted := upd s.submitted role true }
 
-/-- `transcript`, lines 408-462. `meta` is dropped (`spec.md` section 3.3). -/
+/-- `transcript`, lines 411-465. `meta` is dropped (`spec.md` section 3.3). -/
 def transcript (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D)
     (transcript_b64 sig_b64 : B) : Doc B D × Resp B D :=
   if staleTranscript e s role transcript_b64 sig_b64 = true then
@@ -725,7 +726,7 @@ def transcript (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D)
 def failStore (s : Doc B D) (role : Role) (f : Reason × ℕ) : Doc B D :=
   { s with per_role := upd s.per_role role { s.per_role role with fail_ := some f } }
 
-/-- `fail`, lines 464-477. -/
+/-- `fail`, lines 467-480. -/
 def fail_ (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (attempt : Arg) (reason : Option Reason) :
     Except (ℕ × Err) (Doc B D) :=
   match reason with
@@ -743,7 +744,7 @@ def fail_ (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (attempt : Arg
       else
         .ok (_failed e w (failStore s role (rsn, w.now)) (some rsn) (some role))                                                     -- 476-477
 
-/-- `view`, lines 655-684, fields in scope. -/
+/-- `view`, lines 656-684, fields in scope. -/
 def view (e : Env B D) (w : World D) (s : Doc B D) (role : Role) : ViewBody B D where
   session_id := s.session_id
   seq := s.seq
@@ -763,20 +764,20 @@ def view (e : Env B D) (w : World D) (s : Doc B D) (role : Role) : ViewBody B D 
   error := s.error
   last_failure := s.last_failure
 
-/-- A handler that returns a document or raises, then a view: `main.py:531-532`, `:576-577`, `:812-813`. -/
+/-- A handler that returns a document or raises, then a view: `main.py:483-484`, `:509-510`, `:710-711`. -/
 def viewOr (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (x : Except (ℕ × Err) (Doc B D)) :
     Doc B D × Resp B D :=
   match x with
   | .ok s' => (s', .view (view e w s' role))
   | .error (st, c) => (s, .error st c)
 
-/-- `result`, lines 479-482. -/
+/-- `result`, lines 482-485. -/
 def result (s : Doc B D) : Doc B D × Resp B D :=
   match s.result with
   | none => (s, .error 404 .no_result)
   | some r => (s, .record r)
 
-/-- One member route, after the load and the `member` check (`main.py:519-577`, `:809-813`). -/
+/-- One member route, after the load and the `member` check (`main.py:471-510`, `:707-711`). -/
 def handle (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D) : Op B → Doc B D × Resp B D
   | .view => (s, .view (view e w s role))
   | .result => result s
@@ -1045,7 +1046,7 @@ theorem expire_inv {e : Env B D} {c : ℕ} {s : Doc B D} {w : World D} (h : Inv 
         exact failed_inv h.toCore (Or.inr hc.1) hcw
       · exact hm
 
-/-- After the load, a session still `started` is on time: the deadlines of lines 115 and 118 are strict,
+/-- After the load, a session still `started` is on time: the deadlines of lines 117 and 120 are strict,
 so both edges pass. This is the first half of M11. -/
 theorem expire_fresh {e : Env B D} {c : ℕ} {s : Doc B D} {w : World D} (h : Inv e c s)
     (hst : (_expire e w s).state = .started) :
@@ -2472,7 +2473,7 @@ theorem M3_signed {e : Env B D} {c : ℕ} {s : Doc B D} {rc : Record B D} {signe
   obtain ⟨_, _, pk, pk', cm, tr, rawc, sigc, rawt, sigt, cmt, h1, _, h2, h3, h4, _, h5, _, _, h6, _, _, _, _, h7, _⟩ := hs r
   exact ⟨pk, rawc, rawt, cm, tr, h1, h2, h3, h4, h5, hu _ _ _ h6, hu _ _ _ h7⟩
 
-/-- **The guard at lines 454-456, and the raise at line 451, can't fire.** On a document with both
+/-- **The guard at lines 457-459, and the raise at line 454, can't fire.** On a document with both
 transcripts in, and ids that map to different keys, the stored transcripts decode and `combine` returns.
 This one is about any such document. `combine_guard_on_request` below ties it to a real request.
 `spec.md` section 3.5: the Python keeps this as a guard. The hypothesis is the "A != B" of M12. The device id is a
@@ -2524,7 +2525,7 @@ theorem afterStore_accepted {e : Env B D} {c : ℕ} {s s0 : Doc B D} {w : World 
   exact ⟨_, _, rfl⟩
 
 /-- **The same guard, on a real `/transcript` request.** This is about the handler `transcript`, on the document after the load. Take a
-request from a member whose new transcript passes the check of lines 430-437 and that isn't caught as stale. Then the answer is `accepted`. So the guard at lines 454-456 and the raise at line 451 can't
+request from a member whose new transcript passes the check of lines 433-440 and that isn't caught as stale. Then the answer is `accepted`. So the guard at lines 457-459 and the raise at line 454 can't
 fire on such a request. The hypotheses are the guards of `transcript`, in its order. It says nothing about the air (CN1). -/
 theorem combine_guard_on_request {e : Env B D} {c : ℕ} {s : Doc B D} {w : World D} {role : Role} {dev : D} {tb sb pk' raw : B}
     {t : Transcript B} (hinj : Function.Injective e.pk) (h : Inv e c s) (hr : role_of s dev = some role)
@@ -2561,8 +2562,8 @@ theorem expire_not_near {e : Env B D} {w : World D} {s : Doc B D} {rc : Record B
   · simp [hres] at h
 
 /-- **M4.** NEAR has one source. A request that writes a NEAR record is a `/transcript` request with good auth,
-from a member. `_finalize` is the only writer of `result` (line 349), and `M3` shows the verdict it
-wrote came from `combine`. The other three call sites (lines 341, 439, 455) pass `NOT_NEAR`: `failed_not_near`
+from a member. `_finalize` is the only writer of `result` (line 348), and `M3` shows the verdict it
+wrote came from `combine`. The other three call sites (lines 340, 442, 458) pass `NOT_NEAR`: `failed_not_near`
 for the first, and the `transcript` definition for the others.
 
 It says nothing about the air (CN1). -/
@@ -3091,7 +3092,7 @@ theorem M7 {e : Env B D} {c : ℕ} {s : Doc B D} {w : World D} (req : Req B D) (
   · have := (hi.row_done hst).2.1; omega
   · rcases hi.row_aborted hst with ⟨_, _, h3⟩ | ⟨_, _, h3⟩ <;> omega
 
-/-- **M7, M8, the retry.** `next_attempt` is what moves `attempt` (line 318). It clears `armed`, `committed`, `submitted` and
+/-- **M7, M8, the retry.** `next_attempt` is what moves `attempt` (line 317). It clears `armed`, `committed`, `submitted` and
 `t0_ms`, and wipes `per_role`. `confirmed` stays. So a measured attempt 1 needs both phones to arm again, as `started` needs
 both armed (`M9`). It says nothing about the air (CN1). -/
 theorem M8_retry_wipes (s : Doc B D) (rs : Option Reason) (by_ : Option Role) (r : Role) :

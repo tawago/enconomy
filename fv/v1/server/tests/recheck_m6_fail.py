@@ -1,10 +1,10 @@
 """Rechecks two facts spec.md cites: what a /fail report looks like to the partner, and the 500 on a very deep create body.
 
 It shows the server follows its rules on signed numbers. It does not show a phone told the truth about the air (CN1).
-Scope: sessions with context=None and policy human=none only. Fake clock and FastAPI test client. uvicorn is not run.
+Scope: sessions with context=None and early_nonce=False only. Fake clock and FastAPI test client. uvicorn is not run.
 Assumptions, by name: honest server code as written, one worker process, no await between load and save.
 
-This lives apart from spec-checks/recheck.py and uses its Walk helper. Run from fv/v1/server/tests, server/ at 9db1490:
+This lives apart from spec-checks/recheck.py and uses its Walk helper. Run from fv/v1/server/tests, against the repo's own server/:
   python recheck_m6_fail.py
 Each line is  [PASS|FAIL] id: what. Exit code 1 if any line fails.
 """

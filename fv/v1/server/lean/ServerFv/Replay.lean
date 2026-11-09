@@ -28,13 +28,13 @@ not a proof that the two are equal.
 show a phone told the truth about the air (CN1). A NEAR here means two keys signed two numbers that fit a range.
 No sound is played or heard anywhere in this file. None of this is a proof of proximity.
 
-**Scope.** Only sessions with `context=None` and policy `human=none`. No World ID, Safe, ENS, bridge, zk route,
+**Scope.** Only sessions with `context=None` and `early_nonce=False`. No context, zk route, presence signature,
 recording upload, enrolment or audio processing.
 
 **Assumptions, named.** Honest server code as written. One worker process. No await between load and save.
 Signatures can't be forged. SHA-256 and the truncated device id have no collisions. The walk's test client sends
 one request at a time and reads one fake clock value per step, so the second and third are not tested here.
-The Lean table was written from `server/` at commit 9db1490, and the traces come from that code, not from later commits.
+The traces come from the `server/` in the same checkout. `run_all.sh` makes them fresh each run, so the two can't drift apart silently.
 
 **Facts taken from the trace, not worked out here.** The Lean model has these as opaque functions, so a replay
 has to fill them in. They were all recorded from the real code, on the strings really sent. See `real_block` in
@@ -64,18 +64,18 @@ to anything in `cmp`, "?" in the trace included, so a value neither side can nam
 
 **What is not compared.** The Lean table doesn't hold these, so a wrong value in one can't show up here.
 `test_walk.py` checks many of them against its own model. This replay doesn't.
-* Document: `updated_ms`, `last_flight_cm`, `last_failure.text`, `not_before`, `context`, `policy`, `human`.
+* Document: `updated_ms`, `last_flight_cm`, `last_failure.text`, `not_before`, `context`, `early_nonce`.
 * Per role: `rtt_min_ms`, `submitted_ms`, `meta`, `code_attest`.
-* Record: `proto`, `user_text`, `context`, `not_before`, `policy`, `human`, `pair_tag`, `zk`, and display fields of a device: name, model,
+* Record: `proto`, `user_text`, `context`, `not_before`, `zk`, `presence` (the walk checks its body and signature), and display fields of a device: name, model,
   attested, security level.
-* Answers: the create's invite, `not_before`, `context` and `policy`. A view's constants, display fields, calibration block, `zk_valid_at`, `context`,
-  `not_before`, `policy` and `human`. An arm's `popt` and `tune_db`. A commit's `code_attest`. The detail text of an error. All bytes of a sound.
+* Answers: the create's invite, `not_before` and `context`. A view's constants, display fields, calibration block, `zk_valid_at`, `context`
+  and `not_before`. An arm's `popt` and `tune_db`. A commit's `code_attest`. The detail text of an error. All bytes of a sound.
 * The real value of an id, secret or key. Only "same as at create" or a label reaches the trace.
 * Keys the trace never writes. The trace is a projection: `abstract`, `abstract_result`, `full_record`, `trace_extra` and `resp_digest` in
   `test_walk.py` build new dicts from fixed key lists, so a key the Python adds outside those lists is dropped before this replay's
   strict compare. The compare here rejects an extra key only among the keys the trace writes. "The whole record" in a log means
   the compared part. The walk itself rejects unknown keys in the stored document and the record (`check_record_shape` and `check_fixed`,
-  `test_walk.py` lines 1290-1296 and 1339-1350), and checks the whole view against `want_view`. That is the walk's check, not this replay's.
+  in `test_walk.py`), and checks the whole view against `want_view`. That is the walk's check, not this replay's.
 
 **What a trace can't cover.**
 * It is a sample. A rule the walk never hits with the right inputs is not tested, however many runs pass.
@@ -84,7 +84,7 @@ to anything in `cmp`, "?" in the trace included, so a value neither side can nam
   host isn't tested (the counter "first good create by a phone other than A" says how many were seen). Every create's time is the session's own zero.
   Each decoded transcript holds the same five values the walk sends: 1, 2, 3, 70000 and 71000. No rule in `Machine.step` or `combine` reads them.
 * `Verdict.check_commit` isn't called by `Machine.step`, which has those checks inline, so it isn't tested here.
-* `Req.noauth_load`: no such request is sent, so routes like `/relay` that run a bare load are not tested.
+* `Req.noauth_load`: no such request is sent, so routes like `/zk/bundle` that run a bare load are not tested.
 * Races. One request at a time, so A2 and A3 are not tested.
 * Several clock reads in one handler. The fake clock holds still during a step. This is how `join`'s second expiry
   check and `finished_ms` could differ, and this replay can't see it.
@@ -804,7 +804,7 @@ def runLine (ss : Sess) (t : Tot) (line : Json) : R Out := do
   | "create" =>
     let body ← jStr op "create_body"
     let auth := jStrD op "auth" "ok"
-    let good := ["empty", "object", "policy_none"].contains body && auth == "ok"
+    let good := ["empty", "object", "early_false"].contains body && auth == "ok"
     let calJ ← op.getObjVal? "cal"
     let cal := ["A", "B", "C"].foldl (fun (m : Std.HashMap String ℤ) ph => m.insert ph (calOf (calJ.getObjValD ph))) {}
     let ss := { ss with cal := cal }
@@ -821,7 +821,7 @@ def runLine (ss : Sess) (t : Tot) (line : Json) : R Out := do
     else
       let tst ← jNat line "status"
       let tcode := line.getObjValD "code"
-      let wantCode := if auth != "ok" then authCodes auth else if body == "bad_policy" then ["bad_policy"] else ["bad_request"]
+      let wantCode := if auth != "ok" then authCodes auth else ["bad_request"]
       let d : Option Diff :=
         if !(line.getObjValD "after").isNull then some ⟨"after", "nothing stored", (line.getObjValD "after").compress⟩
         else if auth != "ok" && tst != 401 then some ⟨"status", "401", toString tst⟩
@@ -913,10 +913,10 @@ def header : List String :=
   ["Replay of Machine.step against traces from the real server (test_walk.py --trace-out).",
    "This is testing on sampled runs. It is not a proof that the Lean table and the Python are equal.",
    "These results show the server follows its rules on signed numbers. They do not show a phone told the truth about the air (CN1). Not a proof of proximity.",
-   "Scope: context=None, human=none. Assumptions named in ServerFv/Replay.lean: honest code, one worker, no await between load and save, unforgeable signature, no collisions.",
+   "Scope: context=None, early_nonce=False. Assumptions named in ServerFv/Replay.lean: honest code, one worker, no await between load and save, unforgeable signature, no collisions.",
    "Signature bits, base64 bits, decoded fields and starting calibration are recorded facts from the real code, read from the trace.",
    "Compared: status and code, the abstract document and the response digest. Fields outside those are listed in ServerFv/Replay.lean and are not checked here.",
-   "Not compared, among others: record policy, human, pair_tag; view policy, human; document policy, human, context, not_before.",
+   "Not compared, among others: record context, zk, presence; view context; document context, early_nonce, not_before.",
    "The trace is a projection built from fixed key lists in test_walk.py, so keys outside those lists are dropped before the strict compare. 'The whole record' means the compared part.",
    "Labels are read by kind: a hash field shows only a hash label, a wire field only a wire label, a signature field only a signature label.",
    "Sessions: one good create per session, and an id can't come back within a trace file; either is a mismatch. The host is the create's actor. A 401 code must be one the auth label gives (authCodes, from m_auth)."]
@@ -940,7 +940,7 @@ def main (args : List String) : IO UInt32 := do
     match Json.parse first with
     | .error e => IO.eprintln s!"{f}: bad header: {e}"; return 2
     | .ok hd =>
-      if jStrD hd "format" "" != "pop-walk-trace-4" then
+      if jStrD hd "format" "" != "pop-walk-trace-5" then
         IO.eprintln s!"{f}: wrong format {first}"
         return 2
       IO.println s!"trace {f}: {hd.compress}"

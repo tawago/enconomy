@@ -8,7 +8,7 @@ import ServerFv.X1SessionRun
 They do not run `sessions.py`. `X1_session` does: for any setting `e`, any two enrolled devices with
 different keys, any halves in the signed 32-bit range, any rates in 36000..96000, versions 1 or 2 on
 each side, any 32-byte recording values (v2: under the field size), and self deltas that pass, as long
-as the exact flight is strictly between -20 and 60, the model of `sessions.py` at 9db1490 reaches a
+as the exact flight is strictly between -20 and 60, the model of `sessions.py` reaches a
 finished session whose stored result is NEAR at that flight, with both devices' rows, reached as the
 run from the given `create` at `T`, and whose stored commits and transcripts carry the picked
 recording values, halves and self deltas (`X1Reached`). The stored flight is exact, Python's is
@@ -49,7 +49,7 @@ named. Then:
   transcript (that string, that half, that self delta).
 
 The flight is the exact rational `flight_exact`. Python stores `round(float(f), 2)`
-(`verdict.py:167` at 9db1490), so the two stored values can differ past two decimals; this is not
+(`verdict.py:167`), so the two stored values can differ past two decimals; this is not
 modelled. -/
 def X1Reached {B D : Type} [DecidableEq B] [DecidableEq D] (e : Env B D) (dA dB : D)
     (sid nonce recA recB : B) (seed token : String) (T : ℕ) (cal : D → ℤ) (verA verB : ℕ)
@@ -111,7 +111,7 @@ like `hb64` and `Powers`, or anything about sound. The verdict is a function of 
 of distance (CN1).
 
 **Gap to Python.** `flight_cm` here is the exact rational `flight_exact ..`. Python stores
-`round(float(f), 2)` (`verdict.py:167` at 9db1490). Same verdict, but the stored number can differ
+`round(float(f), 2)` (`verdict.py:167`). Same verdict, but the stored number can differ
 past two decimals and by float rounding. -/
 theorem X1_session (e : Env B D) (dA dB : D) (sid nonce recA recB : B) (seed token : String)
     (T : ℕ) (cal : D → ℤ) (verA verB : ℕ) (hA hB dlA dlB : ℤ) (srA srB : ℕ)
