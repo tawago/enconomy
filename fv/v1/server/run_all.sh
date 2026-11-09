@@ -16,6 +16,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 PY=${PY:-python3}
 OUT=${OUT:-$HERE/logs}
+mkdir -p "$OUT"; OUT=$(cd "$OUT" && pwd)   # absolute: steps cd into other folders
 WALK_SESSIONS=${WALK_SESSIONS:-1000}
 TRACE_SESSIONS=${TRACE_SESSIONS:-2000}
 what=${1:-all}

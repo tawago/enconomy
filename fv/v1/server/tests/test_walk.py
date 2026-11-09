@@ -1369,9 +1369,9 @@ def check_presence(ctx, res, bad):
     if not isinstance(p, dict) or set(p) != {"body", "sig_b64"}:
         bad("M1", f"presence block: {p!r}"[:200])
         return
-    changed = diff(p["body"], want_presence_body(ctx, res))
-    if changed:
-        bad("M1", f"presence body differs from the record: {str(changed)[:400]}")
+    want = want_presence_body(ctx, res)
+    if presence.canonical(p["body"]) != presence.canonical(want):   # exact: key sets and JSON types, not just ==
+        bad("M1", f"presence body differs from the record: {str(diff(p['body'], want))[:400] or 'keys or JSON types'}")
     if not presence.verify(ctx.env.presence_pub, presence.TAG_RECORD, p):
         bad("M1", "presence signature does not verify under the presence key")
 

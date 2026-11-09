@@ -18,7 +18,7 @@ processing are not modeled, and nothing is claimed about them. The session steps
 (`sessions.py`) are not in this file either. So `X1` here stops at `check_commit`,
 `check_transcript`, `combine` and `verify_record`. The session walk to `result.verdict = NEAR`
 is not proved here. `sessions.py` never calls `check_commit`. It has its own copy of those checks
-(`sessions.py:279-290`), with an armed version check, and a `too_early` gate after it (`:297`).
+(`sessions.py:279-290`), with an armed version check, and a `too_early` gate after it (`:296`).
 
 **Assumptions, by name.**
 * A1, honest server: the code runs as written. All of this is about that code.
@@ -1060,7 +1060,7 @@ sound.
 does not show a phone told the truth about the air, and no check in this file reads the air.
 
 **What this covers, exactly.** `X1Outcome` calls `verify_record` as written. It calls `check_transcript`
-and `combine` with arguments of the shape the live path passes (`sessions.py:436-440`, `:451-453`).
+and `combine` with arguments of the shape the live path passes (`sessions.py:436-440`, `:454-456`).
 `X1Outcome` passes each side's own `code_commit`. `X1`'s conclusion does not tie that to `ccA`,
 `ccB`: the proof builds the sides with them, but the statement forces neither the live v1 value
 (`None`) nor the server's v2 value (`sessions.py:440`). `X1_keys` pins `code_commit = ccA`, `ccB`.

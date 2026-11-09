@@ -271,7 +271,7 @@ structure World (D : Type) where
   now : ℕ
   cal : D → ℤ
 
-/-- A JSON value in an `Any` field of a request body (`main.py:202-205`, `:253-254`). -/
+/-- A JSON value in an `Any` field of a request body (`main.py:202-205`, `:220-221`). -/
 inductive Arg
   | null
   | int (n : ℤ)
@@ -764,7 +764,7 @@ def view (e : Env B D) (w : World D) (s : Doc B D) (role : Role) : ViewBody B D 
   error := s.error
   last_failure := s.last_failure
 
-/-- A handler that returns a document or raises, then a view: `main.py:483-484`, `:576-577`, `:812-813`. -/
+/-- A handler that returns a document or raises, then a view: `main.py:483-484`, `:509-510`, `:710-711`. -/
 def viewOr (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (x : Except (ℕ × Err) (Doc B D)) :
     Doc B D × Resp B D :=
   match x with
@@ -777,7 +777,7 @@ def result (s : Doc B D) : Doc B D × Resp B D :=
   | none => (s, .error 404 .no_result)
   | some r => (s, .record r)
 
-/-- One member route, after the load and the `member` check (`main.py:471-510`, `:809-813`). -/
+/-- One member route, after the load and the `member` check (`main.py:471-510`, `:707-711`). -/
 def handle (e : Env B D) (w : World D) (s : Doc B D) (role : Role) (dev : D) : Op B → Doc B D × Resp B D
   | .view => (s, .view (view e w s role))
   | .result => result s
