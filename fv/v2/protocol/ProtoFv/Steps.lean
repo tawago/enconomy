@@ -10,7 +10,8 @@ The property files reason through these few facts, not through `step` itself:
 * `step_got`: a step accepts nothing, or one message that passed the envelope checks and the body
   checks.
 * `step_mono`: the logs only grow, the clock only moves forward, `t0` is written once.
-* `step_k`: the attempt only moves on through `adv`, under its guard.
+* `step_k`: the attempt only moves on through `adv`, under its guard: no own `GAP_VALUE` for the
+  attempt, or a pair that asks for a retry (`pairRetry`).
 * `Reach.roles`: every signed message is from `me` for this `sid`; every accepted one is from the
   partner, for this `sid`, with a valid signature.
 -/
@@ -69,13 +70,13 @@ theorem pick_append {α : Type} {l m : List (Signed D)} {x} {f : Body D → Opti
 def Allowed (c : Cfg) (st : St D) (b : Body D) : Prop :=
   st.done = false ∧ mine c st .fail = false ∧ mine c st b.tag = false ∧
   match b with
-  | .salt _ => theirs c st .seedc = true
+  | .salt _ => theirs c st .seedHash = true
   | .time _ => c.me = .A ∧ theirs c st .salt = true
-  | .recc _ => theirs c st .salt = true ∧ ∃ t0, st.t0 st.k = some t0 ∧ t0 + 2000 ≤ st.now
-  | .reveal _ => theirs c st .recc = true ∧ mine c st .recc = true
-  | .txc _ => theirs c st .reveal = true ∧ mine c st .reveal = true
-  | .txo .. => theirs c st .txc = true ∧ mine c st .txc = true
-  | .fail r _ => r = true → mine c st .txo = false
+  | .recHash _ => theirs c st .salt = true ∧ ∃ t0, st.t0 st.k = some t0 ∧ t0 + 2000 ≤ st.now
+  | .seedVal _ => theirs c st .recHash = true ∧ mine c st .recHash = true
+  | .gapHash _ => theirs c st .seedVal = true ∧ mine c st .seedVal = true
+  | .gapVal .. => theirs c st .gapHash = true ∧ mine c st .gapHash = true
+  | .fail r _ => r = true → (mine c st .gapVal = false ∨ pairRetry st = true)
   | _ => True
 
 /-- A message `step` may add to `sent`. -/
@@ -111,7 +112,8 @@ theorem step_mono (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) :
 
 theorem step_k (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) :
     (step C c st i).k = st.k ∨
-      ((step C c st i).k = st.k + 1 ∧ mine c st .txo = false ∧ retried st.got c.p st.k = true) := by
+      ((step C c st i).k = st.k + 1 ∧ (mine c st .gapVal = false ∨ pairRetry st = true) ∧
+        retried st.got c.p st.k = true) := by
   cases i <;> simp only [step, act, recv, adv, emit, setT0] <;> (repeat' split) <;>
     simp_all
 
@@ -206,8 +208,8 @@ theorem step_k_of_sent (C : Crypto D) (c : Cfg) (st : St D) (i : Input D)
   cases i <;> simp only [step, act, recv, adv, emit, setT0] at h ⊢ <;> (repeat' split) <;>
     simp_all
 
-/-- A `TXO` that passes `txOk` opens the `TXC` in its slot. -/
-theorem txOk_opens {C : Crypto D} {pk : Role → Nat} {sid : D} {l : List (Signed D)} {r : Role}
+/-- A `GAP_VALUE` that passes `txOk` matches the `GAP_HASH` in its slot. -/
+theorem txOk_matches {C : Crypto D} {pk : Role → Nat} {sid : D} {l : List (Signed D)} {r : Role}
     {k blind sigt : Nat} {t : Tx D} (h : txOk C pk sid l r k blind t sigt = true) :
     cOf l r k = some (C.H (.tx blind t sigt)) := by
   unfold txOk at h

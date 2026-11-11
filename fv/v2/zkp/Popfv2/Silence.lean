@@ -4,7 +4,7 @@ import Popfv2.Rule
 # Popfv2.Silence — RS, silence is rejected   (fv/v2/spec.md, section 6, "Rule")
 
 With `FLOOR ≥ 1`:
-* if the filtered window is all zero, R2 fails (`silent_rejected`);
+* if the filtered window is all zero, the v2 rule fails (`silent_rejected`);
 * digital silence (the recording is zero over the filter's whole span) gives a zero filtered
   window, so it fails too (`pass_silence`), at every lag: no self arrival, no partner pass;
 * a zero template energy (`cn2 = 0`, e.g. all-128 templates) fails for every recording.
@@ -38,7 +38,7 @@ theorem filt_eq_zero (h : ℕ → ℤ) (T n : ℕ) (w : ℕ → ℤ) (hw : ∀ i
     have := Finset.mem_range.mp ht
     rw [hw (m + t) (by omega)]; ring
 
-/-- **RS.** A zero filtered window fails R2. -/
+/-- **RS.** A zero filtered window fails the v2 rule. -/
 theorem silent_rejected (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (hF : 1 ≤ FLOOR)
     (hy : ∀ m < n, y m = 0) : ¬ PassY BAR FLOOR n ci cq y := by
   rintro ⟨hfl, -⟩
@@ -46,7 +46,7 @@ theorem silent_rejected (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (hF 
   rw [energy_eq_zero n y hy, zero_mul] at hfl
   omega
 
-/-- **RS.** A zero template energy fails R2, for every recording. -/
+/-- **RS.** A zero template energy fails the v2 rule, for every recording. -/
 theorem zero_template_rejected (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (hF : 1 ≤ FLOOR)
     (hc : cn2 n ci cq = 0) : ¬ PassY BAR FLOOR n ci cq y := by
   rintro ⟨hfl, -⟩
@@ -54,7 +54,7 @@ theorem zero_template_rejected (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → �
   rw [hc, mul_zero] at hfl
   omega
 
-/-- **RS** on the recording: digital silence over the filter's span fails R2. -/
+/-- **RS** on the recording: digital silence over the filter's span fails the v2 rule. -/
 theorem pass_silence (h : ℕ → ℤ) (T n : ℕ) (BAR FLOOR : ℤ) (ci cq w : ℕ → ℤ) (hF : 1 ≤ FLOOR)
     (hw : ∀ i < n + T - 1, w i = 0) : ¬ Pass h T n BAR FLOOR ci cq w :=
   silent_rejected BAR FLOOR n ci cq _ hF (filt_eq_zero h T n w hw)

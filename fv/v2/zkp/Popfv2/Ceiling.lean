@@ -31,7 +31,7 @@ theorem ceiling (n : ℕ) (ci cq y : ℕ → ℤ) : M n ci cq y ≤ energy n y *
   unfold M cn2
   nlinarith [corr_sq_le n ci y, corr_sq_le n cq y]
 
-/-- What the ceiling means for `BAR`. With a floor of 1 or more, R2 passes nothing unless
+/-- What the ceiling means for `BAR`. With a floor of 1 or more, the v2 rule passes nothing unless
 `BAR ≥ 1`. -/
 theorem pass_needs_bar_ge_one (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (hF : 1 ≤ FLOOR)
     (h : PassY BAR FLOOR n ci cq y) : 1 ≤ BAR := by
@@ -58,7 +58,7 @@ theorem pass_score_bounds (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (h
 example : M 1 (fun _ => 1) (fun _ => 0) (fun _ => 3) = energy 1 (fun _ => 3) * cn2 1 (fun _ => 1) (fun _ => 0) := by
   norm_num [M, corr, energy, cn2]
 
-/-- Something passes R2: `BAR = FLOOR = 1`, one sample. -/
+/-- Something passes the v2 rule: `BAR = FLOOR = 1`, one sample. -/
 example : PassY 1 1 1 (fun _ => 1) (fun _ => 0) (fun _ => 3) := by
   norm_num [PassY, Floor, Ratio, M, corr, energy, cn2]
 

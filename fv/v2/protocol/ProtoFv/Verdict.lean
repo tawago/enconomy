@@ -53,6 +53,6 @@ def combine (ta tb : Tx D) : Res :=
   else if !selfOsOk ta.selfOs ta.sr then .selfTs .A                               -- :161-164
   else if !selfOsOk tb.selfOs tb.sr then .selfTs .B
   else if ta.sr = 0 ∨ tb.sr = 0 then .mismatch                                    -- :165
-  else flight ta.half ta.sr tb.half tb.sr                                         -- :165-167
+  else flight ta.gap ta.sr tb.gap tb.sr                                         -- :165-167
 
 end ProtoFv

@@ -1,5 +1,5 @@
 /-!
-# Messages, the record, and what we assume of hash and signature
+# Messages, the log, and what we assume of hash and signature
 
 Follows `fv/v2/spec.md` section 2. Plain Lean core, no Mathlib.
 
@@ -24,7 +24,7 @@ def Role.other : Role → Role
 
 @[simp] theorem Role.other_ne (r : Role) : r.other ≠ r := by cases r <;> decide
 
-inductive Tag | seedc | salt | time | recc | reveal | txc | txo | fail
+inductive Tag | seedHash | salt | time | recHash | seedVal | gapHash | gapVal | fail
   deriving DecidableEq, Repr
 
 /-- The POPT v2 fields the checks and the verdict read (spec F8). Everything else in a
@@ -40,29 +40,29 @@ structure Tx (D : Type) where
   recRoot : Nat
   codeCommit : D
   selfOs : Int
-  half : Int
+  gap : Int
   deriving DecidableEq
 
 /-- Message bodies, spec 2.3. `fail retry why`: `retry` says if the reason is a retry reason. -/
 inductive Body (D : Type) where
-  | seedc (hs : D) (sr : Nat)
+  | seedHash (hs : D) (sr : Nat)
   | salt (salt : Nat)
   | time (t0 : Nat)
-  | recc (root : Nat)
-  | reveal (seed : Nat)
-  | txc (c : D)
-  | txo (blind : Nat) (t : Tx D) (sigt : Nat)
+  | recHash (root : Nat)
+  | seedVal (seed : Nat)
+  | gapHash (c : D)
+  | gapVal (blind : Nat) (t : Tx D) (sigt : Nat)
   | fail (retry : Bool) (why : Nat)
   deriving DecidableEq
 
 def Body.tag {D : Type} : Body D → Tag
-  | .seedc .. => .seedc
+  | .seedHash .. => .seedHash
   | .salt .. => .salt
   | .time .. => .time
-  | .recc .. => .recc
-  | .reveal .. => .reveal
-  | .txc .. => .txc
-  | .txo .. => .txo
+  | .recHash .. => .recHash
+  | .seedVal .. => .seedVal
+  | .gapHash .. => .gapHash
+  | .gapVal .. => .gapVal
   | .fail .. => .fail
 
 /-- `m = tag ‖ sid ‖ role ‖ attempt ‖ peer ‖ body`, spec 2.1. -/
@@ -120,19 +120,19 @@ def get? (l : List (Signed D)) (x : Role × Nat × Tag) : Option (Body D) :=
   (l.find? (fun s => s.slot == x)).map (·.msg.body)
 
 def hsOf (l : List (Signed D)) (r : Role) (k : Nat) : Option D :=
-  match get? l (r, k, .seedc) with | some (.seedc hs _) => some hs | _ => none
+  match get? l (r, k, .seedHash) with | some (.seedHash hs _) => some hs | _ => none
 def srOf (l : List (Signed D)) (r : Role) (k : Nat) : Option Nat :=
-  match get? l (r, k, .seedc) with | some (.seedc _ sr) => some sr | _ => none
+  match get? l (r, k, .seedHash) with | some (.seedHash _ sr) => some sr | _ => none
 def saltOf (l : List (Signed D)) (r : Role) (k : Nat) : Option Nat :=
   match get? l (r, k, .salt) with | some (.salt s) => some s | _ => none
 def rootOf (l : List (Signed D)) (r : Role) (k : Nat) : Option Nat :=
-  match get? l (r, k, .recc) with | some (.recc x) => some x | _ => none
+  match get? l (r, k, .recHash) with | some (.recHash x) => some x | _ => none
 def seedOf (l : List (Signed D)) (r : Role) (k : Nat) : Option Nat :=
-  match get? l (r, k, .reveal) with | some (.reveal s) => some s | _ => none
+  match get? l (r, k, .seedVal) with | some (.seedVal s) => some s | _ => none
 def cOf (l : List (Signed D)) (r : Role) (k : Nat) : Option D :=
-  match get? l (r, k, .txc) with | some (.txc c) => some c | _ => none
+  match get? l (r, k, .gapHash) with | some (.gapHash c) => some c | _ => none
 def txOf (l : List (Signed D)) (r : Role) (k : Nat) : Option (Tx D) :=
-  match get? l (r, k, .txo) with | some (.txo _ t _) => some t | _ => none
+  match get? l (r, k, .gapVal) with | some (.gapVal _ t _) => some t | _ => none
 def failOf (l : List (Signed D)) (r : Role) (k : Nat) : Option (Bool × Nat) :=
   match get? l (r, k, .fail) with | some (.fail b w) => some (b, w) | _ => none
 
@@ -158,7 +158,7 @@ def ccOf (C : Crypto D) (sid : D) (l : List (Signed D)) (k sr : Nat) : Option D 
       some (C.codes (C.H (.bed sid .A k sA aB)) (C.H (.bed sid .B k sB aA)) sr)
   | _, _, _, _ => none
 
-/-- The F8 checks on a `TXO` from role `r` for attempt `k`, against the messages in `l`. -/
+/-- The F8 checks on a `GAP_VALUE` from role `r` for attempt `k`, against the messages in `l`. -/
 def txOk (C : Crypto D) (pk : Role → Nat) (sid : D) (l : List (Signed D)) (r : Role) (k : Nat)
     (blind : Nat) (t : Tx D) (sigt : Nat) : Bool :=
   match cOf l r k, srOf l r k, rootOf l r k, ccOf C sid l k t.sr with
@@ -173,22 +173,22 @@ def txOk (C : Crypto D) (pk : Role → Nat) (sid : D) (l : List (Signed D)) (r :
 not checked. -/
 def bodyOk (C : Crypto D) (pk : Role → Nat) (sid : D) (l : List (Signed D)) (m : Msg D) : Bool :=
   match m.body with
-  | .seedc _ sr => decide (SR_MIN ≤ sr ∧ sr ≤ SR_MAX)
+  | .seedHash _ sr => decide (SR_MIN ≤ sr ∧ sr ≤ SR_MAX)
   | .time _ => m.role == .A
-  | .reveal seed => hsOf l m.role m.attempt == some (C.H (.seed sid m.role m.attempt seed))
-  | .txo blind t sigt => txOk C pk sid l m.role m.attempt blind t sigt
+  | .seedVal seed => hsOf l m.role m.attempt == some (C.H (.seed sid m.role m.attempt seed))
+  | .gapVal blind t sigt => txOk C pk sid l m.role m.attempt blind t sigt
   | _ => true
 
 /-- The receiver's message that a message of tag `t` from `sender` for attempt `k` must name in
 `seen` ("answers" column, spec 2.2 and 2.3), as `(attempt, tag)`. -/
 def answerOf (sender : Role) (k : Nat) : Tag → Option (Nat × Tag)
-  | .salt => some (k, .seedc)
+  | .salt => some (k, .seedHash)
   | .time => some (k, .salt)
-  | .recc => if sender = .A then some (k, .salt) else some (k, .time)
-  | .reveal => some (k, .recc)
-  | .txc => some (k, .reveal)
-  | .txo => some (k, .txc)
-  | .seedc => if k = 0 then none else some (k - 1, .fail)
+  | .recHash => if sender = .A then some (k, .salt) else some (k, .time)
+  | .seedVal => some (k, .recHash)
+  | .gapHash => some (k, .seedVal)
+  | .gapVal => some (k, .gapHash)
+  | .seedHash => if k = 0 then none else some (k - 1, .fail)
   | .fail => none
 
 /-- The `peer` check, spec 2.1. `mine` is the receiver's own messages. Every entry of `seen` is

@@ -5,14 +5,14 @@ import ProtoFv.Steps
 
 Spec section 6, FP1, in two pieces.
 
-* `fp1_order`, an invariant over every reachable state: if the honest device signed `REVEAL` for
-  attempt `k`, it had accepted the partner's `RECC` and `SALT` for `k` and signed its own `RECC`
+* `fp1_order`, an invariant over every reachable state: if the honest device signed `SEED_VALUE` for
+  attempt `k`, it had accepted the partner's `REC_HASH` and `SALT` for `k` and signed its own `REC_HASH`
   for `k`. `t0` for `k` is set (and written once).
-* `fp1_recc_clock`, at the moment of signing: a step that signs `RECC` does it with `t0` set and
+* `fp1_rec_hash_clock`, at the moment of signing: a step that signs `REC_HASH` does it with `t0` set and
   the clock already past `t0 + 2.0 s`. "Past it now" alone would not say this, so it is its own
   theorem.
 
-Assumes nothing about crypto. Does not give: that `RECC` commits to real audio (CN1, CN2).
+Assumes nothing about crypto. Does not give: that `REC_HASH` is the hash of real audio (CN1, CN2).
 -/
 
 namespace ProtoFv
@@ -20,11 +20,11 @@ namespace ProtoFv
 variable {D : Type} [DecidableEq D]
 
 def Inv1 (c : Cfg) (st : St D) : Prop :=
-  (∀ x ∈ st.sent, x.msg.body.tag = .recc →
+  (∀ x ∈ st.sent, x.msg.body.tag = .recHash →
     has st.got (c.p, x.msg.attempt, .salt) = true ∧
     ∃ t0, st.t0 x.msg.attempt = some t0 ∧ t0 + 2000 ≤ st.now) ∧
-  (∀ x ∈ st.sent, x.msg.body.tag = .reveal →
-    has st.got (c.p, x.msg.attempt, .recc) = true ∧ has st.sent (c.me, x.msg.attempt, .recc) = true)
+  (∀ x ∈ st.sent, x.msg.body.tag = .seedVal →
+    has st.got (c.p, x.msg.attempt, .recHash) = true ∧ has st.sent (c.me, x.msg.attempt, .recHash) = true)
 
 theorem inv1 {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) : Inv1 c st := by
   induction h with
@@ -43,15 +43,15 @@ theorem inv1 {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) : Inv1 c st
       rcases step_sent C c st i with he | ⟨y, he, -⟩ <;> rw [he]
       · exact hx
       · exact has_append hx
-    have old1 : ∀ x ∈ st.sent, x.msg.body.tag = .recc →
+    have old1 : ∀ x ∈ st.sent, x.msg.body.tag = .recHash →
         has (step C c st i).got (c.p, x.msg.attempt, .salt) = true ∧
         ∃ t0, (step C c st i).t0 x.msg.attempt = some t0 ∧ t0 + 2000 ≤ (step C c st i).now := by
       intro x hx ht
       obtain ⟨a, t0, e, le⟩ := h1 x hx ht
       exact ⟨gotG _ a, t0, ht0 _ _ e, Nat.le_trans le hnow⟩
-    have old2 : ∀ x ∈ st.sent, x.msg.body.tag = .reveal →
-        has (step C c st i).got (c.p, x.msg.attempt, .recc) = true ∧
-        has (step C c st i).sent (c.me, x.msg.attempt, .recc) = true := by
+    have old2 : ∀ x ∈ st.sent, x.msg.body.tag = .seedVal →
+        has (step C c st i).got (c.p, x.msg.attempt, .recHash) = true ∧
+        has (step C c st i).sent (c.me, x.msg.attempt, .recHash) = true := by
       intro x hx ht
       obtain ⟨a, b⟩ := h2 x hx ht
       exact ⟨gotG _ a, sentG _ b⟩
@@ -78,13 +78,13 @@ theorem inv1 {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) : Inv1 c st
           rw [hk]
           exact ⟨gotG _ hr, sentG _ hm⟩
 
-/-- **FP1.** A signed `REVEAL` for `k` comes after the partner's `RECC` and `SALT` for `k` and the
-device's own `RECC` for `k`, signed when its clock was past `t0 + 2.0 s`. -/
+/-- **FP1.** A signed `SEED_VALUE` for `k` comes after the partner's `REC_HASH` and `SALT` for `k` and the
+device's own `REC_HASH` for `k`, signed when its clock was past `t0 + 2.0 s`. -/
 theorem fp1_order {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st)
-    {x : Signed D} (hx : x ∈ st.sent) (ht : x.msg.body.tag = .reveal) :
-    has st.got (c.p, x.msg.attempt, .recc) = true ∧
+    {x : Signed D} (hx : x ∈ st.sent) (ht : x.msg.body.tag = .seedVal) :
+    has st.got (c.p, x.msg.attempt, .recHash) = true ∧
     has st.got (c.p, x.msg.attempt, .salt) = true ∧
-    ∃ r ∈ st.sent, r.slot = (c.me, x.msg.attempt, .recc) ∧
+    ∃ r ∈ st.sent, r.slot = (c.me, x.msg.attempt, .recHash) ∧
       ∃ t0, st.t0 x.msg.attempt = some t0 ∧ t0 + 2000 ≤ st.now := by
   obtain ⟨h1, h2⟩ := inv1 h
   obtain ⟨hr, hm⟩ := h2 x hx ht
@@ -95,10 +95,10 @@ theorem fp1_order {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st)
   rw [ha] at hsalt rest
   exact ⟨hr, hsalt, r, hr', by simp [Signed.slot, (Reach.roles h).1 r hr' |>.1, ha, htag], rest⟩
 
-/-- **FP1**, at the moment of signing: the step that signs `RECC` runs in a state whose clock is
+/-- **FP1**, at the moment of signing: the step that signs `REC_HASH` runs in a state whose clock is
 past `t0 + 2.0 s` for the current attempt. -/
-theorem fp1_recc_clock (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) {x : Signed D}
-    (he : (step C c st i).sent = st.sent ++ [x]) (ht : x.msg.body.tag = .recc) :
+theorem fp1_rec_hash_clock (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) {x : Signed D}
+    (he : (step C c st i).sent = st.sent ++ [x]) (ht : x.msg.body.tag = .recHash) :
     x.msg.attempt = st.k ∧ ∃ t0, st.t0 st.k = some t0 ∧ t0 + 2000 ≤ st.now := by
   rcases step_sent C c st i with he' | ⟨y, he', hy⟩
   · rw [he'] at he

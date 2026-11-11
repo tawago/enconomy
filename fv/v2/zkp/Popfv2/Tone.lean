@@ -8,17 +8,17 @@ raw samples and the energy on the filtered ones. A 500 Hz tone went through gain
 and about 0.14 on the other, and its score was inflated about 1,400 times.
 
 What is proved here:
-1. `ratio_scale`: R2's ratio test does not change when the filtered signal is scaled by any
+1. `ratio_scale`: the v2 rule's ratio test does not change when the filtered signal is scaled by any
    integer `g ≠ 0`.
 2. `gain_route`: on a signal that the filter scales by `p / q` (`q · y = p · x` on the window),
-   R2's ratio test on `y` is the same test on the raw `x`, with the same `BAR`. The gain is gone.
+   The v2 rule's ratio test on `y` is the same test on the raw `x`, with the same `BAR`. The gain is gone.
 3. `gain_route_raw` (mutant, fix 1 out): the raw-match test is the raw test with `BAR` multiplied
    by `q² / p²`. A filter gain of `1/7` makes the bar 49 times easier. This is the v1 route.
 4. `raw_route_witness`: for every `BAR ≥ 1` a recording the filter sends to a zero match passes
-   the raw-match rule and fails R2. The recording is a DC offset plus a dip, and the taps
+   the raw-match rule and fails the v2 rule. The recording is a DC offset plus a dip, and the taps
    `[1, -1]` have gain 0 at DC.
 
-What this does NOT say: that a 500 Hz tone is rejected. Under R2 a tone is judged by its plain
+What this does NOT say: that a 500 Hz tone is rejected. Under the v2 rule a tone is judged by its plain
 correlation with the code, which is at most 1 (`Ceiling.ceiling`) and depends on the code and the
 phase. Whether it passes depends on `BAR` (stage 3) and is checked by rerunning `circuit-cases`
 and real recordings, not here. So the honest statement is "the gain mismatch is gone", not
@@ -79,7 +79,7 @@ theorem ratio_scale (BAR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (g : ℤ) (hg 
     show BAR * (g ^ 2 * M n ci cq y) = g ^ 2 * (BAR * M n ci cq y) by ring]
   exact mul_le_mul_iff_of_pos_left (sq_pos_of_ne hg)
 
-/-- **RT, gain route closed.** If the filter scales this signal by `p / q`, R2's ratio test on
+/-- **RT, gain route closed.** If the filter scales this signal by `p / q`, the v2 rule's ratio test on
 the filtered `y` is the ratio test on the raw `x`, same `BAR`. -/
 theorem gain_route (BAR : ℤ) (n : ℕ) (ci cq y x : ℕ → ℤ) (p q : ℤ) (hp : p ≠ 0) (hq : q ≠ 0)
     (hyx : ∀ m < n, q * y m = p * x m) :
@@ -104,7 +104,7 @@ theorem gain_route_raw (BAR : ℤ) (n : ℕ) (ci cq y x : ℕ → ℤ) (p q : �
     show q ^ 2 * (BAR * M n ci cq x) = BAR * q ^ 2 * M n ci cq x by ring]
 
 /-- Fix 1 out: for every `BAR ≥ 1` and `FLOOR ≤ 4`, a recording passes the raw-match rule and
-fails R2. Taps `[1, -1]`, recording `[2, 1, 2]`, `ci = [1, 1]`, `cq = 0`. The filtered window is
+fails the v2 rule. Taps `[1, -1]`, recording `[2, 1, 2]`, `ci = [1, 1]`, `cq = 0`. The filtered window is
 `[1, -1]`, which has zero match with `ci`. The raw window keeps the DC offset, match 9. -/
 theorem raw_route_witness (BAR FLOOR : ℤ) (hB : 1 ≤ BAR) (hF : FLOOR ≤ 4) :
     PassRaw BAR FLOOR 2 (fun _ => 1) (fun _ => 0)
@@ -120,7 +120,7 @@ theorem raw_route_witness (BAR FLOOR : ℤ) (hB : 1 ≤ BAR) (hF : FLOOR ≤ 4) 
 /-! ## Not vacuous -/
 
 /-- `gain_route` and `gain_route_raw` have instances: gain `1/7` on `[1, 1]`, `ci = [1, 0]`,
-`BAR = 1`. The raw-match test passes (2 ≤ 49), R2 fails (2 ≤ 1 is false). -/
+`BAR = 1`. The raw-match test passes (2 ≤ 49), the v2 rule fails (2 ≤ 1 is false). -/
 example : (∀ m < 2, (7 : ℤ) * (fun _ => (1 : ℤ)) m = 1 * (fun _ => (7 : ℤ)) m) ∧
     RatioRaw 1 2 (fun m => if m = 0 then 1 else 0) (fun _ => 0) (fun _ => 1) (fun _ => 7) ∧
     ¬ Ratio 1 2 (fun m => if m = 0 then 1 else 0) (fun _ => 0) (fun _ => 1) := by

@@ -1,22 +1,31 @@
 import ProtoFv.Steps
-import ProtoFv.Record
+import ProtoFv.Log
 
 /-!
 # FP5, agreement
 
 Spec section 6, FP5. Two pieces, neither a two-device run.
 
-(a) `outcome` is a function of the record's content, not of its order: two slot-distinct records
+(a) `outcome` is a function of the log's content, not of its order: two slot-distinct logs
 that are permutations of each other give the same outcome (`fp5_perm`). With no `FAIL`, it reads
 only the pair `(t_A, t_B)`, A first (`fp5_pair`).
 
 (b) One honest device, in every reachable state (`fp5_device`): it signs at most one message per
-slot, so one `TXO` per attempt; it accepts at most one per slot; each accepted partner `TXO`
-opens the one partner `TXC` it accepted; and it never holds both its own `TXO` and its own retry
-`FAIL` for one attempt.
+slot, so one `GAP_VALUE` per attempt; it accepts at most one per slot; and each accepted partner
+`GAP_VALUE` matches the one partner `GAP_HASH` it accepted. At the moment of signing
+(`fp5_retry_fail`): a step that signs a retry `FAIL` runs in a state where the device has not
+signed `GAP_VALUE` for the attempt, or holds both transcripts with a verdict that asks for a retry
+(`pairRetry`, the v1 rule kept on 2026-11-11, spec F10).
 
-On paper, from (a), (b) and HASH: if both devices are honest, each holds the other's only `TXO`,
-so both hold the same pair and get the same outcome. Not proved here as a two-device theorem.
+A step that signs a final `FAIL` is the receipt of a message that failed its body check
+(`fp5_final_fail`).
+
+On paper, from (a), (b) and HASH: if both devices are honest, any `GAP_VALUE` one accepts is the
+other's only one, so when both hold a pair it is the same pair. A retry `FAIL` after its own
+`GAP_VALUE` is signed only on a verdict of that same pair that is not NEAR, so one honest device
+never holds NEAR while the other holds NOT_NEAR. The outcomes can still differ: if the link closes
+mid-exchange, one side can hold NEAR and the other be incomplete, or one hold `.pair .impossible`
+and the other `.fail .B`. Not proved here as a two-device theorem.
 Does not give: that the honest device learns the outcome when D walks away (FN1).
 -/
 
@@ -26,7 +35,7 @@ set_option linter.unusedSectionVars false
 
 variable {D : Type} [DecidableEq D]
 
-/-! ## (a) The outcome is a function of the record -/
+/-! ## (a) The outcome is a function of the log -/
 
 theorem slot_unique {l : List (Signed D)} (hd : SlotsDistinct l) {a b : Signed D}
     (ha : a ∈ l) (hb : b ∈ l) (he : a.slot = b.slot) : a = b := by
@@ -79,23 +88,22 @@ theorem fp5_pair {l : List (Signed D)} {k : Nat} {ta tb : Tx D}
 
 def Inv5 (C : Crypto D) (c : Cfg) (st : St D) : Prop :=
   SlotsDistinct st.sent ∧ SlotsDistinct st.got ∧
-  (∀ x ∈ st.got, ∀ blind t sigt, x.msg.body = .txo blind t sigt →
-    cOf st.got c.p x.msg.attempt = some (C.H (.tx blind t sigt))) ∧
-  (∀ f ∈ st.sent, ∀ w, f.msg.body = .fail true w → has st.sent (c.me, f.msg.attempt, .txo) = false)
+  (∀ x ∈ st.got, ∀ blind t sigt, x.msg.body = .gapVal blind t sigt →
+    cOf st.got c.p x.msg.attempt = some (C.H (.tx blind t sigt)))
 
 theorem cOf_step {C : Crypto D} {c : Cfg} {st : St D} (i : Input D) {r k v}
     (h : cOf st.got r k = some v) : cOf (step C c st i).got r k = some v :=
-  lookup_step_got (fun o => match o with | some (.txc c) => some c | _ => none) rfl C c st i h
+  lookup_step_got (fun o => match o with | some (.gapHash c) => some c | _ => none) rfl C c st i h
 
 theorem inv5 {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) : Inv5 C c st := by
   induction h with
   | init => simp [Inv5, St.init, SlotsDistinct]
   | @step st i hr ih =>
     have R := Reach.roles hr
-    obtain ⟨d1, d2, h3, h4⟩ := ih
+    obtain ⟨d1, d2, h3⟩ := ih
     -- the `got` parts
     have G : SlotsDistinct (step C c st i).got ∧
-        (∀ x ∈ (step C c st i).got, ∀ blind t sigt, x.msg.body = .txo blind t sigt →
+        (∀ x ∈ (step C c st i).got, ∀ blind t sigt, x.msg.body = .gapVal blind t sigt →
           cOf (step C c st i).got c.p x.msg.attempt = some (C.H (.tx blind t sigt))) := by
       rcases step_got C c st i with he | ⟨y, he, hy⟩
       · rw [he]; exact ⟨d2, fun x hx b t s hb => by rw [← he]; exact cOf_step i (h3 x hx b t s hb)⟩
@@ -114,57 +122,82 @@ theorem inv5 {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) : Inv5 C c 
           · exact cOf_step i (h3 x hx' b t s hb)
           · rw [hb] at hbody
             simp only [bodyOk, hb] at hbody
-            have o := txOk_opens hbody
+            have o := txOk_matches hbody
             rw [E.role] at o
-            have e := get?_partner R x.msg.attempt .txc
+            have e := get?_partner R x.msg.attempt .gapHash
             have : cOf st.got c.p x.msg.attempt = some (C.H (.tx b t s)) := by
               unfold cOf at o ⊢; rw [e] at o; exact o
             exact cOf_step i this
-    refine ⟨?_, G.1, G.2, ?_⟩
-    · rcases step_sent C c st i with he | ⟨y, he, hy⟩
-      · rw [he]; exact d1
-      · rw [he, SlotsDistinct, List.pairwise_append]
-        obtain ⟨hrole, hk, -, -, -, hm, -⟩ := hy
-        refine ⟨d1, by simp, fun a ha z hz => ?_⟩
-        simp at hz; subst hz
-        intro e
-        have : mine c st z.msg.body.tag = true :=
-          has_iff.2 ⟨a, ha, by rw [e]; simp [Signed.slot, hrole, hk]⟩
-        rw [hm] at this; cases this
-    · rcases step_sent C c st i with he | ⟨y, he, hy⟩
-      · rw [he]; exact h4
-      · obtain ⟨hrole, hk, -, -, hfail, hm, hb⟩ := hy
-        rw [he]
-        intro f hf w hfb
-        simp at hf
-        rw [has_append_one]
-        rcases hf with hf | rfl
-        · have old := h4 f hf w hfb
-          rw [old]; simp
-          intro e
-          -- the new message sits in the `TXO` slot of `f`'s attempt
-          simp [Signed.slot] at e
-          obtain ⟨-, ha, ht⟩ := e
-          have : mine c st .fail = true := has_iff.2 ⟨f, hf, by
-            simp [Signed.slot, (R.1 f hf).1, ← ha, hk, hfb, Body.tag]⟩
-          rw [hfail] at this; cases this
-        · rw [hfb] at hb
-          simp at hb
-          have hm' : has st.sent (c.me, st.k, .txo) = false := hb
-          rw [hk, hm']; simp [Signed.slot, hfb, Body.tag]
+    refine ⟨?_, G.1, G.2⟩
+    rcases step_sent C c st i with he | ⟨y, he, hy⟩
+    · rw [he]; exact d1
+    · rw [he, SlotsDistinct, List.pairwise_append]
+      obtain ⟨hrole, hk, -, -, -, hm, -⟩ := hy
+      refine ⟨d1, by simp, fun a ha z hz => ?_⟩
+      simp at hz; subst hz
+      intro e
+      have : mine c st z.msg.body.tag = true :=
+        has_iff.2 ⟨a, ha, by rw [e]; simp [Signed.slot, hrole, hk]⟩
+      rw [hm] at this; cases this
 
 /-- **FP5 (b).** What one honest device keeps, in every reachable state. -/
 theorem fp5_device {C : Crypto D} {c : Cfg} {st : St D} (h : Reach C c st) :
-    -- at most one own message per slot, so one `TXO` per attempt
+    -- at most one own message per slot, so one `GAP_VALUE` per attempt
     SlotsDistinct st.sent ∧
     -- at most one partner message per slot
     SlotsDistinct st.got ∧
-    -- an accepted partner `TXO` opens the one accepted partner `TXC`
-    (∀ x ∈ st.got, ∀ blind t sigt, x.msg.body = .txo blind t sigt →
-      cOf st.got c.p x.msg.attempt = some (C.H (.tx blind t sigt))) ∧
-    -- no retry `FAIL` next to its own `TXO` for one attempt
-    (∀ f ∈ st.sent, ∀ w, f.msg.body = .fail true w →
-      has st.sent (c.me, f.msg.attempt, .txo) = false) :=
+    -- an accepted partner `GAP_VALUE` matches the one accepted partner `GAP_HASH`
+    (∀ x ∈ st.got, ∀ blind t sigt, x.msg.body = .gapVal blind t sigt →
+      cOf st.got c.p x.msg.attempt = some (C.H (.tx blind t sigt))) :=
   inv5 h
+
+/-- **FP5 (b)**, at the moment of signing: a step that signs a retry `FAIL` runs in a state where
+the device has not signed `GAP_VALUE` for the current attempt, or holds both transcripts with a
+verdict that asks for a retry (`pairRetry`). So after its own `GAP_VALUE` it signs a retry `FAIL`
+only when the pair asks for one. Reasons are not modeled: once `pairRetry` holds, that `FAIL` may
+name any reason the app gives, a timeout included. -/
+theorem fp5_retry_fail (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) {x : Signed D} {w : Nat}
+    (he : (step C c st i).sent = st.sent ++ [x]) (hb : x.msg.body = .fail true w) :
+    x.msg.attempt = st.k ∧ (mine c st .gapVal = false ∨ pairRetry st = true) := by
+  rcases step_sent C c st i with he' | ⟨y, he', hy⟩
+  · rw [he'] at he
+    have := congrArg List.length he; simp at this
+  · rw [he'] at he
+    have hxy : y = x := by simpa using he
+    subst hxy
+    obtain ⟨-, hk, -, -, -, -, hm⟩ := hy
+    refine ⟨hk, ?_⟩
+    rw [hb] at hm
+    exact hm rfl
+
+/-- **FP5 (b)**, the final `FAIL`: a step that signs a final `FAIL` is the receipt of a partner
+message that passed the envelope checks and failed its body check. Nothing else signs one. -/
+theorem fp5_final_fail (C : Crypto D) (c : Cfg) (st : St D) (i : Input D) {x : Signed D} {w : Nat}
+    (he : (step C c st i).sent = st.sent ++ [x]) (hb : x.msg.body = .fail false w) :
+    ∃ s, i = .recv s ∧ envOk C c st s = true ∧
+      bodyOk C c.pk (c.sid C) (st.sent ++ st.got) s.msg = false := by
+  cases i with
+  | tick d => simp [step] at he
+  | confirm => simp [step] at he
+  | advance => simp only [step, adv] at he; split at he <;> simp at he
+  | send t loc =>
+    exfalso; simp only [step, act] at he
+    split at he
+    · simp at he
+    · cases t <;> (repeat' split at he) <;>
+        (try simp only [emit, setT0, List.append_cancel_left_eq, List.cons.injEq, and_true] at he) <;>
+        (try subst he) <;> (try simp at hb) <;> (try simp at he)
+  | recv s =>
+    refine ⟨s, rfl, ?_⟩
+    simp only [step, recv] at he
+    split at he
+    · simp at he
+    · rename_i hok
+      simp only [Bool.not_eq_true', Bool.not_eq_false] at hok
+      refine ⟨hok, ?_⟩
+      split at he <;> (repeat' split at he) <;>
+        (try simp only [emit, setT0, List.append_cancel_left_eq, List.cons.injEq, and_true] at he) <;>
+        (try subst he) <;> (try simp at hb) <;> (try simp at he) <;>
+        (try (rename_i hn _; simpa using hn))
 
 end ProtoFv

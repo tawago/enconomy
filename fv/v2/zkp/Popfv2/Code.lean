@@ -7,10 +7,10 @@ Gap 5: a template whose `ci` bytes are all 128 has `ci = 0` once centered. In v1
 energy was `Σ ci²` only, so it was 0, and the test `BAR·M ≥ E·0` passed every recording (v1
 `WitnessChain.all128_self`, `all128_partner`). `v1_all128_passes` restates that here.
 
-What R2 gives:
+What the v2 rule gives:
 * `all128_both_rejected`: if `ci` and `cq` are both all-128, `cn2 = 0` and the floor rejects
   every recording (RS).
-* `ci_zero_pass_iff`: if only `ci` is all-128, R2 is a plain correlation test on `cq`. Nothing
+* `ci_zero_pass_iff`: if only `ci` is all-128, the v2 rule is a plain correlation test on `cq`. Nothing
   passes for free.
 
 Plainly: the floor (fix 2), not fix 3, is what closes gap 5. `floor_alone_rejects_all128` shows
@@ -29,14 +29,14 @@ open Finset
 /-- The all-128 template, centered, is all zero. -/
 theorem tf_128 : tf 128 = 0 := by norm_num [tf]
 
-/-- Both templates all-128: `cn2 = 0`, so R2 rejects every recording. -/
+/-- Both templates all-128: `cn2 = 0`, so the v2 rule rejects every recording. -/
 theorem all128_both_rejected (BAR FLOOR : ℤ) (n : ℕ) (y : ℕ → ℤ) (hF : 1 ≤ FLOOR) :
     ¬ PassY BAR FLOOR n (fun _ => tf 128) (fun _ => tf 128) y := by
   apply zero_template_rejected BAR FLOOR n _ _ y hF
   unfold cn2
   rw [energy_eq_zero n _ (fun _ _ => tf_128), add_zero]
 
-/-- Only `ci` all-128 (zero on the window): R2 is the correlation test on `cq` alone. -/
+/-- Only `ci` all-128 (zero on the window): the v2 rule is the correlation test on `cq` alone. -/
 theorem ci_zero_pass_iff (BAR FLOOR : ℤ) (n : ℕ) (ci cq y : ℕ → ℤ) (hci : ∀ m < n, ci m = 0) :
     PassY BAR FLOOR n ci cq y ↔
       FLOOR ≤ energy n y * energy n cq ∧ energy n y * energy n cq ≤ BAR * corr n cq y ^ 2 := by

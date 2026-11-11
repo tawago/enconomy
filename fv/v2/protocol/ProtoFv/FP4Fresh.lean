@@ -6,7 +6,7 @@ import ProtoFv.Steps
 Spec section 6, FP4. Every message the honest device accepts carries its own `sid`, and
 `sid = H("pop-p2p-v2" ‖ pk_A ‖ pk_B ‖ r_A ‖ r_B ‖ ctx)` holds the device's own fresh random.
 So under HASH, a message from any session whose random for this device's role differs (an old
-record, another session) is never accepted.
+log, another session) is never accepted.
 
 `JOIN` is not modeled: the config already holds the five `sid` inputs. A's `JOIN` check, which
 pins its own `r_A` (spec F1b), is assumed. Assumes HASH and RAND (the random differs). Does not

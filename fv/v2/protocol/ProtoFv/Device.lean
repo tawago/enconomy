@@ -1,4 +1,4 @@
-import ProtoFv.Basic
+import ProtoFv.Verdict
 
 /-!
 # One honest device as a state machine
@@ -10,8 +10,8 @@ Spec sections 2.2 to 2.3 and F10, from the view of one honest device after `JOIN
   that stand between it and a bad send.
 * Clock ticks add, so the clock only moves forward. No hypothesis is needed for that.
 * `send t loc`: the app asks to sign a message of tag `t`. `loc` is what its own audio gave
-  (recording root, self offset, half, a failure reason). The device signs only if the guard holds.
-* The state keeps every signed and every accepted message. That list is the record (F11).
+  (recording root, self offset, gap, a failure reason). The device signs only if the guard holds.
+* The state keeps every signed and every accepted message. That list is the log (F11).
 
 Not modeled: `INVITE`/`JOIN` (the config holds `sid`'s inputs), resends (same bytes, dropped as
 duplicates), encryption, timeouts and the 600 s end as clock rules (a timeout is just a
@@ -43,7 +43,7 @@ def Cfg.p (c : Cfg) : Role := c.me.other
 structure Local where
   root : Nat
   selfOs : Int
-  half : Int
+  gap : Int
   why : Nat
 
 structure St (D : Type) where
@@ -53,7 +53,7 @@ structure St (D : Type) where
   done : Bool
   /-- `t0` per attempt, written once. -/
   t0 : Nat → Option Nat
-  /-- Own transcript for the current attempt, fixed when `TXC` is signed. -/
+  /-- Own transcript for the current attempt, fixed when `GAP_HASH` is signed. -/
   tx : Option (Tx D)
   sent : List (Signed D)
   got : List (Signed D)
@@ -74,6 +74,18 @@ def mine (c : Cfg) (st : St D) (t : Tag) : Bool := has st.sent (c.me, st.k, t)
 /-- Partner message in slot `(p, k, t)` already accepted. -/
 def theirs (c : Cfg) (st : St D) (t : Tag) : Bool := has st.got (c.p, st.k, t)
 
+/-- The v1 retry rule (C22), spec F10: the device holds both transcripts for the current attempt
+and the verdict is `impossible_flight` or a self timing mismatch. Only then may an attempt be
+retried after the device sent its own `GAP_VALUE`. -/
+def pairRetry (st : St D) : Bool :=
+  match txOf (st.sent ++ st.got) .A st.k, txOf (st.sent ++ st.got) .B st.k with
+  | some ta, some tb =>
+      match combine ta tb with
+      | .impossible => true
+      | .selfTs _ => true
+      | _ => false
+  | _, _ => false
+
 def setT0 (st : St D) (v : Nat) : St D :=
   { st with t0 := fun j => match st.t0 j with
       | some x => some x
@@ -93,39 +105,39 @@ def gate (c : Cfg) (st : St D) (t : Tag) : Bool :=
 def act (C : Crypto D) (c : Cfg) (st : St D) (t : Tag) (loc : Local) : St D :=
   if !gate c st t then st else
   match t with
-  | .seedc => emit C c st (.seedc (C.H (.seed (c.sid C) c.me st.k (c.seed st.k))) c.sr)
-  | .salt => if theirs c st .seedc then emit C c st (.salt (c.salt st.k)) else st
+  | .seedHash => emit C c st (.seedHash (C.H (.seed (c.sid C) c.me st.k (c.seed st.k))) c.sr)
+  | .salt => if theirs c st .seedHash then emit C c st (.salt (c.salt st.k)) else st
   | .time =>
       if c.me = .A && theirs c st .salt then emit C c (setT0 st (st.now + 5000)) (.time (st.now + 5000))
       else st
-  | .recc =>
+  | .recHash =>
       match st.t0 st.k with
-      | some t0 => if theirs c st .salt && decide (t0 + 2000 ≤ st.now) then emit C c st (.recc loc.root)
+      | some t0 => if theirs c st .salt && decide (t0 + 2000 ≤ st.now) then emit C c st (.recHash loc.root)
                    else st
       | none => st
-  | .reveal => if theirs c st .recc && mine c st .recc then emit C c st (.reveal (c.seed st.k)) else st
-  | .txc =>
-      if theirs c st .reveal && mine c st .reveal then
+  | .seedVal => if theirs c st .recHash && mine c st .recHash then emit C c st (.seedVal (c.seed st.k)) else st
+  | .gapHash =>
+      if theirs c st .seedVal && mine c st .seedVal then
         match rootOf st.sent c.me st.k, ccOf C (c.sid C) (st.sent ++ st.got) st.k c.sr with
         | some root, some cc =>
             let t : Tx D := { role := c.me, sid := c.sid C, attempt := st.k, pkSelf := c.pk c.me,
                               pkPeer := c.pk c.p, sr := c.sr, delta := deltaOf c.sr, recRoot := root, codeCommit := cc,
-                              selfOs := loc.selfOs, half := loc.half }
-            emit C c { st with tx := some t } (.txc (C.H (.tx (c.blind st.k) t (C.signTx c.sk t))))
+                              selfOs := loc.selfOs, gap := loc.gap }
+            emit C c { st with tx := some t } (.gapHash (C.H (.tx (c.blind st.k) t (C.signTx c.sk t))))
         | _, _ => st
       else st
-  | .txo =>
+  | .gapVal =>
       match st.tx with
-      | some t => if theirs c st .txc && mine c st .txc then
-                    emit C c st (.txo (c.blind st.k) t (C.signTx c.sk t)) else st
+      | some t => if theirs c st .gapHash && mine c st .gapHash then
+                    emit C c st (.gapVal (c.blind st.k) t (C.signTx c.sk t)) else st
       | none => st
-  | .fail => if !mine c st .txo then emit C c st (.fail true loc.why) else st
+  | .fail => if !mine c st .gapVal || pairRetry st then emit C c st (.fail true loc.why) else st
 
 /-- What a receiver expects now, beyond a free slot (spec 2.3). -/
 def expects (c : Cfg) (st : St D) (m : Msg D) : Bool :=
   match m.body with
-  | .reveal _ => theirs c st .seedc
-  | .txo .. => theirs c st .txc
+  | .seedVal _ => theirs c st .seedHash
+  | .gapVal .. => theirs c st .gapHash
   | .time _ => c.me == .B && theirs c st .salt
   | _ => true
 
@@ -145,10 +157,12 @@ def recv (C : Crypto D) (c : Cfg) (st : St D) (s : Signed D) : St D :=
   match s.msg.body with
   | .time t0 =>
       if decide (st.now + 1000 ≤ t0 ∧ t0 ≤ st.now + 30000) then setT0 st1 t0
-      else if !mine c st .fail && !mine c st .txo then emit C c st (.fail true WHY_TIME) else st
+      else if !mine c st .fail && !mine c st .gapVal then emit C c st (.fail true WHY_TIME) else st
   | .fail r _ =>
-      -- a partner retry `FAIL` is answered with `FAIL(partner_failed)`, unless already opened (F10)
-      if r then (if !mine c st .fail && !mine c st .txo then emit C c st1 (.fail true WHY_PARTNER) else st1)
+      -- a partner retry `FAIL` is answered with `FAIL(partner_failed)`. After the device sent its
+      -- own `GAP_VALUE` it answers only if the pair asks for a retry (F10)
+      if r then (if !mine c st .fail && (!mine c st .gapVal || pairRetry st) then
+                   emit C c st1 (.fail true WHY_PARTNER) else st1)
       else { st1 with done := true }
   | _ =>
       if bodyOk C c.pk (c.sid C) (st.sent ++ st.got) s.msg then st1
@@ -158,10 +172,11 @@ def recv (C : Crypto D) (c : Cfg) (st : St D) (s : Signed D) : St D :=
 def retried (l : List (Signed D)) (r : Role) (k : Nat) : Bool :=
   match failOf l r k with | some (true, _) => true | _ => false
 
-/-- Move to the next attempt (F10): both retry `FAIL`s held, nothing opened, `k + 1 < 2`. -/
+/-- Move to the next attempt (F10): both retry `FAIL`s held, `k + 1 < 2`, and either no own
+`GAP_VALUE` was sent or the pair asks for a retry (`pairRetry`). -/
 def adv (c : Cfg) (st : St D) : St D :=
   if !st.done && decide (st.k + 1 < 2) && retried st.sent c.me st.k && retried st.got c.p st.k &&
-     !mine c st .txo
+     (!mine c st .gapVal || pairRetry st)
   then { st with k := st.k + 1, tx := none } else st
 
 def step (C : Crypto D) (c : Cfg) (st : St D) : Input D → St D
