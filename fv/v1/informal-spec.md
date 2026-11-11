@@ -99,6 +99,8 @@ These are the ones a reader may assume. Attack names match `docs/generated/attac
 
 ## Part 2: draft without the server
 
+Superseded by [`../v2/spec.md`](../v2/spec.md). This draft keeps its old words. [ADR 0001](../v2/adr/0001-direct-webrtc-link-and-plain-words.md) has the table of old and new words. It also decided open choice 1 below: a direct WebRTC link.
+
 ### Goals
 
 Keep CP1, CP2, CP3 and CP5, as worded in Part 1. CP3 covers NEAR only. Remove the party who can forge a verdict or collect recordings. Run the same over a direct link or a dumb mailbox: every message is signed, so the transport is not trusted.
@@ -144,11 +146,11 @@ Two-party, against one dishonest device, with no trusted server:
 - **FN3, less replay help on chain.** For a Safe, the Safe nonce inside `safeTxHash` stops replay today, and that stays. What goes away is the server's expiry on the attestation. Any other consumer must mark `sid` as used.
 - **FN4, World ID is unassigned.** Only the server calls the Portal today. Not studied.
 - **FN5, web proving has no home.** Delegated proving goes away, or moves to a helper who sees the audio.
-- **FN6, one more real unknown.** F4's clock estimate and F1's link have not been tried on iPhone to Android, or from a browser.
+- **FN6, one more real unknown.** F4's clock estimate and F1's link have not been tried on iPhone to Android, or from a browser. The link is now WebRTC (ADR 0001), still untried.
 
 ### Open choices
 
-1. Direct link or mailbox. Same protocol, so this can wait.
+1. Direct link or mailbox. Decided 2026-11-11: a direct WebRTC link (ADR 0001).
 2. Whether attestation goes in F1 at every session, or a device carries it once.
 3. What replaces `issuer` in the `phone` circuit: a list of allowed keys, the keys as public inputs, or nothing.
 4. How `code_commit` is bound without POPCC1. One option is a per-side code hash in each transcript, with `pair` checking that the two sides match when crossed.
