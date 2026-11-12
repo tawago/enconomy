@@ -2,6 +2,8 @@
 
 Date: 2026-11-11. Status: accepted by the owner, except the rows marked "proposed" in the word table. Nothing here is built or tested.
 
+Decision 2 is amended by [ADR 0002](0002-plain-names-in-the-lean-models.md): the Lean rule model gets new names, and Lean theorem names say what they prove.
+
 This record changes the v2 design in [`fv/v2/spec.md`](../spec.md). It holds two decisions. The first replaces the mailbox server with a direct link between the two devices. The second replaces words in the specs that were hard to read.
 
 ## Context
