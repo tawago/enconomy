@@ -14,6 +14,7 @@ The link and the words follow [ADR 0001](adr/0001-direct-webrtc-link-and-plain-w
 - [`adr/0002`](adr/0002-plain-names-in-the-lean-models.md): ADR 0002, plain names in the Lean models (proposed).
 - [`protocol/`](protocol/README.md): one honest device as a state machine, the reader's `verify`, and FP1 to FP6. Plain Lean, no Mathlib.
 - [`zkp/`](zkp/README.md): the v2 rule as a pure function at one lag. Score ceiling, silence rejected, gain route closed. Lean with Mathlib.
+- [`tla/`](tla/README.md): two honest devices together, in TLA+, checked with TLC. Agreement, the link closing, finishing, the timeout and retry rules. No crypto. See [ADR 0003](adr/0003-tla-for-two-devices.md).
 
 ## Status
 
@@ -21,6 +22,7 @@ The link and the words follow [ADR 0001](adr/0001-direct-webrtc-link-and-plain-w
 |---|---|---|---|---|
 | `spec.md` | none, it's the spec | n/a | Codex, Fable 5.2. The link and words change from ADR 0001 has not been reviewed | n/a |
 | `protocol/` | `fp1_order`, `fp1_rec_hash_clock`, `fp2_matches`, `fp2_one_seed`, `fp3_after_gap_hash`, `fp3_next_attempt`, `fp3_next_attempt_reach`, `fp4_sid`, `fp4_fresh`, `fp5_perm`, `fp5_pair`, `fp5_device`, `fp5_retry_fail`, `fp5_final_fail`, `fp5_retry_fail_reach`, `fp6_value`, `fp6_signed`, `fp6_tamper`, `fp6_pinned`, `fp6_gap_fixed` | yes, 32 jobs, no `sorry`, only `propext`, `Classical.choice`, `Quot.sound` | Codex, Fable 5.2 | M1 to M18, each breaks a proof or an example, except M6, a redundant guard: it breaks a proof but the property still holds |
+| `tla/` | `Agreement`, `NearStays`, `AcceptOrder`, `Liveness`, `StuckExplained` (TLC, no proofs) | TLC passes, see `tla/README.md` | Codex, Fable 5.2 | six, each fails a property, see `tla/README.md` |
 | `zkp/` | `ceiling`, `pass_needs_bar_ge_one`, `silent_rejected`, `no_partner_pass_in_silence`, `ratio_scale`, `gain_route`, `all128_both_rejected` | yes, 18190 jobs, no `sorry`, 28 axiom lines, all within `propext`, `Classical.choice`, `Quot.sound` | Codex | one per fix, plus the full v1 rule |
 
 Assumptions (hash injective, signatures unforgeable) are hypotheses or structure fields, never `axiom` declarations.
@@ -34,7 +36,7 @@ Assumptions (hash injective, signatures unforgeable) are hypotheses or structure
 - **FN1 stays.** The last sender ends up holding the full log and can walk away.
 - **The tone is not proved rejected.** Only the gain trick is closed. The tone run is a `circuit-cases` and real-recording question.
 - **`BAR`, filter taps, floor and bit widths are unknown** (stage 3 hasn't run). The rule theorems hold for any of them.
-- **No two-device theorem, no liveness.** The protocol model says what one honest device never does.
+- **No two-device theorem in Lean.** The Lean protocol model says what one honest device never does. Two honest devices together, the link closing and finishing are checked in TLA+ (`tla/`), for a model without crypto and over three transcript values, not proved.
 - HIDE and RAND (spec section 1) are stated, not modeled.
 
 ## Next, in roadmap order

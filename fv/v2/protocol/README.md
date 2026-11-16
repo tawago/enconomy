@@ -1,6 +1,6 @@
 # v2 protocol model (Lean)
 
-Models [`../spec.md`](../spec.md) sections 2, 4 and 6 (FP1 to FP6). Plain Lean 4 core, no Mathlib, no dependencies. Toolchain `leanprover/lean4:v4.36.0-rc2`, as in `fv/v1`.
+Models [`../spec.md`](../spec.md) sections 2, 4 and 6 (FP1 to FP6), as of commit `45e4da9`. The two F10 sentences added with the TLA+ model (nothing signed after the own `FAIL`; local failures before the own `GAP_HASH`) need no change here: the first is already the model's rule, and the second narrows what an honest device does, while this model lets the adversary trigger a `FAIL` at any point before the own `GAP_VALUE`. The TLA+ model in [`../tla`](../tla/README.md) follows the same version ([ADR 0003](../adr/0003-tla-for-two-devices.md), drift rule). Plain Lean 4 core, no Mathlib, no dependencies. Toolchain `leanprover/lean4:v4.36.0-rc2`, as in `fv/v1`.
 
 Nothing of v2 is built yet. This checks the spec, not code. The detection rule (RC, RS, RT) is not in here.
 

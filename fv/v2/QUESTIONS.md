@@ -35,6 +35,7 @@ Each question has the decision or the default taken in [`spec.md`](spec.md), and
 **Q6. Tool.**
 - *Default:* Lean, plain core for the protocol, one property per file. Tamarin isn't installed.
 - *If Tamarin:* FP1 to FP4 move there and gain a real Dolev-Yao attacker. FP5, FP6 and the rule stay in Lean.
+- *Decided 2026-11-16 for a separate question ([ADR 0003](adr/0003-tla-for-two-devices.md)):* two honest devices together, the link closing, finishing, and the timeout and retry rules go to TLA+ in [`tla/`](tla/README.md). Lean keeps FP1 to FP6. The Tamarin question, a Dolev-Yao attacker for FP1 to FP4, stays open.
 
 **Q7. Rule parameters.** `BAR`, taps, `FLOOR`, widths.
 - *Default:* parametric until stage 3.
@@ -91,5 +92,5 @@ Each question has the decision or the default taken in [`spec.md`](spec.md), and
 ## From the Lean model (`protocol/`)
 
 **Q20. Small spec gaps the model had to fill.** Details in `protocol/README.md`, "Model choices".
-- *Default taken in the model:* `GAP_HASH` waits for the device's own `SEED_VALUE` (the partner's `GAP_VALUE` check needs both seeds). Nothing incoming is accepted before the confirm tap. A partner retry `FAIL` is answered at once. A final check failure after the device's one `FAIL` ends the session with no second `FAIL`. `verify` rejects attempts above 1.
-- *If the owner wants otherwise:* change `Device.lean` or `Log.lean` and rerun the build. None of these changes an FP statement. The spec text should get the same lines either way.
+- *Default taken in the model:* `GAP_HASH` waits for the device's own `SEED_VALUE` (the partner's `GAP_VALUE` check needs both seeds). `GAP_VALUE` waits for the device's own `GAP_HASH` (also in the TLA+ model). Nothing incoming is accepted before the confirm tap. A partner retry `FAIL` is answered at once, unless the device already signed its own `FAIL`, or sent its `GAP_VALUE` and holds no pair that asks for a retry. A final check failure after the device's one `FAIL` ends the session with no second `FAIL`. `verify` rejects attempts above 1.
+- *If the owner wants otherwise:* change `Device.lean` or `Log.lean` and rerun the build, and change `tla/Pairing.tla` where it has the same rule and rerun `tla/run.sh all` (ADR 0003, drift rule). None of these changes an FP statement. The spec text should get the same lines either way.

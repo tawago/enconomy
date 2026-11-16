@@ -99,6 +99,7 @@ Nothing else covers real audio. Honest phones must still pass, at real distances
 |---|---|
 | `v2/zkp` | Redo `Bar`, `Arrival`, `PartnerGlue`, part of `Freivalds`, `Chain`, block A. Add the score ceiling proof. Silence and tone theorems should flip. |
 | `v2/protocol` | New: FP1 to FP6, two-party, one dishonest device. Lean or Tamarin, decide in stage 2. |
+| `v2/tla` | New: two honest devices together in TLA+ (agreement, link close, finishing, timeouts), checked with TLC. ADR 0003. |
 | `v2/app` | **This grows.** Today the app only runs its side. In v2 the server's rules live in the app, so the walk test and trace replay move here, and the Kotlin is what gets checked. |
 | `v2/server` | Gone. No server takes part in a run. |
 
