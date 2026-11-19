@@ -118,7 +118,7 @@ example : verify toyC 1 2 { logA with msgs := logA.msgs ++ [finalA,
 example : has (run toyC cfgA St.init [.confirm, .send .seedHash locA, .recv (fromB (.fail true 0))]).sent
     (.A, 0, .fail) = true := by decide
 
-/-! ## The retry after both `GAP_VALUE`s (spec F10, the v1 rule kept on 2026-11-11) -/
+/-! ## The retry after both `GAP_VALUE`s (spec F10, the v1 rule the owner kept) -/
 
 /-- B's transcript with a gap that makes the pair `impossible_flight`: A has 1000, B has 1100. -/
 def txBfar : Tx Nat := { txB with gap := 1100 }

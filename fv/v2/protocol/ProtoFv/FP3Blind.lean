@@ -10,7 +10,7 @@ Spec section 6, FP3, in two pieces.
 * `fp3_next_attempt`, at the moment the attempt moves on: the device has not signed `GAP_VALUE`
   for `k`, or it holds both transcripts for `k` and the verdict asks for a retry
   (`impossible_flight` or a self timing mismatch, `pairRetry`). This is the v1 retry rule, kept by
-  the owner on 2026-11-11 (spec F10, Q8).
+  the owner (spec F10, Q8).
 
 Assumes HIDE (stated, not modeled) for "the `GAP_HASH` tells D nothing about the gap". Does not give:
 that the gap is true (CN1), nor anything about later sessions (K4). The last device to send its `GAP_VALUE` still holds

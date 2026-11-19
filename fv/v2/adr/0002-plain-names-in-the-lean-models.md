@@ -1,10 +1,10 @@
 # ADR 0002: plain names in the v2 Lean models
 
-Date: 2026-11-12. Status: proposed. Nothing is renamed yet. The renames land in a later change.
+Status: proposed. Nothing is renamed yet. The renames land in a later change.
 
 This record changes two rules of [ADR 0001](0001-direct-webrtc-link-and-plain-words.md), Decision 2, "Rules for the swap":
 
-- "Ids stay: FP1 to FP6, K1 to K16, ..."
+- "Ids stay: FP1 to FP6, K1 to K19, ..."
 - "The Lean rule model changes in comments only."
 
 ## Context
@@ -76,7 +76,7 @@ One name is wrong, not just short. `cn2` in the app is the sum of `cI²` alone (
 |---|---|
 | FP1 to FP6, RC, RS, RT | the property's plain name, id once in brackets |
 | F1a to F11 | the message name (`F2` is `SEED_HASH`) |
-| K1 to K16 | a short phrase plus a link to the hole |
+| K1 to K19 | a short phrase plus a link to the hole |
 | C6 to C23, CN, FN, V | words, with the v1 id once in brackets |
 | HASH, SIG, HIDE, RAND, OOB | "no collisions", "no forgery", "hash hides", "fresh randoms", "QR unchanged" |
 

@@ -15,7 +15,7 @@ slot, so one `GAP_VALUE` per attempt; it accepts at most one per slot; and each 
 `GAP_VALUE` matches the one partner `GAP_HASH` it accepted. At the moment of signing
 (`fp5_retry_fail`): a step that signs a retry `FAIL` runs in a state where the device has not
 signed `GAP_VALUE` for the attempt, or holds both transcripts with a verdict that asks for a retry
-(`pairRetry`, the v1 rule kept on 2026-11-11, spec F10).
+(`pairRetry`, the v1 rule the owner kept, spec F10).
 
 A step that signs a final `FAIL` is the receipt of a message that failed its body check
 (`fp5_final_fail`).

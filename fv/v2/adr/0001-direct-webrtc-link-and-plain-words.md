@@ -1,6 +1,6 @@
 # ADR 0001: a direct WebRTC link, no server in a run, and plain words
 
-Date: 2026-11-11. Status: accepted by the owner, except the rows marked "proposed" in the word table. Nothing here is built or tested.
+Status: accepted by the owner, except the rows marked "proposed" in the word table. Nothing here is built or tested.
 
 Decision 2 is amended by [ADR 0002](0002-plain-names-in-the-lean-models.md): the Lean rule model gets new names, and Lean theorem names say what they prove.
 
@@ -13,7 +13,7 @@ The v2 draft removed the v1 server but kept a "mailbox". The mailbox was a small
 - The mailbox was still a server that somebody has to run, and every run needed it.
 - The name hid that. "Serverless, over a mailbox" read as if no server existed.
 
-The owner set these requirements on 2026-11-11.
+The owner set these requirements.
 
 - No server takes part in a run.
 - A browser must be able to take part.
@@ -97,7 +97,7 @@ The message names follow one pattern. A device sends `X_HASH` first and `X_VALUE
 Rules for the swap.
 
 - Wire and code names stay: the POPT field `half`, `code_commit`, `commit_hash`, `rec_root`, `verify_record`, POPC and POPT. The spec says once that the gap is the POPT field `half`.
-- Ids stay: FP1 to FP6, K1 to K16, Q1 to Q20, RC, RS, RT, and the C, CN and FN ids from v1. Each id keeps its plain name next to it.
+- Ids stay: FP1 to FP6, K1 to K19, Q1 to Q20, RC, RS, RT, and the C, CN and FN ids from v1. Each id keeps its plain name next to it.
 - These words stay as they are: seed, salt, blind, attempt, transcript, reader, verdict, `SALT`, `TIME`, `FAIL`, `INVITE`, `JOIN`.
 - v1 documents keep their words, because they describe the system as built. Only Part 2 of `fv/v1/informal-spec.md` gets a pointer to this record.
 - The Lean protocol model uses `seedHash`, `seedVal`, `recHash`, `gapHash`, `gapVal`, `gap` and `Log`. The Lean rule model changes in comments only.
