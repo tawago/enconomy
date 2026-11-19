@@ -34,8 +34,8 @@ Each question has the decision or the default taken in [`spec.md`](spec.md), and
 
 **Q6. Tool.**
 - *Default:* Lean, plain core for the protocol, one property per file. Tamarin isn't installed.
-- *If Tamarin:* FP1 to FP4 move there and gain a real Dolev-Yao attacker. FP5, FP6 and the rule stay in Lean.
-- *Decided 2026-11-16 for a separate question ([ADR 0003](adr/0003-tla-for-two-devices.md)):* two honest devices together, the link closing, finishing, and the timeout and retry rules go to TLA+ in [`tla/`](tla/README.md). Lean keeps FP1 to FP6. The Tamarin question, a Dolev-Yao attacker for FP1 to FP4, stays open.
+- *If Tamarin:* FP1 to FP4 move there and gain an attacker that controls the link: it reads, drops, replays and reorders every message, and builds any message it has the keys for. FP5, FP6 and the rule stay in Lean.
+- *Decided for a separate question ([ADR 0003](adr/0003-tla-for-two-devices.md)):* two honest devices together, the link closing, finishing, and the timeout and retry rules go to TLA+ in [`tla/`](tla/README.md). Lean keeps FP1 to FP6. The Tamarin question, that stronger attacker for FP1 to FP4, stays open.
 
 **Q7. Rule parameters.** `BAR`, taps, `FLOOR`, widths.
 - *Default:* parametric until stage 3.
@@ -67,7 +67,7 @@ Each question has the decision or the default taken in [`spec.md`](spec.md), and
 
 **Q14. Start time.**
 - *Default:* A picks `t0 = now + 5 s` on its wall clock. B accepts if `t0` is 1 s to 30 s ahead on its own clock, else a retry `FAIL(time)`.
-- *If ping-based offset estimation (draft F4):* more messages. Neither choice touches safety: no property reads `t0`.
+- *If ping-based offset estimation (draft F4):* more messages. Neither choice touches agreement or the measured gap. `t0` is read only on each device's own clock: by FP1's gate (K19), by B's bounds check on `TIME`, and by the F10 timeout at `t0 + 20 s`.
 
 **Q15. Gates on the recording hash and the seed.**
 - *Default:* `REC_HASH` after the own capture ends (`t0 + 2.0 s`). `SEED_VALUE` after holding the partner's `REC_HASH` and sending its own. Today's server gate was `t0 + 1.2 s`, "sounds over".
@@ -87,10 +87,11 @@ Each question has the decision or the default taken in [`spec.md`](spec.md), and
 
 **Q19. How many attempts per session.**
 - *Decided:* two, as today (C22). A dishonest device can fail attempt 0 on purpose and pick the better of two codes (spec hole K16).
-- *If one:* no second draw, and no retry logic at all. An honest pair loses a session on every glitch and has to start over, with a new confirm tap.
+- *If one:* no second pair of codes, and no retry logic at all. An honest pair loses a session on every glitch and has to start over, with a new confirm tap.
 
 ## From the Lean model (`protocol/`)
 
 **Q20. Small spec gaps the model had to fill.** Details in `protocol/README.md`, "Model choices".
-- *Default taken in the model:* `GAP_HASH` waits for the device's own `SEED_VALUE` (the partner's `GAP_VALUE` check needs both seeds). `GAP_VALUE` waits for the device's own `GAP_HASH` (also in the TLA+ model). Nothing incoming is accepted before the confirm tap. A partner retry `FAIL` is answered at once, unless the device already signed its own `FAIL`, or sent its `GAP_VALUE` and holds no pair that asks for a retry. A final check failure after the device's one `FAIL` ends the session with no second `FAIL`. `verify` rejects attempts above 1.
-- *If the owner wants otherwise:* change `Device.lean` or `Log.lean` and rerun the build, and change `tla/Pairing.tla` where it has the same rule and rerun `tla/run.sh all` (ADR 0003, drift rule). None of these changes an FP statement. The spec text should get the same lines either way.
+- *Default taken in the model:* `GAP_HASH` waits for the device's own `SEED_VALUE` (the partner's `GAP_VALUE` check needs both seeds). `GAP_VALUE` waits for the device's own `GAP_HASH` (also in the TLA+ model). Nothing incoming is accepted before the confirm tap. A partner retry `FAIL` is answered at once, unless the device already signed its own `FAIL`, or sent its `GAP_VALUE` and holds no pair that asks for a retry. `verify` rejects attempts above 1.
+- *Now in the spec (2.1, F10), as the model has it:* a final check failure after the device's one `FAIL` ends the session with no second `FAIL`, and a partner `FAIL` with the `retry` bit off ends it too.
+- *If the owner wants otherwise:* change `Device.lean` or `Log.lean` and rerun the build, and change `tla/Pairing.tla` where it has the same rule and rerun `tla/run.sh all` (ADR 0003: both models follow the same spec version). None of these changes an FP statement. The spec text should get the same lines either way.

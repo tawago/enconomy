@@ -1,6 +1,6 @@
 # v2 protocol model (Lean)
 
-Models [`../spec.md`](../spec.md) sections 2, 4 and 6 (FP1 to FP6), as of commit `45e4da9`. The two F10 sentences added with the TLA+ model (nothing signed after the own `FAIL`; local failures before the own `GAP_HASH`) need no change here: the first is already the model's rule, and the second narrows what an honest device does, while this model lets the adversary trigger a `FAIL` at any point before the own `GAP_VALUE`. The TLA+ model in [`../tla`](../tla/README.md) follows the same version ([ADR 0003](../adr/0003-tla-for-two-devices.md), drift rule). Plain Lean 4 core, no Mathlib, no dependencies. Toolchain `leanprover/lean4:v4.36.0-rc2`, as in `fv/v1`.
+Models [`../spec.md`](../spec.md) sections 2, 4 and 6 (FP1 to FP6), as of commit `45e4da9`. The two F10 sentences added with the TLA+ model (nothing signed after the own `FAIL`; no local-failure `FAIL` after the own `GAP_HASH`) need no change here: the first is already the model's rule, and the second narrows what an honest device does, while this model lets the adversary trigger a `FAIL` at any point before the own `GAP_VALUE`. The spec's lines on a body-check failure after the own `FAIL` and on a partner `FAIL` with the `retry` bit off (2.1, F10) state what this model already does. The TLA+ model in [`../tla`](../tla/README.md) follows the same version ([ADR 0003](../adr/0003-tla-for-two-devices.md): both models follow the same spec version). Plain Lean 4 core, no Mathlib, no dependencies. Toolchain `leanprover/lean4:v4.36.0-rc2`, as in `fv/v1`.
 
 Nothing of v2 is built yet. This checks the spec, not code. The detection rule (RC, RS, RT) is not in here.
 
@@ -10,7 +10,7 @@ Names follow [ADR 0001](../adr/0001-direct-webrtc-link-and-plain-words.md).
 
 | Builds | Main theorems | Review | Mutants |
 |---|---|---|---|
-| yes, 32 jobs, no `sorry`, only `propext`, `Classical.choice`, `Quot.sound` | FP1 to FP6 as in the table below | Codex, Fable 5.2 | M1 to M18 as in the table below. None for `fp5_final_fail`, the self timing mismatch retry runs, or the run with a hidden `GAP_VALUE` (spec K3) |
+| yes, 32 jobs, no `sorry`, only `propext`, `Classical.choice`, `Quot.sound` | FP1 to FP6 as in the table below | yes | M1 to M18 as in the table below. None for `fp5_final_fail`, the self timing mismatch retry runs, or the run with a hidden `GAP_VALUE` (spec K3) |
 
 ## Files
 
@@ -47,7 +47,7 @@ Names follow [ADR 0001](../adr/0001-direct-webrtc-link-and-plain-words.md).
 - `fp5_pair`, `fp6_value` and `fp6_result` are close to definitions. They say what the functions compute, not that the functions follow the spec.
 - K3. The model does not show that a forced retry hands D the honest gap, since HIDE is not modeled. `Examples.lean` only shows that a log D hands over can hide the forced retry.
 - `fp6_pinned` says a message named in `seen` is pinned. That the honest device's `seen` holds every message it accepted is how `emit` builds it, not a separate theorem.
-- K16 (two code draws per session), K4, K9, K10 and K12 stay as in the spec. The spec closes K6 with the second QR code. That is outside this model, which has no `INVITE` or `JOIN`.
+- K16 (a second pair of codes per session), K4, K9, K10 and K12 stay as in the spec. So do K17 (no expiry or purpose: `ctx` is a number in `Cfg`, `t0` read by no check of `verify`), K18 (the state is never lost: no restart) and K19 (a `tick` may jump the clock forward by any amount; `fp1_rec_hash_clock` holds anyway, and says nothing about when the capture really ended). The spec closes K6 with the second QR code. That is outside this model, which has no `INVITE` or `JOIN`.
 
 ## Model choices
 
@@ -56,8 +56,8 @@ These differ from the spec text, or fill a gap in it.
 - **`INVITE` and `JOIN` are not modeled.** The config holds the five inputs of `sid`. FP4 assumes A's `JOIN` check pinned `r_A`. The link is not modeled either: the adversary picks every input, so a reliable, ordered link is one case of that.
 - **`peer` is the list `seen`, not `H(seen)`.** The same under HASH, one hash layer less.
 - **`GAP_HASH` waits for the device's own `SEED_VALUE`.** The spec's "sends when" for `GAP_HASH` says only "F7 gave a gap". But the partner's `GAP_VALUE` check rederives `code_commit` from both seeds, so without the own `SEED_VALUE` the partner would fail it. Worth adding to the spec.
-- **A final body-check failure after the device already signed its one `FAIL` for the attempt** ends the session without a second `FAIL`. The spec allows one `FAIL` per attempt but doesn't say what happens here.
-- **A partner `FAIL` with a final reason ends the session.** A retry one is held for the attempt switch, and answered at once with the device's own retry `FAIL` if it has not signed one and has not sent its `GAP_VALUE`. After its own `GAP_VALUE` it answers only when the pair asks for a retry.
+- **A final body-check failure after the device already signed its one `FAIL` for the attempt** ends the session without a second `FAIL`, as spec 2.1 and F10 say.
+- **A partner `FAIL` with the `retry` bit off ends the session**, as spec 2.1 and F10 say. A retry one is held for the attempt switch, and answered at once with the device's own retry `FAIL` if it has not signed one and has not sent its `GAP_VALUE`. After its own `GAP_VALUE` it answers only when the pair asks for a retry.
 - **The retry after both `GAP_VALUE`s is one Bool, `pairRetry`.** It is true when the device holds both transcripts for the current attempt and `combine` gives `impossible` or `selfTs`. It guards the retry `FAIL`, the answer to a partner's retry `FAIL`, and the move to the next attempt. This is the v1 rule C22, kept by the owner (spec F10, Q8). One `FAIL` per attempt is enforced in `gate`.
 - **Before the confirm tap, every incoming message is dropped.** So nothing, not even a `FAIL`, is signed before the person confirmed (spec 2.2). The partner resends.
 - **`verify` also checks `attempt < 2`** on every message. Without it a signed message for attempt 2 rode along unseen, since `outcome` reads only 0 and 1.

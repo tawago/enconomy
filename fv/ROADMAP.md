@@ -1,8 +1,8 @@
 # Roadmap: v1 to the submission
 
-Written 2026-11-06. A plan, nothing here is built. Sizes are guesses. Details live in the notes linked below, and this file only says what comes in what order.
+A plan, nothing here is built. Sizes are guesses. Details live in the notes linked below, and this file only says what comes in what order.
 
-Changed 2026-11-11 by [ADR 0001](v2/adr/0001-direct-webrtc-link-and-plain-words.md): a direct WebRTC link replaces the mailbox, a browser is in, and the v2 words changed.
+[ADR 0001](v2/adr/0001-direct-webrtc-link-and-plain-words.md) changed this plan: a direct WebRTC link replaces the mailbox, a browser is in, and the v2 words changed.
 
 ## The submission
 
@@ -11,7 +11,7 @@ Two changes, shipped together as v2:
 1. **Fix the detection rule**, so silence and the tone stop passing.
 2. **Remove the server**, so no party can forge a verdict or collect recordings. Devices run the protocol between themselves, over a direct WebRTC link. No server takes part in a run.
 
-What we can say after v2: nobody in the middle decides the result, anyone can recheck it, and a proof shows the recording passes a rule that silence and the tone fail.
+What we can say after v2: nobody in the middle decides the result, anyone can recheck it, and a proof shows the recording passes a rule that silence fails and where the v1 tone's gain trick no longer works. That a tone fails is not proved: it depends on the code and phase, and real recordings and `circuit-cases` test it (v2 spec RT).
 
 What we can't say: "proven proximity". A device can still sign a false gap unless the reader requires its proof (decision 2). A helper standing next to the partner still works (CN4, CN5). Sound can't show who held the phone.
 
@@ -55,14 +55,14 @@ It has to answer the jobs the server does today:
 | Server job | Replacement | Hard part |
 |---|---|---|
 | Secret sounds | Each device picks a seed, sends its hash, and sends the seed after the partner's recording hash (F2, F3, F6) | Port the generator from numpy to Kotlin, and match it across platforms |
-| Order of sending | Each side refuses to send its seed early | A cheater can walk away. That blocks a run and wins nothing |
+| Order of sending | Each side refuses to send its seed early | A cheater can walk away, which blocks a run. Failing attempt 0 on purpose gets it a second pair of codes (v2 spec K16) |
 | Start time | Agreed over the link (F4) | Never tried on iPhone to Android or a browser |
 | Verdict | Both devices compute it (F9) | None. `PopDsp.flightCm` exists unused |
 | Blind gap | Send the hash of the transcript first (F8) | Last sender ends up holding the full log (FN1) |
 | Vouching for devices | See decision 3 | **Unsolved** |
 | Credential in the circuit | Circuit takes the keys instead (open choice 3) | Circuit change |
 
-The devices talk over a direct WebRTC link, set up by a QR code in each direction (ADR 0001, 2026-11-11). The earlier plan was a mailbox server first (`research/2026-11-05-layers-and-removing-the-server.md`).
+The devices talk over a direct WebRTC link, set up by a QR code in each direction (ADR 0001). The earlier plan was a mailbox server first (`research/2026-11-05-layers-and-removing-the-server.md`).
 
 ### 3. Test the rule on real recordings. Small, do this early
 
@@ -97,7 +97,7 @@ Nothing else covers real audio. Honest phones must still pass, at real distances
 
 | Part | What happens |
 |---|---|
-| `v2/zkp` | Redo `Bar`, `Arrival`, `PartnerGlue`, part of `Freivalds`, `Chain`, block A. Add the score ceiling proof. Silence and tone theorems should flip. |
+| `v2/zkp` | Redo `Bar`, `Arrival`, `PartnerGlue`, part of `Freivalds`, `Chain`, block A. Add the score ceiling proof. Silence theorems should flip. The tone witness was a `circuit-cases` run, so it flips in `nargo`, not in Lean. |
 | `v2/protocol` | New: FP1 to FP6, two-party, one dishonest device. Lean or Tamarin, decide in stage 2. |
 | `v2/tla` | New: two honest devices together in TLA+ (agreement, link close, finishing, timeouts), checked with TLC. ADR 0003. |
 | `v2/app` | **This grows.** Today the app only runs its side. In v2 the server's rules live in the app, so the walk test and trace replay move here, and the Kotlin is what gets checked. |
@@ -127,7 +127,7 @@ Demo, what it does and doesn't prove, reproduce steps.
 
 ## Decisions
 
-1. **Deadline.** What date is the submission? It decides how far the cut list goes. Decided 2026-11-11: no deadline, so the cut list is not in force.
-2. **Do proofs count?** Without a server there's no one to require them. Decided 2026-11-11: proofs are optional. The core doesn't force them, and the implementer who builds on it chooses. EVP already checks proofs itself. Then a NEAR with no proof means "two keys signed two numbers", and the log has to say so. One bench found phone proving at 25 s and 1.74 GB, not rechecked.
-3. **Who vouches for devices?** The decoupling plan says outside parties read results and vouching "stays a core job". Removing the server takes that job away. Options: each reader checks attestation itself (FN2, and Apple documents App Attest for server use, so peer checks are untested), or a separate small attestation service, or no vouching and every key is just a key. Decided 2026-11-11: vouching is optional. The core has none, and every key is just a key. An implementer can add attestation, and the stage 4 bundle should leave room for it (the extension value row).
-4. **Web.** Decided 2026-11-11 (ADR 0001): a browser is in, paired with a phone over the WebRTC link. The laptop has no prover, so only the phone can attach a proof. EVP needs the laptop as role A.
+1. **Deadline.** What date is the submission? It decides how far the cut list goes. Decided: no deadline, so the cut list is not in force.
+2. **Do proofs count?** Without a server there's no one to require them. Decided: proofs are optional. The core doesn't force them, and the implementer who builds on it chooses. EVP already checks proofs itself. Then a NEAR with no proof means "two keys signed two numbers", and the log has to say so. One bench found phone proving at 25 s and 1.74 GB, not rechecked.
+3. **Who vouches for devices?** The decoupling plan says outside parties read results and vouching "stays a core job". Removing the server takes that job away. Options: each reader checks attestation itself (FN2, and Apple documents App Attest for server use, so peer checks are untested), or a separate small attestation service, or no vouching and every key is just a key. Decided: vouching is optional. The core has none, and every key is just a key. An implementer can add attestation, and the stage 4 bundle should leave room for it (the extension value row).
+4. **Web.** Decided (ADR 0001): a browser is in, paired with a phone over the WebRTC link. The laptop has no prover, so only the phone can attach a proof. EVP needs the laptop as role A.

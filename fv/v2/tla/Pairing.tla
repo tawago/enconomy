@@ -4,11 +4,14 @@
 (* direct link.                                                            *)
 (*                                                                         *)
 (* Follows fv/v2/spec.md at commit 45e4da9, plus the two F10 sentences    *)
-(* added with this model (nothing signed after the own FAIL; local         *)
-(* failures come before the own GAP_HASH): section 2.1 (resend, drop       *)
+(* added with this model (nothing signed after the own FAIL; no local-     *)
+(* failure FAIL after the own GAP_HASH): section 2.1 (resend, drop         *)
 (* rules), the 2.3 table ("sends when" and receiver rules), F10 (failures, *)
 (* retry, timeouts, the 600 s end) and the outcome of section 4. The Lean  *)
 (* model in ../protocol follows the same version. See ADR 0003.            *)
+(*                                                                         *)
+(* Seven mutants, one value of Mutant each (MutantNames below), M1 to M7   *)
+(* in tla/README.md.                                                       *)
 (*                                                                         *)
 (* No crypto. Between two honest devices every signature, sid, role, peer  *)
 (* and body check is assumed to pass (spec FP5 argues it; neither model    *)
@@ -23,7 +26,7 @@ CONSTANTS
     AllowClose,       \* the link may close at any time
     AllowSessionEnd,  \* a device may reach the 600 s end at any time
     AllowLocalFail,   \* a measurement may fail on the device (a retry reason)
-    AllowLateLocalFail, \* a local failure may also come after the own GAP_HASH (not in the spec)
+    AllowLateLocalFail, \* a local failure may also come after the own GAP_HASH (spec F10 forbids it)
     AllowTimeFail,    \* B's clock bounds check on A's TIME may fail (a retry reason)
     Mutant            \* "none", or one of MutantNames: a deliberately broken rule
 

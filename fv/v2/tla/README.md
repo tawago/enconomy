@@ -1,6 +1,6 @@
 # v2 pairing with two honest devices (TLA+)
 
-Models [`../spec.md`](../spec.md) as of commit `45e4da9`, plus the two F10 sentences added with this model (a device signs nothing else for an attempt after its own `FAIL`; a local failure comes before the own `GAP_HASH`): section 2.1 (drop rules, resend, link close), the section 2.3 table ("sends when" and the receiver rules), F10 (failures, retry, timeouts, the 600 s end) and `Outcome` from section 4. The Lean model in [`../protocol`](../protocol/README.md) follows the same version. Why TLA+ next to Lean, and the drift rule: [ADR 0003](../adr/0003-tla-for-two-devices.md).
+Models [`../spec.md`](../spec.md) as of commit `45e4da9`, plus the two F10 sentences added with this model (a device signs nothing else for an attempt after its own `FAIL`; no local-failure `FAIL` after the own `GAP_HASH`): section 2.1 (drop rules, resend, link close), the section 2.3 table ("sends when" and the receiver rules), F10 (failures, retry, timeouts, the 600 s end) and `Outcome` from section 4. The Lean model in [`../protocol`](../protocol/README.md) follows the same version. Why TLA+ next to Lean, and how both models keep to one spec version: [ADR 0003](../adr/0003-tla-for-two-devices.md).
 
 Both devices are honest. There is no attacker and no crypto. FP1 to FP6 stay in Lean and are not restated here.
 
@@ -10,7 +10,7 @@ Nothing of v2 is built. This checks the spec, not code.
 
 | Checks | Result | Review | Mutants |
 |---|---|---|---|
-| `Agreement`, `NearStays`, `AcceptOrder`, `AnswersHeld`, `Liveness`, `StuckExplained`, `EndsWithPair`, four reach checks, three runs that must fail `Liveness` | all as expected, TLA+ tools v1.7.4 | Codex, Fable 5.2 | seven, each fails a property, table below |
+| `Agreement`, `NearStays`, `AcceptOrder`, `AnswersHeld`, `Liveness`, `StuckExplained`, `EndsWithPair`, four reach checks, three runs that must fail `Liveness` | all as expected, TLA+ tools v1.7.4 | yes | seven, each fails a property, table below |
 
 Results of `./run.sh all`. "Distinct states" is the full state space when the run passes. When an invariant or `NearStays` fails, it is the states seen before the violation; these runs use one worker, so the count and the run TLC prints are the same every time. When `Liveness` fails, it is the states TLC had when its periodic check of the temporal property found the violation. That check runs on a timer, so the count, the time and the run TLC prints change from run to run, with machine speed and load; those counts are rounded. Times are rounded.
 
@@ -67,7 +67,7 @@ A liveness run that fails prints no depth. All configs use `Vals = {0, 1, 2}`.
 
 - `LiveWithTimeouts`: B signs its `GAP_HASH`, then times out. A then signs its `GAP_HASH` and `GAP_VALUE`, and holds no pair. The F10 run, with the roles swapped. In other runs the `GAP_VALUE` comes before the timeout.
 - `LiveWithClose`: the link closes at once. Each device signs `SEED_HASH`, then a local-failure `FAIL` for 0. Neither `FAIL` arrives. Both are NOT_NEAR and wait for attempt 1. Nobody is incomplete.
-- `LiveWithLateLocalFail`: as with timeouts, but the `FAIL` after the own `GAP_HASH` is a local failure (in the run printed, A's on attempt 1, after a retry). So the F10 run needs no timeout once a local failure can come after the own `GAP_HASH`. Spec F10 now says it can't.
+- `LiveWithLateLocalFail`: as with timeouts, but the `FAIL` after the own `GAP_HASH` is a local failure (in the run printed, A's on attempt 1, after a retry). So the F10 run needs no timeout once a local failure can come after the own `GAP_HASH`. Spec F10 has the rule that forbids it, and `Live` assumes that rule.
 
 In each, the 600 s end is what ends the session. That it does is not checked: no config has a fair 600 s end. It holds trivially, since after the end no protocol step is possible.
 
@@ -96,11 +96,13 @@ M1 and M4 keep `Agreement` with every fault on (the two `...Agreement` configs).
 - **Time is not modeled.** A timeout may fire at any point before the device's own `GAP_VALUE`. The spec's clock rule (`t0 + 20 s`, or 60 s with no new message) picks some of these points. So the safety checks cover the spec's timeouts. The F10 run needs a timeout at one exact point, and its rarity is not shown.
 - **Final failures are not modeled.** Between honest devices no body check fails, so every `FAIL` is a retry `FAIL`.
 - **Liveness only without timeouts, link close, local failures after the own `GAP_HASH` and the 600 s end.** With any of the first three, a run can stop short of a final outcome (the three `LiveWith` configs), and only the 600 s end closes the session. That the 600 s end does so is not checked.
-- **`Live` covers less than the Lean model allows.** The Lean model lets a device sign a retry `FAIL` for any reason up to its own `GAP_VALUE`. `Live` has local failures only before the own `GAP_HASH`, as the spec now says. `Safety` and `Stuck` allow them up to the own `GAP_VALUE`.
+- **`Live` covers less than the Lean model allows.** The Lean model lets a device sign a retry `FAIL` for any reason up to its own `GAP_VALUE`. `Live` has local failures only before the own `GAP_HASH`, as the spec's F10 rule says. `Safety` and `Stuck` allow them up to the own `GAP_VALUE`.
 - **Both people tap confirm.** `Liveness` assumes it (the tap is a protocol step under fairness). A person who never taps leaves the other device to the 600 s end. Not checked.
 - **The atomic steps and the link are model choices.** `StuckExplained` classifies the end states of this model. A second kind of stuck state in the spec could hide behind them, and if TLC finds one later, it may come from the spec or from a model choice.
 - **K9 breaks the assumption that body checks pass.** If `render` is not bit-exact on both devices, an honest receiver can fail the partner's `code_commit` and sign a final `FAIL` while the partner already holds NEAR. That split is outside this model, which has no final `FAIL`.
 - `INVITE`, `JOIN`, the QR codes and the WebRTC setup are not modeled. The run starts with the link open.
+- **No restart (spec K18).** A device never loses what it signed. A restart that forgets it acts like M2 or M6, which break `Agreement`.
+- **No clock (spec K19).** No wall clock, no capture timer, so a clock jump that opens the seed gate early is outside the model.
 
 ## Model choices
 
@@ -117,7 +119,7 @@ These differ from the spec text, fill a gap in it, or simplify it.
 - **The `peer` check is not run by receivers.** Between honest devices it is assumed to pass, like every other envelope check. `AnswersHeld` checks the sender side: every signed message comes after the partner message it answers.
 - **Capture and measurement stop after the device's own `FAIL`.** They change nothing the outcome reads.
 - **B's `TIME` check.** A failure is a fault switch: B signs a retry `FAIL`, the `TIME` is not accepted, stays on the link, and may be accepted later, as in the Lean model. It sets `t0`, but B signs nothing more for the attempt.
-- **Local failures come before the device's own `GAP_HASH`.** The measurement (F7) gives a gap or a failure. Any other local failure, such as a failed capture, is a fault at any point before the own `GAP_HASH`. A device that sent its `GAP_HASH` has a gap and reports no local failure. The spec text before this model read as allowing a local-failure `FAIL` up to the own `GAP_VALUE`; F10 now says a device that sent its `GAP_HASH` has none left to report. The switch `AllowLateLocalFail` allows one up to the own `GAP_VALUE`. It behaves like a timeout: `LiveWithLateLocalFail` shows the F10 stuck run with no timeout, and `Stuck` shows it adds no other stuck state.
+- **Local failures come before the device's own `GAP_HASH`.** The measurement (F7) gives a gap or a failure. Any other local failure, such as a failed capture, is a fault at any point before the own `GAP_HASH`. A device that sent its `GAP_HASH` has a gap and reports no local failure. Spec F10 has this as a rule: no local-failure `FAIL` after the own `GAP_HASH`, and `Live` assumes it. The switch `AllowLateLocalFail` allows one up to the own `GAP_VALUE`. It behaves like a timeout: `LiveWithLateLocalFail` shows the F10 stuck run with no timeout, and `Stuck` shows it adds no other stuck state.
 - **Each step is atomic on one device.** A guard check and the signing it allows are one step, and a device's timer, receive and sign never interleave inside a step. A device must do them one at a time. M2 shows what the race costs.
 - **Old messages stay on the link.** A sender stops resending its attempt-0 messages once it moves to attempt 1, but here they stay receivable. Harmless: a receiver still on attempt 0 at that point has signed its `FAIL` for 0 and needs only the partner's `FAIL`.
 - **Every `FAIL` is a retry `FAIL`.** No final `FAIL` happens between honest devices, so the reason codes are not modeled.

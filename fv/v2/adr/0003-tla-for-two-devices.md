@@ -1,6 +1,6 @@
 # ADR 0003: TLA+ for two honest devices together
 
-Date: 2026-11-16. Status: accepted.
+Status: accepted.
 
 ## Context
 

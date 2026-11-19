@@ -14,7 +14,7 @@ Spec section 6, FP2. In every reachable state:
   this is already given by one message per slot. The point is across runs.)
 
 Assumes HASH for the last point only. "D couldn't steer its code within the attempt" needs RAND
-and HIDE too: that is reasoning, not a theorem here. Over a session D gets two draws (K16).
+and HIDE too: that is reasoning, not a theorem here. Over a session D can get a second pair of codes (K16).
 -/
 
 namespace ProtoFv
