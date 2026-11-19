@@ -11,6 +11,7 @@ The link and the words follow [ADR 0001](adr/0001-direct-webrtc-link-and-plain-w
 - [`spec.md`](spec.md): the protocol spec (roadmap stage 2). Messages, what each device checks, the verdict, the detection rule, the properties FP1 to FP6 and the rule properties, known holes K1 to K16.
 - [`QUESTIONS.md`](QUESTIONS.md): the design choices, the owner's decisions, and what changes if one is picked otherwise. Q7 and Q16 wait for stage 3.
 - [`adr/`](adr/0001-direct-webrtc-link-and-plain-words.md): ADR 0001, the direct WebRTC link and the words.
+- [`adr/0002`](adr/0002-plain-names-in-the-lean-models.md): ADR 0002, plain names in the Lean models (proposed).
 - [`protocol/`](protocol/README.md): one honest device as a state machine, the reader's `verify`, and FP1 to FP6. Plain Lean, no Mathlib.
 - [`zkp/`](zkp/README.md): the v2 rule as a pure function at one lag. Score ceiling, silence rejected, gain route closed. Lean with Mathlib.
 
