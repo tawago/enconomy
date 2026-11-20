@@ -49,7 +49,37 @@ These stay as accepted and are not reopened here: v2 does not defend against mod
 
 **Decision.**
 
-1. **A self timing mismatch from `combine` becomes final, never a retry.** The stock app checks its own `self_os_delta` before it signs a transcript and fails locally when it is out of tolerance (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/dsp/PopRound2.kt:63`, the same inequality as `server/pop/verdict.py` `self_os_ok` with cal 0, and as `selfOsOk` in `protocol/ProtoFv/Verdict.lean`). So a `self_timestamp_mismatch` from `combine` only comes from a partner that skipped its own check. Making it final costs honest devices nothing, as long as the local check uses exactly `combine`'s rule: 50 ms, cal 0, at the signed rate. The 50 ms must be a constant of the protocol. Today the live app takes the tolerance from server config (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/RunFlow.kt:256` passes `popt2.selfOsTolMs`); in v2 there is no server to send it, and a device with a looser value would sign transcripts that its partner's `combine` rejects for good. This removes the second way to force the retry (K14). Not yet decided by the owner (open question 9).
+1. **A self timing mismatch from `combine` becomes final, never a retry, and each device signs its own tolerance.** Accepted by the owner.
+   - *Why it is safe.* The stock app checks its own `self_os_delta` before it signs a transcript and fails locally when it is out of tolerance (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/dsp/PopRound2.kt:63`, the same inequality as `server/pop/verdict.py` `self_os_ok` with cal 0, and as `selfOsOk` in `protocol/ProtoFv/Verdict.lean`). Calibration is already folded into the signed offset (spec section 4), so the tolerance covers only what is left: jitter. A `self_timestamp_mismatch` from `combine` can then only come from a partner that skipped its own check. Making it final removes the cheap way to force the retry (K14).
+   - *The tolerance is signed, not a constant.* Each device puts its tolerance in milliseconds in its `SEED_HASH`, next to `sr`, before any gap is sent. Its own check uses that value, and `combine` checks each transcript's offset against the tolerance its signer signed. Both checks read the same signed offset against the same signed tolerance, so an honest device can never fail the second one, on any platform. A browser can sign a looser value than a phone. Today the live app takes the tolerance from server config (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/RunFlow.kt:256` passes `popt2.selfOsTolMs`); in v2 the app picks it and signs it. 50 ms is the suggested default. `server/pop/constants.py` marks it as a value still to be measured on devices, so stage 3 sets the defaults per platform. The value is not in the circuit: the circuit's `delta` (2 ms) is a different number.
+   - *A cheater that signs a huge tolerance gains nothing.* It can already report any offset it likes, since the offset is reported, not recomputed (K14). A reader or consumer that cares rejects a log whose signed tolerance is above its own limit, the same way it sets a minimum grade (H3).
+
+   ```mermaid
+   sequenceDiagram
+       participant H as Honest device
+       participant D as Cheater
+       H->>D: SEED_HASH (rate, tolerance 50 ms)
+       D->>H: SEED_HASH (rate, tolerance D picks)
+       Note over H,D: sounds, recordings, seeds, gap hashes
+       H->>D: GAP_VALUE (honest gap, offset 3 ms)
+       D->>H: GAP_VALUE (any gap, offset 200 ms)
+       Note over H: combine checks each offset against<br/>the tolerance its signer signed
+       alt D's offset is over D's own tolerance
+           Note over H: final FAIL, NOT_NEAR, no retry
+       else D signed a tolerance large enough to pass
+           Note over H: normal verdict. D gained nothing:<br/>it could already report any offset
+       end
+   ```
+
+   ```mermaid
+   flowchart TD
+       A[Device measures its offset] --> B{"Own check: offset within<br/>its own signed tolerance?"}
+       B -- no --> C["Local FAIL before any gap is sent:<br/>a retry is safe, nothing leaked"]
+       B -- yes --> E[Sign and send GAP_VALUE]
+       E --> F{"combine: offset within<br/>the same signed tolerance?"}
+       F -- "always yes for an honest device" --> G[Normal verdict]
+       F -- "no: the device skipped its own check" --> H[Final FAIL, NOT_NEAR]
+   ```
 2. **After both gaps are sent, `impossible_flight` retries only when the device's own check of the partner's attestation gave the `app` grade (H3).** Each device decides this for itself, so the `FAIL` it signs says what it decided:
    - A device that holds both `GAP_VALUE`s for attempt 0 and gets `impossible_flight` signs `FAIL` with the `retry` bit on only if its own check of the partner passed. Otherwise it signs `FAIL` with the `retry` bit off, and the session ends NOT_NEAR.
    - A partner's retry `FAIL` after the device's own `GAP_VALUE` is answered (`partner_failed`) only when the device holds both `GAP_VALUE`s and the pair gives `impossible_flight`, as F10 says today. With no pair held there is no answer. When there is one, its `retry` bit is on if the device's own check of the partner passed and off if not.
@@ -92,8 +122,8 @@ These stay as accepted and are not reopened here: v2 does not defend against mod
 - Only not showing the gap at all comes close to closing K3 and K4: computing the verdict by 2PC (H2). Even then a forced retry leaks one bit, and K4 mostly closes, as listed there.
 
 **If accepted.**
-- *Spec:* `ATTEST` in 2.2 (optional, after `JOIN`, before confirm, content exempt from the body-check rule), and 2.2's "sends nothing before confirm" gets the `ATTEST` exception. F7 requires the local self check to be `combine`'s check, with 50 ms as a constant. F10: a `self_timestamp_mismatch` from `combine` is final; after the own `GAP_VALUE`, an `impossible_flight` `FAIL` and a `partner_failed` answer carry the `retry` bit only with `app` grade on the partner's `ATTEST` by the device's own check, else the bit is off. Section 4: the `after_gap` rule of Decision 4, and the `peer` rule for counting an `ATTEST`. K3, K4, K14 and the warning at the top rewritten. QUESTIONS Q8 updated.
-- *Lean (`protocol/`):* the grade is an abstract function (no X.509 in Lean). `Device.lean`: `envOk` accepts `ATTEST` before the tap and drops it after; `act .gapHash` checks `selfOsOk` on its own `selfOs` before it signs the transcript, and signs a local-failure `FAIL` instead when the check fails (today it signs `loc.selfOs` unchecked, so the Lean honest device can itself cause a `self_timestamp_mismatch`); `pairRetry` drops `selfTs` and reads the grade for `impossible`; the `retry` bit of the `FAIL` signed in `act .fail` and in the `partner_failed` answer of `recv` comes from the same test. `Verdict.lean` is unchanged: it returns `selfTs`, and the retry decision lives in `pairRetry`. The blind-gap property (FP3) gets the grade in its retry clause.
+- *Spec:* `ATTEST` in 2.2 (optional, after `JOIN`, before confirm, content exempt from the body-check rule), and 2.2's "sends nothing before confirm" gets the `ATTEST` exception. F2: `SEED_HASH` carries the device's tolerance next to `sr`. F7 requires the local self check to be `combine`'s check against that signed tolerance. Section 4: `combine` checks each offset against its signer's tolerance. F10: a `self_timestamp_mismatch` from `combine` is final; after the own `GAP_VALUE`, an `impossible_flight` `FAIL` and a `partner_failed` answer carry the `retry` bit only with `app` grade on the partner's `ATTEST` by the device's own check, else the bit is off. Section 4: the `after_gap` rule of Decision 4, and the `peer` rule for counting an `ATTEST`. K3, K4, K14 and the warning at the top rewritten. QUESTIONS Q8 updated.
+- *Lean (`protocol/`):* the grade is an abstract function (no X.509 in Lean). `Device.lean`: `envOk` accepts `ATTEST` before the tap and drops it after; `SEED_HASH` carries a tolerance and `selfOsOk` takes it as a parameter; `act .gapHash` checks `selfOsOk` on its own `selfOs` against its own signed tolerance before it signs the transcript, and signs a local-failure `FAIL` instead when the check fails (today it signs `loc.selfOs` unchecked, so the Lean honest device can itself cause a `self_timestamp_mismatch`); `pairRetry` drops `selfTs` and reads the grade for `impossible`; the `retry` bit of the `FAIL` signed in `act .fail` and in the `partner_failed` answer of `recv` comes from the same test. `Verdict.lean` is unchanged: it returns `selfTs`, and the retry decision lives in `pairRetry`. The blind-gap property (FP3) gets the grade in its retry clause.
 - *TLA+ (`tla/Pairing.tla`):* each device gets a constant "my check of the partner passed", which may differ between the two devices (stale revocation list, a browser).
   - Today the stand-in `Combine` gives `selfTiming` for the pair (2, 2) from honest values, and the model has no local check. To stand for Decision 1, `Combine` (or `Vals`) changes so that honest values never give `selfTiming`.
   - `FAIL` messages get a bit that can be 0. Today the `Msg` comment says it is always 1 and that no final failure happens between honest devices. That stops being true.
@@ -326,7 +356,7 @@ To measure:
 8. If 2PC is ever built: bytes, rounds and time over the data channel on a phone and browser pair, and whether any library builds for wasm and for Android and iOS.
 
 To decide:
-9. Making a `self_timestamp_mismatch` from `combine` final, with 50 ms as a protocol constant (H1, Decision 1). Not yet decided by the owner.
+9. The default tolerance per platform (phone, browser), from stage 3 measurements of the self offset after calibration (H1, Decision 1).
 10. Who runs the registry multisig, the timelock length, the maximum age of a registry entry, and how often the Android revocation list is mirrored. What the maximum age of a device's cached list is.
 11. Whether a browser security key with `packed` attestation should count as `hardware`. It needs WebAuthn's signature format in the protocol and the circuit, and a touch on the key for each signed message.
 12. Whether a consumer that sets a minimum above `unchecked` should also require the per-session `ATTEST` statement on chain (cheap for iOS: one P-256 check of the assertion; Android needs certificate parsing), or only the registration.
