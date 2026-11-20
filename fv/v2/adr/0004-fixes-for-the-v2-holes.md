@@ -1,0 +1,365 @@
+# ADR 0004: fixes for the holes v2 opened by removing the server
+
+Status: proposed. Nothing here is in [`spec.md`](../spec.md), the Lean models or the TLA+ model yet. Each section says what would change in them if the owner accepts it.
+
+Claims marked *(not verified)* rest on reasoning, a secondary source, or a source that was not fetched. Claims marked *(untested)* were never run on a device. *(inference)* marks a conclusion drawn here from sources that don't state it.
+
+## Context
+
+In v1 the server did more than carry messages. It hid each phone's gap until both were in, so a retry showed nobody the other gap (rule M6 of the v1 server spec). It held the only full record and signed the verdict, so no phone could keep a NEAR the other never saw. It kept the clock, so `t0` and the session age were real times. It knew which app it was talking to, as far as it checked at all. And it stored the session, so a phone that restarted could not sign twice.
+
+v2 ([ADR 0001](0001-direct-webrtc-link-and-plain-words.md)) removed the server. Every one of those jobs moved to the two devices, and some didn't fit. The holes, with their ids in [`spec.md`](../spec.md) section 7:
+
+| Hole | Spec id | In one line |
+|---|---|---|
+| H1 | K3 (and K14, K4) | A cheater forces a retry after both gaps are sent and then knows the honest gap. |
+| H2 | FN1, K10 | The last device to send its `GAP_VALUE` already holds the full result, and a cheater can show a NEAR log the honest device never saw. |
+| H3 | Q3, section 1 ("every key is just a key") | Nothing says who or what is on the other end: a stock app, a modified app, a script. |
+| H4 | K7, section 3 row C6 | A cheater keeps no clock, so nothing in a log says when the session ran. |
+| H5 | section 4, K3 last sentences, K12 | A log can be trimmed: a reader can't tell that it is the whole session. |
+| H6 | K17 | A NEAR log has no expiry and no stated purpose. |
+| H7 | K18 | A device that restarts mid-session forgets what it signed. |
+| H8 | K19 | The gate on `SEED_VALUE` reads a wall clock, not the end of the capture. |
+
+These stay as accepted and are not reopened here: v2 does not defend against modified apps by default; attestation and proofs stay optional for implementers; two cheating devices are out of scope.
+
+**Words used below.**
+- A *retry after the gaps* is a move to attempt 1 after both `GAP_VALUE`s of attempt 0 were sent.
+- An honest session is *lost* when two honest devices end it without NEAR although they were near.
+- The *grade* of a device is what a check of its attestation shows (H3). The key grades are `unchecked`, `hardware` and `app`.
+- The `retry` bit is the one bit in a `FAIL` body, as today: is the reason a retry reason. The `after_gap` bit is a different bit, in the new `AGREE` body (H2): did the signer move to attempt 1 after sending its own `GAP_VALUE` for attempt 0.
+
+**Other terms.**
+- *Attestation:* a certificate chain or signed statement from the platform (Apple, Google) saying that a key lives in secure hardware, and sometimes which app made it.
+- *X.509:* the usual certificate format. *CBOR:* a binary data format; App Attest packs its attestation in it.
+- *Root certificate:* the certificate at the top of a chain, built into the checker. Below, "root" alone always means this.
+- *TEE:* a separate, isolated part of the phone's main processor that holds keys. *StrongBox:* a separate secure chip for the same job.
+- *RKP:* remote key provisioning. Google sends a device short-lived attestation keys over the network, in place of one key put in at the factory.
+- *Keybox:* a device maker's factory attestation key and its certificates.
+- *aaguid:* a 16-byte id in an attestation that names the kind of authenticator. App Attest uses it to tell the production environment from development.
+- *`packed`:* a WebAuthn attestation format in which a security key signs with a key shared by its model.
+- *Multisig:* a contract that acts only when several named keys sign. *Timelock:* a forced delay between a decision and its effect, so others can see it coming.
+- *UltraHonk:* the proof system of the Noir toolchain (barretenberg). *Groth16:* a proof system with small proofs that are cheap to check on chain. *SP1, RISC0:* systems that prove a program ran correctly. Automata wraps their proofs in Groth16.
+- *DCAP:* Intel's attestation for its secure enclaves. *Nitro:* AWS's attestation for its enclaves.
+- *COOP, COEP:* two HTTP headers that make a page cross-origin isolated, which browsers require before page threads can share memory.
+
+## H1: a forced retry leaks the honest gap (K3)
+
+**Problem.** After both `GAP_VALUE`s for attempt 0, each device knows the other's gap. A cheater can force attempt 1 by sending a gap that gives `impossible_flight`, or a `self_os_delta` out of tolerance that gives `self_timestamp_mismatch` (K14). In attempt 1 it already knows the honest gap within jitter, which brings back v1's planted-speaker attack with the guess removed.
+
+**Decision.**
+
+1. **A self timing mismatch from `combine` becomes final, never a retry, and each device signs its own tolerance.** Accepted by the owner.
+   - *Why it is safe.* The stock app checks its own `self_os_delta` before it signs a transcript and fails locally when it is out of tolerance (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/dsp/PopRound2.kt:63`, the same inequality as `server/pop/verdict.py` `self_os_ok` with cal 0, and as `selfOsOk` in `protocol/ProtoFv/Verdict.lean`). Calibration is already folded into the signed offset (spec section 4), so the tolerance covers only what is left: jitter. A `self_timestamp_mismatch` from `combine` can then only come from a partner that skipped its own check. Making it final removes the cheap way to force the retry (K14).
+   - *The tolerance is signed, not a constant.* Each device puts its tolerance in milliseconds in its `SEED_HASH`, next to `sr`, before any gap is sent. Its own check uses that value, and `combine` checks each transcript's offset against the tolerance its signer signed. Both checks read the same signed offset against the same signed tolerance, so an honest device can never fail the second one, on any platform. A browser can sign a looser value than a phone. Today the live app takes the tolerance from server config (`app/composeApp/src/commonMain/kotlin/com/enconomy/pop/RunFlow.kt:256` passes `popt2.selfOsTolMs`); in v2 the app picks it and signs it. 50 ms is the suggested default. `server/pop/constants.py` marks it as a value still to be measured on devices, so stage 3 sets the defaults per platform. The value is not in the circuit: the circuit's `delta` (2 ms) is a different number.
+   - *A cheater that signs a huge tolerance gains nothing.* It can already report any offset it likes, since the offset is reported, not recomputed (K14). A reader or consumer that cares rejects a log whose signed tolerance is above its own limit, the same way it sets a minimum grade (H3).
+
+   ```mermaid
+   sequenceDiagram
+       participant H as Honest device
+       participant D as Cheater
+       H->>D: SEED_HASH (rate, tolerance 50 ms)
+       D->>H: SEED_HASH (rate, tolerance D picks)
+       Note over H,D: sounds, recordings, seeds, gap hashes
+       H->>D: GAP_VALUE (honest gap, offset 3 ms)
+       D->>H: GAP_VALUE (any gap, offset 200 ms)
+       Note over H: combine checks each offset against<br/>the tolerance its signer signed
+       alt D's offset is over D's own tolerance
+           Note over H: final FAIL, NOT_NEAR, no retry
+       else D signed a tolerance large enough to pass
+           Note over H: normal verdict. D gained nothing:<br/>it could already report any offset
+       end
+   ```
+
+   ```mermaid
+   flowchart TD
+       A[Device measures its offset] --> B{"Own check: offset within<br/>its own signed tolerance?"}
+       B -- no --> C["Local FAIL before any gap is sent:<br/>a retry is safe, nothing leaked"]
+       B -- yes --> E[Sign and send GAP_VALUE]
+       E --> F{"combine: offset within<br/>the same signed tolerance?"}
+       F -- "always yes for an honest device" --> G[Normal verdict]
+       F -- "no: the device skipped its own check" --> H[Final FAIL, NOT_NEAR]
+   ```
+2. **After both gaps are sent, `impossible_flight` retries only when the device's own check of the partner's attestation gave the `app` grade (H3).** Each device decides this for itself, so the `FAIL` it signs says what it decided:
+   - A device that holds both `GAP_VALUE`s for attempt 0 and gets `impossible_flight` signs `FAIL` with the `retry` bit on only if its own check of the partner passed. Otherwise it signs `FAIL` with the `retry` bit off, and the session ends NOT_NEAR.
+   - A partner's retry `FAIL` after the device's own `GAP_VALUE` is answered (`partner_failed`) only when the device holds both `GAP_VALUE`s and the pair gives `impossible_flight`, as F10 says today. With no pair held there is no answer. When there is one, its `retry` bit is on if the device's own check of the partner passed and off if not.
+   - A partner `FAIL` with the `retry` bit off ends the session on the other device too (spec 2.1). So when the two checks disagree (one device grades its partner `app`, the other doesn't), the device that refuses tells the other at once, and nobody waits for the 600 s end.
+   - A retry before any `GAP_VALUE` (a local measurement failure, `time`, a timeout before the own `GAP_VALUE`) stays as it is.
+
+   This enforces one thing: the honest device's own check. D sets its own `retry` and `after_gap` bits as it likes, so equal bits in a log don't show that D checked anything. What matters is that the honest device refuses a retry after the gaps unless it graded D `app`. Between two honest devices, the bit-off `FAIL` makes such a retry need both devices' consent.
+3. **A new optional session message, `ATTEST`, on the link after `JOIN` and before the confirm tap.**
+   - Body: a platform tag, a static binding of the device key `pk_X` (made once per install), and a statement tied to `sid` (made per session).
+   - It uses the common form of spec 2.1: tag `ATTEST`, attempt 0, one slot per role. It answers no message.
+   - It is the one message an honest device sends and accepts before its person's confirm tap. Today spec 2.2 says an honest device sends nothing for attempt 0 before the tap, and the Lean `envOk` (`protocol/ProtoFv/Device.lean`) drops every message before the tap. Both get this exception. The TLA+ model has no `ATTEST`: it models only the result of the check, as a constant per device (below).
+   - It is accepted only before the tap. After the tap the slot is closed, and a late `ATTEST` is dropped like any message that is not expected.
+   - Its content is exempt from 2.1's body-check rule. An `ATTEST` that passes the envelope checks (tag, signature, `sid`, role, attempt, `peer`) is accepted, goes into `seen` and the log, and never causes a `FAIL`. Its content only sets the grade. An absent `ATTEST`, or one whose content fails the check, gives the `unchecked` grade.
+   - The partner checks it on the spot, with no network, against root certificates built into the app. The grade is fixed at the tap, and the confirm screen shows it ("partner: attested Android app").
+   - A reader counts an `ATTEST` only when the partner's `AGREE` (H2) covers it in its `peer`. Otherwise D could add its own `ATTEST` to a log after the session, when the honest device had accepted none, and a reader would grade D above what the honest screen showed. The honest `AGREE` covers every `ATTEST` the honest device accepted. D can leave the honest `ATTEST` out of its own `AGREE`'s `peer`, which lowers the grade of the session in every log; D could get the same by not answering at all.
+   - *Expiry of the static binding.* The once-per-install binding stops passing a check of its validity dates soon after it is made. Apple's sample attestation object has a leaf certificate valid for 3 days, under an intermediate valid for years (decoded from the sample in https://developer.apple.com/documentation/devicecheck/attestation-object-validation-guide). Google says RKP certificates are short-lived and their validity must still be checked (https://developer.android.com/privacy-and-security/security-key-attestation). An Android key's chain is fixed when the key is made *(not verified)*. So a partner checks the static binding as of the time it was made (the leaf's start of validity), not as of now, and takes freshness from the per-session statement. On iOS the statement is an App Attest assertion, which carries no certificate, so nothing in it expires. On Android it is a fresh attested key with its own chain, checked at the session time. Checking the static chain at its start date goes against Google's advice for RKP chains. The per-session chain, which is checked live, is what answers that advice *(inference)*. Re-attesting often and rotating `pk_X` are under "Options not taken".
+4. **A reader takes the retry rule from the honest device's `AGREE`, and does not recheck it.** With H2, every NEAR log holds the honest device's `AGREE`. Its `after_gap` bit says whether the signer moved to attempt 1 after sending its own `GAP_VALUE` for attempt 0. An honest device only does that after its own check of the partner passed (Decision 2). So the rule is enforced by the honest device at the time of the session, with its own root certificates, revocation list and clock.
+   - `verify` requires both `AGREE`s to carry the same `after_gap` bit, and returns it.
+   - `verify` checks that the bit fits the log: a log with `AGREE`s for attempt 1 and any `GAP_VALUE` for attempt 0 needs the bit on.
+   - What a reader does with it: a consumer that accepts no retry after the gaps rejects a session with the bit on. A consumer that accepts one relies on the honest device's check at the session time. It can also set its own minimum grade by H3, which is a separate check at its own time (H3, Decision 6).
+   - The `ATTEST`s stay in the log as evidence.
+
+**Which attestation works between two devices, with no server in the run.**
+
+| Platform | Works peer to peer | How | Limits |
+|---|---|---|---|
+| iOS, App Attest | yes *(untested between two phones)* | Once per install, `attestKey` with `clientDataHash = SHA256("pop-bind" ‖ pk_X)`. This one call needs Apple's server. Per session, `generateAssertion` over `SHA256("pop-attest" ‖ sid ‖ pk_X)`. Apple's docs name a server call only for `attestKey`, so the assertion should work offline *(not verified)*. The partner checks the chain to Apple's App Attestation root as of the leaf's start date (Decision 3), the nonce, that `SHA256(TeamID.BundleID)` is on its list of allowed apps (H3), the production `aaguid`, the validation category (App Store or TestFlight), and the assertion's P-256 signature. Sources: https://developer.apple.com/documentation/devicecheck/establishing-your-app-s-integrity , https://developer.apple.com/documentation/devicecheck/validating-apps-that-connect-to-your-server | Not on Mac, Mac Catalyst or iOS apps on Apple silicon (https://developer.apple.com/documentation/devicecheck/dcappattestservice/issupported). Keys don't survive reinstall or restore. Apple says a device with a modified OS may bypass it (https://developer.apple.com/documentation/devicecheck/assessing-fraud-risk). Apple's sample attestation object is 5906 bytes, and its leaf certificate is valid for 3 days. App Attest attests its own key. `pk_X` is a separate Secure Enclave key that the genuine app vouches for. |
+| Android, key attestation | yes *(untested between two phones)* | `pk_X` is a Keystore key made with an attestation challenge, its chain sent once. Per session, a throwaway attested key whose challenge is `H("pop-attest" ‖ sid ‖ pk_X)`. Made on the device, offline, while the RKP key pool holds keys. The partner checks the per-session chain at the session time, and `pk_X`'s chain as of its start date (Decision 3). Both go to Google's roots (Google's page lists two: the old RSA-4096 one and a newer P-384 one with a start date; it says devices that launch with Android 16 support only RKP, but not which root RKP chains use; a secondary source says only the new one *(not verified)*). It also checks security level TEE or StrongBox, `Verified` boot, a locked bootloader, that the package name and signing-cert digest are on its list of allowed apps (H3), and a cached revocation list. Google's Kotlin library (https://github.com/android/keyattestation) takes roots, revoked serials and a time source as inputs, so it can run on the partner. It is built for the JVM (Kotlin JVM plugin, BouncyCastle, Guava), so it runs in the Android app but not in the iOS app. Source: https://developer.android.com/privacy-and-security/security-key-attestation | The revocation list at https://android.googleapis.com/attestation/status is plain JSON with no signature, so a device must cache it and state a maximum age. A leaked keybox passes until Google revokes it. Google says RKP certificates are short-lived and their validity period must still be checked; they last up to about two months, so the device must have been online in that window *(from a Google blog post, current figure not checked)*. Per-session key generation time not measured. |
+| Android, Play Integrity | no | | Google does not support decrypting the token on the client. Both request types need a server call (https://developer.android.com/google/play/integrity/classic). |
+| iOS, Private Access Tokens | no | | The token goes to an origin server after an HTTP 401 challenge, not to page code (https://blog.cloudflare.com/eliminating-captchas-on-iphones-and-macs-using-new-standard/). |
+| Browser, WebAuthn | at most `hardware`, never `app`, and only if open question 11 says yes | A security key with `packed` attestation proves an authenticator model. | Synced passkeys return no attestation (https://web.dev/articles/webauthn-aaguid). No WebAuthn format proves which page or app ran. The origin in `clientDataJSON` is only as honest as the browser *(inference)*. Google dropped Web Environment Integrity. WebAuthn signs `authData ‖ clientDataHash`, a different format from the protocol's signatures. Each assertion needs a touch on the key, so signing a session's messages would take about 9 touches per device *(not verified)*. |
+
+**Where the owner's direction can't work as stated.** "Browser WebAuthn or whatever works" gives a browser no `app` grade. So a phone-with-browser run never gets a retry after the gaps. That is the plain rule "no retry once gaps are sent" for every run with a browser in it.
+
+**Cost.** One `ATTEST` per device per session, a few KB (iOS about 6 KB, the Android chain not measured). A verifier per platform in each app, for both platforms, since an iPhone checks an Android partner and the other way round. On Android, Google's library covers the Android chain. The iOS app needs its own X.509 chain parser and parser of Android's attestation extension, as well as its own CBOR and X.509 code for App Attest. The Android app needs App Attest code too. Bundled root certificates, a list of allowed apps, and a cached Android revocation list. Lost honest sessions: an honest run without `app` grade on both sides that gets `impossible_flight` after the gaps ends NOT_NEAR. How often that happens is unknown until stage 3.
+
+**What it does not fix.**
+- *The gap still leaks, and the cheater can use it in a new session (K4).* D doesn't even need to force anything. The honest device sends its `GAP_VALUE` as soon as it holds D's `GAP_HASH` (F8b). So D can be the last sender: it reads the honest gap and walks away, sending no `GAP_VALUE` and no `FAIL`. The honest device has no timeout after its own `GAP_VALUE` and waits for the 600 s end. The two people scan new QR codes, and D uses the gap in the new session. That costs D one more confirm tap from the honest person, and nothing else. QUESTIONS Q8 says the gap comes from the distance and the audio delays of the two devices, not from the code, so it carries over to a new session at the same spot *(inference: how stable the gap is across sessions was never measured)*. So Decisions 2 and 3 move the attack from attempt 1 to a second session, at no extra cost to D. They do not close it, and they are worth only what that second confirm tap is worth.
+- *Attestation only raises the cost.* A jailbroken iPhone, a rooted Android with a leaked keybox, or a broken TEE still reads the honest gap and uses it, in a retry or in a new session.
+- Only not showing the gap at all comes close to closing K3 and K4: computing the verdict by 2PC (H2). Even then a forced retry leaks one bit, and K4 mostly closes, as listed there.
+
+**If accepted.**
+- *Spec:* `ATTEST` in 2.2 (optional, after `JOIN`, before confirm, content exempt from the body-check rule), and 2.2's "sends nothing before confirm" gets the `ATTEST` exception. F2: `SEED_HASH` carries the device's tolerance next to `sr`. F7 requires the local self check to be `combine`'s check against that signed tolerance. Section 4: `combine` checks each offset against its signer's tolerance. F10: a `self_timestamp_mismatch` from `combine` is final; after the own `GAP_VALUE`, an `impossible_flight` `FAIL` and a `partner_failed` answer carry the `retry` bit only with `app` grade on the partner's `ATTEST` by the device's own check, else the bit is off. Section 4: the `after_gap` rule of Decision 4, and the `peer` rule for counting an `ATTEST`. K3, K4, K14 and the warning at the top rewritten. QUESTIONS Q8 updated.
+- *Lean (`protocol/`):* the grade is an abstract function (no X.509 in Lean). `Device.lean`: `envOk` accepts `ATTEST` before the tap and drops it after; `SEED_HASH` carries a tolerance and `selfOsOk` takes it as a parameter; `act .gapHash` checks `selfOsOk` on its own `selfOs` against its own signed tolerance before it signs the transcript, and signs a local-failure `FAIL` instead when the check fails (today it signs `loc.selfOs` unchecked, so the Lean honest device can itself cause a `self_timestamp_mismatch`); `pairRetry` drops `selfTs` and reads the grade for `impossible`; the `retry` bit of the `FAIL` signed in `act .fail` and in the `partner_failed` answer of `recv` comes from the same test. `Verdict.lean` is unchanged: it returns `selfTs`, and the retry decision lives in `pairRetry`. The blind-gap property (FP3) gets the grade in its retry clause.
+- *TLA+ (`tla/Pairing.tla`):* each device gets a constant "my check of the partner passed", which may differ between the two devices (stale revocation list, a browser).
+  - Today the stand-in `Combine` gives `selfTiming` for the pair (2, 2) from honest values, and the model has no local check. To stand for Decision 1, `Combine` (or `Vals`) changes so that honest values never give `selfTiming`.
+  - `FAIL` messages get a bit that can be 0. Today the `Msg` comment says it is always 1 and that no final failure happens between honest devices. That stops being true.
+  - A new step signs `FAIL` with bit 0 when a device holds an `impossible` pair after the gaps and its check failed. It can't hang off `PairAsksRetry` alone, which only says when a retry is asked for. The `partner_failed` answer takes its bit from the same constant. A device that accepts a bit-0 `FAIL` ends.
+  - `WantsRetry`, `Final` and `WaitsForFail` read every signed `FAIL` as a retry `FAIL` today. They must tell bit 0 from bit 1.
+  - `Agreement`, `Liveness` and `StuckExplained` must still hold with the two checks disagreeing. Whether a new stuck shape appears is untested; the model run will say. Unequal checks alone should not give NEAR on one device and NOT_NEAR on the other, because the `impossible` pair is the same on both *(inference)*.
+  - One new mutant: a retry after the gaps without the check, which must fail a new reach check.
+
+## H2: the last device to send its gap holds the result (FN1, K10)
+
+**Problem.** The spec (section 3 row C18, FP3) says the last device to send its `GAP_VALUE` holds the full log. That device can compute NEAR and stop answering, so it holds a NEAR log and the other doesn't. Worse, a cheater can send a bad `GAP_VALUE`, let the honest device sign a final `FAIL`, and later show a reader a log with its good `GAP_VALUE` and without that `FAIL` (K10). The log then says NEAR for a session the honest device ended as NOT_NEAR.
+
+**Decision.**
+
+1. **A new message `AGREE`, and a NEAR counts only with both.**
+   - When to sign: a device that holds both `GAP_VALUE`s for attempt k, where `combine` of that pair gives NEAR, signs `AGREE`. The guard is the pair's `combine` result, not the device's outcome, so it does not depend on the partner's `AGREE`.
+   - Body: the outcome (NEAR), `k`, and the `after_gap` bit (H1): whether the signer moved to attempt 1 after sending its own `GAP_VALUE` for attempt 0.
+   - It uses the common form. It answers the partner's `GAP_VALUE` for k, so its `peer` covers that `GAP_VALUE` and every other partner message the signer accepted in the session. That `peer` is what ties the `AGREE` to the partner's transcript.
+   - It is the last thing a device signs in the session.
+2. **`Outcome` for a reader,** for the last attempt k in the log:
+   1. If both `GAP_VALUE`s for k pass the F8 checks, `combine` gives NEAR, and both `AGREE`s for k are in the log with equal bodies, each passing the usual `peer` check (its `peer` is `H` of a set of partner messages in the log that holds the partner's `GAP_VALUE` for k): NEAR, whatever `FAIL`s for k the log also holds. This is safe because an honest device never signs both `AGREE` and `FAIL` for the same k. So if the honest `AGREE` is there, the honest device saw NEAR, and any `FAIL` for k is D's.
+   2. Else, a `FAIL` for k gives NOT_NEAR, as today's step 1.
+   3. Else, as today's step 2, except that NEAR by `combine` with fewer than two `AGREE`s reads as "NEAR seen, not agreed", which a reader treats as no NEAR.
+3. **On a device:**
+   - A device whose pair gives NEAR and that signed its own `AGREE` is in the state "NEAR seen, not agreed" until the partner's `AGREE` arrives, then "NEAR agreed".
+   - After its own `AGREE` for k it signs nothing else for the session (no `FAIL`, no timeout).
+   - After its own `AGREE` for k it accepts only the partner's `AGREE` for k. Any other partner message, a `FAIL` included, is dropped. Without this, D could send `AGREE` and then a `FAIL` with the `retry` bit off: spec 2.1 accepts such a `FAIL` at any point, and the Lean `recv` accepts it whenever the `FAIL` slot is free. The honest log would then read NOT_NEAR while D kept a log without its `FAIL` that verifies as NEAR.
+   - If the partner's `AGREE` never comes, the device ends in "NEAR seen, not agreed".
+   - One case is left: D sends a retry `FAIL` after its `GAP_HASH` and then its `GAP_VALUE`. The honest device accepts the `FAIL` (it holds no pair yet, so it doesn't answer, F10), then the `GAP_VALUE`, and signs `AGREE` on the NEAR pair. Its log then reads NOT_NEAR by step 2 unless D's `AGREE` arrives, and its state is "NEAR seen, not agreed". Both mean no NEAR to a reader, and the honest device did sign NEAR. So a log D keeps with both `AGREE`s does not contradict it.
+
+**Why `AGREE` binds by `peer`, and not by a hash of the messages its signer sent.** A hash of every message its signer had signed, which the reader compares with that role's messages in the log, rejects honest logs. A device's log holds only the partner messages it accepted (F11). Take two honest devices: B's bounds check on A's `TIME` for attempt 0 fails, B signs `FAIL(time)`, and that `TIME` never enters B's log (spec 2.1: a message that fails a body check goes into neither `seen` nor the log). Attempt 1 gives NEAR. A's hash counts the `TIME` for attempt 0, B's log doesn't have it, so B's log fails the rule and only A could show NEAR. The same happens for any signed message the partner dropped. `peer` doesn't have this problem: it names only what the signer accepted, and that is exactly what is in the signer's log.
+
+**What the two `AGREE`s fix in a log.** The honest `AGREE`'s `peer` fixes every message of D that the honest device accepted (HASH). Each of those carries its own `peer`, which fixes the honest messages D accepted. What stays free: honest messages D says it never accepted, and D's own messages the honest device never accepted. The second kind can only add a D `FAIL`, which by step 1 can't undo a NEAR with both `AGREE`s, and otherwise makes the log NOT_NEAR (K12) and harms nobody but D. The first kind is in H5.
+
+**What K10 becomes.** An honest device that signed a final `FAIL` signs nothing after it, so it never signs `AGREE`. The cheater's NEAR log lacks the honest `AGREE` and is rejected. Closed, for a reader that runs the full `verify` (with the `peer` checks).
+
+**What FN1 becomes.** Still there, but it no longer contradicts the honest device. Whoever receives the second `AGREE` first can keep it and stop answering: it holds a NEAR log that verifies, and the other device holds "NEAR seen, not agreed". But the other device did see NEAR and did sign it. With Decision 3, nothing D sends after the honest `AGREE` moves the honest device off that state. So the kept log does not say something the honest device disagrees with.
+
+This research found no protocol that removes this. What the reader needs is both `AGREE` signatures, so the last step is an exchange of two signatures in which either both devices end up with both or neither does. That is fair exchange, and fair exchange between two parties is widely held to need a trusted third party: Even and Yacobi, later Pagnia and Gärtner, "On the impossibility of fair exchange without a trusted third party" *(neither paper fetched; known from citing papers)*. One paper, "Two Party Fair Exchange", claims strong fairness with no third party under computational assumptions (https://eprint.iacr.org/2023/585, read only in its abstract; its construction was not checked against this use). The related results on computing a function fairly don't settle it either way: Cleve showed that fair coin tossing is impossible when one party can stop early (https://lepo.it.da.ut.ee/~swen/courses/crypto-ii/2008/cleve1986.pdf). Gordon, Hazay, Katz and Lindell showed that some functions can be computed fairly (https://eprint.iacr.org/2008/303). Their abstract covers functions on input sets of polynomial size, including some whose output table contains an XOR pattern (two inputs per side where the output flips like XOR), which Cleve's argument was thought to rule out. Their protocols for those need more rounds than the logarithm of the security parameter. The gap's input set is small: a capture is 2.5 s at no more than 96 kHz, so a gap is under 240,000 samples, below 2^18. So near-or-not may fall in the kind of function they cover, but whether it has a fair protocol under their conditions was not worked out *(inference from the abstract)*. Either way, the two-signature exchange stays.
+
+**The owner's question: can two-party computation (2PC) compute the verdict so neither side sees the other's gap?** Yes, and the computation is tiny, but it is not recommended for core v2 now.
+
+- *The circuit.* The two rates are public before any gap (signed in `SEED_HASH`). So A can compute `x = 34300 · sr_B · half_A` and B `y = 34300 · sr_A · half_B` on their own, and `34300 · N = x - y` (`fv/v2/protocol/ProtoFv/Verdict.lean`). The verdict is which interval `x - y` falls in, against the public bounds `-40 · sr_A · sr_B` and `120 · sr_A · sr_B`. That is one 64-bit subtraction and two compares, about 200 to 350 AND gates *(estimate)*. The self checks stay local (H1, Decision 1).
+- *How it runs.* In garbled circuits, one side (the garbler) encrypts the circuit's gate tables, and the other evaluates them on its own input without learning the garbler's input. *Semi-honest* garbling is safe only if both sides follow the protocol. *Authenticated garbling* adds checks so that a side that deviates learns nothing beyond the output.
+- *Size.* About 9 KB of tables with semi-honest garbling, about 0.2 MB with authenticated garbling, a few messages over the data channel, which takes 64 KB messages without negotiation (https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API/Using_data_channels) *(estimates from per-gate costs in https://eprint.iacr.org/2014/756 and https://acmccs.github.io/papers/p21-wangA.pdf, nothing run)*. Tying the inputs to a hash commitment inside the circuit adds 22,573 AND per SHA-256 block (https://nigelsmart.github.io/MPC-Circuits/). A one-block commitment per side costs about 45k AND in total, and `GAP_HASH` as it is today (7 blocks per side) about 316k.
+- *It needs security against a deviating side.* The cheater it stops runs modified code by definition. With semi-honest garbling, a cheating garbler can garble a different function and leak chosen bits of the honest gap. Dual execution (each side garbles once, and the two outputs are compared) lets a cheater learn at most one extra bit of its choice, at the risk of being caught when the comparison fails (https://www.cs.virginia.edu/evans/pubs/oakland2012/; the abstract says one bit and does not discuss detection). Authenticated garbling leaks nothing beyond the output.
+- *It does not remove the leak completely while a retry exists.* On a forced `impossible_flight` retry the cheater learns that the honest value is above a threshold it picked, not the gap. An informal argument says that raises a guessing cheater's chance by at most a factor of two *(not modeled)*.
+- *It does not remove `AGREE`.* The verdict still has to be exchanged as two signatures (above).
+- *The reader loses the recheck.* Gaps are no longer in the log, so a reader can't recompute `combine` and has to trust the two `AGREE`s. In return, K4 (gap reuse across sessions) mostly closes.
+- *Libraries are not ready.* The two browser-ready authenticated-garbling packages, emp-wasm and mpc-framework, are archived (https://github.com/privacy-scaling-explorations/emp-wasm , https://github.com/privacy-scaling-explorations/mpc-framework; both now redirect to the privacy-ethereum organization). mpz now redirects to tlsnotary/mpz2, which is scoped to TLSNotary and says not to use it in production (https://github.com/privacy-scaling-explorations/mpz). polytune names no audit (https://github.com/sine-fdn/polytune). emp-ag2pc says it is an AI-assisted rewrite, not yet audited (https://github.com/emp-toolkit/emp-ag2pc).
+
+So 2PC goes into the roadmap as a later, optional mode in which the verdict is computed by 2PC. It needs its own message sequence, not designed here, because H2's `AGREE` answers the partner's `GAP_VALUE` and comes last, while in this mode no `GAP_VALUE` comes before the verdict. What the sequence must do: after both `GAP_HASH`s, run authenticated garbling on inputs that the circuit itself ties to those `GAP_HASH`s (the SHA-256 cost above, or a one-block commitment in place of today's `GAP_HASH`); treat any stop after the inputs as final; then an agreement message that answers the partner's last 2PC message; and, if a reader should be able to recompute, a later reveal of both `GAP_VALUE`s with its own rule for what each device signs after its agreement message. Its payoff: a retry without attestation at a one-threshold-bit leak, and gap privacy across sessions. Measure on a real phone and browser pair before building.
+
+**Cost of the decision.** One more message per device. A reader checks two more signatures and their `peer`s. Nothing new is kept on a device.
+
+**What it does not fix.** The exchange of the two `AGREE`s above (FN1). NOT_NEAR still needs no agreement, so either side can still end a session NOT_NEAR (K12).
+
+**If accepted.**
+- *Spec:* `AGREE` in 2.3 (after `GAP_VALUE`, only when the held pair gives NEAR). F10: nothing signed after the own `AGREE`. 2.1: after its own `AGREE` a device accepts only the partner's `AGREE`; the sentence that a bit-off partner `FAIL` is always accepted gets this exception. Section 4 `Outcome` and `verify` as in Decisions 2 and 3, with the two-`AGREE` step first; "NEAR seen, not agreed" as a new result. FP5 and FP6 restated. FN1 and K10 rewritten.
+- *Lean:* `Device.lean` gets the `AGREE` step, guarded on `combine` of the held pair being NEAR, "nothing signed after `AGREE`", and in `recv` "only the partner's `AGREE` accepted after the own `AGREE`" (today the `.fail` branch accepts a bit-off `FAIL` whenever `envOk` passes). `Log.lean` `outcomeAt` gets the two-`AGREE` check ahead of the `FAIL` check. New lemmas: a device signs `AGREE` for k only when it holds both `GAP_VALUE`s for k and `combine` of them is NEAR; a device that signed `AGREE` for k never signs or accepts a `FAIL` for k; a log `verify` accepts as NEAR holds an `AGREE` under each pinned key, and under SIG and HASH every message of D that the honest device accepted is the one in the log. That replaces the "does not give" note of FP6 about K10.
+- *TLA+:* an `AGREE` send and receive step, and the device states "NEAR seen, not agreed" and "NEAR agreed". `Outcome` takes the new step order. `Agreement` restated: no honest device is in "NEAR agreed" while the other holds NOT_NEAR. `NearStays` restated on "NEAR agreed". A new reach check: after a link close, one device holds both `AGREE`s and the other only its own. A mutant that signs `AGREE` after its own `FAIL` must fail `Agreement`.
+
+## H3: no check of who or what is on the other end
+
+**Problem.** In the core every key is just a key. A reader can't tell a stock app from a modified app from a script, and a consumer that wants more has no defined place to ask for it. The owner's idea: one verifier contract judges how strong the evidence is and gives a level; each consumer picks the minimum it accepts.
+
+**Decision.**
+
+1. **Two grades per side, not one ordered list.** The owner's list (plain key, hardware-backed key, app attestation, proof of recording) mixes two things that don't order. A laptop browser may be able to prove its recording (see "Proof grade" below) but can never reach `app`. An attested phone may attach no proof. A single ordered list would have to rank one above the other. So:
+   - *key grade:* `unchecked` (a signature only, nothing about the device checked), `hardware` (an Android chain at TEE or StrongBox, not revoked; a browser security key with `packed` attestation only if open question 11 says yes), `app` (the `hardware` checks plus the app checks: on iOS the production `aaguid`, App Store or TestFlight category, and `SHA256(TeamID.BundleID)` on the checker's list of allowed apps; on Android `Verified` boot, a locked bootloader, and the package name and signing-cert digest on the checker's list of allowed apps).
+   - *proof grade:* `none` or `circuit` (a proof from the phone circuit, its public inputs pinned to the transcript).
+2. **Who holds the list of allowed apps.** Anyone can ship an attested app, so `app` means "an app on the checker's list ran on a device the platform vouches for", not "the stock rule ran". v2 is a library with many implementers, so the core keeps no list. Each app ships a list for its own live check (H1), by default its own app id. Each consumer sets its own list next to its minimum grade; on chain, the registry stores the app id hash and the consumer compares it with its list.
+3. **A session's grade is the weaker side, for the key grade and the proof grade separately.** `verify` returns it next to `sid`, `ctx` and the outcome. Each consumer sets a minimum for each of the two grades. The closest existing patterns are World ID's verification levels, where an on-chain consumer pins the group in its contract (https://docs.world.org/world-id/id/on-chain), and the Play Integrity labels (https://developer.android.com/google/play/integrity/verdict). No on-chain verifier was found that grades certificate evidence this way.
+4. **On chain, a key registry with one-time registration by proof.** Parsing a whole certificate chain in the session verifier does not fit: App Attest's intermediate and Android's newer root are P-384, which has no precompile. Espresso's docs give about 63M gas to check an AWS Nitro attestation in plain Solidity "when no certificates had been previously verified", without naming the curve or the number of checks (https://docs.espressosys.com/network/concepts/rollup-developers/integrating-an-optimistic-rollup/zk-attestation-verification); Automata's Nitro README describes that chain as six P-384 checks. That is above the 16,777,216 per-transaction cap of EIP-7825 (https://eips.ethereum.org/EIPS/eip-7825). A cheaper route was not measured: the App Attest intermediate is shared by every device, so a contract could check it once and keep it, and then check one P-384 leaf signature per registration in plain Solidity. The gas of one P-384 check in Solidity is unknown (open question 5). The projects found that check such chains on chain prove them in ZK against a root registry run by an owner or an oracle: Automata (Nitro 220,333 and 257,741 gas per check, https://github.com/automata-network/aws-nitro-enclave-attestation ; Intel DCAP 493k with SP1 and 522k with RISC0, https://github.com/automata-network/automata-dcap-attestation), zkPassport (roots with valid-from and valid-to, a revoke call, a pause, https://github.com/zkpassport/zkpassport-packages/blob/main/packages/registry-contracts/src/RegistryInstance.sol), Self (an operations role sets the root, intermediates registered once by proof, https://github.com/selfxyz/self/blob/main/contracts/contracts/registry/IdentityRegistryImplV1.sol), ZK Email's key registry (https://ercs.ethereum.org/ERCS/erc-7969). So:
+   - `register(pk_X, proof)`: one proof per device key that its chain reaches a pinned root certificate and binds `pk_X`. Public outputs: the hash of `pk_X`, platform, app id hash, key grade, root certificate id, serial hashes checked against the hash of the revoked-serial list (a Merkle root), and an expiry. Noir fits: zkPassport's `noir-ecdsa` covers P-256 and P-384 (https://github.com/zkpassport/noir-ecdsa).
+   - *Expiry.* Each entry has one. The chain behind a registration expires (3 days for Apple's sample leaf, short-lived RKP certificates on Android), so the registry sets the entry's expiry from the registration time and its own maximum age, and the session verifier rejects an expired entry at submission. Renewal takes fresh evidence that the same `pk_X` is still held by an allowed app: on Android a fresh attested key whose challenge binds `pk_X`, as in a session; on iOS an App Attest assertion over `pk_X` under the App Attest key the entry already names *(inference, not designed in detail)*.
+   - Gas of registration: an UltraHonk verifier for a 2^20 circuit measured 2,729,069 execution gas in the repo (`research/worldid/notes/onchain-zk/optA-noir.md`, `phone_opt`). A registration circuit is a different circuit and was not built, so take about 2.7M gas per registration as the order of size, unless the proof is wrapped in Groth16, which is where Automata's few-hundred-thousand figures come from *(inference)*.
+   - Root certificates and the revoked-serial hash are set by a multisig behind a timelock, with a pause. A revocation can lower a registered key's grade.
+   - The session verifier reads both keys' grades and expiries from the registry when the result is submitted. It never parses a certificate.
+5. **How the contract checks each grade.**
+
+| Grade | What the contract checks per session | Gas |
+|---|---|---|
+| key `unchecked` | A reduced verifier, not the full `verify`. Inputs: `sid`'s preimage, both `AGREE`s, both `GAP_VALUE` messages, and for each `AGREE` the list of message hashes behind its `peer`. Checks: the two `AGREE` signatures; equal `AGREE` bodies with outcome NEAR; each `AGREE`'s `peer` list hashes to its `peer` and holds the hash of the partner's `GAP_VALUE` message; the two `GAP_VALUE` signatures; `combine` on the two transcripts gives NEAR. The `GAP_VALUE` signature covers `t`, so `sig_t` needs no separate check here; it does where a proof is pinned to `t` *(inference)*. It never sees a `FAIL`. Its NEAR rule is the full `verify`'s step 1 (H2, Decision 2), where two valid `AGREE`s give NEAR whatever `FAIL`s the log holds, so on the logs it accepts the two give the same outcome. What it gives up against the full `verify`: it relies on the honest device's live checks of the partner's messages (its `AGREE` vouches for them) and does not recheck the seeds, the codes (`code_commit`), the earlier messages or their order. A full `verify` of a NEAR on attempt 0 checks 18 signatures (`JOIN`, 13 attempt messages, 2 `sig_t`, 2 `AGREE`), or 20 with both `ATTEST`s, plus the platform checks of the `ATTEST`s. With P-256 device keys, each signature is one call to the P256VERIFY precompile at 0x100 (https://eips.ethereum.org/EIPS/eip-7951). | 4 × 6,900 for the signatures on mainnet (6 × 6,900 with `sig_t`), 3,450 each on chains with RIP-7212 pricing, plus calldata and hashing *(estimate, not measured)* |
+| key `hardware`, `app` | The registry entry for each key: its grade, not revoked, not expired, and for `app` an app id hash on the consumer's list. | storage reads per session; registration once per key and at each renewal, about 2.7M gas with an UltraHonk proof (above) |
+| proof `circuit` | Each side's proof against the circuit's verifier contract, with public inputs pinned to that side's transcript (stage 4, K13). | 2,729,067 execution gas per phone proof for the current phone circuit (`research/worldid/notes/onchain-zk/optA-noir.md`) |
+
+6. **When a grade is checked.** A grade depends on the time of the check: RKP certificates are short-lived and their validity must still be checked (Google's key-attestation page), and revocation lists grow. So a grade is a function of five inputs: the `ATTEST` or registry entry, the root certificates, the revocation list, the list of allowed apps, and a check time. Every reader states all five. An off-chain reader uses the time of the block in `ctx` (H4) when the log has one; without one it uses the time it read the log and says so. On chain, the registry grade is read when the result is submitted, which falls inside H4's block window but later than the block in `ctx`. A revocation or an expiry after a session can lower the grade a later reader computes; it can't change the outcome, and the retry rule of H1 is not rechecked (H1, Decision 4).
+7. **Off chain, the same rule as a library.** A reader that is not a contract runs the platform checks itself, with its own root certificates, revocation list and list of allowed apps. With the same five inputs, the check time included, it gets the same grades as the contract. With the block time of `ctx` as its check time it can differ from the contract, which checks at submission.
+
+**The registry is a trusted party, for root certificates and revocation only.** It never sees a session or decides a verdict. That matches QUESTIONS Q3: an attestation service is trusted only for keys. The core stays as it is: a run needs no registry, and a key with no registration is `unchecked`.
+
+**Proof grade, and the browser.** The current phone circuit (`research/worldid/prototypes/optA-noir/noir/phone`, 972,858 gates, a 2^20 circuit) has native numbers in the repo only (`research/worldid/notes/onchain-zk/optA-noir.md`): peak memory footprint 1.57 to 1.61 GB, 8.9 to 11.1 s to prove with all threads, 25.00 s on one thread. No run of bb.js's wasm backend, in Node or a browser, is recorded in the repo. A laptop browser can probably prove the circuit, more slowly than native. Proving in a phone browser is out of scope. Threads need cross-origin isolation (https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer), and without them it runs on one thread, slower than the 25 s native single-thread time *(inference, not run)*.
+- *QUESTIONS Q2.* Its "25 s, 1.74 GB" doesn't match the bench note. 25 s is the note's single-thread laptop time, and also the top of its estimate for a flagship Android phone (about 20 to 25 s, `optA-noir.md`). The 1.74 GB appears only in QUESTIONS Q2 and `fv/ROADMAP.md`, and no measurement in the repo supports it; the note says about 1.6 GB peak.
+
+**Cost.** A registry contract, a registration circuit per platform (App Attest chain, Android chain on two roots), renewals, and someone to run the multisig. Registration links a key to a device type on chain. Proving a P-384 chain on a phone is not measured.
+
+**What it does not fix.** The grades are only as strong as Apple's and Google's attestation (see H1, "does not fix"). A grade says what kind of key and app signed, not that the audio was real. Without a proof, NEAR still means two keys signed two numbers.
+
+**If accepted.**
+- *Spec:* section 1 ("Nothing in the middle") gets one sentence: the registry is outside the run and only consumers read it. A new section on grades, the list of allowed apps, expiry and the check time. `verify` returns the grade pair. QUESTIONS Q2, Q3 and Q4 updated (Q4 says the browser has no prover).
+- *Lean:* `verify` returns the grade pair, from an abstract grade function of an `ATTEST` or registry entry, root certificates, revocation list, list of allowed apps and check time, so `verify` stays a pure function of its inputs (FP6). One lemma: each grade of the session is the weaker of the two sides' grades. No X.509 or registry in Lean.
+- *TLA+:* nothing beyond H1's retry guard.
+- *Contracts:* the registry and the session verifier are new code outside `fv/`. Not part of the v2 models.
+
+## H4: a cheater keeps no clock
+
+**Problem.** Each honest device runs on its own clock, and `t0` sits only in A's `TIME`. A cheater keeps no clock at all. So a log carries no time a reader can trust: not when it started, not when it ended.
+
+**Decision.**
+
+1. **Start: a recent block number and hash in `ctx`, filled by the consumer.** The consumer puts the number `n` of a recent block and its hash into the `ctx` it hands to A's app (H6). A block hash can't be known before its block. So once the consumer has checked the hash against the chain (Decision 3), the session started after block `n`, whichever device cheats. Before that check the bound means nothing: when D is A, `ctx` holds whatever D put in the `INVITE`. A cheater as A, or a consumer working with it, can only pick an older real block, which widens the window, and the consumer's own check catches a block that is too old. B's app checks the hash only if it knows the layout and has a view of the chain. Otherwise it checks nothing about the block, and the consumer's check is what counts. Whoever produces block `n` knows its hash slightly before everyone else, which moves the start by at most that much *(inference)*.
+2. **End: the block that includes the result**, when a consumer submits it on chain. The session ended before that block.
+3. **The consumer checks the window.** A contract requires `n < block.number`, `block.number - n` within its own maximum age, and a nonzero hash, then compares the hash with `ctx`. The nonzero check matters: `BLOCKHASH` returns 0 for the current block, future blocks and blocks more than 256 back, so a `ctx` with hash 0 would otherwise match *(EVM rule, not fetched)*. `BLOCKHASH` reaches 256 blocks back, about 51 minutes at 12 s blocks and about 8.5 minutes at 2 s. The history contract of EIP-2935 reaches 8191 blocks back, about 27 hours at 12 s and about 4.5 hours at 2 s, and its `get` reverts out of range (https://eips.ethereum.org/EIPS/eip-2935). A longer window needs the consumer to store the hash itself.
+4. **Only on chains with real block hashes.** On Arbitrum, `blockhash(x)` "returns a cryptographically insecure, pseudo-random hash", and `block.number` is an estimate of the parent chain's block number (https://docs.arbitrum.io/build-decentralized-apps/arbitrum-vs-ethereum/solidity-support). There "a block hash can't be known before its block" and the `n < block.number` check don't hold. H4 applies only where `BLOCKHASH` and the EIP-2935 contract return the chain's real block hashes, and a consumer must check that for its chain.
+
+**Where the owner's direction can't work as stated.** The end bound exists only for a result submitted on chain. An off-chain reader gets the start bound and nothing better than "when I received the log" for the end. And the consumer has to reach A with a fresh `ctx` before pairing, even though the run itself stays on the local link.
+
+**Cost.** The consumer fetches one block hash per session. Thirty-two bytes and a number in `ctx`.
+
+**What it does not fix.** It bounds the whole session from outside. Nothing inside the session (`t0`, the capture) becomes checkable time. A window of many blocks is still a window: a log made early in it and submitted late passes. A reorganization of the chain that drops block `n` makes an honest result fail the hash check; a consumer can pick a block a few blocks deep to make that rare *(inference)*.
+
+**If accepted.**
+- *Spec:* the recommended `ctx` layout (H6) names the block number and hash, and says the consumer fills them and which chains they work on. Section 3 row C6 and K7 point to it.
+- *Lean, TLA+:* nothing. The window is the consumer's check on returned data.
+
+## H5: a log can be trimmed
+
+**Problem.** `verify` judges the log it is shown and can't tell it is the whole session. A cheater can drop the honest `GAP_VALUE` of attempt 0, so a forced retry (K3) looks like an honest failure, or drop attempt 1 to turn a NEAR into NOT_NEAR.
+
+**Decision.** H2 narrows this, but a log is still not the whole session. One cheater, not two, so every NEAR log holds the honest device's `AGREE`. Its `peer` fixes every message of D the honest device accepted, and their `peer`s fix the honest messages D accepted (H2, "What the two `AGREE`s fix in a log"). A log missing any of those fails the `peer` checks.
+
+What stays free are honest messages that D accepted but no `peer` of D's ever names. A `peer` only has to cover the message in the "answers" column (spec 2.1), so D chooses which accepted messages its `peer`s name. For example, D's `GAP_VALUE` for attempt 0 answers the honest `GAP_HASH`, and D's `FAIL` answers nothing. So D can keep the honest `GAP_VALUE` for attempt 0 out of every `peer` it signs, and drop it from the log. The honest messages of attempt 1 cover only D's messages. The same holds for the honest `ATTEST`.
+
+What a reader can still rely on is the `after_gap` bit in the honest `AGREE`. It says the honest device moved to attempt 1 after its own `GAP_VALUE`, even when the log leaves out that `GAP_VALUE`, so the forced-retry case (K3) stays visible. `verify` returns the bit, and H1 Decision 4 says what a reader does with it.
+
+**What it does not fix.** A NEAR log is the honest device's agreement plus the messages its `peer` and D's `peer`s name, not the whole session. A trimmed log can still read NOT_NEAR. That gives the cheater nothing it couldn't get with its own `FAIL` (K12).
+
+**If accepted.** Covered by H2's changes and H1 Decision 4. Section 4's paragraph "`verify` judges the log it is shown" says what a NEAR log does and does not cover. K3's last sentences ("a reader can't rule the case out") point to the `after_gap` bit.
+
+## H6: a NEAR log has no expiry and no purpose (K17)
+
+**Problem.** `ctx` goes into `sid`, but the spec never says what it holds, and `verify` does not return it. So a NEAR log can be kept and shown later, or for another purpose than the one the honest person confirmed.
+
+**Decision.**
+
+1. **`ctx` is bytes the consumer supplies, all of them,** when A is honest. When D is A, `ctx` is whatever D put in the `INVITE`, and only the consumer's own checks (Decision 3) catch a wrong one. The protocol does not read `ctx`. It goes into `sid` as today, so every signature covers it. A's app only passes it on; the block fields of H4 are the consumer's too.
+2. **Both screens show it before the confirm tap.** A puts `ctx` in the `INVITE` QR code, so B sees exactly what A committed to. An app shows the purpose in the consumer's own words, so the purpose has to be in `ctx` as short text, not as a hash: a hash can't be turned back into words for the screen. So the protocol does not read `ctx`, but the app does: it decodes the recommended layout (Decision 4). For a `ctx` it can't decode, it says the purpose can't be read and shows the bytes in hex, and the person decides.
+3. **`verify` returns `ctx`** next to `sid`, the outcome and the grades (H3). The consumer decodes it, checks its own challenge and the purpose, and checks the age (H4).
+4. **A recommended layout for on-chain consumers:** chain id, consumer contract address, the purpose as short text, a consumer challenge, and the block number and block hash of H4. The consumer marks `sid` as used (FN3). v1's `server/pop/popctx.py` had chain id, consumer address, `ctxHash`, `notBefore` and the session id; the challenge and the block are new.
+
+**Cost.** Some bytes in both QR codes: `ctx` is in the `INVITE` and again in the `JOIN` (F1b). ADR 0001 lists QR size as untested. Only A carries `ctx` into the session, so a consumer has to reach A before pairing, also when it serves the person holding B.
+
+**What it does not fix.** A consumer that doesn't check `ctx` gets no protection. The app can't tell a well-formed purpose from a misleading one: the screen shows what A put in the `INVITE`. That stays safe for a consumer that checks its own challenge and purpose.
+
+**If accepted.**
+- *Spec:* F1 table says what `ctx` is, who fills it, that both screens show it, and what an app shows for a layout it can't decode. Section 4: `verify` returns `ctx`. K17 rewritten.
+- *Lean:* `verify`'s result gets `ctx`; FP6 says it is the `ctx` inside `sid`. FP4 unchanged.
+- *TLA+:* nothing.
+
+## H7: a restart forgets what was signed (K18)
+
+**Problem.** Agreement rests on rules a device keeps in its own state: one `FAIL` per attempt, no timeout after its own `GAP_VALUE`, nothing after its own `FAIL`. A device that restarts and reloads a partial session without its sent messages can break them, and two TLA+ mutants show that this gives NEAR on one honest device and NOT_NEAR on the other.
+
+**Decision.** Never restore a session after a restart, on any platform. The running session's state (what was sent and accepted, the current attempt) and its randoms live in memory only. After a restart the app holds no running session, so it has nothing to answer and signs nothing for the old `sid`. That is what protects the old session. It can't rely on `sid` being lost: `r_A`, `r_B` and `ctx` are in the QR codes and the log, and the signing key persists, so a restarted device could compute the old `sid`. Losing the seeds and blinds only stops it from sending the old `SEED_VALUE`s and `GAP_VALUE`s. The link dies with the process. New QR codes start a new session with new randoms, so a new `sid` (FP4).
+
+A log with a result is stored, or a NEAR would be lost with the process. Once a device has signed its own `AGREE` or its final `FAIL`, it has nothing left to sign, so it writes the log to storage then, and again when the partner's `AGREE` arrives. The stored log is a record only: the app never resumes a session from it.
+
+- *Android, iOS:* no session state in saved instance state or state restoration. A process the OS killed in the background comes back with no running session. On Android an activity is created again when the screen rotates, so the session state must live outside the activity, or a rotation would end the session.
+- *Browser:* a reload starts empty. A page restored from the back/forward cache (where the browser keeps a page in memory after the user navigates away) comes back with its memory, so the page must end the session when it is hidden (`pagehide`) and drop it when `pageshow` reports `persisted` (https://web.dev/articles/bfcache). Some browsers already refuse to cache a page with an open WebRTC connection; this must not be relied on.
+
+**Cost.** A restart costs the session, unless the restarted device had already stored a result. The partner times out (before its own `GAP_VALUE`) or waits for the 600 s end (after it), unless it already holds a result, for example both `GAP_VALUE`s and both `AGREE`s.
+
+**What it does not fix.** A modified app can do anything, including restore. That is out of scope.
+
+**If accepted.**
+- *Spec:* 2.1 gets the rule above, and says that a finished log is stored as a record. K18 named two fixes: store each message and reload the session after a restart, or sign nothing more for its `sid`. This takes the second, without storing the running session. K18 says closed by "never restore".
+- *Lean:* a `restart` input that ends the device's old session for good (`done`), with no way back to a state that signs under the old `Cfg`. A new session is a new `Cfg` with a fresh `r`. One lemma: after a restart the device signs no message under the old `Cfg`. It rests on that state, not on the randoms being lost.
+- *TLA+:* nothing new. `SessionEnd(d)` sets `over[d]` and keeps the rest of the state, and `Running` needs `~over[d]` (`tla/Pairing.tla`). So it models a device that stops for good, not one that loses its memory or starts fresh. Under "never restore" a restarted device signs nothing more for the old session, which is stopping for good, so that is the case to check, and `Agreement` and `NearStays` already hold with it. `MutantTimeoutAfterGapValue` and `MutantSignAfterFail` stay as the picture of what a restore without memory does.
+
+## H8: the seed gate reads a wall clock (K19)
+
+**Problem.** FP1's gate on `SEED_VALUE` is the device's own clock past `t0 + 2.0 s`, and `t0` comes from A's wall clock. A wall clock can jump forward, after a time sync or by hand, and open the gate before the capture ended. Nothing ties the gate to the recorder.
+
+**Decision.**
+
+1. **Wall time only crosses the link.** A fixes its monotonic deadline when it creates `TIME`: it reads the wall clock and the monotonic clock together, as one pair, then picks `t0_mono = mono_now + 5 s` and sends `t0 = wall_now + 5 s`. B converts `t0` once, on receiving `TIME`, from one paired read: `t0_mono = mono_now + (t0 - wall_now)`. Reading the two clocks at different moments, with a time sync in between, gives a wrong `t0_mono`. B's bounds check on `t0` stays on wall time. Every later gate and timeout reads the monotonic clock. The live `ATTEST` check (H1) also reads the wall clock, for certificate dates; that is outside the gates.
+2. **`REC_HASH` waits for the recorder.** None of the capture paths the app uses (Android `AudioRecord`, iOS `AVAudioEngine`, a web `AudioWorklet`) has a general capture-finished event. Each hands frames to the app *(from platform API knowledge, not run)*. So the gate is the app's own count: the frames the recorder has delivered since the capture started reach the planned 2.5 s at `sr`. Frames arrive in real time, so the frame count is a second clock the system time can't move. The monotonic clock past `t0_mono + 2.0 s` stays as a second condition. This is a contract on the recorder code: it must count delivered frames and report when the count is reached.
+3. **One monotonic clock per platform, the one the audio timestamps use:**
+   - Android: `System.nanoTime` (`CLOCK_MONOTONIC`, the base of `AudioTimestamp`). Android's `SystemClock` page says `uptimeMillis` stops in deep sleep and is the basis of `System.nanoTime` (https://developer.android.com/reference/android/os/SystemClock). The app calls it at `app/composeApp/src/androidMain/kotlin/com/enconomy/pop/AudioEngine.android.kt:37`.
+   - iOS: the app calls `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (`app/composeApp/src/iosMain/kotlin/com/enconomy/pop/Platform.ios.kt:46-47`). That is the clock behind `mach_absolute_time` and `AVAudioTime`'s host time, and it stops in sleep *(not verified)*.
+   - Browser: `performance.now()` (https://developer.mozilla.org/en-US/docs/Web/API/Performance/now), used by the web app at `app/composeApp/src/wasmJsMain/kotlin/com/enconomy/pop/Platform.web.kt:41`. MDN says the spec requires it to keep ticking in sleep, and that only browsers on Windows do.
+
+   Android's `elapsedRealtime` (`CLOCK_BOOTTIME`) and iOS's `mach_continuous_time` are not used, because the audio timestamps are on the clocks above, and the gates should read the same base. A clock that stops in sleep only makes a gate open later, and one that keeps ticking only moves at real speed. Neither opens a gate before the capture ended, and FP1 rests on the frame count anyway.
+
+**Cost.** No new message. The recorder code must count frames and report the count. A recorder that drops frames never reaches the planned count, so that attempt ends in a local failure or a timeout, a retry reason, where today it would go on.
+
+**What it does not fix.** A modified app can fake frames. The gate protects honest devices from their own clocks, which is all FP1 claims.
+
+**If accepted.**
+- *Spec:* F4 and F5 as above, with the paired clock read and the frame-count contract. Section 6's model shape gets a "capture done" input from the recorder. K19 closed.
+- *Lean:* `Device.lean` gets a `captureDone` input. `REC_HASH` needs it as well as the clock. FP1 adds "and the recorder had reported the capture done". The Lean clock still moves forward by any amount in one tick, so it is not evidence of elapsed time. FP1's new strength comes from `captureDone`, not from the clock.
+- *TLA+:* `CaptureOver` becomes the recorder's event. No property changes.
+
+## Options not taken
+
+- **Play Integrity or Private Access Tokens between the devices.** Both need a server call every session (H1 table).
+- **A fresh App Attest key per session**, with the partner's challenge. Needs Apple's server at session time, and Apple counts attested keys per device as a fraud signal (https://developer.apple.com/documentation/devicecheck/assessing-fraud-risk).
+- **Re-attesting `pk_X` often, so the static binding stays inside its validity dates.** Needs the network every few days, on iOS Apple's server, and raises the same key-count signal. An Android key can't be attested again after it is made *(not verified)*.
+- **Rotating `pk_X` when its attestation expires.** Changes the key that readers pin.
+- **Parsing the whole certificate chain in the session verifier.** P-384 has no precompile, so the cost is in the millions to tens of millions of gas *(inference from the 63M Nitro figure, which counts no cached certificates)*. A shared intermediate checked once and one P-384 leaf check per registration may fit; it is unmeasured (H3, Decision 4).
+- **One ordered list of evidence levels.** Ranks a browser with a proof against a phone with attestation and no proof, which don't compare (H3).
+- **2PC in core v2 now.** Weak libraries, still needs `AGREE`, needs its own message sequence, and the reader loses the recheck (H2). Kept as a later optional mode.
+- **Semi-honest 2PC.** A cheating garbler leaks chosen bits of the honest gap (H2).
+- **Both devices jointly proving the pair without revealing gaps** (a collaborative proof). Research-grade.
+- **One agreement hash over the whole session, or a hash of the messages each signer sent.** Both reject honest logs, because a device's log holds only the partner messages it accepted, and two honest devices can sign messages the other never accepts (H2). `AGREE` binds by `peer` instead.
+- **Storing every message before sending and reloading the session after a restart** (the first fix K18 named). Needs storage that survives a crash on three platforms and a reload path that is itself a source of bugs. "Never restore" gives the same safety.
+- **Never retrying after the gaps, for everyone.** It stops the retry inside a session, but not the same attack one session later (K4, H1 "What it does not fix"), and it costs every honest attested pair the retry. It remains the rule for any run without `app` grade on both sides.
+
+## Open questions
+
+To measure:
+1. Does `generateAssertion` work with no network, and does App Attest verification work between two phones (iOS with iOS, iOS with Android)? Is every App Attest leaf valid for 3 days, as in Apple's sample?
+2. Android: time to make an attested key per session (TEE and StrongBox), chain size in bytes, the current lifetime of RKP certificates, and which root RKP chains end in.
+3. How often an honest run gives `impossible_flight` after the gaps (stage 3). That is the cost of H1 in lost honest sessions for runs without `app` grade.
+4. How much the gap changes between two sessions at the same spot with the same two devices. That says how much K4 gives a cheater after H1.
+5. Gas of the reduced session verifier (four or six P-256 checks, the `peer` lists, `combine`), of a verifier for a registration circuit, and of one P-384 signature check in plain Solidity.
+6. Proving a P-384 chain with CBOR and X.509 parsing in Noir on a phone: time, memory, size.
+7. bb.js on the phone circuit, with a recorded run, in a real laptop browser, with the wasm memory peak. Whether the web app can run cross-origin isolated (COOP and COEP) without breaking its own resources.
+8. If 2PC is ever built: bytes, rounds and time over the data channel on a phone and browser pair, and whether any library builds for wasm and for Android and iOS.
+
+To decide:
+9. The default tolerance per platform (phone, browser), from stage 3 measurements of the self offset after calibration (H1, Decision 1).
+10. Who runs the registry multisig, the timelock length, the maximum age of a registry entry, and how often the Android revocation list is mirrored. What the maximum age of a device's cached list is.
+11. Whether a browser security key with `packed` attestation should count as `hardware`. It needs WebAuthn's signature format in the protocol and the circuit, and a touch on the key for each signed message.
+12. Whether a consumer that sets a minimum above `unchecked` should also require the per-session `ATTEST` statement on chain (cheap for iOS: one P-256 check of the assertion; Android needs certificate parsing), or only the registration.
+13. Whether Apple publishes any revocation for App Attest certificates. None was found.
+14. The exact `ctx` layout, and the longest purpose text both screens can show.
+15. Correcting the "25 s, 1.74 GB" figure in QUESTIONS Q2 and in `fv/ROADMAP.md` (decision 2). The bench note says about 1.6 GB peak; 25 s is its single-thread laptop time and the top of its flagship Android estimate.

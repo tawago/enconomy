@@ -12,6 +12,7 @@ The link and the words follow [ADR 0001](adr/0001-direct-webrtc-link-and-plain-w
 - [`QUESTIONS.md`](QUESTIONS.md): the design choices, the owner's decisions, and what changes if one is picked otherwise. Q7 and Q16 wait for stage 3.
 - [`adr/`](adr/0001-direct-webrtc-link-and-plain-words.md): ADR 0001, the direct WebRTC link and the words.
 - [`adr/0002`](adr/0002-plain-names-in-the-lean-models.md): ADR 0002, plain names in the Lean models (proposed).
+- [`adr/0004`](adr/0004-fixes-for-the-v2-holes.md): ADR 0004, proposed fixes for the holes removing the server opened: K14 closed; K3 only with an attested partner, and the leak moves to a later session (K4); K10 closed and FN1 narrowed; K17, K18, K19; attestation grades and a time window. Not in the spec or the models yet.
 - [`protocol/`](protocol/README.md): one honest device as a state machine, the reader's `verify`, and FP1 to FP6. Plain Lean, no Mathlib.
 - [`zkp/`](zkp/README.md): the v2 rule as a pure function at one lag. Score ceiling, silence rejected, gain route closed. Lean with Mathlib.
 - [`tla/`](tla/README.md): two honest devices together, in TLA+, checked with TLC. Agreement, the link closing, finishing, the timeout and retry rules. No crypto. See [ADR 0003](adr/0003-tla-for-two-devices.md).
